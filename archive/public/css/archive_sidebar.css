@@ -1,0 +1,1455 @@
+/* ============================================================
+   ARCHIVE SIDEBAR
+   الأرشفة
+   Frappe v16
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+) {
+	/* =========================
+	   Design Tokens
+	   ========================= */
+
+	--ba-bg: #0d1734;
+	--ba-bg-deep: #0b132b;
+	--ba-surface: #111f42;
+	--ba-surface-hover: #17294f;
+	--ba-border: rgba(255, 255, 255, 0.075);
+
+	--ba-text: #f8fafc;
+	--ba-text-soft: #cbd5e1;
+	--ba-text-muted: #8390aa;
+
+	--ba-blue: #3b82f6;
+	--ba-indigo: #6366f1;
+	--ba-purple: #8b5cf6;
+
+	--ba-cyan: #14b8a6;
+	--ba-green: #22c55e;
+	--ba-orange: #f59e0b;
+
+	--ba-radius: 11px;
+	--ba-icon-radius: 8px;
+
+
+	position: relative;
+
+	background:
+		radial-gradient(
+			circle at 80% -10%,
+			rgba(99, 102, 241, 0.24),
+			transparent 34%
+		),
+		linear-gradient(
+			180deg,
+			#101c3d 0%,
+			var(--ba-bg) 46%,
+			var(--ba-bg-deep) 100%
+		) !important;
+
+	color: var(--ba-text);
+
+	border-inline-end:
+		1px solid rgba(255, 255, 255, 0.06);
+
+	box-shadow:
+		8px 0 28px rgba(2, 6, 23, 0.08);
+
+	overflow: hidden;
+}
+
+
+/* ============================================================
+   HEADER
+   الأرشفة
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.sidebar-header {
+	position: relative;
+
+	min-height: 94px !important;
+
+	display: flex;
+	align-items: flex-start;
+
+	padding:
+		22px 20px 18px 74px !important;
+
+	margin: 0 0 13px 0 !important;
+
+	background:
+		radial-gradient(
+			circle,
+			rgba(255, 255, 255, 0.16) 1px,
+			transparent 1.5px
+		)
+		right 18px top 10px / 12px 12px,
+		linear-gradient(
+			135deg,
+			rgba(59, 130, 246, 0.08),
+			rgba(139, 92, 246, 0.12)
+		);
+
+	border-bottom:
+		1px solid rgba(255, 255, 255, 0.06);
+
+	color: #fff !important;
+
+	font-size: 18px !important;
+	font-weight: 700 !important;
+}
+
+
+/* شعار الأرشفة */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.sidebar-header::before {
+	content: "◇";
+
+	position: absolute;
+
+	left: 18px;
+	top: 20px;
+
+	width: 42px;
+	height: 42px;
+
+	display: grid;
+	place-items: center;
+
+	border-radius: 12px;
+
+	background:
+		linear-gradient(
+			135deg,
+			#2563eb,
+			#6366f1 55%,
+			#8b5cf6
+		);
+
+	color: #e0f2fe;
+
+	font-size: 27px;
+	font-weight: 800;
+
+	box-shadow:
+		0 9px 22px rgba(79, 70, 229, 0.32),
+		inset 0 1px rgba(255, 255, 255, 0.25);
+}
+
+
+/* الوصف أسفل الاسم */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.sidebar-header::after {
+	content: "إدارة وأرشفة العمليات البنكية";
+
+	position: absolute;
+
+	top: 52px;
+	right: 22px;
+
+	color: #8fa0bc;
+
+	font-size: 11px;
+	font-weight: 450;
+}
+
+
+/* أي أيقونة افتراضية داخل رأس Frappe */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.sidebar-header
+.sidebar-item-icon {
+	display: none !important;
+}
+
+
+/* ============================================================
+   SIDEBAR CONTENT
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.sidebar-items {
+	display: flex;
+	flex-direction: column;
+
+	gap: 3px;
+
+	padding:
+		0 14px 22px 14px !important;
+}
+
+
+/* ============================================================
+   ALL ITEMS
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item {
+	margin: 0 !important;
+
+	border-radius: var(--ba-radius);
+
+	background: transparent;
+
+	transition:
+		background 160ms ease,
+		transform 160ms ease,
+		box-shadow 160ms ease,
+		border-color 160ms ease;
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item
+.item-anchor {
+	min-height: 42px !important;
+
+	display: flex !important;
+	align-items: center !important;
+
+	gap: 11px;
+
+	padding:
+		6px 10px !important;
+
+	border-radius: var(--ba-radius);
+
+	color: var(--ba-text-soft) !important;
+
+	font-size: 13px !important;
+	font-weight: 530 !important;
+
+	text-decoration: none !important;
+
+	transition:
+		background 160ms ease,
+		color 160ms ease,
+		transform 160ms ease,
+		box-shadow 160ms ease;
+}
+
+
+/* ============================================================
+   HOVER
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item:not(.active-sidebar)
+.item-anchor:not(.section-break):hover {
+	background:
+		rgba(255, 255, 255, 0.055) !important;
+
+	color: #fff !important;
+
+	transform: translateX(-2px);
+}
+
+
+/* ============================================================
+   ACTIVE ITEM
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item.active-sidebar {
+	position: relative;
+
+	background:
+		linear-gradient(
+			100deg,
+			#3678f6 0%,
+			#6366f1 50%,
+			#8b5cf6 100%
+		) !important;
+
+	border:
+		1px solid rgba(255, 255, 255, 0.14);
+
+	box-shadow:
+		0 10px 24px rgba(79, 70, 229, 0.30),
+		inset 0 1px rgba(255, 255, 255, 0.14);
+}
+
+
+/* Cyan accent */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item.active-sidebar::before {
+	content: "";
+
+	position: absolute;
+
+	left: 0;
+	top: 8px;
+	bottom: 8px;
+
+	width: 3px;
+
+	border-radius:
+		0 8px 8px 0;
+
+	background: #22d3ee;
+
+	box-shadow:
+		0 0 12px rgba(34, 211, 238, 0.8);
+
+	z-index: 3;
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item.active-sidebar
+.item-anchor {
+	background: transparent !important;
+
+	color: #fff !important;
+
+	font-weight: 650 !important;
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item.active-sidebar
+.sidebar-item-label {
+	color: #fff !important;
+}
+
+
+/* ============================================================
+   HOME
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.sidebar-items
+> .standard-sidebar-item:first-child {
+	margin-bottom: 8px !important;
+
+	background:
+		rgba(255, 255, 255, 0.035);
+
+	border:
+		1px solid rgba(255, 255, 255, 0.04);
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.sidebar-items
+> .standard-sidebar-item:first-child
+.sidebar-item-icon {
+	width: 31px !important;
+	height: 31px !important;
+
+	display: grid !important;
+	place-items: center;
+
+	flex: 0 0 31px;
+
+	border-radius: var(--ba-icon-radius);
+
+	background:
+		linear-gradient(
+			135deg,
+			#2563eb,
+			#6366f1
+		);
+
+	color: #fff !important;
+
+	box-shadow:
+		0 5px 12px rgba(37, 99, 235, 0.28);
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.sidebar-items
+> .standard-sidebar-item:first-child
+.sidebar-item-icon
+svg {
+	width: 16px !important;
+	height: 16px !important;
+
+	stroke: #fff !important;
+	color: #fff !important;
+}
+
+
+/* ============================================================
+   SECTION BREAKS
+   التشغيل / البيانات الأساسية / الإعدادات
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.section-item {
+	margin:
+		10px 0 0 0 !important;
+
+	padding: 0 !important;
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.section-item
+> .standard-sidebar-item {
+	background: transparent !important;
+
+	border: 0 !important;
+
+	box-shadow: none !important;
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.section-item
+> .standard-sidebar-item
+.item-anchor.section-break {
+	position: relative;
+
+	min-height: 29px !important;
+	height: 29px !important;
+
+	padding:
+		0 4px !important;
+
+	background: transparent !important;
+
+	border-radius: 0 !important;
+
+	color: var(--ba-cyan) !important;
+
+	font-size: 11.5px !important;
+	font-weight: 700 !important;
+}
+
+
+/* خط القسم */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.section-item
+> .standard-sidebar-item
+.item-anchor.section-break::after {
+	content: "";
+
+	height: 1px;
+
+	flex: 1;
+
+	margin-inline-start: 10px;
+
+	background:
+		linear-gradient(
+			90deg,
+			rgba(148, 163, 184, 0.22),
+			transparent
+		);
+}
+
+
+/* عنوان القسم */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.section-item
+> .standard-sidebar-item
+.sidebar-item-label {
+	color: inherit !important;
+
+	font-size: inherit !important;
+	font-weight: inherit !important;
+}
+
+
+/* السهم */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.section-item
+.drop-icon {
+	opacity: 0.55;
+
+	color: #94a3b8 !important;
+
+	transition:
+		transform 180ms ease,
+		opacity 180ms ease;
+}
+
+
+/* ============================================================
+   SECTION COLOR DIFFERENTIATION
+   ============================================================ */
+
+
+/* التشغيل */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.section-item:has(
+	a[href*="archive-operations"]
+)
+.item-anchor.section-break {
+	color: #22d3ee !important;
+}
+
+
+/* البيانات الأساسية */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.section-item:has(
+	a[href*="country"]
+)
+.item-anchor.section-break {
+	color: #22c55e !important;
+}
+
+
+/* الإعدادات */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.section-item:has(
+	a[href*="whatsapp"]
+)
+.item-anchor.section-break {
+	color: #a855f7 !important;
+}
+
+
+/* ============================================================
+   NESTED ITEMS
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container {
+	display: flex !important;
+	flex-direction: column;
+
+	gap: 4px;
+
+	margin:
+		3px 0 0 0 !important;
+
+	padding:
+		0 !important;
+
+	border: 0 !important;
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item {
+	min-height: 43px;
+
+	background:
+		rgba(255, 255, 255, 0.018);
+
+	border:
+		1px solid rgba(255, 255, 255, 0.028);
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item
+.item-anchor {
+	min-height: 43px !important;
+
+	padding:
+		5px 8px !important;
+
+	font-size: 12.5px !important;
+}
+
+
+/* ============================================================
+   CUSTOM COLORED ICON BLOCKS
+   حتى لو لم نضع icon في Workspace
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container
+.item-anchor::before {
+	width: 30px;
+	height: 30px;
+
+	display: grid;
+	place-items: center;
+
+	flex: 0 0 30px;
+
+	border-radius: var(--ba-icon-radius);
+
+	color: white;
+
+	font-size: 14px;
+	font-weight: 700;
+
+	box-shadow:
+		inset 0 1px rgba(255, 255, 255, 0.18);
+
+	transition:
+		transform 160ms ease,
+		box-shadow 160ms ease;
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container
+.item-anchor:hover::before {
+	transform: scale(1.06);
+
+	box-shadow:
+		0 5px 14px rgba(0, 0, 0, 0.22),
+		inset 0 1px rgba(255, 255, 255, 0.20);
+}
+
+
+/* ============================================================
+   نافذة الطلبات
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+a[href*="view=requests_center"]:not(
+	[href*="open_filters"]
+)::before {
+	content: "▦";
+
+	background:
+		linear-gradient(
+			135deg,
+			#3b82f6,
+			#6366f1
+		);
+}
+
+
+/* ============================================================
+   نافذة التسعير
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+a[href*="view=pricing_center"]::before {
+	content: "↗";
+
+	background:
+		linear-gradient(
+			135deg,
+			#14b8a6,
+			#0d9488
+		);
+}
+
+
+/* ============================================================
+   البحث المتقدم
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+a[href*="open_filters"]::before {
+	content: "⌕";
+
+	background:
+		linear-gradient(
+			135deg,
+			#7c3aed,
+			#9333ea
+		);
+}
+
+
+/* ============================================================
+   إدارة الدول
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+a[href*="/country"]::before {
+	content: "◎";
+
+	background:
+		linear-gradient(
+			135deg,
+			#22c55e,
+			#16a34a
+		);
+}
+
+
+/* ============================================================
+   إدارة المدن
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+a[href*="market-city"]::before {
+	content: "▥";
+
+	background:
+		linear-gradient(
+			135deg,
+			#0ea5e9,
+			#2563eb
+		);
+}
+
+
+/* ============================================================
+   عملات المدن
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+a[href*="city-currency"]::before {
+	content: "$";
+
+	background:
+		linear-gradient(
+			135deg,
+			#f59e0b,
+			#d97706
+		);
+}
+
+
+/* ============================================================
+   المصادر والعملاء
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+a[href*="business-person"]::before {
+	content: "●";
+
+	background:
+		linear-gradient(
+			135deg,
+			#8b5cf6,
+			#7c3aed
+		);
+}
+
+
+/* ============================================================
+   تصنيف المصادر والعملاء
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+a[href*="person-city-role"]::before {
+	content: "⇄";
+
+	background:
+		linear-gradient(
+			135deg,
+			#14b8a6,
+			#0f766e
+		);
+}
+
+
+/* ============================================================
+   WHATSAPP
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+a[href*="whatsapp-settings"]::before {
+	content: "●";
+
+	background:
+		linear-gradient(
+			135deg,
+			#22c55e,
+			#16a34a
+		);
+
+	border-radius: 50%;
+}
+
+
+
+
+/* ============================================================
+   ARCHIVE LINKS
+   أيقونات روابط الأرشفة بنفس نظام التصميم الأصلي
+   ============================================================ */
+
+/* سجل العمليات */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container
+a[href*="archive-operations"]::before {
+	content: "▦";
+
+	background:
+		linear-gradient(
+			135deg,
+			#3b82f6,
+			#6366f1
+		);
+}
+
+
+/* العملاء */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container
+a[href*="archive-customer"]::before {
+	content: "●";
+
+	background:
+		linear-gradient(
+			135deg,
+			#8b5cf6,
+			#7c3aed
+		);
+}
+
+
+/* الحسابات */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container
+a[href*="archive-account"]::before {
+	content: "▤";
+
+	background:
+		linear-gradient(
+			135deg,
+			#14b8a6,
+			#0d9488
+		);
+}
+
+
+/* البنوك */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container
+a[href*="archive-bank"]::before {
+	content: "$";
+
+	background:
+		linear-gradient(
+			135deg,
+			#f59e0b,
+			#d97706
+		);
+}
+
+
+/* الدول */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container
+a[href*="/country"]::before {
+	content: "◎";
+
+	background:
+		linear-gradient(
+			135deg,
+			#22c55e,
+			#16a34a
+		);
+}
+
+
+/* ============================================================
+   REMOVE DUPLICATE FRAPPE ICONS FROM NESTED LINKS
+   نحن نستخدم icon blocks الخاصة بنا
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container
+.sidebar-item-icon {
+	display: none !important;
+}
+
+
+/* ============================================================
+   LABELS
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.sidebar-item-label {
+	color: inherit !important;
+
+	white-space: nowrap;
+
+	overflow: hidden;
+	text-overflow: ellipsis;
+
+	line-height: 1.35;
+}
+
+
+/* ============================================================
+   CONTROL / ARROW ON LINK ROW
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.nested-container
+.sidebar-item-control {
+	margin-inline-start: auto;
+
+	opacity: 0.6;
+
+	color: #cbd5e1 !important;
+}
+
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+) {
+	scrollbar-width: thin;
+
+	scrollbar-color:
+		rgba(148, 163, 184, 0.25)
+		transparent;
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)::-webkit-scrollbar {
+	width: 5px;
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)::-webkit-scrollbar-thumb {
+	background:
+		rgba(148, 163, 184, 0.22);
+
+	border-radius: 20px;
+}
+
+
+/* ============================================================
+   RTL
+   ============================================================ */
+
+[dir="rtl"]
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item:not(.active-sidebar)
+.item-anchor:not(.section-break):hover {
+	transform: translateX(-2px);
+}
+
+
+[dir="rtl"]
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.indent
++ .nested-container {
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+}
+
+
+/* ============================================================
+   SMALL HEIGHT SCREENS
+   ============================================================ */
+
+@media (max-height: 760px) {
+
+	:where(
+		.body-sidebar[data-title="الأرشفة"],
+		.body-sidebar[data-title="Archive"]
+	)
+	.sidebar-header {
+		min-height: 78px !important;
+
+		padding-top: 15px !important;
+	}
+
+
+	:where(
+		.body-sidebar[data-title="الأرشفة"],
+		.body-sidebar[data-title="Archive"]
+	)
+	.sidebar-header::before {
+		top: 13px;
+	}
+
+
+	:where(
+		.body-sidebar[data-title="الأرشفة"],
+		.body-sidebar[data-title="Archive"]
+	)
+	.sidebar-header::after {
+		top: 45px;
+	}
+
+
+	:where(
+		.body-sidebar[data-title="الأرشفة"],
+		.body-sidebar[data-title="Archive"]
+	)
+	.standard-sidebar-item
+	.item-anchor {
+		min-height: 38px !important;
+	}
+
+
+	:where(
+		.body-sidebar[data-title="الأرشفة"],
+		.body-sidebar[data-title="Archive"]
+	)
+	.nested-container
+	.standard-sidebar-item {
+		min-height: 39px;
+	}
+
+
+	:where(
+		.body-sidebar[data-title="الأرشفة"],
+		.body-sidebar[data-title="Archive"]
+	)
+	.nested-container
+	.standard-sidebar-item
+	.item-anchor {
+		min-height: 39px !important;
+	}
+}
+
+/* ============================================================
+   SIDEBAR LAYOUT / TOGGLE / HOVER FIXES
+   إصلاح المساحة + Hover + Collapse
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   1. إعادة العرض إلى مقاس Frappe الطبيعي
+   Expanded = 220px
+   Collapsed = 50px
+   ------------------------------------------------------------ */
+
+.body-sidebar-container:has(
+	> .body-sidebar[data-title="الأرشفة"]
+),
+.body-sidebar-container:has(
+	> .body-sidebar[data-title="Archive"]
+) {
+	--sidebar-width: 220px;
+}
+
+
+/* عند فتح الشريط */
+
+.body-sidebar-container.expanded
+	> .body-sidebar[data-title="الأرشفة"],
+.body-sidebar-container.expanded
+	> .body-sidebar[data-title="Archive"] {
+	width: var(--sidebar-width) !important;
+	min-width: var(--sidebar-width) !important;
+}
+
+
+/* عند إغلاق الشريط */
+
+.body-sidebar-container:not(.expanded)
+	> .body-sidebar[data-title="الأرشفة"],
+.body-sidebar-container:not(.expanded)
+	> .body-sidebar[data-title="Archive"] {
+	width: 50px !important;
+	min-width: 50px !important;
+
+	background: var(--surface-menu-bar) !important;
+
+	border-color: var(--sidebar-border-color) !important;
+
+	box-shadow: none !important;
+}
+
+
+/* ------------------------------------------------------------
+   2. الخلفية الداكنة تظهر فقط عندما يكون الشريط مفتوحًا
+   ------------------------------------------------------------ */
+
+.body-sidebar-container.expanded
+	> .body-sidebar[data-title="الأرشفة"],
+.body-sidebar-container.expanded
+	> .body-sidebar[data-title="Archive"] {
+	background:
+		radial-gradient(
+			circle at 80% -10%,
+			rgba(99, 102, 241, 0.24),
+			transparent 34%
+		),
+		linear-gradient(
+			180deg,
+			#101c3d 0%,
+			#0d1734 46%,
+			#0b132b 100%
+		) !important;
+}
+
+
+/* ------------------------------------------------------------
+   3. عند Collapse نخفي الهوية البصرية الخاصة بالرأس
+   حتى لا تبقى عناصر داكنة أو نصوص معلقة
+   ------------------------------------------------------------ */
+
+.body-sidebar-container:not(.expanded)
+	> .body-sidebar[data-title="الأرشفة"]
+	.sidebar-header::before,
+
+.body-sidebar-container:not(.expanded)
+	> .body-sidebar[data-title="الأرشفة"]
+	.sidebar-header::after,
+
+.body-sidebar-container:not(.expanded)
+	> .body-sidebar[data-title="Archive"]
+	.sidebar-header::before,
+
+.body-sidebar-container:not(.expanded)
+	> .body-sidebar[data-title="Archive"]
+	.sidebar-header::after {
+	opacity: 0 !important;
+	visibility: hidden !important;
+}
+
+
+/* عندما يعود الشريط للفتح */
+
+.body-sidebar-container.expanded
+	> .body-sidebar[data-title="الأرشفة"]
+	.sidebar-header::before,
+
+.body-sidebar-container.expanded
+	> .body-sidebar[data-title="الأرشفة"]
+	.sidebar-header::after,
+
+.body-sidebar-container.expanded
+	> .body-sidebar[data-title="Archive"]
+	.sidebar-header::before,
+
+.body-sidebar-container.expanded
+	> .body-sidebar[data-title="Archive"]
+	.sidebar-header::after {
+	opacity: 1;
+	visibility: visible;
+}
+
+
+/* ============================================================
+   HOVER FIX
+   ممنوع اللون الأبيض
+   ============================================================ */
+
+
+/*
+ * Frappe يضع hover على standard-sidebar-item نفسه،
+ * لذلك يجب أن نغير الـ parent وليس الـ anchor فقط.
+ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item:not(.active-sidebar):has(
+	a:not(.section-break)
+):hover {
+	background:
+		rgba(255, 255, 255, 0.065) !important;
+
+	border-color:
+		rgba(255, 255, 255, 0.07) !important;
+
+	box-shadow:
+		inset 0 0 0 1px
+		rgba(255, 255, 255, 0.025) !important;
+}
+
+
+/* الرابط نفسه أثناء Hover */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item:not(.active-sidebar):hover
+.item-anchor:not(.section-break) {
+	background: transparent !important;
+
+	color: #ffffff !important;
+}
+
+
+/* النص أثناء Hover */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item:not(.active-sidebar):hover
+.sidebar-item-label {
+	color: #ffffff !important;
+}
+
+
+/* حركة بسيطة فقط */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item:not(.active-sidebar):hover {
+	transform: translateX(-2px);
+}
+
+
+/* ============================================================
+   ACTIVE HOVER
+   العنصر النشط لا يتحول إلى أبيض عند مرور الماوس
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item.active-sidebar,
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item.active-sidebar:hover {
+	background:
+		linear-gradient(
+			100deg,
+			#3678f6 0%,
+			#6366f1 50%,
+			#8b5cf6 100%
+		) !important;
+
+	border:
+		1px solid
+		rgba(255, 255, 255, 0.14) !important;
+
+	box-shadow:
+		0 10px 24px
+			rgba(79, 70, 229, 0.30),
+		inset 0 1px
+			rgba(255, 255, 255, 0.14) !important;
+}
+
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.standard-sidebar-item.active-sidebar:hover
+.item-anchor {
+	background: transparent !important;
+
+	color: #ffffff !important;
+}
+
+
+/* ============================================================
+   SECTION HEADERS
+   عناوين الأقسام لا تأخذ Hover أبيض
+   ============================================================ */
+
+:where(
+	.body-sidebar[data-title="الأرشفة"],
+	.body-sidebar[data-title="Archive"]
+)
+.section-item
+> .standard-sidebar-item:hover {
+	background: transparent !important;
+
+	box-shadow: none !important;
+
+	transform: none !important;
+}
+
+
+/* ============================================================
+   COLLAPSED MODE
+   لا نظهر محتوى الأرشفة داخل المساحة المصغرة
+   ============================================================ */
+
+.body-sidebar-container:not(.expanded)
+	> .body-sidebar[data-title="الأرشفة"]
+	.sidebar-items,
+
+.body-sidebar-container:not(.expanded)
+	> .body-sidebar[data-title="Archive"]
+	.sidebar-items {
+	opacity: 0;
+
+	pointer-events: none;
+}
+
+
+/* عند إعادة الفتح */
+
+.body-sidebar-container.expanded
+	> .body-sidebar[data-title="الأرشفة"]
+	.sidebar-items,
+
+.body-sidebar-container.expanded
+	> .body-sidebar[data-title="Archive"]
+	.sidebar-items {
+	opacity: 1;
+
+	pointer-events: auto;
+
+	transition: opacity 160ms ease;
+}

@@ -1,0 +1,11 @@
+{
+  "doctype": "Page",
+  "icon": "",
+  "module": "Archive",
+  "name": "archive-operations",
+  "page_name": "archive-operations",
+  "roles": [],
+  "standard": "Yes",
+  "system_page": 0,
+  "title": "Archive Operations"
+}

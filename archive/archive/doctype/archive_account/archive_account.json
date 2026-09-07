@@ -1,0 +1,67 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "format:ACC-{#####}",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "account_name",
+    "account_number",
+    "bank_name",
+    "currency",
+    "disabled",
+    "notes"
+  ],
+  "fields": [
+    {
+      "fieldname": "account_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "اسم الحساب",
+      "reqd": 1
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "label": "العملة",
+      "options": "Currency"
+    },
+    {
+      "default": "0",
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "label": "معطل"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "ملاحظات"
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "links": [],
+  "module": "Archive",
+  "name": "Archive Account",
+  "naming_rule": "Expression",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "search_fields": "account_name",
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "title_field": "account_name",
+  "show_title_field_in_link": 1
+}

@@ -4,7 +4,18 @@ app_publisher = "Ayham-shmsan"
 app_description = "archive "
 app_email = "ayhamshmsanayhamshmsan@gmail.com"
 app_license = "mit"
+app_logo_url = "/assets/archive/images/archive-logo.svg"
+app_home = "/desk/archive-operations?sidebar=Archive"
 
+add_to_apps_screen = [
+    {
+        "name": app_name,
+        "logo": app_logo_url,
+        "title": app_title,
+        "route": app_home,
+        "sequence_id": 3,
+    }
+]
 # Send non-GET requests for this app's endpoints as native `application/json`
 # bodies instead of form-encoded, per-key JSON-stringified values.
 use_json_request_body = True
@@ -39,7 +50,13 @@ use_json_request_body = True
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/archive/css/archive.css"
+app_include_css = [
+    "/assets/archive/css/archive_sidebar.css",
+]
 # app_include_js = "/assets/archive/js/archive.js"
+app_include_js = [
+    "/assets/archive/js/country_list.js",
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/archive/css/archive.css"

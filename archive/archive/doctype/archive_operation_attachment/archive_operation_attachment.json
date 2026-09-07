@@ -1,0 +1,43 @@
+{
+  "actions": [],
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "file",
+    "file_name",
+    "is_extraction_source"
+  ],
+  "fields": [
+    {
+      "fieldname": "file",
+      "fieldtype": "Attach",
+      "in_list_view": 1,
+      "label": "الملف",
+      "reqd": 1
+    },
+    {
+      "fieldname": "file_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "اسم الملف",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "is_extraction_source",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "مصدر استخراج",
+      "read_only": 1
+    }
+  ],
+  "istable": 1,
+  "links": [],
+  "module": "Archive",
+  "name": "Archive Operation Attachment",
+  "permissions": [],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}
