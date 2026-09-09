@@ -234,27 +234,38 @@ def _extract_sender_name(
 
     return value or None
 
-
 def _extract_execution_datetime_and_remarks(
     text: str,
 ) -> tuple[str | None, str | None]:
     """
-    استخراج تاريخ تنفيذ العملية والملاحظات
-    من قسم Transaction Route / مسار العملية فقط.
+    استخراج تاريخ التنفيذ والملاحظات من صف
+    Transaction Route / مسار العملية.
 
-    الملاحظات قد تكون:
-    - بعد التاريخ والوقت في نفس السطر
-    - أو في سطر/أسطر لاحقة داخل نفس القسم
+    المهم:
+    لغة الملاحظة لا تهم.
+    القالب قد يكون عربياً بينما الملاحظة إنجليزية.
+
+    نأخذ الملاحظة فقط من نفس صف التاريخ/الوقت،
+    ولا نأخذ كل النص الذي يأتي بعده.
     """
 
-    text = _normalize_text(text)
+    text = _normalize_text(
+        text
+    )
 
-    # بداية قسم مسار العملية
+    # ----------------------------------------
+    # الوصول إلى قسم مسار العملية فقط
+    # ----------------------------------------
+
     starts = [
         index
         for index in (
-            text.find("Transaction Route"),
-            text.find("مسار العملية"),
+            text.find(
+                "Transaction Route"
+            ),
+            text.find(
+                "مسار العملية"
+            ),
         )
         if index >= 0
     ]
@@ -262,216 +273,154 @@ def _extract_execution_datetime_and_remarks(
     if not starts:
         return None, None
 
-    section = text[min(starts):]
-
-    # نهاية قسم مسار العملية
-    ends = [
-        index
-        for marker in (
-            "NEXT STEPS",
-            "الخطوة التالية",
-        )
-        if (index := section.find(marker)) > 0
+    section = text[
+        min(starts):
     ]
 
-    if ends:
-        section = section[:min(ends)]
 
-    # ندعم الترتيبين:
-    # 03/09/2026 16:07
-    # 16:07 03/09/2026
+    # ----------------------------------------
+    # نبحث داخل كل سطر عن التاريخ والوقت.
+    #
+    # ندعم:
+    # 07/09/2026 19:49
+    #
+    # وكذلك:
+    # 19:49 07/09/2026
+    # ----------------------------------------
+
     patterns = [
         re.compile(
-            r"(?P<date>\d{2}/\d{2}/\d{4})"
-            r"\s+"
-            r"(?P<time>\d{2}:\d{2})"
+            r"(?P<date>"
+            r"\d{2}/\d{2}/\d{4}"
+            r")"
+            r"\s*"
+            r"(?P<time>"
+            r"\d{2}:\d{2}"
+            r")"
         ),
+
         re.compile(
-            r"(?P<time>\d{2}:\d{2})"
-            r"\s+"
-            r"(?P<date>\d{2}/\d{2}/\d{4})"
+            r"(?P<time>"
+            r"\d{2}:\d{2}"
+            r")"
+            r"\s*"
+            r"(?P<date>"
+            r"\d{2}/\d{2}/\d{4}"
+            r")"
         ),
     ]
 
-    match = None
 
-    for pattern in patterns:
-        match = pattern.search(section)
+    for line in section.splitlines():
 
-        if match:
-            break
+        line = line.strip()
 
-    if not match:
-        return None, None
+        if not line:
+            continue
 
-    parsed = datetime.strptime(
-        f"{match.group('date')} {match.group('time')}",
-        "%d/%m/%Y %H:%M",
-    )
+        match = None
 
-    execution_datetime = parsed.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+        for pattern in patterns:
+            match = pattern.search(
+                line
+            )
 
-    # كل ما يأتي بعد تاريخ/وقت الصف وقبل NEXT STEPS
-    # يعتبر محتوى Remarks.
-    remarks = section[match.end():]
+            if match:
+                break
 
-    remarks = re.sub(
-        r"^(?:Remarks|ملاحظات)\s*:?\s*",
-        "",
-        remarks.strip(),
-        flags=re.IGNORECASE,
-    )
-
-    # إذا كانت الملاحظة ملتفة على أكثر من سطر
-    # نجمعها كنص واحد.
-    remarks = re.sub(
-        r"\s+",
-        " ",
-        remarks,
-    ).strip()
-
-    return (
-        execution_datetime,
-        remarks or None,
-    )
-
-# def _extract_execution_datetime_and_remarks(
-#     text: str,
-# ) -> tuple[str | None, str | None]:
-#     """
-#     لا نأخذ التاريخ الموجود في رأس المستند.
-
-#     نبدأ البحث فقط بعد:
-#     Transaction Route
-#     أو
-#     مسار العملية
-#     """
-
-#     text = _normalize_text(text)
-
-#     indexes = [
-#         index
-#         for index in (
-#             text.find("Transaction Route"),
-#             text.find("مسار العملية"),
-#         )
-#         if index >= 0
-#     ]
-
-#     if indexes:
-#         text = text[min(indexes):]
-
-#     pattern = re.compile(
-#         r"(\d{2}/\d{2}/\d{4})"
-#         r"\s+"
-#         r"(\d{2}:\d{2})"
-#         r"(?:\s+(.*))?$"
-#     )
-
-#     for line in text.splitlines():
-#         line = line.strip()
-
-#         match = pattern.search(line)
-
-#         if not match:
-#             continue
-
-#         raw_date = match.group(1)
-#         raw_time = match.group(2)
-
-#         parsed = datetime.strptime(
-#             f"{raw_date} {raw_time}",
-#             "%d/%m/%Y %H:%M",
-#         )
-
-#         remarks = (
-#             match.group(3) or ""
-#         ).strip()
-
-#         return (
-#             parsed.strftime(
-#                 "%Y-%m-%d %H:%M:%S"
-#             ),
-#             remarks or None,
-#         )
-
-#     return None, None
+        if not match:
+            continue
 
 
+        # ------------------------------------
+        # تاريخ تنفيذ العملية
+        # ------------------------------------
+
+        parsed = datetime.strptime(
+            (
+                f"{match.group('date')} "
+                f"{match.group('time')}"
+            ),
+            "%d/%m/%Y %H:%M",
+        )
+
+        execution_datetime = (
+            parsed.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        )
 
 
-# def _extract_reference_number(
-#     logical_text: str,
-#     visual_text: str,
-# ) -> str | None:
-#     """
-#     الإنجليزية يمكن قراءتها مباشرة من:
-#     unique transaction number
+        # ------------------------------------
+        # الملاحظة
+        #
+        # في القالب العربي للبنك يكون ترتيب
+        # النص المنطقي غالباً:
+        #
+        # المستخدم + الدور + التاريخ + الملاحظة
+        #
+        # حتى لو كانت الملاحظة باللغة الإنجليزية.
+        # ------------------------------------
 
-#     النسخة العربية تحتاج fallback لأن اتجاه
-#     النص في PDF يعكس مقطعي الحروف حول الرقم.
-#     """
+        remarks = (
+            line[
+                match.end():
+            ]
+            .strip()
+        )
 
-#     logical_text = _normalize_text(
-#         logical_text
-#     )
 
-#     english_match = re.search(
-#         r"unique transaction number"
-#         r"\s+([A-Z0-9]+)",
-#         logical_text,
-#         flags=re.IGNORECASE,
-#     )
+        # إزالة عنوان الحقل إذا ظهر مع القيمة.
+        remarks = re.sub(
+            r"^(?:Remarks|ملاحظات)"
+            r"\s*:?\s*",
+            "",
+            remarks,
+            flags=re.IGNORECASE,
+        ).strip()
 
-#     if english_match:
-#         return english_match.group(1)
 
-#     arabic_logical_match = re.search(
-#         r"رقم حوالة\s+([A-Z0-9]+)",
-#         logical_text,
-#     )
+        # ------------------------------------
+        # fallback:
+        # بعض نسخ PDF قد تضع الملاحظة قبل
+        # التاريخ بسبب ترتيب RTL.
+        # ------------------------------------
 
-#     if arabic_logical_match:
-#         return arabic_logical_match.group(1)
+        if not remarks:
 
-#     # fallback للنسخة العربية
-#     candidates = re.findall(
-#         r"\b("
-#         r"[A-Z]{2,6}"
-#         r"\d{5,}"
-#         r"[A-Z]{2,6}"
-#         r")\b",
-#         visual_text,
-#     )
+            before_datetime = (
+                line[
+                    :match.start()
+                ]
+                .strip()
+            )
 
-#     if not candidates:
-#         return None
+            # نأخذ fallback فقط عندما يظهر
+            # عنوان الملاحظات في السطر أو عندما
+            # يكون النص إنجليزياً واضحاً.
+            inline_match = re.search(
+                r"(?:Remarks|ملاحظات)"
+                r"\s*:?\s*(.+)$",
+                before_datetime,
+                flags=re.IGNORECASE,
+            )
 
-#     candidate = candidates[0]
+            if inline_match:
+                remarks = (
+                    inline_match
+                    .group(1)
+                    .strip()
+                )
 
-#     parts = re.fullmatch(
-#         r"([A-Z]+)"
-#         r"(\d+)"
-#         r"([A-Z]+)",
-#         candidate,
-#     )
 
-#     if not parts:
-#         return candidate
+        return (
+            execution_datetime,
+            remarks or None,
+        )
 
-#     # مثال القراءة المرئية:
-#     # NCBK82426246BAJN
-#     #
-#     # القيمة الحقيقية:
-#     # BAJN82426246NCBK
 
-#     return (
-#         parts.group(3)
-#         + parts.group(2)
-#         + parts.group(1)
-#     )
+    return None, None
+
 def _extract_reference_number(
     logical_text: str,
     visual_text: str,

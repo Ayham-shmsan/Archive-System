@@ -1,0 +1,37 @@
+{
+	"actions": [],
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"final_swift_section",
+		"final_swift_banks"
+	],
+	"fields": [
+		{
+			"fieldname": "final_swift_section",
+			"fieldtype": "Section Break",
+			"label": "إعدادات السويفت النهائي"
+		},
+		{
+			"fieldname": "final_swift_banks",
+			"fieldtype": "Table",
+			"label": "البنوك التي تتطلب السويفت النهائي",
+			"options": "Archive Final Swift Bank"
+		}
+	],
+	"issingle": 1,
+	"links": [],
+	"module": "Archive",
+	"name": "Archive Settings",
+	"permissions": [
+		{
+			"create": 1,
+			"read": 1,
+			"role": "System Manager",
+			"write": 1
+		}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"states": []
+}

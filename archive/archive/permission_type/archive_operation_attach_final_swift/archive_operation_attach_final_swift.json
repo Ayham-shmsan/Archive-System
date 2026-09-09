@@ -1,0 +1,10 @@
+{
+ "creation": "2026-09-09 21:37:32.886293",
+ "doc_type": "Archive Operation",
+ "doctype": "Permission Type",
+ "modified": "2026-09-09 21:37:32.886293",
+ "modified_by": "Administrator",
+ "name": "archive_operation_attach_final_swift",
+ "owner": "Administrator",
+ "perm_type": "attach_final_swift"
+}

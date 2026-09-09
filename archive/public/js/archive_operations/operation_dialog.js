@@ -332,14 +332,6 @@ archive.ui.OperationDialog = class OperationDialog {
 			]
 		);
 
-		// this.make_control(
-		// 	this.$body.find(".archive-notes-field"),
-		// 	{
-		// 		fieldname: "notes",
-		// 		label: "ملاحظات",
-		// 		fieldtype: "Small Text",
-		// 	}
-		// );
 	}
 
 
@@ -836,58 +828,6 @@ archive.ui.OperationDialog = class OperationDialog {
         return uploaded;
     }
 
-
-	// async upload_all_attachments() {
-	// 	const uploaded = [];
-	// 	const key_to_uploaded = new Map();
-
-	// 	for (
-	// 		let index = 0;
-	// 		index < this.attachments.length;
-	// 		index++
-	// 	) {
-	// 		const file =
-	// 			this.attachments[index];
-
-	// 		const result =
-	// 			await this.upload_file(file);
-
-	// 		const item = {
-	// 			file_url: result.file_url,
-	// 			file_name:
-	// 				result.file_name
-	// 				|| file.name,
-	// 		};
-
-	// 		uploaded.push(item);
-
-	// 		key_to_uploaded.set(
-	// 			this.file_key(file),
-	// 			item
-	// 		);
-	// 	}
-
-	// 	let extraction_source_file = null;
-
-	// 	if (this.extraction_file) {
-	// 		const source =
-	// 			key_to_uploaded.get(
-	// 				this.file_key(
-	// 					this.extraction_file
-	// 				)
-	// 			);
-
-	// 		if (source) {
-	// 			extraction_source_file =
-	// 				source.file_url;
-	// 		}
-	// 	}
-
-	// 	return {
-	// 		uploaded,
-	// 		extraction_source_file,
-	// 	};
-	// }
     async upload_all_attachments() {
         const uploaded = [];
         const key_to_uploaded = new Map();
@@ -977,22 +917,6 @@ archive.ui.OperationDialog = class OperationDialog {
 	}
 
 
-	// extract_data() {
-	// 	if (!this.extraction_file) {
-	// 		return;
-	// 	}
-
-	// 	/*
-	// 	 * سنربط هذا الزر لاحقاً
-	// 	 * بـ PDF Parser الحقيقي.
-	// 	 */
-	// 	frappe.show_alert({
-	// 		message: __(
-	// 			"ملف الاستخراج جاهز. سيتم ربط محلل PDF في مرحلة الربط الخلفي."
-	// 		),
-	// 		indicator: "blue",
-	// 	});
-	// }
     async extract_data() {
         if (!this.extraction_file) {
             return;
@@ -1200,10 +1124,6 @@ archive.ui.OperationDialog = class OperationDialog {
 				indicator: "green",
 			});
 
-			/*
-			 * سنربطه في المرحلة التالية
-			 * بتحديث قائمة العمليات من السيرفر.
-			 */
 			setTimeout(() => {
 				location.reload();
 			}, 500);

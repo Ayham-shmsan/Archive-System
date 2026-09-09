@@ -6,7 +6,8 @@
   "field_order": [
     "file",
     "file_name",
-    "is_extraction_source"
+    "is_extraction_source",
+    "is_final_swift"
   ],
   "fields": [
     {
@@ -29,6 +30,13 @@
       "fieldtype": "Check",
       "in_list_view": 1,
       "label": "مصدر استخراج",
+      "read_only": 1
+    },
+    {
+      "fieldname": "is_final_swift",
+      "fieldtype": "Check",
+      "label": "السويفت النهائي",
+      "default": "0",
       "read_only": 1
     }
   ],

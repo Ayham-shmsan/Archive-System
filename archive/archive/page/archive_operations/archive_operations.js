@@ -125,63 +125,68 @@ class ArchiveOperationsPage {
 
         dialog.show();
     }
-    // open_status_dialog(
-    //     operation_name,
-    //     current_status
-    //  ) {
-    //     const statuses = [
-    //         "غير مؤكدة",
-    //         "مؤكدة",
-    //         "محضورة",
-    //         "مرتجعة",
-    //     ];
 
-    //     const available_statuses =
-    //         statuses.filter(
-    //             (status) =>
-    //                 status !== current_status
-    //         );
+    open_final_swift_dialog() {
+        const operation =
+            this.get_selected_operation();
 
-    //     const dialog =
-    //         new frappe.ui.Dialog({
-    //             title:
-    //                 `تغيير حالة ${operation_name}`,
 
-    //             fields: [
-    //                 {
-    //                     fieldname: "current_status",
-    //                     label: "الحالة الحالية",
-    //                     fieldtype: "Data",
-    //                     read_only: 1,
-    //                     default: current_status,
-    //                 },
-    //                 {
-    //                     fieldname: "status",
-    //                     label: "الحالة الجديدة",
-    //                     fieldtype: "Select",
-    //                     options:
-    //                         available_statuses.join(
-    //                             "\n"
-    //                         ),
-    //                     reqd: 1,
-    //                 },
-    //             ],
+        if (!operation) {
+            return;
+        }
 
-    //             primary_action_label:
-    //                 __("تغيير الحالة"),
 
-    //             primary_action:
-    //                 async (values) => {
-    //                     await this.change_operation_status(
-    //                         operation_name,
-    //                         values.status,
-    //                         dialog
-    //                     );
-    //                 },
-    //         });
+        /*
+        * حماية على مستوى الواجهة أيضاً.
+        *
+        * Backend سيعيد التحقق مرة أخرى.
+        */
+        if (
+            !operation.final_swift_required
+            ||
+            operation.has_final_swift
+            ||
+            !operation.can_attach_final_swift
+        ) {
+            return;
+        }
 
-    //     dialog.show();
-    // }
+
+        frappe.require(
+            [
+                "/assets/archive/js/archive_operations/final_swift_dialog.js",
+                "/assets/archive/css/archive_operations/operation_dialog.css",
+            ],
+            () => {
+
+                const dialog =
+                    new archive.ui.FinalSwiftDialog(
+                        operation.name,
+                        {
+                            on_saved:
+                                async () => {
+
+                                    /*
+                                    * تحديث القائمة والعدادات.
+                                    *
+                                    * إذا كنا داخل بطاقة
+                                    * السويفت النهائي،
+                                    * ستختفي العملية تلقائياً.
+                                    *
+                                    * إذا كنا داخل كل العمليات
+                                    * ستبقى العملية ويظهر ✓.
+                                    */
+                                    await this
+                                        .load_operations();
+                                },
+                        }
+                    );
+
+
+                dialog.show();
+            }
+        );
+    }
 
     async change_operation_status(
         operation_name,
@@ -330,6 +335,12 @@ class ArchiveOperationsPage {
 						"0"
 					)}
 
+                    ${this.summary_card(
+                        "final_swift",
+                        "السويفت النهائي",
+                        "0"
+                    )}
+
 				</div>
 
 
@@ -358,14 +369,26 @@ class ArchiveOperationsPage {
 
 					<div class="archive-toolbar-actions">
 
-                        <button
-                            type="button"
-                            class="btn btn-default archive-selected-view"
-                            disabled
-                        >
-                            عرض
-                        </button>
-
+                    
+                    <button
+                    type="button"
+                    class="btn btn-default archive-selected-view"
+                    disabled
+                    >
+                    عرض
+                    </button>
+                    
+                    <button
+                        type="button"
+                        class="
+                            btn
+                            btn-default
+                            archive-final-swift-button
+                        "
+                        style="display: none;"
+                    >
+                        إرفاق الملف النهائي
+                    </button>
                         <button
                             type="button"
                             class="btn btn-default archive-selected-actions"
@@ -441,6 +464,8 @@ class ArchiveOperationsPage {
                                 <col class="col-bank-rate">
                                 <col class="col-notes">
 
+                                <col class="col-final-swift">
+
                                 <col class="col-status">
                                 
                             </colgroup>
@@ -470,6 +495,7 @@ class ArchiveOperationsPage {
                                     <th>سعر البنك المحول</th>
                                     <th>ملاحظات</th>
 
+                                    <th>السويفت النهائي</th>
                                     <th>الحالة</th>
                                     
                                 </tr>
@@ -581,6 +607,9 @@ class ArchiveOperationsPage {
         $refresh.prop("disabled", true);
 
         try {
+            const is_final_swift_view =
+                this.state.status ===
+                "final_swift";
             const response =
                 await frappe.call({
                     method:
@@ -590,16 +619,24 @@ class ArchiveOperationsPage {
                         search:
                             this.state.search || null,
 
-                        status:
-                            this.get_status_value(
-                                this.state.status
-                            ) || null,
+                       status:
+                            is_final_swift_view
+                                ? null
+                                : (
+                                    this.get_status_value(
+                                        this.state.status
+                                    ) || null
+                                ),
 
                         start:
                             this.state.start,
 
                         page_length:
                             this.state.page_length,
+                        final_swift_pending:
+                            is_final_swift_view
+                                ? 1
+                                : 0,
                     },
                 });
 
@@ -885,6 +922,33 @@ class ArchiveOperationsPage {
                     )}
                 </td>
 
+                <!-- السويفت النهائي -->
+                <td class="archive-final-swift-cell">
+
+                    <span
+                        class="
+                            archive-final-swift-check
+                            ${
+                                operation.has_final_swift
+                                    ? "is-checked"
+                                    : ""
+                            }
+                        "
+                        title="${
+                            operation.has_final_swift
+                                ? "تم إرفاق السويفت النهائي"
+                                : "لم يتم إرفاق السويفت النهائي"
+                        }"
+                    >
+                        ${
+                            operation.has_final_swift
+                                ? "✓"
+                                : ""
+                        }
+                    </span>
+
+                </td>
+
 
                 <!-- الحالة -->
                 <td>
@@ -1018,6 +1082,8 @@ class ArchiveOperationsPage {
 
             held:
                 counts["محضورة"] || 0,
+            final_swift:
+                counts.final_swift || 0,
         };
 
         Object.entries(values).forEach(
@@ -1060,79 +1126,6 @@ class ArchiveOperationsPage {
                 );
             });
     }
-    
-    // select_operation(operation_name) {
-    //     this.state.selected_operation_name =
-    //         operation_name;
-
-    //     const $wrapper =
-    //         $(this.wrapper);
-
-    //     $wrapper
-    //         .find(".archive-operation-row")
-    //         .removeClass("is-selected");
-
-    //     $wrapper
-    //         .find(".archive-operation-row")
-    //         .filter((index, element) => {
-    //             return (
-    //                 $(element).data("name")
-    //                 === operation_name
-    //             );
-    //         })
-    //         .addClass("is-selected");
-
-    //     /*
-    //     * بمجرد اختيار سجل نفعّل الأزرار.
-    //     */
-    //     $wrapper
-    //         .find(
-    //             ".archive-selected-view, .archive-selected-actions"
-    //         )
-    //         .prop("disabled", false);
-    // }
-
-    // select_operation(
-    //     operation_name
-    // ) {
-    //     this.state
-    //         .selected_operation_name =
-    //             operation_name;
-
-
-    //     const $wrapper =
-    //         $(this.wrapper);
-
-
-    //     $wrapper
-    //         .find(
-    //             ".archive-operation-row"
-    //         )
-    //         .removeClass(
-    //             "is-selected"
-    //         );
-
-
-    //     $wrapper
-    //         .find(
-    //             ".archive-operation-row"
-    //         )
-    //         .filter(
-    //             (index, element) => {
-    //                 return (
-    //                     $(element)
-    //                         .data("name")
-    //                     === operation_name
-    //                 );
-    //             }
-    //         )
-    //         .addClass(
-    //             "is-selected"
-    //         );
-
-
-    //     this.update_selected_actions();
-    // }
 
     select_operation(
         operation_name
@@ -1205,15 +1198,16 @@ class ArchiveOperationsPage {
             ) || null
         );
     }
-
     update_selected_actions() {
         const selected =
             this.get_selected_operation();
+
 
         const can_view =
             Boolean(
                 selected
             );
+
 
         const can_change_status =
             Boolean(
@@ -1221,6 +1215,22 @@ class ArchiveOperationsPage {
                 selected.can_change_status
             );
 
+
+        const can_attach_final_swift =
+            Boolean(
+                selected
+                &&
+                selected.final_swift_required
+                &&
+                !selected.has_final_swift
+                &&
+                selected.can_attach_final_swift
+            );
+
+
+        /*
+        * عرض
+        */
         $(this.wrapper)
             .find(
                 ".archive-selected-view"
@@ -1230,6 +1240,10 @@ class ArchiveOperationsPage {
                 !can_view
             );
 
+
+        /*
+        * الإجراءات
+        */
         $(this.wrapper)
             .find(
                 ".archive-selected-actions"
@@ -1238,7 +1252,73 @@ class ArchiveOperationsPage {
                 "disabled",
                 !can_change_status
             );
+
+
+        /*
+        * إرفاق السويفت النهائي
+        *
+        * لا نكتفي بتعطيله:
+        * لا يظهر أصلاً إذا لم تتحقق الشروط.
+        */
+        const $final_swift_button =
+            $(this.wrapper)
+                .find(
+                    ".archive-final-swift-button"
+                );
+
+
+        if (
+            can_attach_final_swift
+        ) {
+            $final_swift_button
+                .show()
+                .prop(
+                    "disabled",
+                    false
+                );
+
+        } else {
+            $final_swift_button
+                .hide()
+                .prop(
+                    "disabled",
+                    true
+                );
+        }
     }
+    // update_selected_actions() {
+    //     const selected =
+    //         this.get_selected_operation();
+
+    //     const can_view =
+    //         Boolean(
+    //             selected
+    //         );
+
+    //     const can_change_status =
+    //         Boolean(
+    //             selected &&
+    //             selected.can_change_status
+    //         );
+
+    //     $(this.wrapper)
+    //         .find(
+    //             ".archive-selected-view"
+    //         )
+    //         .prop(
+    //             "disabled",
+    //             !can_view
+    //         );
+
+    //     $(this.wrapper)
+    //         .find(
+    //             ".archive-selected-actions"
+    //         )
+    //         .prop(
+    //             "disabled",
+    //             !can_change_status
+    //         );
+    // }
     // update_selected_actions() {
     //     const selected =
     //         this.get_selected_operation();
@@ -1437,6 +1517,17 @@ class ArchiveOperationsPage {
 
 
         let search_timer = null;
+        
+        $wrapper
+            .find(
+                ".archive-final-swift-button"
+            )
+            .on(
+                "click",
+                () => {
+                    this.open_final_swift_dialog();
+                }
+            );
 
         $wrapper
             .find(".archive-operation-search")

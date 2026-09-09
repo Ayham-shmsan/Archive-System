@@ -18,6 +18,7 @@ class OperationViewDialog {
 		this.permissions = {
 			can_edit: false,
 			can_change_status: false,
+			can_manage_attachments: false,
 			editable_fields: [],
 		};
 
@@ -28,6 +29,186 @@ class OperationViewDialog {
 
 		this.dialog = null;
 		this.$body = null;
+		this.existing_attachments = [];
+		this.new_attachments = [];
+		this.deleted_attachment_names =
+			new Set();
+
+		this.uploaded_files =
+			new Map();
+	}
+
+	bind_attachment_events() {
+		const input =
+			this.$body.find(
+				".archive-view-attachments-input"
+			)[0];
+
+		const $dropzone =
+			this.$body.find(
+				".archive-attachments-dropzone"
+			);
+
+
+		$dropzone.on(
+			"click",
+			() => input.click()
+		);
+
+
+		$(input).on(
+			"change",
+			() => {
+
+				const files =
+					Array.from(
+						input.files || []
+					);
+
+				this.add_new_attachments(
+					files
+				);
+
+				input.value = "";
+			}
+		);
+
+
+		$dropzone.on(
+			"dragover",
+			(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+
+				$dropzone.addClass(
+					"is-dragging"
+				);
+			}
+		);
+
+
+		$dropzone.on(
+			"dragleave",
+			(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+
+				$dropzone.removeClass(
+					"is-dragging"
+				);
+			}
+		);
+
+
+		$dropzone.on(
+			"drop",
+			(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+
+				$dropzone.removeClass(
+					"is-dragging"
+				);
+
+				const files =
+					Array.from(
+						event
+							.originalEvent
+							.dataTransfer
+							.files || []
+					);
+
+				this.add_new_attachments(
+					files
+				);
+			}
+		);
+	}
+
+
+	file_key(file) {
+		return [
+			file.name,
+			file.size,
+			file.lastModified,
+		].join("::");
+	}
+
+
+	add_new_attachments(files) {
+		for (const file of files) {
+
+			const key =
+				this.file_key(file);
+
+			const exists =
+				this.new_attachments.some(
+					(item) =>
+						this.file_key(item)
+						=== key
+				);
+
+			if (!exists) {
+				this.new_attachments.push(
+					file
+				);
+			}
+		}
+
+		this.render_attachments();
+	}
+
+
+	remove_new_attachment(index) {
+		this.new_attachments.splice(
+			index,
+			1
+		);
+
+		this.render_attachments();
+	}
+
+
+	mark_existing_attachment_deleted(
+		attachment
+	) {
+		if (
+			attachment
+				.is_extraction_source
+		) {
+			frappe.msgprint({
+				title:
+					__("لا يمكن حذف المرفق"),
+
+				message:
+					__(
+						"مستند استخراج البيانات محمي ولا يمكن حذفه."
+					),
+
+				indicator:
+					"orange",
+			});
+
+			return;
+		}
+
+
+		this.deleted_attachment_names.add(
+			attachment.name
+		);
+
+		this.render_attachments();
+	}
+
+
+	restore_existing_attachment(
+		attachment_name
+	) {
+		this.deleted_attachment_names.delete(
+			attachment_name
+		);
+
+		this.render_attachments();
 	}
 
 
@@ -89,11 +270,21 @@ class OperationViewDialog {
 
 		this.operation =
 			result.operation;
+		this.existing_attachments =
+			Array.from(
+				this.operation.attachments || []
+			);
+
+		this.new_attachments = [];
+
+		this.deleted_attachment_names =
+			new Set();
 
 		this.permissions =
 			result.permissions || {
 				can_edit: false,
 				can_change_status: false,
+				can_manage_attachments: false,
 				editable_fields: [],
 			};
 
@@ -108,8 +299,10 @@ class OperationViewDialog {
 	make_dialog() {
 		const can_save =
 			Boolean(
-				this.permissions.can_edit &&
-				this.editable_fields.size
+				this.permissions.can_edit
+				||
+				this.permissions
+					.can_manage_attachments
 			);
 
 		const options = {
@@ -329,6 +522,44 @@ class OperationViewDialog {
 					</div>
 
 
+					${
+						this.permissions
+							.can_manage_attachments
+							? `
+								<div
+									class="archive-attachments-dropzone"
+								>
+
+									<input
+										type="file"
+										class="archive-view-attachments-input"
+										accept="application/pdf,image/*"
+										multiple
+										hidden
+									>
+
+									<div class="archive-upload-icon">
+										＋
+									</div>
+
+									<div>
+
+										<div class="archive-upload-title">
+											إضافة مرفقات
+										</div>
+
+										<div class="archive-upload-help">
+											اسحب الملفات هنا أو اضغط للاختيار
+										</div>
+
+									</div>
+
+								</div>
+							`
+							: ""
+					}
+
+
 					<div
 						class="archive-attachments-list"
 					></div>
@@ -339,6 +570,12 @@ class OperationViewDialog {
 		`);
 
 		this.make_controls();
+		if (
+			this.permissions
+				.can_manage_attachments
+		) {
+			this.bind_attachment_events();
+		}
 
 		this.render_extraction_file();
 		this.render_attachments();
@@ -708,13 +945,7 @@ class OperationViewDialog {
 		$parent,
 		df
 	) {
-		/*
-		 * السيرفر هو مصدر القرار.
-		 *
-		 * الحقل يصبح قابلاً للتعديل فقط عندما:
-		 * 1- ليس force_read_only
-		 * 2- اسمه موجود داخل editable_fields القادمة من API.
-		 */
+		
 		const editable =
 			!df.force_read_only &&
 			this.editable_fields.has(
@@ -844,18 +1075,283 @@ class OperationViewDialog {
 	}
 
 
+	// render_attachments() {
+	// 	const $list =
+	// 		this.$body.find(
+	// 			".archive-attachments-list"
+	// 		);
+
+	// 	const attachments =
+	// 		this.operation.attachments
+	// 			|| [];
+
+	// 	const count =
+	// 		attachments.length;
+
+	// 	this.$body
+	// 		.find(
+	// 			".archive-attachment-counter"
+	// 		)
+	// 		.text(
+	// 			count === 1
+	// 				? "1 مرفق"
+	// 				: `${count} مرفقات`
+	// 		);
+
+	// 	if (!count) {
+	// 		$list.html(`
+	// 			<div class="archive-no-attachments">
+	// 				لا توجد مرفقات
+	// 			</div>
+	// 		`);
+
+	// 		return;
+	// 	}
+
+	// 	$list.html(
+	// 		attachments
+	// 			.map(
+	// 				(item) => {
+
+	// 					const file_url =
+	// 						item.file || "";
+
+	// 					const file_name =
+	// 						item.file_name ||
+	// 						this.get_file_name(
+	// 							file_url
+	// 						);
+
+	// 					const extension =
+	// 						this.file_extension(
+	// 							file_name
+	// 						);
+
+	// 					return `
+	// 						<div
+	// 							class="archive-attachment-item"
+	// 						>
+
+	// 							<div class="archive-file-info">
+
+	// 								<div class="archive-file-icon">
+	// 									${this.escape_value(
+	// 										extension
+	// 									)}
+	// 								</div>
+
+
+	// 								<div>
+
+	// 									<div class="archive-file-name">
+	// 										${this.escape_value(
+	// 											file_name
+	// 										)}
+	// 									</div>
+
+
+	// 									${
+	// 										item.is_extraction_source
+	// 											? `
+	// 												<div class="archive-file-size">
+	// 													مصدر استخراج البيانات
+	// 												</div>
+	// 											`
+	// 											: ""
+	// 									}
+
+	// 								</div>
+
+	// 							</div>
+
+
+	// 							<div
+	// 								class="archive-attachment-actions"
+	// 							>
+
+	// 								${
+	// 									item.is_extraction_source
+	// 										? `
+	// 											<span
+	// 												class="archive-source-badge"
+	// 											>
+	// 												مصدر استخراج
+	// 											</span>
+	// 										`
+	// 										: ""
+	// 								}
+
+
+	// 								${
+	// 									file_url
+	// 										? `
+	// 											<a
+	// 												href="${this.escape_attribute(
+	// 													file_url
+	// 												)}"
+	// 												target="_blank"
+	// 												rel="noopener noreferrer"
+	// 												class="btn btn-default btn-sm"
+	// 											>
+	// 												عرض
+	// 											</a>
+	// 										`
+	// 										: ""
+	// 								}
+
+	// 							</div>
+
+	// 						</div>
+	// 					`;
+	// 				}
+	// 			)
+	// 			.join("")
+	// 	);
+	// }
+
+	async upload_file(
+			file
+		) {
+			const form_data =
+				new FormData();
+
+
+			form_data.append(
+				"file",
+				file
+			);
+
+			form_data.append(
+				"is_private",
+				"1"
+			);
+
+
+			const response =
+				await fetch(
+					"/api/method/upload_file",
+					{
+						method:
+							"POST",
+
+						headers: {
+							"X-Frappe-CSRF-Token":
+								frappe.csrf_token,
+						},
+
+						body:
+							form_data,
+					}
+				);
+
+
+			const result =
+				await response.json();
+
+
+			if (
+				!response.ok
+				||
+				result.exc
+				||
+				!result.message
+			) {
+				throw new Error(
+					`فشل رفع الملف: ${file.name}`
+				);
+			}
+
+
+			return {
+				file_url:
+					result.message.file_url,
+
+				file_name:
+					result.message.file_name
+					|| file.name,
+			};
+		}
+
+
+		async upload_new_attachments() {
+			const uploaded = [];
+
+
+			for (
+				const file
+				of this.new_attachments
+			) {
+				const result =
+					await this.upload_file(
+						file
+					);
+
+				uploaded.push(
+					result
+				);
+			}
+
+
+			return uploaded;
+		}
+
+
+		async cleanup_uploaded_files(
+			uploaded
+		) {
+			if (!uploaded?.length) {
+				return;
+			}
+
+
+			try {
+				await frappe.call({
+					method:
+						"archive.api.operations.delete_temporary_files",
+
+					type:
+						"POST",
+
+					args: {
+						file_urls:
+							uploaded.map(
+								(item) =>
+									item.file_url
+							),
+					},
+				});
+
+			} catch (error) {
+				console.error(
+					"View attachment cleanup failed:",
+					error
+				);
+			}
+		}
 	render_attachments() {
 		const $list =
 			this.$body.find(
 				".archive-attachments-list"
 			);
 
-		const attachments =
-			this.operation.attachments
-				|| [];
+
+		const visible_existing =
+			this.existing_attachments
+				.filter(
+					(item) =>
+						!this
+							.deleted_attachment_names
+							.has(
+								item.name
+							)
+				);
+
 
 		const count =
-			attachments.length;
+			visible_existing.length
+			+
+			this.new_attachments.length;
+
 
 		this.$body
 			.find(
@@ -867,7 +1363,256 @@ class OperationViewDialog {
 					: `${count} مرفقات`
 			);
 
-		if (!count) {
+
+		const rows = [];
+
+
+		/*
+		* ======================================================
+		* Existing attachments
+		* ======================================================
+		*/
+
+		this.existing_attachments
+			.forEach(
+				(item) => {
+
+					const deleted =
+						this
+							.deleted_attachment_names
+							.has(
+								item.name
+							);
+
+					const file_url =
+						item.file || "";
+
+					const file_name =
+						item.file_name
+						||
+						this.get_file_name(
+							file_url
+						);
+
+					const extension =
+						this.file_extension(
+							file_name
+						);
+
+
+					rows.push(`
+						<div
+							class="
+								archive-attachment-item
+								${deleted
+									? "is-pending-delete"
+									: ""
+								}
+							"
+						>
+
+							<div class="archive-file-info">
+
+								<div class="archive-file-icon">
+									${this.escape_value(
+										extension
+									)}
+								</div>
+
+
+								<div>
+
+									<div class="archive-file-name">
+										${this.escape_value(
+											file_name
+										)}
+									</div>
+
+
+									${
+										item.is_extraction_source
+											? `
+												<div class="archive-file-size">
+													مصدر استخراج البيانات
+												</div>
+											`
+											: ""
+									}
+
+
+									${
+										item.is_final_swift
+											? `
+												<div class="archive-file-size">
+													السويفت النهائي
+												</div>
+											`
+											: ""
+									}
+
+
+									${
+										deleted
+											? `
+												<div class="archive-file-size">
+													سيتم الحذف عند حفظ التعديلات
+												</div>
+											`
+											: ""
+									}
+
+								</div>
+
+							</div>
+
+
+							<div
+								class="archive-attachment-actions"
+							>
+
+								${
+									file_url
+									&& !deleted
+										? `
+											<a
+												href="${this.escape_attribute(
+													file_url
+												)}"
+												target="_blank"
+												rel="noopener noreferrer"
+												class="btn btn-default btn-sm"
+											>
+												عرض
+											</a>
+										`
+										: ""
+								}
+
+
+								${
+									this.permissions
+										.can_manage_attachments
+									&&
+									!item
+										.is_extraction_source
+										? (
+											deleted
+												? `
+													<button
+														type="button"
+														class="
+															btn
+															btn-default
+															btn-sm
+															archive-restore-existing-attachment
+														"
+														data-name="${this.escape_attribute(
+															item.name
+														)}"
+													>
+														تراجع
+													</button>
+												`
+												: `
+													<button
+														type="button"
+														class="
+															btn
+															btn-default
+															btn-sm
+															archive-delete-existing-attachment
+														"
+														data-name="${this.escape_attribute(
+															item.name
+														)}"
+													>
+														حذف
+													</button>
+												`
+										)
+										: ""
+								}
+
+							</div>
+
+						</div>
+					`);
+				}
+			);
+
+
+		/*
+		* ======================================================
+		* New attachments
+		* ======================================================
+		*/
+
+		this.new_attachments
+			.forEach(
+				(file, index) => {
+
+					rows.push(`
+						<div
+							class="
+								archive-attachment-item
+								is-new
+							"
+						>
+
+							<div class="archive-file-info">
+
+								<div class="archive-file-icon">
+									${this.escape_value(
+										this.file_extension(
+											file.name
+										)
+									)}
+								</div>
+
+
+								<div>
+
+									<div class="archive-file-name">
+										${this.escape_value(
+											file.name
+										)}
+									</div>
+
+									<div class="archive-file-size">
+										مرفق جديد — سيتم حفظه عند حفظ التعديلات
+									</div>
+
+								</div>
+
+							</div>
+
+
+							<div
+								class="archive-attachment-actions"
+							>
+
+								<button
+									type="button"
+									class="
+										btn
+										btn-default
+										btn-sm
+										archive-remove-new-attachment
+									"
+									data-index="${index}"
+								>
+									إزالة
+								</button>
+
+							</div>
+
+						</div>
+					`);
+				}
+			);
+
+
+		if (!rows.length) {
 			$list.html(`
 				<div class="archive-no-attachments">
 					لا توجد مرفقات
@@ -877,105 +1622,93 @@ class OperationViewDialog {
 			return;
 		}
 
+
 		$list.html(
-			attachments
-				.map(
-					(item) => {
-
-						const file_url =
-							item.file || "";
-
-						const file_name =
-							item.file_name ||
-							this.get_file_name(
-								file_url
-							);
-
-						const extension =
-							this.file_extension(
-								file_name
-							);
-
-						return `
-							<div
-								class="archive-attachment-item"
-							>
-
-								<div class="archive-file-info">
-
-									<div class="archive-file-icon">
-										${this.escape_value(
-											extension
-										)}
-									</div>
-
-
-									<div>
-
-										<div class="archive-file-name">
-											${this.escape_value(
-												file_name
-											)}
-										</div>
-
-
-										${
-											item.is_extraction_source
-												? `
-													<div class="archive-file-size">
-														مصدر استخراج البيانات
-													</div>
-												`
-												: ""
-										}
-
-									</div>
-
-								</div>
-
-
-								<div
-									class="archive-attachment-actions"
-								>
-
-									${
-										item.is_extraction_source
-											? `
-												<span
-													class="archive-source-badge"
-												>
-													مصدر استخراج
-												</span>
-											`
-											: ""
-									}
-
-
-									${
-										file_url
-											? `
-												<a
-													href="${this.escape_attribute(
-														file_url
-													)}"
-													target="_blank"
-													rel="noopener noreferrer"
-													class="btn btn-default btn-sm"
-												>
-													عرض
-												</a>
-											`
-											: ""
-									}
-
-								</div>
-
-							</div>
-						`;
-					}
-				)
-				.join("")
+			rows.join("")
 		);
+
+
+		/*
+		* Existing delete
+		*/
+		$list
+			.find(
+				".archive-delete-existing-attachment"
+			)
+			.on(
+				"click",
+				(event) => {
+
+					const name =
+						$(event.currentTarget)
+							.data("name");
+
+
+					const attachment =
+						this.existing_attachments
+							.find(
+								(item) =>
+									item.name
+									=== name
+							);
+
+
+					if (attachment) {
+						this
+							.mark_existing_attachment_deleted(
+								attachment
+							);
+					}
+				}
+			);
+
+
+		/*
+		* Restore existing
+		*/
+		$list
+			.find(
+				".archive-restore-existing-attachment"
+			)
+			.on(
+				"click",
+				(event) => {
+
+					const name =
+						$(event.currentTarget)
+							.data("name");
+
+					this
+						.restore_existing_attachment(
+							name
+						);
+				}
+			);
+
+
+		/*
+		* Remove unsaved new attachment
+		*/
+		$list
+			.find(
+				".archive-remove-new-attachment"
+			)
+			.on(
+				"click",
+				(event) => {
+
+					const index =
+						Number(
+							$(event.currentTarget)
+								.data("index")
+						);
+
+					this
+						.remove_new_attachment(
+							index
+						);
+				}
+			);
 	}
 
 
@@ -1006,31 +1739,164 @@ class OperationViewDialog {
 	}
 
 
+	// async save() {
+	// 	if (
+	// 		!this.permissions.can_edit ||
+	// 		!this.editable_fields.size
+	// 	) {
+	// 		return;
+	// 	}
+
+	// 	const values =
+	// 		this.get_values();
+
+	// 	const primary_button =
+	// 		this.dialog
+	// 			.get_primary_btn();
+
+	// 	primary_button.prop(
+	// 		"disabled",
+	// 		true
+	// 	);
+
+	// 	try {
+	// 		const response =
+	// 			await frappe.call({
+	// 				method:
+	// 					"archive.api.operations.update_operation_manual_fields",
+
+	// 				type:
+	// 					"POST",
+
+	// 				args: {
+	// 					operation_name:
+	// 						this.operation.name,
+
+	// 					values:
+	// 						values,
+	// 				},
+	// 			});
+
+	// 		const result =
+	// 			response.message || {};
+
+	// 		if (result.operation) {
+	// 			this.operation =
+	// 				result.operation;
+	// 		}
+
+	// 		frappe.show_alert({
+	// 			message:
+	// 				`تم حفظ تعديلات ${this.operation.name}`,
+
+	// 			indicator:
+	// 				"green",
+	// 		});
+
+	// 		this.dialog.hide();
+
+	// 		if (
+	// 			typeof this.options
+	// 				.on_saved
+	// 			=== "function"
+	// 		) {
+	// 			await this.options
+	// 				.on_saved(
+	// 					this.operation
+	// 				);
+	// 		}
+
+	// 	} catch (error) {
+	// 		console.error(
+	// 			"Operation update failed:",
+	// 			error
+	// 		);
+
+	// 		frappe.msgprint({
+	// 			title:
+	// 				__("تعذر حفظ التعديلات"),
+
+	// 			message:
+	// 				error?.message ||
+	// 				__(
+	// 					"حدث خطأ أثناء حفظ تعديلات العملية."
+	// 				),
+
+	// 			indicator:
+	// 				"red",
+	// 		});
+
+	// 	} finally {
+	// 		primary_button.prop(
+	// 			"disabled",
+	// 			false
+	// 		);
+	// 	}
+	// }
+
 	async save() {
+		const can_edit =
+			Boolean(
+				this.permissions.can_edit
+			);
+
+		const can_manage_attachments =
+			Boolean(
+				this.permissions
+					.can_manage_attachments
+			);
+
+
 		if (
-			!this.permissions.can_edit ||
-			!this.editable_fields.size
+			!can_edit
+			&&
+			!can_manage_attachments
 		) {
 			return;
 		}
 
-		const values =
-			this.get_values();
 
-		const primary_button =
+		const values =
+			can_edit
+				? this.get_values()
+				: {};
+
+
+		const button =
 			this.dialog
 				.get_primary_btn();
 
-		primary_button.prop(
+
+		button.prop(
 			"disabled",
 			true
 		);
 
+
+		let uploaded = [];
+
+
 		try {
+
+			/*
+			* لا نرفع الملفات الجديدة
+			* إلا عند الضغط على حفظ.
+			*/
+			if (
+				can_manage_attachments
+				&&
+				this.new_attachments.length
+			) {
+				uploaded =
+					await this
+						.upload_new_attachments();
+			}
+
+
 			const response =
 				await frappe.call({
 					method:
-						"archive.api.operations.update_operation_manual_fields",
+						"archive.api.operations.save_operation_view_changes",
 
 					type:
 						"POST",
@@ -1041,16 +1907,27 @@ class OperationViewDialog {
 
 						values:
 							values,
+
+						new_attachments:
+							uploaded,
+
+						delete_attachment_names:
+							Array.from(
+								this.deleted_attachment_names
+							),
 					},
 				});
 
+
 			const result =
 				response.message || {};
+
 
 			if (result.operation) {
 				this.operation =
 					result.operation;
 			}
+
 
 			frappe.show_alert({
 				message:
@@ -1060,7 +1937,9 @@ class OperationViewDialog {
 					"green",
 			});
 
+
 			this.dialog.hide();
+
 
 			if (
 				typeof this.options
@@ -1074,10 +1953,23 @@ class OperationViewDialog {
 			}
 
 		} catch (error) {
+
+			/*
+			* إذا فشل حفظ العملية،
+			* نحذف فقط الملفات الجديدة
+			* التي رفعناها في هذه المحاولة.
+			*/
+			await this
+				.cleanup_uploaded_files(
+					uploaded
+				);
+
+
 			console.error(
-				"Operation update failed:",
+				"Operation view save failed:",
 				error
 			);
+
 
 			frappe.msgprint({
 				title:
@@ -1094,7 +1986,7 @@ class OperationViewDialog {
 			});
 
 		} finally {
-			primary_button.prop(
+			button.prop(
 				"disabled",
 				false
 			);

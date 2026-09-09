@@ -54,7 +54,7 @@
 
 .archive-summary-grid {
 	display: grid;
-	grid-template-columns: repeat(5, minmax(150px, 1fr));
+	grid-template-columns: repeat(6, minmax(140px, 1fr));
 	gap: 12px;
 	margin-bottom: 18px;
 }
@@ -737,4 +737,280 @@
 
 .archive-operation-row.is-selected > td {
 	color: var(--text-color);
+}
+
+
+/* =========================
+   Summary Cards
+   ========================= */
+
+.archive-summary-grid {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	gap: 12px;
+	margin-bottom: 18px;
+}
+
+.archive-summary-card {
+	position: relative;
+	width: 100%;
+	min-height: 92px;
+	padding: 18px 18px 16px;
+	border-radius: 16px;
+	border: 1px solid var(--border-color);
+	background: #ffffff;
+	text-align: right;
+	cursor: pointer;
+	transition: all 0.18s ease;
+	box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.archive-summary-card:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 8px 18px rgba(16, 24, 40, 0.08);
+}
+
+.archive-summary-card.is-active {
+	box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.10);
+	transform: translateY(-1px);
+}
+
+.archive-summary-value {
+	font-size: 32px;
+	font-weight: 800;
+	line-height: 1;
+	margin-bottom: 10px;
+	color: #111827;
+}
+
+.archive-summary-label {
+	font-size: 13px;
+	font-weight: 700;
+	color: #4b5563;
+}
+
+
+/* =========================
+   Card colors by status
+   ========================= */
+
+/* كل العمليات */
+.archive-summary-card[data-status="all"] {
+	background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+	border-color: #d6dbe4;
+}
+
+.archive-summary-card[data-status="all"] .archive-summary-value {
+	color: #111827;
+}
+
+.archive-summary-card[data-status="all"] .archive-summary-label {
+	color: #374151;
+}
+
+.archive-summary-card[data-status="all"].is-active {
+	border-color: #111827;
+	box-shadow:
+		0 0 0 2px rgba(17, 24, 39, 0.12),
+		0 10px 20px rgba(17, 24, 39, 0.06);
+}
+
+
+/* غير مؤكدة */
+.archive-summary-card[data-status="unconfirmed"] {
+	background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+	border-color: #e5e7eb;
+}
+
+.archive-summary-card[data-status="unconfirmed"] .archive-summary-value {
+	color: #111827;
+}
+
+.archive-summary-card[data-status="unconfirmed"] .archive-summary-label {
+	color: #6b7280;
+}
+
+.archive-summary-card[data-status="unconfirmed"].is-active {
+	border-color: #9ca3af;
+	box-shadow:
+		0 0 0 2px rgba(156, 163, 175, 0.18),
+		0 10px 20px rgba(107, 114, 128, 0.08);
+}
+
+
+/* مؤكدة */
+.archive-summary-card[data-status="confirmed"] {
+	background: linear-gradient(180deg, #f2fbf5 0%, #e8f8ee 100%);
+	border-color: #b7e4c7;
+}
+
+.archive-summary-card[data-status="confirmed"] .archive-summary-value {
+	color: #166534;
+}
+
+.archive-summary-card[data-status="confirmed"] .archive-summary-label {
+	color: #166534;
+}
+
+.archive-summary-card[data-status="confirmed"].is-active {
+	border-color: #22c55e;
+	box-shadow:
+		0 0 0 2px rgba(34, 197, 94, 0.18),
+		0 10px 20px rgba(34, 197, 94, 0.10);
+}
+
+
+/* مرتجعة */
+.archive-summary-card[data-status="returned"] {
+	background: linear-gradient(180deg, #fff5f5 0%, #fdecec 100%);
+	border-color: #f3c2c2;
+}
+
+.archive-summary-card[data-status="returned"] .archive-summary-value {
+	color: #b42318;
+}
+
+.archive-summary-card[data-status="returned"] .archive-summary-label {
+	color: #b42318;
+}
+
+.archive-summary-card[data-status="returned"].is-active {
+	border-color: #ef4444;
+	box-shadow:
+		0 0 0 2px rgba(239, 68, 68, 0.18),
+		0 10px 20px rgba(239, 68, 68, 0.10);
+}
+
+
+/* محضورة */
+.archive-summary-card[data-status="held"] {
+	background: linear-gradient(180deg, #fffbea 0%, #fef3c7 100%);
+	border-color: #f6d78b;
+}
+
+.archive-summary-card[data-status="held"] .archive-summary-value {
+	color: #92400e;
+}
+
+.archive-summary-card[data-status="held"] .archive-summary-label {
+	color: #92400e;
+}
+
+.archive-summary-card[data-status="held"].is-active {
+	border-color: #f59e0b;
+	box-shadow:
+		0 0 0 2px rgba(245, 158, 11, 0.18),
+		0 10px 20px rgba(245, 158, 11, 0.10);
+}
+
+/* من أجل جعل البطاقات النشطة أوضح قليل  */
+
+
+
+
+.archive-operations-table .col-final-swift {
+	width: 125px;
+}
+
+/* ============================================================
+   FINAL SWIFT CHECK
+   ============================================================ */
+
+.archive-final-swift-cell {
+	text-align: center !important;
+}
+
+.archive-final-swift-check {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+
+	width: 22px;
+	height: 22px;
+
+	border: 1px solid #d1d5db;
+	border-radius: 6px;
+
+	background: #ffffff;
+
+	font-size: 14px;
+	font-weight: 800;
+
+	color: transparent;
+}
+
+.archive-final-swift-check.is-checked {
+	background: #dcfce7;
+	border-color: #86d49f;
+	color: #15803d;
+}
+
+
+@media (max-width: 1100px) {
+	.archive-summary-grid {
+		grid-template-columns:
+			repeat(3, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 768px) {
+	.archive-summary-grid {
+		grid-template-columns:
+			repeat(2, minmax(0, 1fr));
+	}
+}
+
+
+/* =========================
+   السويفت النهائي
+   ========================= */
+
+.archive-summary-card[data-status="final_swift"] {
+	background:
+		linear-gradient(
+			180deg,
+			#eff8ff 0%,
+			#e6f4ff 100%
+		);
+
+	border-color:
+		#b7ddf7;
+}
+
+
+.archive-summary-card[data-status="final_swift"]
+.archive-summary-value {
+	color:
+		#0369a1;
+}
+
+
+.archive-summary-card[data-status="final_swift"]
+.archive-summary-label {
+	color:
+		#075985;
+}
+
+
+/* عند تحديد البطاقة */
+
+.archive-summary-card[data-status="final_swift"].is-active {
+	border-color:
+		#0ea5e9;
+
+	box-shadow:
+		0 0 0 2px
+			rgba(
+				14,
+				165,
+				233,
+				0.18
+			),
+		0 10px 20px
+			rgba(
+				14,
+				165,
+				233,
+				0.10
+			);
 }
