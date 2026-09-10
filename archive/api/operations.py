@@ -2,8 +2,73 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, now_datetime
 from typing import Any
+from archive.api.operation_timeline import (
+    log_operation_event,
+    can_view_operation_timeline,
+)
 
 
+MANUAL_FIELD_LABELS = {
+    "operation_no":
+        "رقم العملية",
+
+    "customer":
+        "اسم العميل",
+
+    "customer_rate":
+        "سعر العميل",
+
+    "from_account":
+        "عن طريق",
+
+    "request_date":
+        "تاريخ الطلب",
+
+    "swift_code":
+        "رمز SWIFT",
+
+    "country":
+        "الجهة (الدولة)",
+
+    "transferring_bank":
+        "اسم البنك المحول",
+}
+
+
+PDF_EXTRACTED_FIELD_LABELS = {
+    "sender_account":
+        "رقم حساب المرسل",
+
+    "beneficiary_account":
+        "رقم حساب المستفيد",
+
+    "amount":
+        "المبلغ",
+
+    "currency":
+        "العملة",
+
+    "bank_transfer_rate":
+        "سعر البنك المحول",
+
+    "beneficiary_name":
+        "اسم المستفيد",
+
+    "beneficiary_bank":
+        "اسم بنك المستفيد",
+
+    "execution_datetime":
+        "تاريخ تنفيذ العملية",
+
+    "reference_no":
+        "رقم المرجع",
+
+    "sender_name":
+        "اسم المرسل",
+
+    "notes":
+        "ملاحظات",
+}
 # ============================================================
 # Operation fields
 # الحقول التي يسمح باستقبالها عند إنشاء عملية جديدة
@@ -836,6 +901,146 @@ def create_operation(
             update_modified=False,
         )
 
+    # ========================================================
+    # Timeline: operation created
+    # ========================================================
+
+    log_operation_event(
+        doc.name,
+        "created",
+        "تم إنشاء العملية",
+        details={
+            "status":
+                doc.status,
+
+            "operation_no":
+                doc.operation_no,
+
+            "customer":
+                doc.customer,
+
+            "amount":
+                doc.amount,
+
+            "currency":
+                doc.currency,
+
+            "transferring_bank":
+                doc.transferring_bank,
+        },
+        event_source=
+            "User",
+    )
+
+
+    # ========================================================
+    # Timeline: PDF extraction
+    # ========================================================
+
+    if extraction_source_file:
+
+        extracted_fields = []
+
+        for (
+            fieldname,
+            label,
+        ) in (
+            PDF_EXTRACTED_FIELD_LABELS.items()
+        ):
+
+            value = doc.get(
+                fieldname
+            )
+
+            if (
+                value is None
+                or value == ""
+            ):
+                continue
+
+            extracted_fields.append(
+                {
+                    "fieldname":
+                        fieldname,
+
+                    "label":
+                        label,
+
+                    "value":
+                        value,
+                }
+            )
+
+
+        extraction_file_doc = (
+            file_docs.get(
+                extraction_source_file
+            )
+        )
+
+
+        log_operation_event(
+            doc.name,
+            "data_extracted",
+            "تم استخراج بيانات العملية من المستند",
+            details={
+                "file_url":
+                    extraction_source_file,
+
+                "file_name":
+                    (
+                        extraction_file_doc.file_name
+                        if extraction_file_doc
+                        else None
+                    ),
+
+                "fields":
+                    extracted_fields,
+            },
+            event_source=
+                "PDF Extraction",
+        )
+
+
+    # ========================================================
+    # Timeline: initial attachments
+    # ========================================================
+
+    created_attachments = [
+        {
+            "file_name":
+                file_doc.file_name,
+
+            "file_url":
+                file_url,
+
+            "is_extraction_source":
+                (
+                    file_url
+                    == extraction_source_file
+                ),
+        }
+        for (
+            file_url,
+            file_doc,
+        ) in file_docs.items()
+    ]
+
+
+    if created_attachments:
+
+        log_operation_event(
+            doc.name,
+            "attachment_added",
+            "تم إرفاق ملفات مع إنشاء العملية",
+            details={
+                "files":
+                    created_attachments,
+            },
+            event_source=
+                "User",
+        )
+
     return {
         "name":
             doc.name,
@@ -1137,6 +1342,36 @@ def get_operations(
 
 
     # ========================================================
+    # Search-aware counters
+    # ========================================================
+
+    def count_operations(
+        extra_filters=None,
+    ) -> int:
+
+        names = frappe.get_list(
+            "Archive Operation",
+
+            filters=
+                extra_filters
+                or {},
+
+            or_filters=
+                or_filters,
+
+            pluck=
+                "name",
+
+            limit_page_length=
+                0,
+        )
+
+        return len(
+            names
+        )
+
+
+    # ========================================================
     # Customer names
     # ========================================================
 
@@ -1294,12 +1529,15 @@ def get_operations(
             )
         )
 
-        # swift_state = (
-        #     get_final_swift_state(
-        #         operation,
-        #         configured_final_swift_banks,
-        #     )
-        # )
+        # هل المستخدم يستطيع مشاهدة مسار العملية؟
+        operation[
+            "can_view_timeline"
+        ] = (
+            can_view_operation_timeline(
+                operation
+            )
+        )
+
         swift_state = (
             get_final_swift_state(
                 operation,
@@ -1373,48 +1611,120 @@ def get_operations(
     # Status counters
     # ========================================================
 
+    # counts = {
+    #     "all":
+    #         frappe.db.count(
+    #             "Archive Operation"
+    #         ),
+
+    #     "غير مؤكدة":
+    #         frappe.db.count(
+    #             "Archive Operation",
+    #             {
+    #                 "status":
+    #                     "غير مؤكدة",
+    #             },
+    #         ),
+
+    #     "مؤكدة":
+    #         frappe.db.count(
+    #             "Archive Operation",
+    #             {
+    #                 "status":
+    #                     "مؤكدة",
+    #             },
+    #         ),
+
+    #     "مرتجعة":
+    #         frappe.db.count(
+    #             "Archive Operation",
+    #             {
+    #                 "status":
+    #                     "مرتجعة",
+    #             },
+    #         ),
+
+    #     "محضورة":
+    #         frappe.db.count(
+    #             "Archive Operation",
+    #             {
+    #                 "status":
+    #                     "محضورة",
+    #             },
+    #         ),
+    # }
+        # ========================================================
+    # Status counters
+    #
+    # جميع العدادات تتأثر بالبحث الحالي،
+    # ولكن لا تتأثر بالبطاقة المحددة.
+    # ========================================================
+
     counts = {
         "all":
-            frappe.db.count(
-                "Archive Operation"
-            ),
+            count_operations(),
 
         "غير مؤكدة":
-            frappe.db.count(
-                "Archive Operation",
+            count_operations(
                 {
                     "status":
                         "غير مؤكدة",
-                },
+                }
             ),
 
         "مؤكدة":
-            frappe.db.count(
-                "Archive Operation",
+            count_operations(
                 {
                     "status":
                         "مؤكدة",
-                },
+                }
             ),
 
         "مرتجعة":
-            frappe.db.count(
-                "Archive Operation",
+            count_operations(
                 {
                     "status":
                         "مرتجعة",
-                },
+                }
             ),
 
         "محضورة":
-            frappe.db.count(
-                "Archive Operation",
+            count_operations(
                 {
                     "status":
                         "محضورة",
-                },
+                }
             ),
     }
+
+
+    if configured_final_swift_banks:
+
+        counts[
+            "final_swift"
+        ] = (
+            count_operations(
+                {
+                    "transferring_bank": [
+                        "in",
+                        list(
+                            configured_final_swift_banks
+                        ),
+                    ],
+
+                    "final_swift_file": [
+                        "is",
+                        "not set",
+                    ],
+                }
+            )
+        )
+
+    else:
+
+        counts[
+            "final_swift"
+        ] = 0
 
     if configured_final_swift_banks:
         counts["final_swift"] = (
@@ -2179,6 +2489,50 @@ def attach_final_swift(
             operation
         )
     )
+    log_operation_event(
+        operation.name,
+        "final_swift_added",
+        (
+            "تم إرفاق ملف سويفت نهائي"
+            if len(file_docs) == 1
+            else
+            "تم إرفاق {0} ملفات سويفت نهائي".format(
+                len(file_docs)
+            )
+        ),
+        details={
+            "files": [
+                {
+                    "file_name":
+                        file_doc.file_name,
+
+                    "file_url":
+                        file_doc.file_url,
+                }
+                for file_doc
+                in file_docs
+            ],
+
+            "added_count":
+                len(
+                    file_docs
+                ),
+
+            "final_swift_count":
+                final_swift_count,
+
+            "final_swift_limit":
+                MAX_FINAL_SWIFT_FILES,
+        },
+        event_source=
+            "User",
+
+        event_user=
+            uploaded_by,
+
+        event_datetime=
+            uploaded_at,
+    )
 
 
     return {
@@ -2453,104 +2807,104 @@ def attach_final_swift(
 # Update only manually-entered fields
 # ============================================================
 
-@frappe.whitelist(
-    methods=["POST"]
-)
-def update_operation_manual_fields(
-    operation_name: str,
-    values: dict[str, Any] | str | None = None,
-) -> dict[str, Any]:
+# @frappe.whitelist(
+    # methods=["POST"]
+# )
+# def update_operation_manual_fields(
+    # operation_name: str,
+    # values: dict[str, Any] | str | None = None,
+# ) -> dict[str, Any]:
 
-    operation_name = (
-        operation_name or ""
-    ).strip()
+#     operation_name = (
+#         operation_name or ""
+#     ).strip()
 
-    if not operation_name:
-        frappe.throw(
-            _(
-                "اسم العملية مطلوب."
-            )
-        )
+#     if not operation_name:
+#         frappe.throw(
+#             _(
+#                 "اسم العملية مطلوب."
+#             )
+#         )
 
-    values = _parse(
-        values,
-        {},
-    )
+#     values = _parse(
+#         values,
+#         {},
+#     )
 
-    if not isinstance(
-        values,
-        dict,
-    ):
-        frappe.throw(
-            _(
-                "بيانات التعديل غير صحيحة."
-            )
-        )
+#     if not isinstance(
+#         values,
+#         dict,
+#     ):
+#         frappe.throw(
+#             _(
+#                 "بيانات التعديل غير صحيحة."
+#             )
+#         )
 
-    operation = frappe.get_doc(
-        "Archive Operation",
-        operation_name,
-    )
+#     operation = frappe.get_doc(
+#         "Archive Operation",
+#         operation_name,
+#     )
 
-    # التعديل يعتمد على Write
-    # من Role Permission Manager.
-    operation.check_permission(
-        "write"
-    )
+#     # التعديل يعتمد على Write
+#     # من Role Permission Manager.
+#     operation.check_permission(
+#         "write"
+#     )
 
-    received_fields = set(
-        values.keys()
-    )
+#     received_fields = set(
+#         values.keys()
+#     )
 
-    forbidden_fields = (
-        received_fields
-        - MANUAL_EDITABLE_FIELDS
-    )
+#     forbidden_fields = (
+#         received_fields
+#         - MANUAL_EDITABLE_FIELDS
+#     )
 
-    if forbidden_fields:
-        frappe.throw(
-            _(
-                "لا يسمح بتعديل الحقول التالية: {0}"
-            ).format(
-                ", ".join(
-                    sorted(
-                        forbidden_fields
-                    )
-                )
-            ),
-            frappe.PermissionError,
-        )
+#     if forbidden_fields:
+#         frappe.throw(
+#             _(
+#                 "لا يسمح بتعديل الحقول التالية: {0}"
+#             ).format(
+#                 ", ".join(
+#                     sorted(
+#                         forbidden_fields
+#                     )
+#                 )
+#             ),
+#             frappe.PermissionError,
+#         )
 
-    for fieldname in (
-        MANUAL_EDITABLE_FIELDS
-    ):
+#     for fieldname in (
+#         MANUAL_EDITABLE_FIELDS
+#     ):
 
-        if (
-            fieldname
-            not in values
-        ):
-            continue
+#         if (
+#             fieldname
+#             not in values
+#         ):
+#             continue
 
-        value = values.get(
-            fieldname
-        )
+#         value = values.get(
+#             fieldname
+#         )
 
-        if value == "":
-            value = None
+#         if value == "":
+#             value = None
 
-        operation.set(
-            fieldname,
-            value,
-        )
+#         operation.set(
+#             fieldname,
+#             value,
+#         )
 
-    operation.save()
+#     operation.save()
 
-    return {
-        "operation":
-            serialize_operation_for_view(
-                operation
-            )
-    }
+#     return {
+#         "operation":
+#             serialize_operation_for_view(
+#                 operation
+#             )
+#     }
 
 
 # ============================================================
@@ -2727,6 +3081,41 @@ def change_operation_status(
     # صلاحية الحالة تم التحقق منها أعلاه.
     operation.save(
         ignore_permissions=True
+    )
+    log_operation_event(
+        operation.name,
+        "status_change",
+        "تم تغيير حالة العملية من {0} إلى {1}".format(
+            old_status,
+            status,
+        ),
+        details={
+            "from_status":
+                old_status,
+
+            "to_status":
+                status,
+
+            "effective_date":
+                effective_date,
+
+            "system_datetime":
+                system_datetime,
+        },
+        remarks=
+            remarks or None,
+
+        effective_date=
+            effective_date,
+
+        event_source=
+            "User",
+
+        event_user=
+            changed_by,
+
+        event_datetime=
+            system_datetime,
     )
 
     return {
@@ -3014,7 +3403,68 @@ def save_operation_view_changes(
             file_url
         )
 
+    manual_changes = []
 
+
+    for fieldname in (
+        MANUAL_EDITABLE_FIELDS
+    ):
+
+        if fieldname not in values:
+            continue
+
+
+        old_value = (
+            operation.get(
+                fieldname
+            )
+        )
+
+        new_value = (
+            values.get(
+                fieldname
+            )
+        )
+
+
+        if new_value == "":
+            new_value = None
+
+
+        if (
+            str(
+                old_value
+                if old_value is not None
+                else ""
+            )
+            ==
+            str(
+                new_value
+                if new_value is not None
+                else ""
+            )
+        ):
+            continue
+
+
+        manual_changes.append(
+            {
+                "fieldname":
+                    fieldname,
+
+                "label":
+                    MANUAL_FIELD_LABELS.get(
+                        fieldname,
+                        fieldname,
+                    ),
+
+                "old_value":
+                    old_value,
+
+                "new_value":
+                    new_value,
+            }
+        )
     # ========================================================
     # Manual fields
     # ========================================================
@@ -3047,6 +3497,9 @@ def save_operation_view_changes(
 
     deleted_final_swift = False
 
+    deleted_normal_files = []
+
+    deleted_final_swift_files = []
 
     for row in rows_to_delete:
 
@@ -3054,8 +3507,30 @@ def save_operation_view_changes(
             row.file
         )
 
+
+        file_info = {
+            "file_name":
+                row.file_name,
+
+            "file_url":
+                row.file,
+        }
+
+
         if row.is_final_swift:
+
             deleted_final_swift = True
+
+            deleted_final_swift_files.append(
+                file_info
+            )
+
+        else:
+
+            deleted_normal_files.append(
+                file_info
+            )
+
 
         operation.remove(
             row
@@ -3144,7 +3619,20 @@ def save_operation_view_changes(
         ignore_permissions=True
     )
 
+    if manual_changes:
 
+        log_operation_event(
+            operation.name,
+            "manual_edit",
+            "تم تعديل بيانات العملية",
+            details={
+                "changes":
+                    manual_changes,
+            },
+            event_source=
+                "User",
+        )
+    
     # ========================================================
     # Attach new File records
     # ========================================================
@@ -3203,6 +3691,97 @@ def save_operation_view_changes(
 
 
     operation.reload()
+
+    if new_file_docs:
+
+        log_operation_event(
+            operation.name,
+            "attachment_added",
+            (
+                "تم إضافة مرفق جديد"
+                if len(new_file_docs) == 1
+                else
+                "تم إضافة {0} مرفقات جديدة".format(
+                    len(new_file_docs)
+                )
+            ),
+            details={
+                "files": [
+                    {
+                        "file_name":
+                            file_doc.file_name,
+
+                        "file_url":
+                            file_doc.file_url,
+                    }
+                    for file_doc
+                    in new_file_docs
+                ],
+            },
+            event_source=
+                "User",
+        )
+    if deleted_normal_files:
+
+        log_operation_event(
+            operation.name,
+            "attachment_deleted",
+            (
+                "تم حذف مرفق"
+                if len(
+                    deleted_normal_files
+                ) == 1
+                else
+                "تم حذف {0} مرفقات".format(
+                    len(
+                        deleted_normal_files
+                    )
+                )
+            ),
+            details={
+                "files":
+                    deleted_normal_files,
+            },
+            event_source=
+                "User",
+        )
+    if deleted_final_swift_files:
+
+        remaining_final_swift_count = (
+            get_final_swift_count(
+                operation
+            )
+        )
+
+
+        log_operation_event(
+            operation.name,
+            "final_swift_deleted",
+            (
+                "تم حذف ملف سويفت نهائي"
+                if len(
+                    deleted_final_swift_files
+                ) == 1
+                else
+                "تم حذف {0} ملفات سويفت نهائي".format(
+                    len(
+                        deleted_final_swift_files
+                    )
+                )
+            ),
+            details={
+                "files":
+                    deleted_final_swift_files,
+
+                "remaining_count":
+                    remaining_final_swift_count,
+
+                "final_swift_limit":
+                    MAX_FINAL_SWIFT_FILES,
+            },
+            event_source=
+                "User",
+        )
 
 
     return {

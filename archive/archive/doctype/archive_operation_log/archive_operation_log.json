@@ -1,0 +1,113 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "hash",
+  "creation": "2026-09-10 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "operation",
+    "event_type",
+    "event_title",
+    "event_datetime",
+    "event_user",
+    "event_source",
+    "effective_date",
+    "remarks",
+    "details_json"
+  ],
+  "fields": [
+    {
+      "fieldname": "operation",
+      "fieldtype": "Link",
+      "label": "العملية",
+      "options": "Archive Operation",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "event_type",
+      "fieldtype": "Select",
+      "label": "نوع الحدث",
+      "options": "created\ndata_extracted\nmanual_edit\nstatus_change\nattachment_added\nattachment_deleted\nfinal_swift_added\nfinal_swift_deleted",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "event_title",
+      "fieldtype": "Data",
+      "label": "عنوان الحدث",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "event_datetime",
+      "fieldtype": "Datetime",
+      "label": "تاريخ ووقت الحدث",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "event_user",
+      "fieldtype": "Link",
+      "label": "المستخدم",
+      "options": "User",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "event_source",
+      "fieldtype": "Select",
+      "label": "مصدر الحدث",
+      "options": "User\nSystem\nPDF Extraction",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "effective_date",
+      "fieldtype": "Date",
+      "label": "تاريخ الإجراء الفعلي",
+      "read_only": 1
+    },
+    {
+      "fieldname": "remarks",
+      "fieldtype": "Small Text",
+      "label": "الملاحظات",
+      "read_only": 1
+    },
+    {
+      "fieldname": "details_json",
+      "fieldtype": "Long Text",
+      "label": "تفاصيل الحدث",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-09-10 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Operation Log",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 0,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 0,
+      "role": "System Manager",
+      "share": 0,
+      "write": 0
+    }
+  ],
+  "sort_field": "event_datetime",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}

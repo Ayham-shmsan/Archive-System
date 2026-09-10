@@ -1014,3 +1014,38 @@
 				0.10
 			);
 }
+
+.archive-operation-total-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+}
+
+.archive-operation-total-row td {
+    padding: 12px 14px !important;
+    border-top: 2px solid var(--border-color);
+    background: var(--card-bg);
+    vertical-align: middle;
+}
+
+.archive-visible-amount-total {
+    text-align: right;
+}
+
+.archive-visible-total-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 18px;
+    white-space: nowrap;
+}
+
+.archive-visible-total-item strong {
+    font-size: 14px;
+    direction: ltr;
+}
+
+.archive-visible-total-item span {
+    font-size: 12px;
+    color: var(--text-muted);
+}

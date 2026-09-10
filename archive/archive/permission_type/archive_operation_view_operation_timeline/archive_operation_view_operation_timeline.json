@@ -1,0 +1,10 @@
+{
+ "creation": "2026-09-10 19:58:47.178520",
+ "doc_type": "Archive Operation",
+ "doctype": "Permission Type",
+ "modified": "2026-09-10 19:58:47.178520",
+ "modified_by": "Administrator",
+ "name": "archive_operation_view_operation_timeline",
+ "owner": "Administrator",
+ "perm_type": "view_operation_timeline"
+}

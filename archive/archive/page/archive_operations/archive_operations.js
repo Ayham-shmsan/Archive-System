@@ -136,21 +136,10 @@ class ArchiveOperationsPage {
         }
 
 
-        /*
-        * حماية على مستوى الواجهة أيضاً.
-        *
-        * Backend سيعيد التحقق مرة أخرى.
-        */
-        // if (
-        //     !operation.final_swift_required
-        //     ||
-        //     operation.has_final_swift
-        //     ||
-        //     !operation.can_attach_final_swift
-        // ) {
-        //     return;
-        // }
+        
         if (
+            this.state.status !== "final_swift"
+	        ||
             !operation.final_swift_required
             ||
             !operation.can_attach_final_swift
@@ -174,28 +163,7 @@ class ArchiveOperationsPage {
             ],
             () => {
 
-                // const dialog =
-                //     new archive.ui.FinalSwiftDialog(
-                //         operation.name,
-                //         {
-                //             on_saved:
-                //                 async () => {
-
-                //                     /*
-                //                     * تحديث القائمة والعدادات.
-                //                     *
-                //                     * إذا كنا داخل بطاقة
-                //                     * السويفت النهائي،
-                //                     * ستختفي العملية تلقائياً.
-                //                     *
-                //                     * إذا كنا داخل كل العمليات
-                //                     * ستبقى العملية ويظهر ✓.
-                //                     */
-                //                     await this
-                //                         .load_operations();
-                //                 },
-                //         }
-                //     );
+               
 
                 const dialog =
                     new archive.ui.FinalSwiftDialog(
@@ -416,6 +384,15 @@ class ArchiveOperationsPage {
                     >
                     عرض
                     </button>
+
+                    <button
+                        type="button"
+                        class="btn btn-default btn-sm archive-timeline-button"
+                        style="display: none;"
+                    >
+                        <i class="fa fa-history"></i>
+                        مسار العملية
+                    </button>
                     
                     <button
                         type="button"
@@ -542,6 +519,25 @@ class ArchiveOperationsPage {
 
 							<tbody class="archive-operation-rows">
 							</tbody>
+
+                            <tfoot class="archive-operation-total-footer">
+                                <tr class="archive-operation-total-row">
+
+                                    <td colspan="3">
+                                        <strong>
+                                            إجمالي المبلغ للنتائج المعروضة
+                                        </strong>
+                                    </td>
+
+                                    <td
+                                        colspan="19"
+                                        class="archive-visible-amount-total"
+                                    >
+                                        —
+                                    </td>
+
+                                </tr>
+                            </tfoot>
 
 						</table>
 
@@ -754,12 +750,17 @@ class ArchiveOperationsPage {
             );
 
         if (!operations.length) {
-            $tbody.empty();
-            $table.hide();
-            $empty.show();
+                $tbody.empty();
 
-            return;
-        }
+                this.update_visible_amount_total(
+                    []
+                );
+
+                $table.hide();
+                $empty.show();
+
+                return;
+            }
 
         $empty.hide();
         $table.show();
@@ -774,9 +775,113 @@ class ArchiveOperationsPage {
                 )
                 .join("")
         );
+        this.update_visible_amount_total(
+            operations
+        );
 
         this.bind_row_events();
     }
+    update_visible_amount_total(
+            operations
+        ) {
+            const totals = {};
+
+
+            (operations || [])
+                .forEach(
+                    (operation) => {
+
+                        const amount =
+                            Number(
+                                operation.amount
+                                || 0
+                            );
+
+
+                        if (
+                            !Number.isFinite(
+                                amount
+                            )
+                        ) {
+                            return;
+                        }
+
+
+                        const currency =
+                            String(
+                                operation.currency
+                                || "بدون عملة"
+                            ).trim();
+
+
+                        totals[currency] =
+                            (
+                                totals[currency]
+                                || 0
+                            )
+                            +
+                            amount;
+                    }
+                );
+
+
+            const entries =
+                Object.entries(
+                    totals
+                );
+
+
+            const $total =
+                $(this.wrapper)
+                    .find(
+                        ".archive-visible-amount-total"
+                    );
+
+
+            if (!entries.length) {
+                $total.html("—");
+                return;
+            }
+
+
+            const html =
+                entries
+                    .map(
+                        (
+                            [
+                                currency,
+                                total
+                            ]
+                        ) => {
+
+                            return `
+                                <span
+                                    class="
+                                        archive-visible-total-item
+                                    "
+                                >
+                                    <strong>
+                                        ${this.format_amount(
+                                            total
+                                        )}
+                                    </strong>
+
+                                    <span>
+                                        ${this.escape_value(
+                                            currency
+                                        )}
+                                    </span>
+                                </span>
+                            `;
+                        }
+                    )
+                    .join("");
+
+
+            $total.html(
+                html
+            );
+        }
 
 
     operation_row(operation) {
@@ -1205,21 +1310,7 @@ class ArchiveOperationsPage {
     }
 
 
-    // get_selected_operation() {
-    //     if (
-    //         !this.state.selected_operation_name
-    //     ) {
-    //         return null;
-    //     }
-
-    //     return (
-    //         this.operations.find(
-    //             (operation) =>
-    //                 operation.name ===
-    //                 this.state.selected_operation_name
-    //         ) || null
-    //     );
-    // }
+    
 
     get_selected_operation() {
         const operation_name =
@@ -1240,6 +1331,27 @@ class ArchiveOperationsPage {
     update_selected_actions() {
         const selected =
             this.get_selected_operation();
+        
+        const can_view_timeline =
+            Boolean(
+                selected
+                &&
+                selected.can_view_timeline
+            );
+        
+        const $timeline_button =
+            $(this.wrapper).find(
+                ".archive-timeline-button"
+            );
+
+        $timeline_button
+            .toggle(
+                can_view_timeline
+            )
+            .prop(
+                "disabled",
+                !can_view_timeline
+            );
 
 
         const can_view =
@@ -1254,34 +1366,8 @@ class ArchiveOperationsPage {
                 selected.can_change_status
             );
 
-
-        // const can_attach_final_swift =
-        //     Boolean(
-        //         selected
-        //         &&
-        //         selected.final_swift_required
-        //         &&
-        //         !selected.has_final_swift
-        //         &&
-        //         selected.can_attach_final_swift
-        //     );
-
-        // const can_attach_final_swift =
-        //     Boolean(
-        //         selected
-        //         &&
-        //         selected.final_swift_required
-        //         &&
-        //         selected.can_attach_final_swift
-        //         &&
-        //         Number(
-        //             selected.final_swift_count || 0
-        //         )
-        //         <
-        //         Number(
-        //             selected.final_swift_limit || 5
-        //         )
-        //     );
+        
+        
         const final_swift_count =
             Number(
                 selected?.final_swift_count
@@ -1298,6 +1384,8 @@ class ArchiveOperationsPage {
         const can_attach_final_swift =
             Boolean(
                 selected
+                &&
+                this.state.status === "final_swift"
                 &&
                 selected.final_swift_required
                 &&
@@ -1366,71 +1454,39 @@ class ArchiveOperationsPage {
                 );
         }
     }
-    // update_selected_actions() {
-    //     const selected =
-    //         this.get_selected_operation();
 
-    //     const can_view =
-    //         Boolean(
-    //             selected
-    //         );
-
-    //     const can_change_status =
-    //         Boolean(
-    //             selected &&
-    //             selected.can_change_status
-    //         );
-
-    //     $(this.wrapper)
-    //         .find(
-    //             ".archive-selected-view"
-    //         )
-    //         .prop(
-    //             "disabled",
-    //             !can_view
-    //         );
-
-    //     $(this.wrapper)
-    //         .find(
-    //             ".archive-selected-actions"
-    //         )
-    //         .prop(
-    //             "disabled",
-    //             !can_change_status
-    //         );
-    // }
-    // update_selected_actions() {
-    //     const selected =
-    //         this.get_selected_operation();
-
-    //     const disabled =
-    //         !selected;
-
-    //     $(this.wrapper)
-    //         .find(
-    //             ".archive-selected-view, .archive-selected-actions"
-    //         )
-    //         .prop(
-    //             "disabled",
-    //             disabled
-    //         );
-    // }
+    open_selected_operation_timeline() {
+        const operation =
+            this.get_selected_operation();
 
 
-    // open_selected_operation() {
-    //     const operation =
-    //         this.get_selected_operation();
+        if (
+            !operation
+            ||
+            !operation.can_view_timeline
+        ) {
+            return;
+        }
 
-    //     if (!operation) {
-    //         return;
-    //     }
 
-    //     frappe.set_route(
-    //         "Form",
-    //         "Archive Operation",
-    //         operation.name
-    //     );
-    // }
+        frappe.require(
+            [
+                "/assets/archive/js/archive_operations/operation_timeline_dialog.js",
+                "/assets/archive/css/archive_operations/operation_timeline_dialog.css",
+            ],
+            () => {
+
+                const dialog =
+                    new archive.ui
+                        .OperationTimelineDialog(
+                            operation.name
+                        );
+
+
+                dialog.show();
+            }
+        );
+    }
     open_selected_operation() {
         const operation =
             this.get_selected_operation();
@@ -1466,96 +1522,7 @@ class ArchiveOperationsPage {
             }
         );
     }
-    // bind_row_events() {
-    //     $(this.wrapper)
-    //         .find(".archive-operation-open")
-    //         .off("click")
-    //         .on("click", (event) => {
-    //             event.stopPropagation();
-
-    //             const name =
-    //                 $(event.currentTarget)
-    //                     .data("name");
-
-    //             if (!name) {
-    //                 return;
-    //             }
-
-    //             frappe.set_route(
-    //                 "Form",
-    //                 "Archive Operation",
-    //                 name
-    //             );
-    //         });
-    //     $(this.wrapper)
-    //         .find(
-    //             ".archive-operation-change-status"
-    //         )
-    //         .off("click")
-    //         .on("click", (event) => {
-    //             event.stopPropagation();
-
-    //             const $button =
-    //                 $(event.currentTarget);
-
-    //             const operation_name =
-    //                 $button.data("name");
-
-    //             const current_status =
-    //                 $button.data("status");
-
-    //             if (!operation_name) {
-    //                 return;
-    //             }
-
-    //             this.open_status_dialog(
-    //                 operation_name,
-    //                 current_status
-    //             );
-    //         });
-    // }
-
-	// bind_events() {
-	// 	const $wrapper = $(this.wrapper);
-
-	// 	$wrapper
-	// 		.find(".archive-create-operation, .archive-empty-create")
-	// 		.on("click", () => {
-	// 			this.open_create_operation();
-	// 		});
-
-	// 	$wrapper
-	// 		.find(".archive-summary-card")
-	// 		.on("click", (event) => {
-	// 			const status =
-	// 				$(event.currentTarget).data("status");
-
-	// 			this.state.status = status;
-
-	// 			$wrapper
-	// 				.find(".archive-summary-card")
-	// 				.removeClass("is-active");
-
-	// 			$(event.currentTarget)
-	// 				.addClass("is-active");
-	// 		});
-
-	// 	$wrapper
-	// 		.find(".archive-operation-search")
-	// 		.on("input", (event) => {
-	// 			this.state.search =
-	// 				event.target.value.trim();
-	// 		});
-
-	// 	$wrapper
-	// 		.find(".archive-refresh-button")
-	// 		.on("click", () => {
-	// 			frappe.show_alert({
-	// 				message: __("تم التحديث"),
-	// 				indicator: "green",
-	// 			});
-	// 		});
-	// }
+    
 
     bind_events() {
         const $wrapper = $(this.wrapper);
@@ -1608,6 +1575,17 @@ class ArchiveOperationsPage {
                     this.open_final_swift_dialog();
                 }
             );
+        
+        $wrapper
+            .find(
+                ".archive-timeline-button"
+            )
+            .on(
+                "click",
+                () => {
+                    this.open_selected_operation_timeline();
+                }
+            );
 
         $wrapper
             .find(".archive-operation-search")
@@ -1640,22 +1618,7 @@ class ArchiveOperationsPage {
                 });
             });
 
-        // $wrapper
-        //     .find(".archive-selected-view")
-        //     .on("click", () => {
-        //         const operation =
-        //             this.get_selected_operation();
-
-        //         if (!operation) {
-        //             return;
-        //         }
-
-        //         frappe.set_route(
-        //             "Form",
-        //             "Archive Operation",
-        //             operation.name
-        //         );
-        //     });
+        
         $wrapper
             .find(".archive-selected-view")
             .on("click", () => {
