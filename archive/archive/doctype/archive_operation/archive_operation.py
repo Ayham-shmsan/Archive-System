@@ -29,6 +29,9 @@ class ArchiveOperation(Document):
         customer_rate: DF.Float
         execution_datetime: DF.Datetime | None
         extraction_source_file: DF.Attach | None
+        final_swift_file: DF.Attach | None
+        final_swift_uploaded_at: DF.Datetime | None
+        final_swift_uploaded_by: DF.Link | None
         from_account: DF.Link | None
         notes: DF.Data | None
         operation_no: DF.Data | None

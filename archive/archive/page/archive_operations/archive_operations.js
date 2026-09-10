@@ -141,12 +141,27 @@ class ArchiveOperationsPage {
         *
         * Backend سيعيد التحقق مرة أخرى.
         */
+        // if (
+        //     !operation.final_swift_required
+        //     ||
+        //     operation.has_final_swift
+        //     ||
+        //     !operation.can_attach_final_swift
+        // ) {
+        //     return;
+        // }
         if (
             !operation.final_swift_required
             ||
-            operation.has_final_swift
-            ||
             !operation.can_attach_final_swift
+            ||
+            Number(
+                operation.final_swift_count || 0
+            )
+            >=
+            Number(
+                operation.final_swift_limit || 5
+            )
         ) {
             return;
         }
@@ -159,23 +174,47 @@ class ArchiveOperationsPage {
             ],
             () => {
 
+                // const dialog =
+                //     new archive.ui.FinalSwiftDialog(
+                //         operation.name,
+                //         {
+                //             on_saved:
+                //                 async () => {
+
+                //                     /*
+                //                     * تحديث القائمة والعدادات.
+                //                     *
+                //                     * إذا كنا داخل بطاقة
+                //                     * السويفت النهائي،
+                //                     * ستختفي العملية تلقائياً.
+                //                     *
+                //                     * إذا كنا داخل كل العمليات
+                //                     * ستبقى العملية ويظهر ✓.
+                //                     */
+                //                     await this
+                //                         .load_operations();
+                //                 },
+                //         }
+                //     );
+
                 const dialog =
                     new archive.ui.FinalSwiftDialog(
                         operation.name,
                         {
+                            current_count:
+                                Number(
+                                    operation.final_swift_count
+                                    || 0
+                                ),
+
+                            max_files:
+                                Number(
+                                    operation.final_swift_limit
+                                    || 5
+                                ),
+
                             on_saved:
                                 async () => {
-
-                                    /*
-                                    * تحديث القائمة والعدادات.
-                                    *
-                                    * إذا كنا داخل بطاقة
-                                    * السويفت النهائي،
-                                    * ستختفي العملية تلقائياً.
-                                    *
-                                    * إذا كنا داخل كل العمليات
-                                    * ستبقى العملية ويظهر ✓.
-                                    */
                                     await this
                                         .load_operations();
                                 },
@@ -1216,15 +1255,56 @@ class ArchiveOperationsPage {
             );
 
 
+        // const can_attach_final_swift =
+        //     Boolean(
+        //         selected
+        //         &&
+        //         selected.final_swift_required
+        //         &&
+        //         !selected.has_final_swift
+        //         &&
+        //         selected.can_attach_final_swift
+        //     );
+
+        // const can_attach_final_swift =
+        //     Boolean(
+        //         selected
+        //         &&
+        //         selected.final_swift_required
+        //         &&
+        //         selected.can_attach_final_swift
+        //         &&
+        //         Number(
+        //             selected.final_swift_count || 0
+        //         )
+        //         <
+        //         Number(
+        //             selected.final_swift_limit || 5
+        //         )
+        //     );
+        const final_swift_count =
+            Number(
+                selected?.final_swift_count
+                || 0
+            );
+
+        const final_swift_limit =
+            Number(
+                selected?.final_swift_limit
+                || 5
+            );
+
+
         const can_attach_final_swift =
             Boolean(
                 selected
                 &&
                 selected.final_swift_required
                 &&
-                !selected.has_final_swift
-                &&
                 selected.can_attach_final_swift
+                &&
+                final_swift_count
+                    < final_swift_limit
             );
 
 
