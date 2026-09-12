@@ -30,7 +30,7 @@
       "fieldname": "event_type",
       "fieldtype": "Select",
       "label": "نوع الحدث",
-      "options": "created\ndata_extracted\nmanual_edit\nstatus_change\nattachment_added\nattachment_deleted\nfinal_swift_added\nfinal_swift_deleted",
+      "options": "created\ndata_extracted\nmanual_edit\nstatus_change\nattachment_added\nattachment_deleted\nfinal_swift_added\nfinal_swift_deleted\nattachment_downloaded",
       "read_only": 1,
       "reqd": 1,
       "search_index": 1

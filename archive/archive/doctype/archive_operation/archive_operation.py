@@ -3,7 +3,9 @@ import os
 import frappe
 from frappe import _
 from frappe.model.document import Document
-
+from archive.api.operation_search import (
+    build_operation_search_text,
+)
 
 class ArchiveOperation(Document):
     # begin: auto-generated types
@@ -57,7 +59,24 @@ class ArchiveOperation(Document):
     )
 
     def before_insert(self):
-        self.status = "غير مؤكدة"
+        if not getattr(frappe.flags, "in_import", False):
+            self.status = "غير مؤكدة"
+
+        self.set_search_text()
+
+    def set_search_text(
+        self,
+    ):
+        self.search_text = (
+            build_operation_search_text(
+                self
+            )
+        )
+
+    def before_save(
+        self,
+    ):
+        self.set_search_text()
 
     def after_insert(self):
         """
@@ -144,7 +163,10 @@ class ArchiveOperation(Document):
             )
 
     def validate_attachments(self):
-        if not self.attachments:
+        if (
+            not self.attachments
+            and not getattr(frappe.flags, "in_import", False)
+        ):
             frappe.throw(
                 _(
                     "يجب إضافة مرفق واحد على الأقل "

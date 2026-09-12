@@ -46,7 +46,9 @@
   "attachments",
   "final_swift_file",
   "final_swift_uploaded_at",
-  "final_swift_uploaded_by"
+  "final_swift_uploaded_by",
+  "search_text",
+  "legacy_import_key"
  ],
  "fields": [
   {
@@ -100,9 +102,8 @@
   },
   {
    "fieldname": "customer_rate",
-   "fieldtype": "Float",
-   "label": "\u0633\u0639\u0631 \u0627\u0644\u0639\u0645\u064a\u0644",
-   "precision": "6"
+   "fieldtype": "Data",
+   "label": "\u0633\u0639\u0631 \u0627\u0644\u0639\u0645\u064a\u0644"
   },
   {
    "fieldname": "beneficiary_section",
@@ -129,6 +130,13 @@
    "fieldtype": "Data",
    "label": "\u0627\u0633\u0645 \u0628\u0646\u0643 \u0627\u0644\u0645\u0633\u062a\u0641\u064a\u062f"
   },
+  {
+    "fieldname": "search_text",
+    "fieldtype": "Long Text",
+    "hidden": 1,
+    "label": "Search Text",
+    "read_only": 1
+    },
   {
    "fieldname": "swift_code",
    "fieldtype": "Data",
@@ -270,7 +278,7 @@
    "fieldtype": "Table",
    "label": "\u0627\u0644\u0645\u0631\u0641\u0642\u0627\u062a",
    "options": "Archive Operation Attachment",
-   "reqd": 1
+   "reqd": 0
   },
   {
    "fieldname": "final_swift_file",
@@ -293,7 +301,15 @@
    "label": "\u062a\u0645 \u0625\u0631\u0641\u0627\u0642 \u0627\u0644\u0633\u0648\u064a\u0641\u062a \u0627\u0644\u0646\u0647\u0627\u0626\u064a \u0628\u0648\u0627\u0633\u0637\u0629",
    "options": "User",
    "read_only": 1
-  }
+  },
+  {
+    "fieldname": "legacy_import_key",
+    "fieldtype": "Data",
+    "label": "Legacy Import Key",
+    "hidden": 1,
+    "read_only": 1,
+    "unique": 1
+}
  ],
  "index_web_pages_for_search": 1,
  "links": [],

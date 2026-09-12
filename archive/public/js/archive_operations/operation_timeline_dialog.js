@@ -603,6 +603,7 @@ archive.ui.OperationTimelineDialog = class {
             return [
                 "attachment_added",
                 "attachment_deleted",
+                "attachment_downloaded",
             ].includes(
                 event.event_type
             );
@@ -1059,6 +1060,14 @@ archive.ui.OperationTimelineDialog = class {
                 class_name:
                     "event-delete",
             },
+            attachment_downloaded: {
+
+                icon:
+                    "fa-download",
+
+                class_name:
+                    "attachment-downloaded",
+            },
         };
 
 
@@ -1137,6 +1146,10 @@ archive.ui.OperationTimelineDialog = class {
                     this.render_created(
                         details
                     )
+                );
+            case "attachment_downloaded":
+                return this.render_files(
+                    event.details || {}
                 );
 
 
@@ -1372,156 +1385,247 @@ archive.ui.OperationTimelineDialog = class {
     // Files
     // ========================================================
 
-    render_files(
-        event,
-        details
-    ) {
+    render_files(details = {}) {
+
+        details = details || {};
+
+
         const files =
             Array.isArray(
                 details.files
             )
-                ? details.files
+                ? [
+                    ...details.files
+                ]
                 : [];
 
 
+        /*
+        * بعض الأحداث مثل attachment_downloaded
+        * تحتوي ملفاً واحداً مباشرة:
+        *
+        * file_name
+        * file_url
+        *
+        * وليس details.files
+        */
         if (
             !files.length
             &&
             details.file_url
         ) {
             files.push({
+                file_name:
+                    details.file_name
+                    || "مرفق",
+
                 file_url:
                     details.file_url,
-
-                file_name:
-                    details.file_name,
             });
         }
 
 
-        let counter_html =
-            "";
-
-
-        if (
-            event.event_type
-            === "final_swift_added"
-            &&
-            details.final_swift_count
-            !== undefined
-        ) {
-            counter_html = `
-                <div
-                    class="
-                        archive-timeline-swift-count
-                    "
-                >
-                    ${__(
-                        "عدد ملفات السويفت بعد الإجراء"
-                    )}:
-
-                    <strong>
-                        ${this.escape_value(
-                            details.final_swift_count
-                        )}
-                        /
-                        ${this.escape_value(
-                            details.final_swift_limit
-                            || 5
-                        )}
-                    </strong>
-                </div>
-            `;
-        }
-
-
-        if (
-            event.event_type
-            === "final_swift_deleted"
-            &&
-            details.remaining_count
-            !== undefined
-        ) {
-            counter_html = `
-                <div
-                    class="
-                        archive-timeline-swift-count
-                    "
-                >
-                    ${__(
-                        "عدد ملفات السويفت المتبقية"
-                    )}:
-
-                    <strong>
-                        ${this.escape_value(
-                            details.remaining_count
-                        )}
-                        /
-                        ${this.escape_value(
-                            details.final_swift_limit
-                            || 5
-                        )}
-                    </strong>
-                </div>
-            `;
-        }
-
-
-        if (
-            !files.length
-            &&
-            !counter_html
-        ) {
+        if (!files.length) {
             return "";
         }
 
 
         return `
-            <div
-                class="
-                    archive-timeline-details
-                "
-            >
+            <div class="archive-timeline-files">
 
-                ${
-                    files.length
-                        ? `
-                            <div
-                                class="
-                                    archive-timeline-details-title
-                                "
-                            >
-                                ${__(
-                                    "الملفات"
-                                )}
-                            </div>
+                ${files
+                    .map(
+                        (file) => {
+
+                            const file_name =
+                                file.file_name
+                                || file.file_url
+                                || "مرفق";
 
 
-                            <div
-                                class="
-                                    archive-timeline-files
-                                "
-                            >
-                                ${
-                                    files
-                                        .map(
-                                            (file) =>
-                                                this.render_file(
-                                                    file
-                                                )
-                                        )
-                                        .join("")
-                                }
-                            </div>
-                        `
-                        : ""
+                            /*
+                            * للعرض فقط داخل مسار العملية.
+                            * لا يوجد href ولا فتح للملف.
+                            */
+                            return `
+                                <div
+                                    class="
+                                        archive-timeline-file
+                                    "
+                                >
+                                    <i
+                                        class="
+                                            fa
+                                            fa-file-pdf-o
+                                        "
+                                        aria-hidden="true"
+                                    ></i>
+
+                                    <span>
+                                        ${this.escape_value(
+                                            file_name
+                                        )}
+                                    </span>
+                                </div>
+                            `;
+                        }
+                    )
+                    .join("")
                 }
-
-                ${counter_html}
 
             </div>
         `;
     }
+    // render_files(
+    //     event,
+    //     details
+    // ) {
+    //     const files =
+    //         Array.isArray(
+    //             details.files
+    //         )
+    //             ? details.files
+    //             : [];
+
+
+    //     if (
+    //         !files.length
+    //         &&
+    //         details.file_url
+    //     ) {
+    //         files.push({
+    //             file_url:
+    //                 details.file_url,
+
+    //             file_name:
+    //                 details.file_name,
+    //         });
+    //     }
+
+
+    //     let counter_html =
+    //         "";
+
+
+    //     if (
+    //         event.event_type
+    //         === "final_swift_added"
+    //         &&
+    //         details.final_swift_count
+    //         !== undefined
+    //     ) {
+    //         counter_html = `
+    //             <div
+    //                 class="
+    //                     archive-timeline-swift-count
+    //                 "
+    //             >
+    //                 ${__(
+    //                     "عدد ملفات السويفت بعد الإجراء"
+    //                 )}:
+
+    //                 <strong>
+    //                     ${this.escape_value(
+    //                         details.final_swift_count
+    //                     )}
+    //                     /
+    //                     ${this.escape_value(
+    //                         details.final_swift_limit
+    //                         || 5
+    //                     )}
+    //                 </strong>
+    //             </div>
+    //         `;
+    //     }
+
+
+    //     if (
+    //         event.event_type
+    //         === "final_swift_deleted"
+    //         &&
+    //         details.remaining_count
+    //         !== undefined
+    //     ) {
+    //         counter_html = `
+    //             <div
+    //                 class="
+    //                     archive-timeline-swift-count
+    //                 "
+    //             >
+    //                 ${__(
+    //                     "عدد ملفات السويفت المتبقية"
+    //                 )}:
+
+    //                 <strong>
+    //                     ${this.escape_value(
+    //                         details.remaining_count
+    //                     )}
+    //                     /
+    //                     ${this.escape_value(
+    //                         details.final_swift_limit
+    //                         || 5
+    //                     )}
+    //                 </strong>
+    //             </div>
+    //         `;
+    //     }
+
+
+    //     if (
+    //         !files.length
+    //         &&
+    //         !counter_html
+    //     ) {
+    //         return "";
+    //     }
+
+
+    //     return `
+    //         <div
+    //             class="
+    //                 archive-timeline-details
+    //             "
+    //         >
+
+    //             ${
+    //                 files.length
+    //                     ? `
+    //                         <div
+    //                             class="
+    //                                 archive-timeline-details-title
+    //                             "
+    //                         >
+    //                             ${__(
+    //                                 "الملفات"
+    //                             )}
+    //                         </div>
+
+
+    //                         <div
+    //                             class="
+    //                                 archive-timeline-files
+    //                             "
+    //                         >
+    //                             ${
+    //                                 files
+    //                                     .map(
+    //                                         (file) =>
+    //                                             this.render_file(
+    //                                                 file
+    //                                             )
+    //                                     )
+    //                                     .join("")
+    //                             }
+    //                         </div>
+    //                     `
+    //                     : ""
+    //             }
+
+    //             ${counter_html}
+
+    //         </div>
+    //     `;
+    // }
 
 
     render_file(
@@ -1558,15 +1662,10 @@ archive.ui.OperationTimelineDialog = class {
 
 
         return `
-            <a
+            <div
                 class="
                     archive-timeline-file
                 "
-                href="${this.escape_attribute(
-                    file.file_url
-                )}"
-                target="_blank"
-                rel="noopener noreferrer"
             >
                 <i
                     class="fa fa-file-pdf-o"
@@ -1578,16 +1677,7 @@ archive.ui.OperationTimelineDialog = class {
                         file_name
                     )}
                 </span>
-
-                <i
-                    class="
-                        fa
-                        fa-external-link
-                        archive-timeline-file-open
-                    "
-                    aria-hidden="true"
-                ></i>
-            </a>
+            </div>
         `;
     }
 

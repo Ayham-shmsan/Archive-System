@@ -11,9 +11,7 @@ class ArchiveAccount(Document):
         from frappe.types import DF
 
         account_name: DF.Data
-        currency: DF.Link | None
         disabled: DF.Check
-        notes: DF.SmallText | None
     # end: auto-generated types
 
     pass

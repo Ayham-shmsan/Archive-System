@@ -28,6 +28,7 @@ VALID_EVENT_TYPES = {
     "attachment_deleted",
     "final_swift_added",
     "final_swift_deleted",
+    "attachment_downloaded",
 }
 
 
@@ -55,6 +56,8 @@ EVENT_TYPE_LABELS = {
 
     "final_swift_deleted":
         "حذف السويفت النهائي",
+    "attachment_downloaded":
+        "تنزيل مرفق",
 }
 
 

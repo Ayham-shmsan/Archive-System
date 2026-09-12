@@ -7,6 +7,10 @@ from archive.api.operation_timeline import (
     can_view_operation_timeline,
 )
 
+from archive.api.operation_search import (
+    search_operation_names,
+)
+
 
 MANUAL_FIELD_LABELS = {
     "operation_no":
@@ -277,26 +281,6 @@ def can_manage_operation_attachments(
                 user,
         )
     )
-# def can_manage_operation_attachments(
-#     operation,
-# ) -> bool:
-#     """
-#     هل المستخدم الحالي يستطيع
-#     إضافة وحذف مرفقات العملية.
-#     """
-
-#     if (
-#         frappe.session.user
-#         == "Administrator"
-#     ):
-#         return True
-
-#     return bool(
-#         frappe.has_permission(
-#             operation,
-#             MANAGE_ATTACHMENTS_PERMISSION,
-#         )
-#     )
 
 def get_final_swift_banks() -> set[str]:
 
@@ -313,52 +297,6 @@ def get_final_swift_banks() -> set[str]:
     }
 
 
-# def get_final_swift_state(
-#     operation,
-#     configured_banks: set[str] | None = None,
-# ) -> dict[str, bool]:
-#     """
-#     حالة السويفت النهائي للعملية.
-
-#     final_swift_required:
-#         البنك المحول موجود في إعدادات السويفت.
-
-#     has_final_swift:
-#         تم إرفاق الملف النهائي بالفعل.
-
-#     final_swift_pending:
-#         العملية ضمن البنوك المطلوبة
-#         ولم يتم إرفاق الملف النهائي بعد.
-#     """
-
-#     if configured_banks is None:
-#         configured_banks = (
-#             get_final_swift_banks()
-#         )
-
-#     final_swift_required = bool(
-#         operation.transferring_bank
-#         and operation.transferring_bank
-#         in configured_banks
-#     )
-
-#     has_final_swift = bool(
-#         operation.final_swift_file
-#     )
-
-#     return {
-#         "final_swift_required":
-#             final_swift_required,
-
-#         "has_final_swift":
-#             has_final_swift,
-
-#         "final_swift_pending":
-#             (
-#                 final_swift_required
-#                 and not has_final_swift
-#             ),
-#     }
 def get_final_swift_state(
     operation,
     configured_banks: set[str] | None = None,
@@ -440,75 +378,6 @@ def can_attach_final_swift(
                 user,
         )
     )
-# def can_attach_final_swift(
-#     operation,
-# # ) -> bool:
-#     """
-#     صلاحية مستقلة لإرفاق السويفت النهائي.
-
-#     Administrator مسموح له دائماً.
-#     بقية المستخدمين ستدار صلاحيتهم لاحقاً
-#     من Permission Type داخل Desk.
-#     """
-
-#     if (
-#         frappe.session.user
-#         == "Administrator"
-#     ):
-#         return True
-
-#     return bool(
-#         frappe.has_permission(
-#             "Archive Operation",
-#             ptype=FINAL_SWIFT_PERMISSION,
-#             doc=operation,
-#             user=frappe.session.user,
-#         )
-#     )
-# ============================================================
-# Status permissions
-# ============================================================
-
-# def can_change_operation_status(
-#     current_status: str,
-# ) -> bool:
-
-#     user = frappe.session.user
-
-#     # Administrator يملك جميع الصلاحيات.
-#     if user == "Administrator":
-#         return True
-
-#     roles = set(
-#         frappe.get_roles(
-#             user
-#         )
-#     )
-
-#     # مدير حالات الأرشيف.
-#     if (
-#         STATUS_MANAGER_ROLE
-#         in roles
-#     ):
-#         return True
-
-#     # تغيير العملية وهي غير مؤكدة
-#     # يحتاج صلاحية Initial Status.
-#     if (
-#         current_status
-#         == "غير مؤكدة"
-#     ):
-#         return (
-#             INITIAL_STATUS_ROLE
-#             in roles
-#         )
-
-#     # أي عملية خرجت من غير مؤكدة
-#     # تحتاج صلاحية Advanced Status.
-#     return (
-#         ADVANCED_STATUS_ROLE
-#         in roles
-#     )
 
 def can_change_operation_status(
     current_status: str,
@@ -1140,7 +1009,7 @@ def get_operations(
     status: str | None = None,
     final_swift_pending: int = 0,
     start: int = 0,
-    page_length: int = 20,
+    page_length: int =100000 ,
 ) -> dict[str, Any]:
 
     frappe.has_permission(
@@ -1177,74 +1046,57 @@ def get_operations(
         max(
             int(
                 page_length
-                or 20
+                or 100000
             ),
             1,
         ),
-        100,
+        100000,
     )
 
+    
+
     filters = {}
+
+    force_empty_results = False
+
+
+    # ========================================================
+    # Final Swift filter
+    # ========================================================
 
     if final_swift_pending:
 
         if not configured_final_swift_banks:
-            return {
-                "operations": [],
-                "counts": {
-                    "all":
-                        frappe.db.count(
-                            "Archive Operation"
-                        ),
 
-                    "غير مؤكدة":
-                        frappe.db.count(
-                            "Archive Operation",
-                            {"status": "غير مؤكدة"},
-                        ),
+            # لا توجد بنوك معرفة للسويفت النهائي،
+            # إذن هذه البطاقة لا تحتوي نتائج.
+            #
+            # لا نعمل return هنا حتى تستمر
+            # عدادات البحث في العمل.
+            force_empty_results = True
 
-                    "مؤكدة":
-                        frappe.db.count(
-                            "Archive Operation",
-                            {"status": "مؤكدة"},
-                        ),
+        else:
 
-                    "مرتجعة":
-                        frappe.db.count(
-                            "Archive Operation",
-                            {"status": "مرتجعة"},
-                        ),
+            filters[
+                "transferring_bank"
+            ] = [
+                "in",
+                list(
+                    configured_final_swift_banks
+                ),
+            ]
 
-                    "محضورة":
-                        frappe.db.count(
-                            "Archive Operation",
-                            {"status": "محضورة"},
-                        ),
+            filters[
+                "final_swift_file"
+            ] = [
+                "is",
+                "not set",
+            ]
 
-                    "final_swift": 0,
-                },
 
-                "total": 0,
-                "start": start,
-                "page_length": page_length,
-                "has_more": False,
-            }
-
-        filters[
-            "transferring_bank"
-        ] = [
-            "in",
-            list(
-                configured_final_swift_banks
-            ),
-        ]
-
-        filters[
-            "final_swift_file"
-        ] = [
-            "is",
-            "not set",
-        ]
+    # ========================================================
+    # Status filter
+    # ========================================================
 
     if status:
 
@@ -1262,113 +1114,133 @@ def get_operations(
             "status"
         ] = status
 
-    or_filters = []
 
-    if search:
+    # ========================================================
+    # Powerful operation search
+    #
+    # search_operation_names هو المصدر الوحيد
+    # الآن لتحديد العمليات المطابقة.
+    # ========================================================
 
-        like_value = (
-            f"%{search}%"
+    if force_empty_results:
+
+        matching_names = []
+
+    else:
+
+        matching_names = (
+            search_operation_names(
+                search,
+                base_filters=
+                    filters,
+            )
         )
 
-        search_fields = (
-            "name",
-            "operation_no",
-            "customer",
-            "beneficiary_name",
-            "beneficiary_account",
-            "beneficiary_bank",
-            "sender_name",
-            "sender_account",
-            "reference_no",
-        )
 
-        or_filters = [
-            [
-                fieldname,
-                "like",
-                like_value,
-            ]
-            for fieldname
-            in search_fields
-        ]
-
-    operations = frappe.get_list(
-        "Archive Operation",
-
-        filters=
-            filters,
-
-        or_filters=
-            or_filters,
-
-        fields=[
-            "name",
-            "serial_no",
-            "operation_no",
-            "customer",
-            "amount",
-            "currency",
-            "customer_rate",
-            "beneficiary_name",
-            "beneficiary_account",
-            "beneficiary_bank",
-            "swift_code",
-            "country",
-            "bank_transfer_rate",
-            "sender_name",
-            "sender_account",
-            "execution_datetime",
-            "transferring_bank",
-            "request_date",
-            "from_account",
-            "reference_no",
-            "notes",
-            "status",
-            "final_swift_file",
-            "creation",
-            "modified",
-            
-        ],
-
-        order_by=
-            "creation desc",
-
-        start=
-            start,
-
-        page_length=
-            page_length,
+    total_matching = len(
+        matching_names
     )
 
 
     # ========================================================
-    # Search-aware counters
+    # Pagination
     # ========================================================
 
-    def count_operations(
-        extra_filters=None,
-    ) -> int:
+    page_names = (
+        matching_names[
+            start:
+            start + page_length
+        ]
+    )
 
-        names = frappe.get_list(
+
+    # ========================================================
+    # Load current page
+    # ========================================================
+
+    if page_names:
+
+        operations = frappe.get_list(
             "Archive Operation",
 
-            filters=
-                extra_filters
-                or {},
+            filters={
+                "name": [
+                    "in",
+                    page_names,
+                ],
+            },
 
-            or_filters=
-                or_filters,
-
-            pluck=
+            fields=[
                 "name",
+                "serial_no",
+                "operation_no",
+                "customer",
+                "amount",
+                "currency",
+                "customer_rate",
+
+                "beneficiary_name",
+                "beneficiary_account",
+                "beneficiary_bank",
+                "swift_code",
+                "country",
+
+                "bank_transfer_rate",
+
+                "sender_name",
+                "sender_account",
+                "execution_datetime",
+
+                "transferring_bank",
+                "request_date",
+                "from_account",
+
+                "reference_no",
+                "notes",
+
+                "status",
+
+                "final_swift_file",
+
+                "creation",
+                "modified",
+            ],
 
             limit_page_length=
                 0,
         )
 
-        return len(
-            names
+
+        # ====================================================
+        # Preserve search result order
+        # ====================================================
+
+        operation_order = {
+            name:
+                index
+
+            for (
+                index,
+                name,
+            ) in enumerate(
+                page_names
+            )
+        }
+
+
+        operations.sort(
+            key=lambda row:
+                operation_order.get(
+                    row.name,
+                    999999,
+                )
         )
+
+    else:
+
+        operations = []
+
+    
 
 
     # ========================================================
@@ -1552,19 +1424,7 @@ def get_operations(
         operation.update(
             swift_state
         )
-        # operation[
-        #     "can_attach_final_swift"
-        # ] = bool(
-        #     swift_state[
-        #         "final_swift_required"
-        #     ]
-        #     and not swift_state[
-        #         "has_final_swift"
-        #     ]
-        #     and can_attach_final_swift(
-        #         operation
-        #     )
-        # )
+        
         operation[
             "can_attach_final_swift"
         ] = bool(
@@ -1581,119 +1441,60 @@ def get_operations(
             )
         )
 
-
     # ========================================================
-    # Matching count
-    # ========================================================
-
-    matching_names = frappe.get_list(
-        "Archive Operation",
-
-        filters=
-            filters,
-
-        or_filters=
-            or_filters,
-
-        pluck=
-            "name",
-
-        limit_page_length=
-            0,
-    )
-
-    total_matching = len(
-        matching_names
-    )
-
-
-    # ========================================================
-    # Status counters
-    # ========================================================
-
-    # counts = {
-    #     "all":
-    #         frappe.db.count(
-    #             "Archive Operation"
-    #         ),
-
-    #     "غير مؤكدة":
-    #         frappe.db.count(
-    #             "Archive Operation",
-    #             {
-    #                 "status":
-    #                     "غير مؤكدة",
-    #             },
-    #         ),
-
-    #     "مؤكدة":
-    #         frappe.db.count(
-    #             "Archive Operation",
-    #             {
-    #                 "status":
-    #                     "مؤكدة",
-    #             },
-    #         ),
-
-    #     "مرتجعة":
-    #         frappe.db.count(
-    #             "Archive Operation",
-    #             {
-    #                 "status":
-    #                     "مرتجعة",
-    #             },
-    #         ),
-
-    #     "محضورة":
-    #         frappe.db.count(
-    #             "Archive Operation",
-    #             {
-    #                 "status":
-    #                     "محضورة",
-    #             },
-    #         ),
-    # }
-        # ========================================================
-    # Status counters
-    #
-    # جميع العدادات تتأثر بالبحث الحالي،
-    # ولكن لا تتأثر بالبطاقة المحددة.
+    # Search-aware status counters
     # ========================================================
 
     counts = {
         "all":
-            count_operations(),
+            len(
+                search_operation_names(
+                    search
+                )
+            ),
 
         "غير مؤكدة":
-            count_operations(
-                {
-                    "status":
-                        "غير مؤكدة",
-                }
+            len(
+                search_operation_names(
+                    search,
+                    base_filters={
+                        "status":
+                            "غير مؤكدة",
+                    },
+                )
             ),
 
         "مؤكدة":
-            count_operations(
-                {
-                    "status":
-                        "مؤكدة",
-                }
+            len(
+                search_operation_names(
+                    search,
+                    base_filters={
+                        "status":
+                            "مؤكدة",
+                    },
+                )
             ),
 
         "مرتجعة":
-            count_operations(
-                {
-                    "status":
-                        "مرتجعة",
-                }
+            len(
+                search_operation_names(
+                    search,
+                    base_filters={
+                        "status":
+                            "مرتجعة",
+                    },
+                )
             ),
 
         "محضورة":
-            count_operations(
-                {
-                    "status":
-                        "محضورة",
-                }
+            len(
+                search_operation_names(
+                    search,
+                    base_filters={
+                        "status":
+                            "محضورة",
+                    },
+                )
             ),
     }
 
@@ -1702,35 +1503,10 @@ def get_operations(
 
         counts[
             "final_swift"
-        ] = (
-            count_operations(
-                {
-                    "transferring_bank": [
-                        "in",
-                        list(
-                            configured_final_swift_banks
-                        ),
-                    ],
-
-                    "final_swift_file": [
-                        "is",
-                        "not set",
-                    ],
-                }
-            )
-        )
-
-    else:
-
-        counts[
-            "final_swift"
-        ] = 0
-
-    if configured_final_swift_banks:
-        counts["final_swift"] = (
-            frappe.db.count(
-                "Archive Operation",
-                {
+        ] = len(
+            search_operation_names(
+                search,
+                base_filters={
                     "transferring_bank": [
                         "in",
                         list(
@@ -1747,7 +1523,10 @@ def get_operations(
         )
 
     else:
-        counts["final_swift"] = 0
+
+        counts[
+            "final_swift"
+        ] = 0
 
     return {
         "operations":
@@ -1848,389 +1627,198 @@ def get_operation_for_view(
 
 
 
+@frappe.whitelist(
+    methods=["POST"]
+)
+def register_attachment_download(
+    operation_name: str,
+    attachment_name: str,
+) -> dict[str, Any]:
+    """
+    تسجيل تنزيل مرفق من نافذة عرض العملية.
+
+    لا نقبل file_url مباشرة من الواجهة.
+    نتحقق من أن صف المرفق تابع فعلاً للعملية.
+    """
+
+    operation_name = (
+        operation_name or ""
+    ).strip()
+
+    attachment_name = (
+        attachment_name or ""
+    ).strip()
+
+
+    if not operation_name:
+        frappe.throw(
+            _("اسم العملية مطلوب.")
+        )
+
+    if not attachment_name:
+        frappe.throw(
+            _("المرفق مطلوب.")
+        )
+
+
+    # ========================================================
+    # Operation
+    # ========================================================
+
+    operation = frappe.get_doc(
+        "Archive Operation",
+        operation_name,
+    )
+
+    operation.check_permission(
+        "read"
+    )
+    # ========================================================
+    # Download permission
+    # ========================================================
+    if not can_manage_operation_attachments(
+        operation
+    ):
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية تنزيل مرفقات هذه العملية."
+            ),
+            frappe.PermissionError,
+        )
+
+
+    # ========================================================
+    # Find attachment inside this operation
+    # ========================================================
+
+    attachment = next(
+        (
+            row
+            for row in (
+                operation.attachments
+                or []
+            )
+            if row.name
+            == attachment_name
+        ),
+        None,
+    )
+
+
+    if not attachment:
+        frappe.throw(
+            _(
+                "المرفق غير موجود في هذه العملية."
+            )
+        )
+
+
+    if not attachment.file:
+        frappe.throw(
+            _(
+                "المرفق لا يحتوي على ملف."
+            )
+        )
+
+
+    # ========================================================
+    # Make sure File still exists
+    # ========================================================
+
+    file_doc_name = frappe.db.get_value(
+        "File",
+        {
+            "file_url":
+                attachment.file,
 
-# @frappe.whitelist(
-#     methods=["POST"]
-# )
-# def add_operation_attachments(
-#     operation_name: str,
-#     attachments: (
-#         list[dict[str, Any]]
-#         | str
-#         | None
-#     ) = None,
-# ) -> dict[str, Any]:
-
-#     operation_name = (
-#         operation_name or ""
-#     ).strip()
-
-#     attachments = _parse(
-#         attachments,
-#         [],
-#     )
-
-#     if not operation_name:
-#         frappe.throw(
-#             _("اسم العملية مطلوب.")
-#         )
-
-#     if not isinstance(
-#         attachments,
-#         list,
-#     ):
-#         frappe.throw(
-#             _("بيانات المرفقات غير صحيحة.")
-#         )
-
-#     if not attachments:
-#         frappe.throw(
-#             _("لم يتم اختيار أي مرفق.")
-#         )
-
-
-#     operation = frappe.get_doc(
-#         "Archive Operation",
-#         operation_name,
-#     )
-
-#     operation.check_permission(
-#         "read"
-#     )
-
-
-#     # ========================================================
-#     # Permission
-#     # ========================================================
-
-#     if not can_manage_operation_attachments(
-#         operation
-#     ):
-#         frappe.throw(
-#             _(
-#                 "ليس لديك صلاحية إدارة مرفقات هذه العملية."
-#             ),
-#             frappe.PermissionError,
-#         )
-
-
-#     # ========================================================
-#     # Existing attachments
-#     # ========================================================
-
-#     existing_urls = {
-#         row.file
-#         for row in (
-#             operation.attachments or []
-#         )
-#         if row.file
-#     }
-
-
-#     file_docs = []
-
-
-#     for attachment in attachments:
+            "attached_to_doctype":
+                "Archive Operation",
 
-#         if isinstance(
-#             attachment,
-#             str,
-#         ):
-#             file_url = attachment
-
-#         elif isinstance(
-#             attachment,
-#             dict,
-#         ):
-#             file_url = (
-#                 attachment.get(
-#                     "file_url"
-#                 )
-#                 or attachment.get(
-#                     "file"
-#                 )
-#             )
+            "attached_to_name":
+                operation.name,
+        },
+        "name",
+    )
 
-#         else:
-#             frappe.throw(
-#                 _(
-#                     "يوجد مرفق بصيغة غير صحيحة."
-#                 )
-#             )
 
+    if not file_doc_name:
+        frappe.throw(
+            _(
+                "ملف المرفق غير موجود."
+            )
+        )
 
-#         file_url = (
-#             file_url or ""
-#         ).strip()
 
+    file_doc = frappe.get_doc(
+        "File",
+        file_doc_name,
+    )
 
-#         if not file_url:
-#             frappe.throw(
-#                 _(
-#                     "يوجد مرفق بدون رابط ملف."
-#                 )
-#             )
 
+    # ========================================================
+    # Audit log
+    # ========================================================
 
-#         # لا نكرر نفس الملف.
-#         if file_url in existing_urls:
-#             continue
+    event_datetime = (
+        now_datetime()
+    )
 
+    event_user = (
+        frappe.session.user
+    )
 
-#         file_doc = (
-#             _get_uploaded_file(
-#                 file_url
-#             )
-#         )
 
+    log_operation_event(
+        operation.name,
+        "attachment_downloaded",
+        "تم تنزيل المرفق: {0}".format(
+            attachment.file_name
+            or file_doc.file_name
+            or "مرفق"
+        ),
+        details={
+            "attachment_name":
+                attachment.name,
 
-#         operation.append(
-#             "attachments",
-#             {
-#                 "file":
-#                     file_url,
+            "file_name":
+                attachment.file_name
+                or file_doc.file_name,
 
-#                 "file_name":
-#                     file_doc.file_name,
+            "file_url":
+                attachment.file,
 
-#                 "is_extraction_source":
-#                     0,
+            "is_extraction_source":
+                bool(
+                    attachment.is_extraction_source
+                ),
 
-#                 "is_final_swift":
-#                     0,
-#             },
-#         )
+            "is_final_swift":
+                bool(
+                    attachment.is_final_swift
+                ),
+        },
+        event_source=
+            "User",
 
+        event_user=
+            event_user,
 
-#         existing_urls.add(
-#             file_url
-#         )
+        event_datetime=
+            event_datetime,
+    )
 
-#         file_docs.append(
-#             file_doc
-#         )
 
+    return {
+        "file_url":
+            attachment.file,
 
-#     if not file_docs:
-#         frappe.throw(
-#             _(
-#                 "جميع الملفات المحددة مضافة للعملية مسبقاً."
-#             )
-#         )
+        "file_name":
+            attachment.file_name
+            or file_doc.file_name,
+    }
 
 
-#     # صلاحية إدارة المرفقات مستقلة عن Write.
-#     operation.save(
-#         ignore_permissions=True
-#     )
 
-
-#     # ========================================================
-#     # Attach File records
-#     # ========================================================
-
-#     for file_doc in file_docs:
-
-#         file_doc.db_set(
-#             {
-#                 "attached_to_doctype":
-#                     "Archive Operation",
-
-#                 "attached_to_name":
-#                     operation.name,
-
-#                 "attached_to_field":
-#                     "attachments",
-#             },
-#             update_modified=False,
-#         )
-
-
-#     operation.reload()
-
-
-#     return {
-#         "operation":
-#             serialize_operation_for_view(
-#                 operation
-#             )
-#     }
-
-
-# @frappe.whitelist(
-#     methods=["POST"]
-# )
-# def delete_operation_attachment(
-#     operation_name: str,
-#     attachment_name: str,
-# ) -> dict[str, Any]:
-
-#     operation_name = (
-#         operation_name or ""
-#     ).strip()
-
-#     attachment_name = (
-#         attachment_name or ""
-#     ).strip()
-
-
-#     if not operation_name:
-#         frappe.throw(
-#             _("اسم العملية مطلوب.")
-#         )
-
-#     if not attachment_name:
-#         frappe.throw(
-#             _("المرفق مطلوب.")
-#         )
-
-
-#     operation = frappe.get_doc(
-#         "Archive Operation",
-#         operation_name,
-#     )
-
-#     operation.check_permission(
-#         "read"
-#     )
-
-
-#     if not can_manage_operation_attachments(
-#         operation
-#     ):
-#         frappe.throw(
-#             _(
-#                 "ليس لديك صلاحية إدارة مرفقات هذه العملية."
-#             ),
-#             frappe.PermissionError,
-#         )
-
-
-#     # ========================================================
-#     # Locate child row
-#     # ========================================================
-
-#     attachment_row = next(
-#         (
-#             row
-#             for row in (
-#                 operation.attachments or []
-#             )
-#             if row.name
-#             == attachment_name
-#         ),
-#         None,
-#     )
-
-
-#     if not attachment_row:
-#         frappe.throw(
-#             _(
-#                 "المرفق غير موجود في هذه العملية."
-#             )
-#         )
-
-
-#     # ========================================================
-#     # Extraction source protection
-#     # ========================================================
-
-#     if (
-#         attachment_row
-#         .is_extraction_source
-#     ):
-#         frappe.throw(
-#             _(
-#                 "لا يمكن حذف مستند استخراج البيانات "
-#                 "بعد إنشاء العملية لأنه مصدر البيانات المؤرشفة."
-#             )
-#         )
-
-
-#     file_url = (
-#         attachment_row.file
-#     )
-
-#     is_final_swift = bool(
-#         attachment_row.is_final_swift
-#     )
-
-
-#     # ========================================================
-#     # Remove attachment row
-#     # ========================================================
-
-#     operation.remove(
-#         attachment_row
-#     )
-
-
-#     # ========================================================
-#     # If Final Swift was deleted
-#     # ========================================================
-
-#     if is_final_swift:
-
-#         operation.final_swift_file = (
-#             None
-#         )
-
-#         operation.final_swift_uploaded_at = (
-#             None
-#         )
-
-#         operation.final_swift_uploaded_by = (
-#             None
-#         )
-
-
-#     operation.save(
-#         ignore_permissions=True
-#     )
-
-
-#     # ========================================================
-#     # Delete File document
-#     # ========================================================
-
-#     if file_url:
-
-#         file_name = frappe.db.get_value(
-#             "File",
-#             {
-#                 "file_url":
-#                     file_url,
-
-#                 "attached_to_doctype":
-#                     "Archive Operation",
-
-#                 "attached_to_name":
-#                     operation.name,
-#             },
-#             "name",
-#         )
-
-
-#         if file_name:
-#             frappe.delete_doc(
-#                 "File",
-#                 file_name,
-#                 ignore_permissions=True,
-#             )
-
-
-#     operation.reload()
-
-
-#     return {
-#         "operation":
-#             serialize_operation_for_view(
-#                 operation
-#             ),
-
-#         "deleted_final_swift":
-#             is_final_swift,
-#     }
 
 @frappe.whitelist(
     methods=["POST"]
@@ -2567,344 +2155,6 @@ def attach_final_swift(
                 0,
             ),
     }
-# @frappe.whitelist(
-#     methods=["POST"]
-# )
-# def attach_final_swift(
-#     operation_name: str,
-#     file_url: str,
-# ) -> dict[str, Any]:
-
-#     operation_name = (
-#         operation_name or ""
-#     ).strip()
-
-#     file_url = (
-#         file_url or ""
-#     ).strip()
-
-
-#     if not operation_name:
-#         frappe.throw(
-#             _("اسم العملية مطلوب.")
-#         )
-
-#     if not file_url:
-#         frappe.throw(
-#             _(
-#                 "ملف السويفت النهائي مطلوب."
-#             )
-#         )
-
-
-#     # ========================================================
-#     # Operation
-#     # ========================================================
-
-#     operation = frappe.get_doc(
-#         "Archive Operation",
-#         operation_name,
-#     )
-
-#     operation.check_permission(
-#         "read"
-#     )
-
-
-#     # ========================================================
-#     # Permission
-#     # ========================================================
-
-#     if not can_attach_final_swift(
-#         operation
-#     ):
-#         frappe.throw(
-#             _(
-#                 "ليس لديك صلاحية إرفاق السويفت النهائي."
-#             ),
-#             frappe.PermissionError,
-#         )
-
-
-#     # ========================================================
-#     # Bank must be configured
-#     # ========================================================
-
-#     configured_banks = (
-#         get_final_swift_banks()
-#     )
-
-#     swift_state = (
-#         get_final_swift_state(
-#             operation,
-#             configured_banks,
-#         )
-#     )
-
-
-#     if not swift_state[
-#         "final_swift_required"
-#     ]:
-#         frappe.throw(
-#             _(
-#                 "البنك المحول لهذه العملية غير موجود "
-#                 "ضمن بنوك السويفت النهائي في الإعدادات."
-#             )
-#         )
-
-
-#     # ========================================================
-#     # Only one final swift
-#     # ========================================================
-
-#     if swift_state[
-#         "has_final_swift"
-#     ]:
-#         frappe.throw(
-#             _(
-#                 "تم إرفاق السويفت النهائي لهذه العملية مسبقاً."
-#             )
-#         )
-
-
-#     existing_final_rows = [
-#         row
-#         for row in (
-#             operation.attachments or []
-#         )
-#         if row.is_final_swift
-#     ]
-
-#     if existing_final_rows:
-#         frappe.throw(
-#             _(
-#                 "يوجد بالفعل مرفق مسجل كسويفت نهائي لهذه العملية."
-#             )
-#         )
-
-
-#     # ========================================================
-#     # Uploaded File
-#     # ========================================================
-
-#     file_doc = (
-#         _get_uploaded_file(
-#             file_url
-#         )
-#     )
-
-
-#     # السويفت النهائي ملف طباعة PDF.
-#     if not (
-#         file_doc.file_name or ""
-#     ).lower().endswith(
-#         ".pdf"
-#     ):
-#         frappe.throw(
-#             _(
-#                 "السويفت النهائي يجب أن يكون ملف PDF."
-#             )
-#         )
-
-
-#     # ========================================================
-#     # Audit
-#     # ========================================================
-
-#     uploaded_at = (
-#         now_datetime()
-#     )
-
-#     uploaded_by = (
-#         frappe.session.user
-#     )
-
-
-#     # ========================================================
-#     # Add to normal operation attachments
-#     # ========================================================
-
-#     operation.append(
-#         "attachments",
-#         {
-#             "file":
-#                 file_url,
-
-#             "file_name":
-#                 file_doc.file_name,
-
-#             "is_extraction_source":
-#                 0,
-
-#             "is_final_swift":
-#                 1,
-#         },
-#     )
-
-
-#     # ========================================================
-#     # Final swift reference
-#     # ========================================================
-
-#     operation.final_swift_file = (
-#         file_url
-#     )
-
-#     operation.final_swift_uploaded_at = (
-#         uploaded_at
-#     )
-
-#     operation.final_swift_uploaded_by = (
-#         uploaded_by
-#     )
-
-
-#     # صلاحية السويفت مستقلة عن Write.
-#     operation.save(
-#         ignore_permissions=True
-#     )
-
-
-#     # ========================================================
-#     # Attach File record to operation
-#     # ========================================================
-
-#     file_doc.db_set(
-#         {
-#             "attached_to_doctype":
-#                 "Archive Operation",
-
-#             "attached_to_name":
-#                 operation.name,
-
-#             "attached_to_field":
-#                 "attachments",
-#         },
-#         update_modified=False,
-#     )
-
-
-#     return {
-#         "name":
-#             operation.name,
-
-#         "final_swift_file":
-#             operation.final_swift_file,
-
-#         "final_swift_uploaded_at":
-#             operation.final_swift_uploaded_at,
-
-#         "final_swift_uploaded_by":
-#             operation.final_swift_uploaded_by,
-
-#         "has_final_swift":
-#             True,
-
-#         "final_swift_pending":
-#             False,
-#     }
-# ============================================================
-# Update only manually-entered fields
-# ============================================================
-
-# @frappe.whitelist(
-    # methods=["POST"]
-# )
-# def update_operation_manual_fields(
-    # operation_name: str,
-    # values: dict[str, Any] | str | None = None,
-# ) -> dict[str, Any]:
-
-#     operation_name = (
-#         operation_name or ""
-#     ).strip()
-
-#     if not operation_name:
-#         frappe.throw(
-#             _(
-#                 "اسم العملية مطلوب."
-#             )
-#         )
-
-#     values = _parse(
-#         values,
-#         {},
-#     )
-
-#     if not isinstance(
-#         values,
-#         dict,
-#     ):
-#         frappe.throw(
-#             _(
-#                 "بيانات التعديل غير صحيحة."
-#             )
-#         )
-
-#     operation = frappe.get_doc(
-#         "Archive Operation",
-#         operation_name,
-#     )
-
-#     # التعديل يعتمد على Write
-#     # من Role Permission Manager.
-#     operation.check_permission(
-#         "write"
-#     )
-
-#     received_fields = set(
-#         values.keys()
-#     )
-
-#     forbidden_fields = (
-#         received_fields
-#         - MANUAL_EDITABLE_FIELDS
-#     )
-
-#     if forbidden_fields:
-#         frappe.throw(
-#             _(
-#                 "لا يسمح بتعديل الحقول التالية: {0}"
-#             ).format(
-#                 ", ".join(
-#                     sorted(
-#                         forbidden_fields
-#                     )
-#                 )
-#             ),
-#             frappe.PermissionError,
-#         )
-
-#     for fieldname in (
-#         MANUAL_EDITABLE_FIELDS
-#     ):
-
-#         if (
-#             fieldname
-#             not in values
-#         ):
-#             continue
-
-#         value = values.get(
-#             fieldname
-#         )
-
-#         if value == "":
-#             value = None
-
-#         operation.set(
-#             fieldname,
-#             value,
-#         )
-
-#     operation.save()
-
-#     return {
-#         "operation":
-#             serialize_operation_for_view(
-#                 operation
-#             )
-#     }
 
 
 # ============================================================
@@ -3537,11 +2787,6 @@ def save_operation_view_changes(
         )
 
 
-    # if deleted_final_swift:
-
-    #     operation.final_swift_file = None
-    #     operation.final_swift_uploaded_at = None
-    #     operation.final_swift_uploaded_by = None
 
     if deleted_final_swift:
 

@@ -230,8 +230,8 @@ archive.ui.OperationDialog = class OperationDialog {
 				{
 					fieldname: "customer_rate",
 					label: "سعر العميل",
-					fieldtype: "Float",
-					precision: 6,
+					fieldtype:
+					    "Data",
 				},
                 {
                     fieldname: "from_account",

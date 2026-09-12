@@ -10,7 +10,7 @@ class ArchiveOperationsPage {
 			status: "all",
 			search: "",
             start: 0,
-	        page_length: 20,
+	        page_length: 100000,
             selected_operation_name: null,
 		};
 
@@ -451,7 +451,7 @@ class ArchiveOperationsPage {
 
 					</div>
 
-
+                    
 					<div class="archive-table-wrapper">
 
 						<table class="archive-operations-table">

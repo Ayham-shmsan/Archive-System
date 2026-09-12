@@ -39,6 +39,53 @@ class OperationViewDialog {
 	}
 
 	bind_attachment_events() {
+		// /*
+		// * ====================================================
+		// * Download existing attachment
+		// * ====================================================
+		// */
+
+		this.$body
+			.off(
+				"click.archive-download-attachment",
+				".archive-download-attachment"
+			)
+			.on(
+				"click.archive-download-attachment",
+				".archive-download-attachment",
+				async (event) => {
+
+					event.preventDefault();
+					event.stopPropagation();
+
+
+					const $button =
+						$(
+							event.currentTarget
+						);
+
+
+					const attachment_name =
+						$button.attr(
+							"data-attachment-name"
+						);
+
+
+					if (!attachment_name) {
+						frappe.msgprint(
+							"تعذر تحديد المرفق."
+						);
+
+						return;
+					}
+
+
+					await this.download_attachment(
+						attachment_name,
+						$button
+					);
+				}
+			);
 		const input =
 			this.$body.find(
 				".archive-view-attachments-input"
@@ -123,6 +170,106 @@ class OperationViewDialog {
 				);
 			}
 		);
+	}
+
+	async download_attachment(
+		attachment_name,
+		$button
+	) {
+		if (!attachment_name) {
+			return;
+		}
+
+
+		const original_html =
+			$button.html();
+
+
+		$button
+			.prop(
+				"disabled",
+				true
+			)
+			.html(`
+				<i
+					class="
+						fa
+						fa-spinner
+						fa-spin
+					"
+				></i>
+
+				جاري التنزيل...
+			`);
+
+
+		try {
+
+			const response =
+				await frappe.call({
+					method:
+						"archive.api.operations.register_attachment_download",
+
+					type:
+						"POST",
+
+					args: {
+						operation_name:
+							this.operation_name,
+
+						attachment_name:
+							attachment_name,
+					},
+				});
+
+
+			const result =
+				response.message
+				|| {};
+
+
+			if (!result.file_url) {
+				frappe.throw(
+					"تعذر العثور على رابط الملف."
+				);
+			}
+
+
+			const link =
+				document.createElement(
+					"a"
+				);
+
+			link.href =
+				result.file_url;
+
+			link.download =
+				result.file_name
+				|| "";
+
+			link.style.display =
+				"none";
+
+
+			document.body.appendChild(
+				link
+			);
+
+			link.click();
+
+			link.remove();
+
+		} finally {
+
+			$button
+				.prop(
+					"disabled",
+					false
+				)
+				.html(
+					original_html
+				);
+		}
 	}
 
 
@@ -890,10 +1037,7 @@ class OperationViewDialog {
 						"سعر البنك المحول",
 
 					fieldtype:
-						"Float",
-
-					precision:
-						6,
+    					"Data",
 				},
 
 				{
@@ -1028,6 +1172,14 @@ class OperationViewDialog {
 			this.get_file_name(
 				file_url
 			);
+		const extraction_attachment =
+			this.existing_attachments
+				.find(
+					(item) =>
+						item.is_extraction_source
+						&&
+						item.file === file_url
+				);
 
 		$container.html(`
 			<div class="archive-selected-extraction">
@@ -1057,16 +1209,36 @@ class OperationViewDialog {
 
 				<div class="archive-extraction-actions">
 
-					<a
-						href="${this.escape_attribute(
-							file_url
-						)}"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="btn btn-default btn-sm"
-					>
-						عرض المستند
-					</a>
+					${
+						this.permissions
+							.can_manage_attachments
+						&&
+						extraction_attachment
+							? `
+								<button
+									type="button"
+									class="
+										btn
+										btn-default
+										btn-sm
+										archive-download-attachment
+									"
+									data-attachment-name="${this.escape_attribute(
+										extraction_attachment.name
+									)}"
+								>
+									${frappe.utils.icon(
+										"download",
+										"sm"
+									)}
+
+									<span>
+										تنزيل المستند
+									</span>
+								</button>
+							`
+							: ""
+					}
 
 				</div>
 
@@ -1074,140 +1246,6 @@ class OperationViewDialog {
 		`);
 	}
 
-
-	// render_attachments() {
-	// 	const $list =
-	// 		this.$body.find(
-	// 			".archive-attachments-list"
-	// 		);
-
-	// 	const attachments =
-	// 		this.operation.attachments
-	// 			|| [];
-
-	// 	const count =
-	// 		attachments.length;
-
-	// 	this.$body
-	// 		.find(
-	// 			".archive-attachment-counter"
-	// 		)
-	// 		.text(
-	// 			count === 1
-	// 				? "1 مرفق"
-	// 				: `${count} مرفقات`
-	// 		);
-
-	// 	if (!count) {
-	// 		$list.html(`
-	// 			<div class="archive-no-attachments">
-	// 				لا توجد مرفقات
-	// 			</div>
-	// 		`);
-
-	// 		return;
-	// 	}
-
-	// 	$list.html(
-	// 		attachments
-	// 			.map(
-	// 				(item) => {
-
-	// 					const file_url =
-	// 						item.file || "";
-
-	// 					const file_name =
-	// 						item.file_name ||
-	// 						this.get_file_name(
-	// 							file_url
-	// 						);
-
-	// 					const extension =
-	// 						this.file_extension(
-	// 							file_name
-	// 						);
-
-	// 					return `
-	// 						<div
-	// 							class="archive-attachment-item"
-	// 						>
-
-	// 							<div class="archive-file-info">
-
-	// 								<div class="archive-file-icon">
-	// 									${this.escape_value(
-	// 										extension
-	// 									)}
-	// 								</div>
-
-
-	// 								<div>
-
-	// 									<div class="archive-file-name">
-	// 										${this.escape_value(
-	// 											file_name
-	// 										)}
-	// 									</div>
-
-
-	// 									${
-	// 										item.is_extraction_source
-	// 											? `
-	// 												<div class="archive-file-size">
-	// 													مصدر استخراج البيانات
-	// 												</div>
-	// 											`
-	// 											: ""
-	// 									}
-
-	// 								</div>
-
-	// 							</div>
-
-
-	// 							<div
-	// 								class="archive-attachment-actions"
-	// 							>
-
-	// 								${
-	// 									item.is_extraction_source
-	// 										? `
-	// 											<span
-	// 												class="archive-source-badge"
-	// 											>
-	// 												مصدر استخراج
-	// 											</span>
-	// 										`
-	// 										: ""
-	// 								}
-
-
-	// 								${
-	// 									file_url
-	// 										? `
-	// 											<a
-	// 												href="${this.escape_attribute(
-	// 													file_url
-	// 												)}"
-	// 												target="_blank"
-	// 												rel="noopener noreferrer"
-	// 												class="btn btn-default btn-sm"
-	// 											>
-	// 												عرض
-	// 											</a>
-	// 										`
-	// 										: ""
-	// 								}
-
-	// 							</div>
-
-	// 						</div>
-	// 					`;
-	// 				}
-	// 			)
-	// 			.join("")
-	// 	);
-	// }
 
 	async upload_file(
 			file
@@ -1468,25 +1506,39 @@ class OperationViewDialog {
 
 							<div
 								class="archive-attachment-actions"
-							>
+								>
 
 								${
-									file_url
-									&& !deleted
-										? `
-											<a
-												href="${this.escape_attribute(
-													file_url
-												)}"
-												target="_blank"
-												rel="noopener noreferrer"
-												class="btn btn-default btn-sm"
-											>
-												عرض
-											</a>
-										`
-										: ""
-								}
+								file_url
+								&&
+								!deleted
+								&&
+								this.permissions
+									.can_manage_attachments
+									? `
+										<button
+											type="button"
+											class="
+												btn
+												btn-default
+												btn-sm
+												archive-download-attachment
+											"
+											data-attachment-name="${this.escape_attribute(
+												item.name
+											)}"
+										>
+											${frappe.utils.icon(
+												"download",
+												"sm"
+											)}
+											<span>
+												تنزيل
+											</span>
+										</button>
+									`
+									: ""
+							}
 
 
 								${
@@ -1739,100 +1791,6 @@ class OperationViewDialog {
 	}
 
 
-	// async save() {
-	// 	if (
-	// 		!this.permissions.can_edit ||
-	// 		!this.editable_fields.size
-	// 	) {
-	// 		return;
-	// 	}
-
-	// 	const values =
-	// 		this.get_values();
-
-	// 	const primary_button =
-	// 		this.dialog
-	// 			.get_primary_btn();
-
-	// 	primary_button.prop(
-	// 		"disabled",
-	// 		true
-	// 	);
-
-	// 	try {
-	// 		const response =
-	// 			await frappe.call({
-	// 				method:
-	// 					"archive.api.operations.update_operation_manual_fields",
-
-	// 				type:
-	// 					"POST",
-
-	// 				args: {
-	// 					operation_name:
-	// 						this.operation.name,
-
-	// 					values:
-	// 						values,
-	// 				},
-	// 			});
-
-	// 		const result =
-	// 			response.message || {};
-
-	// 		if (result.operation) {
-	// 			this.operation =
-	// 				result.operation;
-	// 		}
-
-	// 		frappe.show_alert({
-	// 			message:
-	// 				`تم حفظ تعديلات ${this.operation.name}`,
-
-	// 			indicator:
-	// 				"green",
-	// 		});
-
-	// 		this.dialog.hide();
-
-	// 		if (
-	// 			typeof this.options
-	// 				.on_saved
-	// 			=== "function"
-	// 		) {
-	// 			await this.options
-	// 				.on_saved(
-	// 					this.operation
-	// 				);
-	// 		}
-
-	// 	} catch (error) {
-	// 		console.error(
-	// 			"Operation update failed:",
-	// 			error
-	// 		);
-
-	// 		frappe.msgprint({
-	// 			title:
-	// 				__("تعذر حفظ التعديلات"),
-
-	// 			message:
-	// 				error?.message ||
-	// 				__(
-	// 					"حدث خطأ أثناء حفظ تعديلات العملية."
-	// 				),
-
-	// 			indicator:
-	// 				"red",
-	// 		});
-
-	// 	} finally {
-	// 		primary_button.prop(
-	// 			"disabled",
-	// 			false
-	// 		);
-	// 	}
-	// }
 
 	async save() {
 		const can_edit =
