@@ -1,0 +1,309 @@
+.generic-filter-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 20px;
+    height: 20px;
+
+    margin-inline-start: 6px;
+    padding: 0 6px;
+
+    border-radius: 999px;
+
+    background: var(--primary);
+    color: var(--fg-color);
+
+    font-size: 11px;
+    font-weight: 700;
+}
+
+
+.generic-active-filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+
+    gap: 7px;
+
+    padding: 8px 0;
+}
+
+
+.generic-filter-chip {
+    display: inline-flex;
+    align-items: center;
+
+    gap: 5px;
+
+    max-width: 100%;
+
+    padding: 5px 9px;
+
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+
+    background: var(--control-bg);
+    color: var(--text-color);
+
+    cursor: pointer;
+
+    font-size: var(--text-sm);
+}
+
+
+.generic-filter-chip:hover {
+    background: var(--subtle-fg);
+}
+
+
+.generic-filter-chip span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+
+.generic-filter-chip-remove {
+    font-size: 16px;
+    line-height: 1;
+
+    color: var(--text-muted);
+}
+
+
+.generic-clear-all-filters {
+    white-space: nowrap;
+}
+
+
+/* ==========================================================
+   Generic Filter Dialog
+   ========================================================== */
+
+.generic-filter-dialog .modal-dialog {
+    width: 92vw;
+    max-width: 1250px;
+}
+
+
+.generic-filter-dialog .modal-content {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+
+.generic-filter-dialog .modal-body {
+    max-height: 78vh;
+    overflow-y: auto;
+    padding: 14px;
+}
+
+
+.generic-filter-dialog
+.form-layout {
+    margin: 0;
+}
+
+
+.generic-filter-dialog
+.form-page {
+    padding: 0;
+}
+
+
+/* ==========================================================
+   Sections
+   ========================================================== */
+
+.generic-filter-section {
+    margin-bottom: 12px;
+    padding: 16px 14px 14px;
+
+    border:
+        1px solid
+        var(--border-color);
+
+    border-radius: 10px;
+
+    background:
+        var(--card-bg);
+}
+
+
+.generic-filter-section:last-child {
+    margin-bottom: 0;
+}
+
+
+.generic-filter-section-header {
+    margin-bottom: 14px;
+
+    text-align: right;
+}
+
+
+.generic-filter-section-title {
+    font-size: 15px;
+    font-weight: 700;
+
+    color:
+        var(--text-color);
+}
+
+
+.generic-filter-section-subtitle {
+    margin-top: 2px;
+
+    font-size: 11px;
+
+    color:
+        var(--text-muted);
+}
+
+
+/* ==========================================================
+   3-column layout
+   ========================================================== */
+
+.generic-filter-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(
+            3,
+            minmax(0, 1fr)
+        );
+
+    gap:
+        12px 14px;
+
+    direction: rtl;
+
+    align-items: start;
+}
+
+
+.generic-filter-field {
+    min-width: 0;
+}
+
+
+.generic-filter-field
+.form-group {
+    margin-bottom: 0;
+}
+
+
+.generic-filter-field
+.control-label {
+    font-size: 12px;
+    margin-bottom: 5px;
+}
+
+
+/* ==========================================================
+   Range controls
+   ========================================================== */
+
+.generic-filter-range-title {
+    margin-bottom: 5px;
+
+    font-size: 12px;
+
+    color:
+        var(--text-muted);
+}
+
+
+.generic-filter-range-grid {
+    display: grid;
+
+    grid-template-columns:
+        minmax(0, 1fr)
+        minmax(0, 1fr);
+
+    gap: 8px;
+
+    direction: rtl;
+}
+
+
+.generic-filter-range-grid
+.form-group {
+    margin-bottom: 0;
+}
+
+
+/* ==========================================================
+   Controls
+   ========================================================== */
+
+.generic-filter-dialog
+.form-control {
+    min-height: 32px;
+}
+
+
+.generic-filter-dialog
+.awesomplete,
+.generic-filter-dialog
+.frappe-control {
+    width: 100%;
+}
+
+
+/* ==========================================================
+   Footer
+   ========================================================== */
+
+.generic-filter-dialog
+.modal-footer {
+    padding:
+        10px 14px;
+
+    border-top:
+        1px solid
+        var(--border-color);
+}
+
+
+/* ==========================================================
+   Responsive
+   ========================================================== */
+
+@media (
+    max-width: 900px
+) {
+
+    .generic-filter-dialog
+    .modal-dialog {
+        width: 96vw;
+    }
+
+
+    .generic-filter-grid {
+        grid-template-columns:
+            repeat(
+                2,
+                minmax(0, 1fr)
+            );
+    }
+}
+
+
+@media (
+    max-width: 600px
+) {
+
+    .generic-filter-grid {
+        grid-template-columns:
+            1fr;
+    }
+
+
+    .generic-filter-range-grid {
+        grid-template-columns:
+            1fr;
+    }
+}

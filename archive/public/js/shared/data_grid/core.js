@@ -435,6 +435,198 @@ frappe.provide("custom.data_grid");
 
             const record_value =
                 record?.[field];
+            
+            if (
+                typeof filter_value
+                === "object"
+                &&
+                !Array.isArray(
+                    filter_value
+                )
+            ) {
+                const operator =
+                    filter_value.op
+                    || "eq";
+
+
+                // ================================================
+                // Text contains - normalized
+                // ================================================
+
+                if (
+                    operator
+                    === "contains_normalized"
+                ) {
+                    const needle =
+                        normalize_search_text(
+                            filter_value.value
+                        );
+
+
+                    if (!needle) {
+                        return true;
+                    }
+
+
+                    const haystack =
+                        normalize_search_text(
+                            record_value
+                        );
+
+
+                    return haystack.includes(
+                        needle
+                    );
+                }
+
+
+                // ================================================
+                // Number range
+                // ================================================
+
+                if (
+                    operator
+                    === "number_range"
+                ) {
+                    const number =
+                        Number(
+                            record_value
+                        );
+
+
+                    if (
+                        !Number.isFinite(
+                            number
+                        )
+                    ) {
+                        return false;
+                    }
+
+
+                    const min =
+                        filter_value.min;
+
+                    const max =
+                        filter_value.max;
+
+
+                    if (
+                        min !== null
+                        &&
+                        min !== undefined
+                        &&
+                        min !== ""
+                        &&
+                        number < Number(min)
+                    ) {
+                        return false;
+                    }
+
+
+                    if (
+                        max !== null
+                        &&
+                        max !== undefined
+                        &&
+                        max !== ""
+                        &&
+                        number > Number(max)
+                    ) {
+                        return false;
+                    }
+
+
+                    return true;
+                }
+
+
+                // ================================================
+                // Date range
+                // ================================================
+
+                if (
+                    operator
+                    === "date_range"
+                ) {
+                    if (!record_value) {
+                        return false;
+                    }
+
+
+                    const raw =
+                        String(
+                            record_value
+                        ).trim();
+
+
+                    const match =
+                        raw.match(
+                            /^(\d{4}-\d{2}-\d{2})/
+                        );
+
+
+                    let record_date =
+                        match
+                            ? match[1]
+                            : null;
+
+
+                    if (!record_date) {
+                        const parsed =
+                            new Date(
+                                record_value
+                            );
+
+
+                        if (
+                            Number.isNaN(
+                                parsed.getTime()
+                            )
+                        ) {
+                            return false;
+                        }
+
+
+                        record_date =
+                            parsed
+                                .toISOString()
+                                .slice(
+                                    0,
+                                    10
+                                );
+                    }
+
+
+                    const from =
+                        filter_value.from
+                        || null;
+
+                    const to =
+                        filter_value.to
+                        || null;
+
+
+                    if (
+                        from
+                        &&
+                        record_date < from
+                    ) {
+                        return false;
+                    }
+
+
+                    if (
+                        to
+                        &&
+                        record_date > to
+                    ) {
+                        return false;
+                    }
+
+
+                    return true;
+                }
+            }
 
 
             if (
@@ -786,25 +978,48 @@ frappe.provide("custom.data_grid");
             if (!cached) {
 
                 // 1) Search
-                const searched_ids =
-                    this._apply_search(
-                        this.all_ids,
-                        search
-                    );
+                // const searched_ids =
+                //     this._apply_search(
+                //         this.all_ids,
+                //         search
+                //     );
 
 
-                // 2) Filters
+                // // 2) Filters
+                // const filtered_ids =
+                //     this._apply_filters(
+                //         searched_ids,
+                //         filters
+                //     );
+
+
+                // // 3) Sort
+                // const sorted_ids =
+                //     this._apply_sort(
+                //         filtered_ids,
+                //         sort
+                //     );
+
+                // 1) Advanced / structural filters
                 const filtered_ids =
                     this._apply_filters(
-                        searched_ids,
+                        this.all_ids,
                         filters
                     );
 
 
-                // 3) Sort
+                // 2) Free search inside filtered results
+                const searched_ids =
+                    this._apply_search(
+                        filtered_ids,
+                        search
+                    );
+
+
+                // 3) Sorting
                 const sorted_ids =
                     this._apply_sort(
-                        filtered_ids,
+                        searched_ids,
                         sort
                     );
 

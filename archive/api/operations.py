@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import getdate, now_datetime
+from frappe.utils import getdate, now_datetime , cstr,cint
 from typing import Any
 from archive.api.operation_timeline import (
     log_operation_event,
@@ -98,13 +98,22 @@ OPERATION_FIELDS = {
     "reference_no",
     "bank_transfer_rate",
     "notes",
+    "allow_duplicate_operation_no",
+    "is_blocked_operation",
 }
-MAX_FINAL_SWIFT_FILES = 5
+MAX_FINAL_SWIFT_FILES = 10
 # ============================================================
 # Statuses
 # ============================================================
 
 VALID_STATUSES = (
+    "غير مؤكدة",
+    "مؤكدة",
+    "مرتجعة",
+    "محضورة",
+)
+
+ACTION_STATUSES = (
     "غير مؤكدة",
     "مؤكدة",
     "مرتجعة",
@@ -401,7 +410,10 @@ def can_change_operation_status(
 
     if (
         current_status
-        == "غير مؤكدة"
+        in {
+            "معلقة",
+            "غير مؤكدة",
+        }
     ):
         return bool(
             frappe.has_permission(
@@ -424,7 +436,28 @@ def can_change_operation_status(
         )
     )
 
+def can_release_pending_operation() -> bool:
+    """
+    صلاحية نقل العملية:
+        معلقة -> غير مؤكدة
 
+    تستخدم نفس صلاحية المرحلة الأولية.
+    """
+
+    user = frappe.session.user
+
+    if user == "Administrator":
+        return True
+
+    return bool(
+        frappe.has_permission(
+            "Archive Operation",
+            ptype=
+                INITIAL_STATUS_PERMISSION,
+            user=
+                user,
+        )
+    )
 # ============================================================
 # Serialize operation for view
 # ============================================================
@@ -705,6 +738,35 @@ def create_operation(
                 )
             )
 
+    # doc = frappe.new_doc(
+    #     "Archive Operation"
+    # )
+
+    # for fieldname in (
+    #     OPERATION_FIELDS
+    # ):
+    #     if (
+    #         fieldname
+    #         not in values
+    #     ):
+    #         continue
+
+    #     value = values.get(
+    #         fieldname
+    #     )
+
+    #     if value == "":
+    #         value = None
+
+    #     doc.set(
+    #         fieldname,
+    #         value,
+    #     )
+
+    # # أي عملية جديدة تبدأ غير مؤكدة.
+    # doc.status = (
+    #     "غير مؤكدة"
+    # )
     doc = frappe.new_doc(
         "Archive Operation"
     )
@@ -730,10 +792,52 @@ def create_operation(
             value,
         )
 
-    # أي عملية جديدة تبدأ غير مؤكدة.
-    doc.status = (
-        "غير مؤكدة"
+
+    # ========================================================
+    # Operation creation mode
+    # ========================================================
+
+    doc.allow_duplicate_operation_no = cint(
+        values.get(
+            "allow_duplicate_operation_no"
+        )
     )
+
+    doc.is_blocked_operation = cint(
+        values.get(
+            "is_blocked_operation"
+        )
+    )
+
+
+    # ========================================================
+    # Blocked operation
+    # ========================================================
+
+    if doc.is_blocked_operation:
+
+        # العملية المحضورة لا تحتاج رقم عملية.
+        doc.operation_no = None
+
+        # لا يوجد معنى للسماح بالتكرار بدون رقم.
+        doc.allow_duplicate_operation_no = 0
+
+        # تبدأ مباشرة محضورة.
+        doc.status = (
+            "محضورة"
+        )
+
+
+    # ========================================================
+    # Normal operation
+    # ========================================================
+
+    else:
+
+        # أي عملية طبيعية جديدة تبدأ معلقة.
+        doc.status = (
+            "معلقة"
+        )
 
     if extraction_source_file:
         doc.extraction_source_file = (
@@ -773,17 +877,32 @@ def create_operation(
     # ========================================================
     # Timeline: operation created
     # ========================================================
+    created_event_title = (
+                "تم إنشاء العملية كعملية محضورة"
+                if doc.is_blocked_operation
+                else "تم إنشاء العملية"
+            )
 
+    
     log_operation_event(
         doc.name,
         "created",
-        "تم إنشاء العملية",
+        created_event_title,
         details={
             "status":
                 doc.status,
 
             "operation_no":
                 doc.operation_no,
+            "allow_duplicate_operation_no":
+                bool(
+                    doc.allow_duplicate_operation_no
+                ),
+
+            "is_blocked_operation":
+                bool(
+                    doc.is_blocked_operation
+                ),
 
             "customer":
                 doc.customer,
@@ -847,6 +966,7 @@ def create_operation(
             )
         )
 
+        
 
         log_operation_event(
             doc.name,
@@ -1102,11 +1222,12 @@ def get_operations(
 
         if (
             status
-            not in VALID_STATUSES
+            not in ACTION_STATUSES
         ):
             frappe.throw(
                 _(
-                    "حالة العملية غير صحيحة."
+                    "لا يمكن الانتقال إلى هذه الحالة "
+                    "من إجراءات تغيير الحالة."
                 )
             )
 
@@ -1555,6 +1676,188 @@ def get_operations(
     }
 
 
+@frappe.whitelist(
+    methods=["POST"]
+)
+def release_pending_operation(
+    operation_name: str,
+) -> dict[str, Any]:
+
+    operation_name = (
+        operation_name or ""
+    ).strip()
+
+
+    if not operation_name:
+        frappe.throw(
+            _("اسم العملية مطلوب.")
+        )
+
+
+    operation = frappe.get_doc(
+        "Archive Operation",
+        operation_name,
+    )
+
+
+    operation.check_permission(
+        "read"
+    )
+
+
+    # ========================================================
+    # Must be Pending
+    # ========================================================
+
+    if (
+        operation.status
+        != "معلقة"
+    ):
+        frappe.throw(
+            _(
+                "يمكن تنفيذ هذا الإجراء "
+                "على العمليات المعلقة فقط."
+            )
+        )
+
+
+    # ========================================================
+    # Permission
+    # ========================================================
+
+    if not can_release_pending_operation():
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية نقل العملية "
+                "من معلقة إلى غير مؤكدة."
+            ),
+            frappe.PermissionError,
+        )
+
+
+    system_datetime = (
+        now_datetime()
+    )
+
+
+    changed_by = (
+        frappe.session.user
+    )
+
+
+    old_status = (
+        operation.status
+    )
+
+
+    # السماح للController بالانتقال الرسمي.
+    operation.flags.allow_status_transition = (
+        True
+    )
+
+
+    operation.status = (
+        "غير مؤكدة"
+    )
+
+
+    operation.status_effective_datetime = (
+        system_datetime
+    )
+
+
+    operation.status_changed_at = (
+        system_datetime
+    )
+
+
+    operation.status_changed_by = (
+        changed_by
+    )
+
+
+    operation.append(
+        "status_history",
+        {
+            "from_status":
+                old_status,
+
+            "to_status":
+                "غير مؤكدة",
+
+            "status_effective_datetime":
+                system_datetime,
+
+            "system_datetime":
+                system_datetime,
+
+            "changed_by":
+                changed_by,
+
+            "remarks":
+                "تم نقل العملية من معلقة إلى غير مؤكدة",
+        },
+    )
+
+
+    operation.save(
+        ignore_permissions=True
+    )
+
+
+    log_operation_event(
+        operation.name,
+        "status_change",
+        "تم نقل العملية من معلقة إلى غير مؤكدة",
+
+        details={
+            "from_status":
+                "معلقة",
+
+            "to_status":
+                "غير مؤكدة",
+
+            "system_datetime":
+                system_datetime,
+        },
+
+        remarks=
+            "تم نقل العملية من معلقة إلى غير مؤكدة",
+
+        effective_date=
+            system_datetime.date(),
+
+        event_source=
+            "User",
+
+        event_user=
+            changed_by,
+
+        event_datetime=
+            system_datetime,
+    )
+
+
+    return {
+        "name":
+            operation.name,
+
+        "from_status":
+            old_status,
+
+        "status":
+            operation.status,
+
+        "status_effective_datetime":
+            operation.status_effective_datetime,
+
+        "status_changed_at":
+            operation.status_changed_at,
+
+        "status_changed_by":
+            operation.status_changed_by,
+    }
+
 
 @frappe.whitelist(
     methods=["GET"]
@@ -1626,6 +1929,10 @@ def get_operations_context() -> dict[str, Any]:
             "final_swift_file",
 
             "search_text",
+            "operation_no",
+            "operation_no_normalized",
+            "allow_duplicate_operation_no",
+            "is_blocked_operation",
 
             "creation",
             "modified",
@@ -1637,6 +1944,73 @@ def get_operations_context() -> dict[str, Any]:
         limit_page_length=
             0,
     )
+
+    operation_number_groups = {}
+
+
+    for operation in operations:
+
+        operation.setdefault(
+            "operation_no_duplicate_count",
+            0,
+        )
+        
+        operation.setdefault(
+            "operation_no_duplicate_index",
+            0,
+        )
+
+        normalized = cstr(
+            operation.get(
+                "operation_no_normalized"
+            )
+        ).strip()
+
+
+        if not normalized:
+            continue
+
+
+        operation_number_groups.setdefault(
+            normalized,
+            [],
+        ).append(
+            operation
+        )
+
+
+
+    for group in (
+        operation_number_groups.values()
+    ):
+
+        group.sort(
+            key=lambda item: (
+                item.get("creation")
+                or "",
+                item.get("name")
+                or "",
+            )
+        )
+
+
+        count = len(
+            group
+        )
+
+
+        for index, operation in enumerate(
+            group,
+            start=1,
+        ):
+            operation[
+                "operation_no_duplicate_count"
+            ] = count
+
+            operation[
+                "operation_no_duplicate_index"
+            ] = index
+            
 
 
     # ========================================================
@@ -1705,6 +2079,10 @@ def get_operations_context() -> dict[str, Any]:
         can_change_operation_status(
             "غير مؤكدة"
         )
+    )
+
+    can_release_pending = (
+        can_release_pending_operation()
     )
 
 
@@ -1793,15 +2171,35 @@ def get_operations_context() -> dict[str, Any]:
         )
 
 
-        operation[
-            "can_change_status"
-        ] = (
-            can_change_initial_status
-            if operation.status
-                == "غير مؤكدة"
-            else
-            can_change_advanced_status
-        )
+        if (
+            operation.status
+            == "معلقة"
+        ):
+            operation[
+                "can_change_status"
+            ] = False
+
+            operation[
+                "can_release_pending"
+            ] = bool(
+                can_release_pending
+            )
+
+        else:
+
+            operation[
+                "can_release_pending"
+            ] = False
+
+            operation[
+                "can_change_status"
+            ] = (
+                can_change_initial_status
+                if operation.status
+                    == "غير مؤكدة"
+                else
+                can_change_advanced_status
+            )
 
 
         # في التصميم الحالي name هو الاسم المقروء
@@ -1857,6 +2255,8 @@ def get_operations_context() -> dict[str, Any]:
 
             "can_attach_final_swift":
                 can_attach_swift,
+            "can_release_pending":
+                can_release_pending,
         },
     }
 # ============================================================
@@ -2520,6 +2920,17 @@ def change_operation_status(
     operation.check_permission(
         "read"
     )
+
+    if (
+        operation.status
+        == "معلقة"
+    ):
+        frappe.throw(
+            _(
+                "العملية المعلقة يجب نقلها أولاً "
+                "إلى غير مؤكدة من الإجراء المخصص."
+            )
+        )
 
     # صلاحية تغيير الحالة مستقلة
     # عن صلاحية تعديل بيانات العملية.

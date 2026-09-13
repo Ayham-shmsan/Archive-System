@@ -1,12 +1,59 @@
 import os
-
+import hashlib
+import re
 import frappe
 from frappe import _
 from frappe.model.document import Document
 from archive.api.operation_search import (
     build_operation_search_text,
 )
+from frappe.utils import cint, cstr
 
+_OPERATION_NUMBER_DIGITS = str.maketrans(
+    "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹",
+    "01234567890123456789",
+)
+
+
+def normalize_operation_no(
+    value,
+):
+    """
+    توحيد رقم العملية قبل المقارنة.
+
+    ١٢٣٤٥  == 12345
+    abc123 == ABC123
+    المسافات لا تؤثر.
+    """
+
+    value = cstr(
+        value
+    ).strip()
+
+    if not value:
+        return ""
+
+    value = value.translate(
+        _OPERATION_NUMBER_DIGITS
+    )
+
+    value = re.sub(
+        r"\s+",
+        "",
+        value,
+    )
+
+    return value.upper()
+
+
+def make_operation_no_hash(
+    normalized_value,
+):
+    return hashlib.sha256(
+        normalized_value.encode(
+            "utf-8"
+        )
+    ).hexdigest()
 class ArchiveOperation(Document):
     # begin: auto-generated types
     # This code is auto-generated. Do not modify anything in this block.
@@ -52,6 +99,13 @@ class ArchiveOperation(Document):
     # end: auto-generated types
 
     VALID_STATUSES = (
+        "معلقة",
+        "غير مؤكدة",
+        "مؤكدة",
+        "مرتجعة",
+        "محضورة",
+    )
+    ACTION_STATUSES = (
         "غير مؤكدة",
         "مؤكدة",
         "مرتجعة",
@@ -59,8 +113,22 @@ class ArchiveOperation(Document):
     )
 
     def before_insert(self):
-        if not getattr(frappe.flags, "in_import", False):
-            self.status = "غير مؤكدة"
+        if not getattr(
+            frappe.flags,
+            "in_import",
+            False,
+        ):
+            if cint(
+                self.is_blocked_operation
+            ):
+                self.status = (
+                    "محضورة"
+                )
+
+            else:
+                self.status = (
+                    "معلقة"
+                )
 
         self.set_search_text()
 
@@ -102,11 +170,283 @@ class ArchiveOperation(Document):
 
         self.serial_no = serial_no
 
+
+    def validate_operation_number_rules(
+        self,
+    ):
+        blocked = bool(
+            cint(
+                self.is_blocked_operation
+            )
+        )
+
+        allow_duplicate = bool(
+            cint(
+                self.allow_duplicate_operation_no
+            )
+        )
+
+
+        # ========================================================
+        # Blocked operation
+        # ========================================================
+
+        if blocked:
+
+            self.operation_no = None
+
+            self.operation_no_normalized = (
+                None
+            )
+
+            self.operation_no_uniqueness_key = (
+                None
+            )
+
+            self.allow_duplicate_operation_no = (
+                0
+            )
+
+            return
+
+
+        # ========================================================
+        # Normal operation requires operation number
+        # ========================================================
+
+        operation_no = cstr(
+            self.operation_no
+        ).strip()
+
+
+        if not operation_no:
+            frappe.throw(
+                _(
+                    "رقم العملية مطلوب، "
+                    "إلا إذا كانت العملية محضورة."
+                )
+            )
+
+
+        normalized = (
+            normalize_operation_no(
+                operation_no
+            )
+        )
+
+
+        if not normalized:
+            frappe.throw(
+                _("رقم العملية غير صالح.")
+            )
+
+
+        self.operation_no = (
+            operation_no
+        )
+
+        self.operation_no_normalized = (
+            normalized
+        )
+
+
+        # ========================================================
+        # Check existing operation number
+        # ========================================================
+
+        filters = [
+            [
+                "Archive Operation",
+                "operation_no_normalized",
+                "=",
+                normalized,
+            ]
+        ]
+
+
+        if self.name:
+            filters.append(
+                [
+                    "Archive Operation",
+                    "name",
+                    "!=",
+                    self.name,
+                ]
+            )
+
+
+        existing = frappe.get_all(
+            "Archive Operation",
+            filters=filters,
+            fields=[
+                "name",
+                "operation_no",
+            ],
+            limit=1,
+        )
+
+
+        # ========================================================
+        # Duplicate not explicitly allowed
+        # ========================================================
+
+        if (
+            existing
+            and
+            not allow_duplicate
+        ):
+            frappe.throw(
+                _(
+                    "رقم العملية {0} مستخدم بالفعل "
+                    "في العملية {1}. "
+                    "إذا كان التكرار مقصودًا فعّل "
+                    "\"السماح بتكرار رقم العملية\"."
+                ).format(
+                    frappe.bold(
+                        operation_no
+                    ),
+                    frappe.bold(
+                        existing[0].name
+                    ),
+                )
+            )
+
+
+        # ========================================================
+        # DB-level uniqueness protection
+        # ========================================================
+
+        digest = (
+            make_operation_no_hash(
+                normalized
+            )
+        )
+
+
+        if allow_duplicate:
+
+            duplicate_prefix = (
+                f"D:{digest}:"
+            )
+
+
+            current_key = cstr(
+                self.operation_no_uniqueness_key
+            )
+
+
+            # نحافظ على نفس المفتاح إذا كان السجل
+            # بالفعل Duplicate لنفس الرقم.
+            if current_key.startswith(
+                duplicate_prefix
+            ):
+                return
+
+
+            self.operation_no_uniqueness_key = (
+                duplicate_prefix
+                +
+                frappe.generate_hash(
+                    length=16
+                )
+            )
+
+        else:
+
+            # كل العمليات العادية لنفس الرقم
+            # تنتج نفس المفتاح.
+            # unique=1 يمنع Race Condition.
+            self.operation_no_uniqueness_key = (
+                f"N:{digest}"
+            )
+
     def validate(self):
+        self.validate_blocked_creation_mode()
+        self.validate_blocked_operation_permission()
+        self.validate_operation_number_rules()
         self.validate_status()
         self.sync_extraction_source()
         self.validate_attachments()
         self.set_attachment_names()
+
+
+    def validate_blocked_creation_mode(
+        self,
+    ):
+        if self.is_new():
+            return
+
+
+        old_doc = (
+            self.get_doc_before_save()
+        )
+
+
+        if not old_doc:
+            return
+
+
+        old_value = bool(
+            cint(
+                old_doc.is_blocked_operation
+            )
+        )
+
+        new_value = bool(
+            cint(
+                self.is_blocked_operation
+            )
+        )
+
+
+        if old_value != new_value:
+            frappe.throw(
+                _(
+                    "\"عملية محضورة\" متاح عند "
+                    "إنشاء العملية فقط. "
+                    "بعد الإنشاء استخدم إجراءات الحالة."
+                )
+            )
+
+    def validate_blocked_operation_permission(
+        self,
+    ):
+        if not self.is_new():
+            return
+
+
+        if not cint(
+            self.is_blocked_operation
+        ):
+            return
+
+
+        if (
+            frappe.session.user
+            == "Administrator"
+        ):
+            return
+
+
+        allowed = frappe.has_permission(
+            "Archive Operation",
+            ptype=
+                "change_advanced_status",
+            user=
+                frappe.session.user,
+        )
+
+
+        if not allowed:
+            frappe.throw(
+                _(
+                    "ليس لديك صلاحية إنشاء "
+                    "عملية محضورة."
+                ),
+                frappe.PermissionError,
+            )
+
+
 
     def validate_status(self):
         if self.status not in self.VALID_STATUSES:

@@ -12,6 +12,230 @@ archive.ui.OperationDialog = class OperationDialog {
         this.render();
     }
 
+	// update_operation_number_mode() {
+
+	// 	const operation_no =
+	// 		this.dialog.fields_dict
+	// 			.operation_no;
+
+
+	// 	const allow_duplicate =
+	// 		this.dialog.fields_dict
+	// 			.allow_duplicate_operation_no;
+
+
+	// 	const blocked =
+	// 		this.dialog.fields_dict
+	// 			.is_blocked_operation;
+
+
+	// 	if (
+	// 		!operation_no
+	// 		||
+	// 		!allow_duplicate
+	// 		||
+	// 		!blocked
+	// 	) {
+	// 		return;
+	// 	}
+
+
+	// 	const is_blocked =
+	// 		Boolean(
+	// 			blocked.get_value()
+	// 		);
+
+
+	// 	// ========================================================
+	// 	// Blocked operation
+	// 	// ========================================================
+
+	// 	if (is_blocked) {
+
+	// 		// لا يوجد رقم عملية للعملية المحضورة.
+	// 		operation_no.set_value(
+	// 			""
+	// 		);
+
+
+	// 		// التكرار لا معنى له في هذه الحالة.
+	// 		allow_duplicate.set_value(
+	// 			0
+	// 		);
+
+
+	// 		operation_no.df.reqd =
+	// 			0;
+
+	// 		operation_no.df.read_only =
+	// 			1;
+
+
+	// 		allow_duplicate.df.read_only =
+	// 			1;
+	// 	}
+
+
+	// 	// ========================================================
+	// 	// Normal operation
+	// 	// ========================================================
+
+	// 	else {
+
+	// 		operation_no.df.reqd =
+	// 			1;
+
+	// 		operation_no.df.read_only =
+	// 			0;
+
+
+	// 		allow_duplicate.df.read_only =
+	// 			0;
+	// 	}
+
+
+	// 	operation_no.refresh();
+
+	// 	allow_duplicate.refresh();
+	// }
+	update_operation_number_mode() {
+
+		const operation_no =
+			this.controls
+				.operation_no;
+
+
+		const allow_duplicate =
+			this.controls
+				.allow_duplicate_operation_no;
+
+
+		const blocked =
+			this.controls
+				.is_blocked_operation;
+
+
+		if (
+			!operation_no
+			||
+			!allow_duplicate
+			||
+			!blocked
+		) {
+			return;
+		}
+
+
+		const is_blocked =
+			Boolean(
+				Number(
+					blocked.get_value()
+					|| 0
+				)
+			);
+
+
+		const $status_badge =
+			this.$body.find(
+				".archive-status-badge"
+			);
+
+
+		// ========================================================
+		// Blocked operation
+		// ========================================================
+
+		if (is_blocked) {
+
+			// لا يوجد رقم عملية للعملية المحضورة.
+			operation_no.set_value(
+				""
+			);
+
+
+			// السماح بالتكرار لا معنى له هنا.
+			allow_duplicate.set_value(
+				0
+			);
+
+
+			operation_no.df.reqd =
+				0;
+
+			operation_no.df.read_only =
+				1;
+
+
+			allow_duplicate.df.read_only =
+				1;
+
+
+			$status_badge.text(
+				"محضورة"
+			);
+		}
+
+
+		// ========================================================
+		// Normal operation
+		// ========================================================
+
+		else {
+
+			operation_no.df.reqd =
+				1;
+
+			operation_no.df.read_only =
+				0;
+
+
+			allow_duplicate.df.read_only =
+				0;
+
+
+			$status_badge.text(
+				"معلقة"
+			);
+		}
+
+
+		operation_no.refresh();
+
+		allow_duplicate.refresh();
+	}
+
+
+
+	bind_operation_number_mode() {
+
+		const blocked =
+			this.controls
+				.is_blocked_operation;
+
+
+		if (!blocked) {
+			return;
+		}
+
+
+		blocked.$input
+			.off(
+				".archiveOperationMode"
+			)
+			.on(
+				"change.archiveOperationMode",
+				() => {
+
+					this.update_operation_number_mode();
+				}
+			);
+
+
+		this.update_operation_number_mode();
+	}
+
+
+
 	make_dialog() {
 		this.dialog = new frappe.ui.Dialog({
 			title: __("إنشاء عملية جديدة"),
@@ -24,7 +248,7 @@ archive.ui.OperationDialog = class OperationDialog {
 			primary_action_label: __("حفظ العملية"),
 			primary_action: () => this.save(),
 			secondary_action_label: __("إلغاء"),
-            secondary_action: () => this.dialog.hide(),
+            secondary_action: () => this.cancel(),
 		});
 
 		this.dialog.$wrapper.addClass("archive-operation-dialog");
@@ -32,6 +256,7 @@ archive.ui.OperationDialog = class OperationDialog {
 
 	show() {
 		this.dialog.show();
+		this.bind_operation_number_mode();
 	}
 
 	render() {
@@ -99,7 +324,7 @@ archive.ui.OperationDialog = class OperationDialog {
 						</div>
 
 						<span class="archive-status-badge">
-							غير مؤكدة
+							معلقة
 						</span>
 					</div>
 
@@ -205,11 +430,51 @@ archive.ui.OperationDialog = class OperationDialog {
 		this.make_group_controls(
 			".archive-main-fields",
 			[
-				{
-					fieldname: "operation_no",
-					label: "رقم العملية",
-					fieldtype: "Data",
-				},
+			{
+				fieldname:
+					"operation_no",
+
+				label:
+					"رقم العملية",
+
+				fieldtype:
+					"Data",
+
+				reqd:
+					1,
+			},
+			{
+				fieldname:
+					"allow_duplicate_operation_no",
+
+				label:
+					"السماح بتكرار رقم العملية",
+
+				fieldtype:
+					"Check",
+
+				default:
+					0,
+
+				description:
+					"فعّل هذا الخيار فقط إذا كان تكرار رقم العملية مقصودًا.",
+			},
+			{
+				fieldname:
+					"is_blocked_operation",
+
+				label:
+					"عملية محضورة",
+
+				fieldtype:
+					"Check",
+
+				default:
+					0,
+
+				description:
+					"عند التفعيل تُنشأ العملية مباشرة بالحالة محضورة بدون رقم عملية.",
+			},
 				{
                     fieldname: "customer",
                     label: "اسم العميل",
@@ -994,6 +1259,8 @@ archive.ui.OperationDialog = class OperationDialog {
                 extracted_count++;
             }
 
+			this.update_operation_number_mode();
+
             if (!extracted_count) {
                 frappe.msgprint({
                     title:
@@ -1060,6 +1327,94 @@ archive.ui.OperationDialog = class OperationDialog {
 
         this.dialog.hide();
     }
+
+	validate_operation_number_mode(
+		values
+	) {
+
+		const is_blocked =
+			Boolean(
+				Number(
+					values
+						.is_blocked_operation
+					|| 0
+				)
+			);
+
+
+		const allow_duplicate =
+			Boolean(
+				Number(
+					values
+						.allow_duplicate_operation_no
+					|| 0
+				)
+			);
+
+
+		const operation_no =
+			String(
+				values.operation_no
+				|| ""
+			).trim();
+
+
+		// ========================================================
+		// Blocked
+		// ========================================================
+
+		if (is_blocked) {
+
+			values.operation_no =
+				null;
+
+			values.allow_duplicate_operation_no =
+				0;
+
+			return true;
+		}
+
+
+		// ========================================================
+		// Normal
+		// ========================================================
+
+		if (!operation_no) {
+
+			frappe.msgprint({
+				title:
+					__("رقم العملية مطلوب"),
+
+				message:
+					__(
+						"أدخل رقم العملية قبل حفظ العملية."
+					),
+
+				indicator:
+					"orange",
+			});
+
+
+			return false;
+		}
+
+
+		values.operation_no =
+			operation_no;
+
+
+		values.allow_duplicate_operation_no =
+			allow_duplicate
+				? 1
+				: 0;
+
+
+		values.is_blocked_operation =
+			0;
+
+
+		return true;
+	}
     async save() {
 		if (!this.attachments.length) {
 			frappe.msgprint({
@@ -1075,6 +1430,16 @@ archive.ui.OperationDialog = class OperationDialog {
 
 		const values =
 			this.get_values();
+
+		if (
+			!this.validate_operation_number_mode(
+				values
+			)
+		) {
+			return;
+		}
+
+
 
 		const primary_button =
 			this.dialog.get_primary_btn();

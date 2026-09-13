@@ -26,6 +26,7 @@ class ArchiveOperationsPage {
         this.state = {
             status: "all",
             search: "",
+            advanced_filters: {},
 
             page: 1,
             page_length: "100",
@@ -49,6 +50,8 @@ class ArchiveOperationsPage {
         this.context_version = null;
 
         this.search_frame = null;
+        this.filter_controller =
+            null;
 
 
         this.make_page();
@@ -56,6 +59,214 @@ class ArchiveOperationsPage {
         this.render();
 
         this.initialize();
+    }
+
+    render_operation_no(
+        operation
+    ) {
+
+        const operation_no =
+            String(
+                operation.operation_no
+                || ""
+            ).trim();
+
+
+        // العملية المحضورة التي أُنشئت بدون رقم.
+        if (!operation_no) {
+
+            if (
+                operation.is_blocked_operation
+            ) {
+                return `
+                    <div
+                        class="archive-operation-no-cell"
+                    >
+                        <span
+                            class="archive-operation-no-empty"
+                        >
+                            بدون رقم
+                        </span>
+                    </div>
+                `;
+            }
+
+
+            return `
+                <span
+                    class="text-muted"
+                >
+                    —
+                </span>
+            `;
+        }
+
+
+        const count =
+            Number(
+                operation
+                    .operation_no_duplicate_count
+                || 0
+            );
+
+
+        const index =
+            Number(
+                operation
+                    .operation_no_duplicate_index
+                || 0
+            );
+
+        const escaped_operation_no =
+            this.escape_value(
+                operation_no
+            );
+
+
+        // رقم غير مكرر.
+        if (count <= 1) {
+
+            return `
+                <div
+                    class="archive-operation-no-cell"
+                >
+                    <span
+                        class="archive-operation-no-value"
+                    >
+                        ${escaped_operation_no}
+                    </span>
+                </div>
+            `;
+        }
+
+
+        // رقم مكرر.
+        return `
+            <div
+                class="
+                    archive-operation-no-cell
+                    is-duplicate
+                "
+            >
+                <span
+                    class="archive-operation-no-value"
+                >
+                    ${escaped_operation_no}
+                </span>
+
+                <span
+                    class="archive-operation-duplicate-badge"
+                    title="يوجد ${count} عمليات تحمل نفس رقم العملية"
+                >
+                    ${count} عمليات
+                </span>
+
+                <span
+                    class="archive-operation-duplicate-index"
+                    title="ترتيب هذه العملية ضمن العمليات التي تحمل نفس الرقم"
+                >
+                    ${index}/${count}
+                </span>
+            </div>
+        `;
+    }
+
+    async release_pending_operation() {
+
+        const operation =
+            this.get_selected_operation();
+
+
+        if (
+            !operation
+            ||
+            operation.status
+                !== "معلقة"
+            ||
+            !operation.can_release_pending
+        ) {
+            return;
+        }
+
+
+        const confirmed =
+            await new Promise(
+                (resolve) => {
+
+                    frappe.confirm(
+                        __(
+                            "هل تريد نقل العملية من معلقة إلى غير مؤكدة؟"
+                        ),
+
+                        () =>
+                            resolve(true),
+
+                        () =>
+                            resolve(false)
+                    );
+                }
+            );
+
+
+        if (!confirmed) {
+            return;
+        }
+
+
+        try {
+
+            await frappe.call({
+
+                method:
+                    "archive.api.operations.release_pending_operation",
+
+                type:
+                    "POST",
+
+                args: {
+                    operation_name:
+                        operation.name,
+                },
+            });
+
+
+            frappe.show_alert({
+                message:
+                    __(
+                        "تم نقل العملية إلى غير مؤكدة"
+                    ),
+
+                indicator:
+                    "green",
+            });
+
+
+            await this.load_operations();
+
+
+        } catch (error) {
+
+            console.error(
+                "Release pending operation failed:",
+                error
+            );
+
+
+            frappe.msgprint({
+                title:
+                    __("تعذر تغيير الحالة"),
+
+                message:
+                    error?.message
+                    ||
+                    __(
+                        "حدث خطأ أثناء نقل العملية."
+                    ),
+
+                indicator:
+                    "red",
+            });
+        }
     }
     async initialize() {
 
@@ -67,6 +278,9 @@ class ArchiveOperationsPage {
                         "/assets/archive/js/shared/data_grid/core.js",
                         "/assets/archive/js/shared/data_grid/pagination.js",
                         "/assets/archive/css/shared/data_grid.css",
+                        
+                        "/assets/archive/js/shared/data_grid/filters.js",
+                        "/assets/archive/css/shared/data_grid_filters.css",
                     ],
                     resolve
                 );
@@ -78,6 +292,259 @@ class ArchiveOperationsPage {
 
 
         await this.load_operations();
+    }
+
+    initialize_filters() {
+
+        this.filter_controller =
+            new custom.data_grid
+                .FilterController({
+
+                    button:
+                        $(this.wrapper)
+                            .find(
+                                ".archive-filter-button"
+                            ),
+
+                    summary_container:
+                        $(this.wrapper)
+                            .find(
+                                ".archive-active-filters"
+                            ),
+
+                    data_source:
+                        this.data_source,
+
+                    title:
+                        __("فلترة العمليات"),
+                    
+                    layout: [
+
+                            {
+                                title:
+                                    "بيانات العملية",
+
+                                subtitle:
+                                    "معلومات العملية الأساسية",
+
+                                fields: [
+                                    "operation_no",
+                                    "customer",
+                                    "amount",
+
+                                    "execution_datetime",
+                                    "from_account",
+                                    "reference_no",
+                                ],
+                            },
+
+
+                            {
+                                title:
+                                    "بيانات المستفيد",
+
+                                subtitle:
+                                    "بيانات المستفيد والحساب والبنك",
+
+                                fields: [
+                                    "beneficiary_name",
+                                    "beneficiary_account",
+                                    "swift_code",
+
+                                    "country",
+                                ],
+                            },
+
+
+                            {
+                                title:
+                                    "بيانات التحويل والمرسل",
+
+                                subtitle:
+                                    "بيانات المرسل والتحويل",
+
+                                fields: [
+                                    "sender_name",
+                                    "transferring_bank",
+                                ],
+                            },
+                        ],
+
+                    schema: [
+
+                        {
+                            field:
+                                "execution_datetime",
+
+                            label:
+                                "تاريخ تنفيذ العملية",
+
+                            type:
+                                "date_range",
+                        },
+
+
+                        {
+                            field:
+                                "customer",
+
+                            label:
+                                "اسم العميل",
+
+                            type:
+                                "multi_select",
+                        },
+
+
+                        {
+                            field:
+                                "amount",
+
+                            label:
+                                "المبلغ",
+
+                            type:
+                                "number_range",
+                        },
+
+
+                        {
+                            field:
+                                "operation_no",
+
+                            label:
+                                "رقم العملية",
+
+                            type:
+                                "text",
+                        },
+
+
+                        {
+                            field:
+                                "beneficiary_name",
+
+                            label:
+                                "اسم المستفيد",
+
+                            type:
+                                "text",
+                        },
+
+
+                        {
+                            field:
+                                "beneficiary_account",
+
+                            label:
+                                "رقم حساب المستفيد",
+
+                            type:
+                                "text",
+                        },
+
+
+                        {
+                            field:
+                                "swift_code",
+
+                            label:
+                                "رمز SWIFT",
+
+                            type:
+                                "text",
+                        },
+
+
+                        {
+                            field:
+                                "country",
+
+                            label:
+                                "الدولة",
+
+                            type:
+                                "multi_select",
+
+                            get_label:
+                                (value) =>
+                                    __(value),
+                        },
+
+
+                        {
+                            field:
+                                "sender_name",
+
+                            label:
+                                "اسم المرسل",
+
+                            type:
+                                "text",
+                        },
+
+
+                        {
+                            field:
+                                "transferring_bank",
+
+                            label:
+                                "البنك المحول",
+
+                            type:
+                                "multi_select",
+                        },
+
+
+                        {
+                            field:
+                                "from_account",
+
+                            label:
+                                "عن طريق",
+
+                            type:
+                                "multi_select",
+                        },
+
+
+                        {
+                            field:
+                                "reference_no",
+
+                            label:
+                                "رقم المرجع",
+
+                            type:
+                                "text",
+                        },
+                    ],
+
+
+                    on_apply:
+                        async ({
+                            filters
+                        }) => {
+
+                            this.state
+                                .advanced_filters =
+                                    filters;
+
+
+                            this.state.page =
+                                1;
+
+
+                            this.apply_local_query();
+
+
+                            this.scroll_grid_to_top();
+                        },
+                });
+
+
+        this.filter_controller
+            .mount();
     }
 
     initialize_data_grid() {
@@ -240,13 +707,23 @@ class ArchiveOperationsPage {
         this.state.page_length =
             pagination_state.page_length;
 
+        
 
+        this.initialize_filters();
         this.update_sort_indicators();
     }
     open_status_dialog(
         operation_name,
         current_status
     ) {
+
+        if (
+            current_status
+            === "معلقة"
+        ) {
+            return;
+        }
+
         const statuses = [
             "غير مؤكدة",
             "مؤكدة",
@@ -541,6 +1018,12 @@ class ArchiveOperationsPage {
 						"0"
 					)}
 
+                    ${this.summary_card(
+                        "pending",
+                        "معلقة",
+                        "0"
+                    )}
+
 					${this.summary_card(
 						"unconfirmed",
 						"غير مؤكدة",
@@ -577,29 +1060,50 @@ class ArchiveOperationsPage {
 				<!-- Toolbar -->
 				<div class="archive-operations-toolbar">
 
-					<div class="archive-search-box">
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<circle cx="11" cy="11" r="8"></circle>
-							<path d="m21 21-4.35-4.35"></path>
-						</svg>
+					<div class="archive-search-filter-group">
 
-						<input
-							type="text"
-							class="archive-operation-search"
-							placeholder="بحث في العمليات..."
-						>
-					</div>
+                    <div class="archive-search-box">
+                        <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+
+                        <input
+                            type="text"
+                            class="archive-operation-search"
+                            placeholder="بحث في العمليات..."
+                        >
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn btn-default archive-filter-button"
+                    >
+                        الفلاتر
+                    </button>
+
+                </div>
 
 					<div class="archive-toolbar-actions">
 
-                    
+                    <button
+                        type="button"
+                        class="
+                            btn
+                            btn-primary
+                            archive-release-pending-button
+                        "
+                        style="display: none;"
+                    >
+                        نقل إلى غير مؤكدة
+                    </button>
                     <button
                     type="button"
                     class="btn btn-default archive-selected-view"
@@ -628,6 +1132,9 @@ class ArchiveOperationsPage {
                     >
                         إرفاق الملف النهائي
                     </button>
+                    
+
+
                         <button
                             type="button"
                             class="btn btn-default archive-selected-actions"
@@ -636,11 +1143,6 @@ class ArchiveOperationsPage {
                             الإجراءات
                         </button>
 
-                        <button
-                            type="button"
-                            class="btn btn-default archive-filter-button">
-                            الفلاتر
-                        </button>
 
                         <button
                             type="button"
@@ -651,6 +1153,11 @@ class ArchiveOperationsPage {
                     </div>
 
 				</div>
+
+
+                <div
+                    class="archive-active-filters"
+                ></div>
 
 
 				<!-- Operations -->
@@ -991,6 +1498,7 @@ class ArchiveOperationsPage {
     get_status_value(status) {
         const statuses = {
             all: "",
+            pending: "معلقة",
             unconfirmed: "غير مؤكدة",
             confirmed: "مؤكدة",
             returned: "مرتجعة",
@@ -1007,6 +1515,8 @@ class ArchiveOperationsPage {
             "مؤكدة": "status-confirmed",
             "مرتجعة": "status-returned",
             "محضورة": "status-held",
+            "معلقة":
+                "status-pending",
         };
 
         return classes[status] || "status-unconfirmed";
@@ -1201,16 +1711,56 @@ class ArchiveOperationsPage {
         }
     }
 
+    // get_active_filters() {
+
+    //     if (
+    //         this.state.status
+    //         === "final_swift"
+    //     ) {
+    //         return {
+    //             final_swift_pending:
+    //                 true,
+    //         };
+    //     }
+
+
+    //     const status =
+    //         this.get_status_value(
+    //             this.state.status
+    //         );
+
+
+    //     if (!status) {
+    //         return {};
+    //     }
+
+
+    //     return {
+    //         status:
+    //             status,
+    //     };
+    // }
+
     get_active_filters() {
+
+        const filters = {
+            ...(
+                this.state
+                    .advanced_filters
+                || {}
+            ),
+        };
+
 
         if (
             this.state.status
             === "final_swift"
         ) {
-            return {
-                final_swift_pending:
-                    true,
-            };
+            filters[
+                "final_swift_pending"
+            ] = true;
+
+            return filters;
         }
 
 
@@ -1220,15 +1770,13 @@ class ArchiveOperationsPage {
             );
 
 
-        if (!status) {
-            return {};
+        if (status) {
+            filters.status =
+                status;
         }
 
 
-        return {
-            status:
-                status,
-        };
+        return filters;
     }
     get_local_counts(
         searched_ids
@@ -1237,6 +1785,7 @@ class ArchiveOperationsPage {
         const counts = {
             all: 0,
 
+            "معلقة": 0,
             "غير مؤكدة": 0,
             "مؤكدة": 0,
             "مرتجعة": 0,
@@ -1359,12 +1908,41 @@ class ArchiveOperationsPage {
         this.update_selected_actions();
 
 
+        // this.update_counts(
+        //     this.get_local_counts(
+        //         result.searched_ids
+        //     )
+        // );
+
+
+        const counts_result =
+            this.data_source.query({
+
+                search:
+                    this.state.search,
+
+                // الفلاتر المتقدمة فقط.
+                // لا نضع بطاقة الحالة هنا.
+                filters:
+                    this.state
+                        .advanced_filters
+                        || {},
+
+                sort:
+                    null,
+
+                page:
+                    1,
+
+                page_length:
+                    "all",
+            });
+
         this.update_counts(
             this.get_local_counts(
-                result.searched_ids
+                counts_result.result_ids
             )
         );
-
 
         this.update_result_count(
             result.total_rows
@@ -1703,11 +2281,10 @@ class ArchiveOperationsPage {
                     </div>
                 </td>
 
-
                 <!-- رقم العملية -->
                 <td>
-                    ${this.escape_value(
-                        operation.operation_no
+                    ${this.render_operation_no(
+                        operation
                     )}
                 </td>
 
@@ -2018,6 +2595,8 @@ class ArchiveOperationsPage {
                 counts["محضورة"] || 0,
             final_swift:
                 counts.final_swift || 0,
+            pending:
+                counts["معلقة"] || 0,
         };
 
         Object.entries(values).forEach(
@@ -2122,6 +2701,33 @@ class ArchiveOperationsPage {
         const selected =
             this.get_selected_operation();
         
+        const can_release_pending =
+            Boolean(
+                selected
+                &&
+                selected.status
+                    === "معلقة"
+                &&
+                selected.can_release_pending
+            );
+
+
+        const $release_pending_button =
+            $(this.wrapper)
+                .find(
+                    ".archive-release-pending-button"
+                );
+
+
+        $release_pending_button
+            .toggle(
+                can_release_pending
+            )
+            .prop(
+                "disabled",
+                !can_release_pending
+            );
+        
         const can_view_timeline =
             Boolean(
                 selected
@@ -2152,7 +2758,11 @@ class ArchiveOperationsPage {
 
         const can_change_status =
             Boolean(
-                selected &&
+                selected
+                &&
+                selected.status
+                    !== "معلقة"
+                &&
                 selected.can_change_status
             );
 
@@ -2316,6 +2926,17 @@ class ArchiveOperationsPage {
 
     bind_events() {
         const $wrapper = $(this.wrapper);
+
+        $wrapper
+            .find(
+                ".archive-release-pending-button"
+            )
+            .on(
+                "click",
+                () => {
+                    this.release_pending_operation();
+                }
+            );
 
         $wrapper
             .find(
