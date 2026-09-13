@@ -1,0 +1,129 @@
+.generic-data-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+
+    padding: 12px 14px;
+
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+}
+
+
+.generic-pagination-length {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+
+.generic-pagination-label {
+    white-space: nowrap;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+}
+
+
+.generic-page-length {
+    width: 135px;
+    height: 30px;
+
+    padding-top: 3px;
+    padding-bottom: 3px;
+}
+
+
+.generic-pagination-info {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    text-align: center;
+}
+
+
+.generic-pagination-info strong {
+    color: var(--text-color);
+}
+
+
+.generic-pagination-buttons {
+    display: flex;
+    align-items: center;
+
+    direction: ltr;
+
+    gap: 5px;
+}
+
+
+.generic-pagination-buttons .btn {
+    min-width: 34px;
+
+    font-size: 18px;
+    line-height: 1;
+}
+
+
+.generic-data-grid-scroll {
+    width: 100%;
+
+    max-height:
+        var(
+            --generic-data-grid-max-height,
+            65vh
+        );
+
+    overflow: auto;
+
+    scrollbar-gutter: stable;
+
+    overscroll-behavior: contain;
+}
+
+
+.generic-data-grid-scroll thead th {
+    position: sticky;
+    top: 0;
+
+    z-index: 5;
+
+    background: var(--card-bg);
+}
+
+
+.generic-sortable-column {
+    cursor: pointer;
+    user-select: none;
+}
+
+
+.generic-sortable-column:hover {
+    background: var(--control-bg);
+}
+
+
+.generic-sort-indicator {
+    display: inline-block;
+    min-width: 12px;
+    margin-inline-start: 4px;
+}
+
+
+@media (max-width: 768px) {
+
+    .generic-data-pagination {
+        justify-content: center;
+    }
+
+
+    .generic-pagination-info {
+        width: 100%;
+        order: 3;
+    }
+}

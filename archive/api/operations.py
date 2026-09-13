@@ -1555,6 +1555,310 @@ def get_operations(
     }
 
 
+
+@frappe.whitelist(
+    methods=["GET"]
+)
+def get_operations_context() -> dict[str, Any]:
+    """
+    تحميل Snapshot كامل وخفيف لواجهة العمليات.
+
+    يتم استدعاؤه عند:
+        - فتح الصفحة
+        - Refresh صريح
+
+    البحث والفلترة والترتيب وPagination
+    تتم بعد ذلك داخل المتصفح.
+    """
+
+    frappe.has_permission(
+        "Archive Operation",
+        "read",
+        throw=True,
+    )
+
+
+    configured_final_swift_banks = (
+        get_final_swift_banks()
+    )
+
+
+    # ========================================================
+    # Operations
+    # ========================================================
+
+    operations = frappe.get_list(
+        "Archive Operation",
+
+        fields=[
+            "name",
+            "serial_no",
+            "operation_no",
+            "customer",
+
+            "amount",
+            "currency",
+            "customer_rate",
+
+            "beneficiary_name",
+            "beneficiary_account",
+            "beneficiary_bank",
+
+            "swift_code",
+            "country",
+
+            "bank_transfer_rate",
+
+            "sender_name",
+            "sender_account",
+
+            "execution_datetime",
+
+            "transferring_bank",
+            "request_date",
+            "from_account",
+
+            "reference_no",
+            "notes",
+
+            "status",
+
+            "final_swift_file",
+
+            "search_text",
+
+            "creation",
+            "modified",
+        ],
+
+        order_by=
+            "serial_no desc",
+
+        limit_page_length=
+            0,
+    )
+
+
+    # ========================================================
+    # Final Swift counts
+    # Query واحدة لكل البيانات وليس لكل عملية.
+    # ========================================================
+
+    final_swift_counts = {}
+
+
+    operation_names = [
+        row.name
+        for row in operations
+    ]
+
+
+    if operation_names:
+
+        final_swift_rows = frappe.get_all(
+            "Archive Operation Attachment",
+
+            filters={
+                "parent": [
+                    "in",
+                    operation_names,
+                ],
+
+                "parenttype":
+                    "Archive Operation",
+
+                "parentfield":
+                    "attachments",
+
+                "is_final_swift":
+                    1,
+            },
+
+            fields=[
+                "parent",
+            ],
+
+            limit_page_length=
+                0,
+        )
+
+
+        for row in final_swift_rows:
+
+            final_swift_counts[
+                row.parent
+            ] = (
+                final_swift_counts.get(
+                    row.parent,
+                    0,
+                )
+                + 1
+            )
+
+
+    # ========================================================
+    # Capabilities
+    # نحسب صلاحية المستخدم مرة واحدة.
+    # ========================================================
+
+    can_change_initial_status = (
+        can_change_operation_status(
+            "غير مؤكدة"
+        )
+    )
+
+
+    can_change_advanced_status = (
+        can_change_operation_status(
+            "مؤكدة"
+        )
+    )
+
+
+    can_attach_swift = (
+        can_attach_final_swift()
+    )
+
+
+    # ========================================================
+    # Enrich
+    # ========================================================
+
+    for operation in operations:
+
+        operation[
+            "can_view_timeline"
+        ] = bool(
+            can_view_operation_timeline(
+                operation
+            )
+        )
+
+        final_swift_count = (
+            final_swift_counts.get(
+                operation.name,
+                0,
+            )
+        )
+
+
+        final_swift_required = bool(
+            operation.transferring_bank
+            and
+            operation.transferring_bank
+            in configured_final_swift_banks
+        )
+
+
+        operation[
+            "final_swift_required"
+        ] = final_swift_required
+
+
+        operation[
+            "final_swift_count"
+        ] = final_swift_count
+
+
+        operation[
+            "final_swift_limit"
+        ] = MAX_FINAL_SWIFT_FILES
+
+
+        operation[
+            "has_final_swift"
+        ] = (
+            final_swift_count > 0
+        )
+
+
+        operation[
+            "final_swift_pending"
+        ] = bool(
+            final_swift_required
+            and
+            final_swift_count == 0
+        )
+
+
+        operation[
+            "can_attach_final_swift"
+        ] = bool(
+            final_swift_required
+            and
+            final_swift_count
+                < MAX_FINAL_SWIFT_FILES
+            and
+            can_attach_swift
+        )
+
+
+        operation[
+            "can_change_status"
+        ] = (
+            can_change_initial_status
+            if operation.status
+                == "غير مؤكدة"
+            else
+            can_change_advanced_status
+        )
+
+
+        # في التصميم الحالي name هو الاسم المقروء
+        # للعميل والحساب.
+        operation[
+            "customer_name"
+        ] = operation.customer
+
+
+        operation[
+            "from_account_name"
+        ] = operation.from_account
+
+
+    # ========================================================
+    # Context version
+    # ========================================================
+
+    context_version = ""
+
+    if operations:
+
+        context_version = str(
+            max(
+                (
+                    row.modified
+                    for row in operations
+                    if row.modified
+                ),
+                default="",
+            )
+        )
+
+
+    return {
+        "records":
+            operations,
+
+        "total":
+            len(
+                operations
+            ),
+
+        "version":
+            context_version,
+
+        "capabilities": {
+            "can_change_initial_status":
+                can_change_initial_status,
+
+            "can_change_advanced_status":
+                can_change_advanced_status,
+
+            "can_attach_final_swift":
+                can_attach_swift,
+        },
+    }
 # ============================================================
 # Get operation for custom view dialog
 # ============================================================

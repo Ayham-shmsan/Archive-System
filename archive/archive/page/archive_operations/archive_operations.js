@@ -3,23 +3,246 @@ frappe.pages["archive-operations"].on_page_load = function (wrapper) {
 };
 
 class ArchiveOperationsPage {
-	constructor(wrapper) {
-		this.wrapper = wrapper;
+	// constructor(wrapper) {
+	// 	this.wrapper = wrapper;
 
-		this.state = {
-			status: "all",
-			search: "",
-            start: 0,
-	        page_length: 100000,
-            selected_operation_name: null,
-		};
+	// 	this.state = {
+	// 		status: "all",
+	// 		search: "",
+    //         start: 0,
+	//         page_length: 100000,
+    //         selected_operation_name: null,
+	// 	};
+
+    //     this.operations = [];
+
+	// 	this.make_page();
+	// 	this.render();
+    //     this.load_operations();
+	// }
+    constructor(wrapper) {
+        this.wrapper = wrapper;
+
+        this.state = {
+            status: "all",
+            search: "",
+
+            page: 1,
+            page_length: "100",
+
+            sort: {
+                field: "serial_no",
+                direction: "desc",
+            },
+
+            selected_operation_name:
+                null,
+        };
+
 
         this.operations = [];
 
-		this.make_page();
-		this.render();
-        this.load_operations();
-	}
+        this.data_source = null;
+
+        this.pagination = null;
+
+        this.context_version = null;
+
+        this.search_frame = null;
+
+
+        this.make_page();
+
+        this.render();
+
+        this.initialize();
+    }
+    async initialize() {
+
+        await new Promise(
+            (resolve) => {
+
+                frappe.require(
+                    [
+                        "/assets/archive/js/shared/data_grid/core.js",
+                        "/assets/archive/js/shared/data_grid/pagination.js",
+                        "/assets/archive/css/shared/data_grid.css",
+                    ],
+                    resolve
+                );
+            }
+        );
+
+
+        this.initialize_data_grid();
+
+
+        await this.load_operations();
+    }
+
+    initialize_data_grid() {
+
+        this.data_source =
+            new custom.data_grid
+                .LocalDataSource({
+
+                    id_field:
+                        "name",
+
+                    search_accessor:
+                        (operation) =>
+                            operation.search_text
+                            || "",
+
+                    search_tokenizer:
+                        custom.data_grid
+                            .utils
+                            .get_search_tokens,
+
+                    sorters: {
+
+                        serial_no: {
+                            type: "number",
+                        },
+
+                        operation_no: {
+                            type: "text",
+                        },
+
+                        customer: {
+                            type: "text",
+                        },
+
+                        amount: {
+                            type: "number",
+                        },
+
+                        currency: {
+                            type: "text",
+                        },
+
+                        customer_rate: {
+                            type: "text",
+                        },
+
+                        beneficiary_name: {
+                            type: "text",
+                        },
+
+                        beneficiary_account: {
+                            type: "text",
+                        },
+
+                        beneficiary_bank: {
+                            type: "text",
+                        },
+
+                        swift_code: {
+                            type: "text",
+                        },
+
+                        country: {
+                            type: "text",
+                        },
+
+                        sender_name: {
+                            type: "text",
+                        },
+
+                        sender_account: {
+                            type: "text",
+                        },
+
+                        execution_datetime: {
+                            type: "datetime",
+                        },
+
+                        transferring_bank: {
+                            type: "text",
+                        },
+
+                        request_date: {
+                            type: "date",
+                        },
+
+                        from_account: {
+                            type: "text",
+                        },
+
+                        reference_no: {
+                            type: "text",
+                        },
+
+                        bank_transfer_rate: {
+                            type: "number",
+                        },
+
+                        notes: {
+                            type: "text",
+                        },
+
+                        has_final_swift: {
+                            type: "boolean",
+                        },
+
+                        status: {
+                            type: "text",
+                        },
+                    },
+                });
+
+
+        this.pagination =
+            new custom.data_grid
+                .PaginationBar({
+
+                    container:
+                        $(this.wrapper)
+                            .find(
+                                ".archive-pagination-host"
+                            ),
+
+                    page_length:
+                        "100",
+
+                    storage_key:
+                        "archive.operations.page_length",
+
+                    on_change:
+                        async ({
+                            page,
+                            page_length,
+                        }) => {
+
+                            this.state.page =
+                                page;
+
+                            this.state.page_length =
+                                page_length;
+
+
+                            this.apply_local_query();
+
+
+                            this.scroll_grid_to_top();
+                        },
+                });
+
+
+        this.pagination.mount();
+
+
+        const pagination_state =
+            this.pagination
+                .get_state();
+
+
+        this.state.page_length =
+            pagination_state.page_length;
+
+
+        this.update_sort_indicators();
+    }
     open_status_dialog(
         operation_name,
         current_status
@@ -452,7 +675,12 @@ class ArchiveOperationsPage {
 					</div>
 
                     
-					<div class="archive-table-wrapper">
+					<div
+                        class="
+                            archive-table-wrapper
+                            generic-data-grid-scroll
+                        "
+                    >
 
 						<table class="archive-operations-table">
 
@@ -488,32 +716,181 @@ class ArchiveOperationsPage {
 
 							<thead>
                                 <tr>
-                                    <th>الرقم</th>
-                                    <th>رقم العملية</th>
-                                    <th>اسم العميل</th>
-                                    <th>المبلغ</th>
-                                    <th>العملة</th>
-                                    <th>سعر العميل</th>
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="serial_no"
+                                    >
+                                        الرقم
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
 
-                                    <th>اسم المستفيد</th>
-                                    <th>رقم حساب المستفيد</th>
-                                    <th>اسم بنك المستفيد</th>
-                                    <th>رمز SWIFT</th>
-                                    <th>الجهة (الدولة)</th>
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="operation_no"
+                                    >
+                                        رقم العملية
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
 
-                                    <th>اسم المرسل</th>
-                                    <th>رقم حساب المرسل</th>
-                                    <th>تاريخ تنفيذ العملية</th>
-                                    <th>اسم البنك المحول</th>
-                                    <th>تاريخ الطلب</th>
-                                    <th>عن طريق</th>
-                                    <th>رقم المرجع</th>
-                                    <th>سعر البنك المحول</th>
-                                    <th>ملاحظات</th>
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="customer"
+                                    >
+                                        اسم العميل
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
 
-                                    <th>السويفت النهائي</th>
-                                    <th>الحالة</th>
-                                    
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="amount"
+                                    >
+                                        المبلغ
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="currency"
+                                    >
+                                        العملة
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="customer_rate"
+                                    >
+                                        سعر العميل
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="beneficiary_name"
+                                    >
+                                        اسم المستفيد
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="beneficiary_account"
+                                    >
+                                        رقم حساب المستفيد
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="beneficiary_bank"
+                                    >
+                                        اسم بنك المستفيد
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="swift_code"
+                                    >
+                                        رمز SWIFT
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="country"
+                                    >
+                                        الجهة (الدولة)
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="sender_name"
+                                    >
+                                        اسم المرسل
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="sender_account"
+                                    >
+                                        رقم حساب المرسل
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="execution_datetime"
+                                    >
+                                        تاريخ تنفيذ العملية
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="transferring_bank"
+                                    >
+                                        اسم البنك المحول
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="request_date"
+                                    >
+                                        تاريخ الطلب
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="from_account"
+                                    >
+                                        عن طريق
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="reference_no"
+                                    >
+                                        رقم المرجع
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="bank_transfer_rate"
+                                    >
+                                        سعر البنك المحول
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="notes"
+                                    >
+                                        ملاحظات
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="has_final_swift"
+                                    >
+                                        السويفت النهائي
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="status"
+                                    >
+                                        الحالة
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
                                 </tr>
                             </thead>
 
@@ -576,6 +953,9 @@ class ArchiveOperationsPage {
 						</div>
 
 					</div>
+                    <div
+                        class="archive-pagination-host"
+                    ></div>
 
 				</div>
 
@@ -633,101 +1013,511 @@ class ArchiveOperationsPage {
     }
 
 
+    // async load_operations() {
+    //     const $wrapper = $(this.wrapper);
+
+    //     const $refresh =
+    //         $wrapper.find(".archive-refresh-button");
+
+    //     $refresh.prop("disabled", true);
+
+    //     try {
+    //         const is_final_swift_view =
+    //             this.state.status ===
+    //             "final_swift";
+    //         const response =
+    //             await frappe.call({
+    //                 method:
+    //                     "archive.api.operations.get_operations",
+
+    //                 args: {
+    //                     search:
+    //                         this.state.search || null,
+
+    //                    status:
+    //                         is_final_swift_view
+    //                             ? null
+    //                             : (
+    //                                 this.get_status_value(
+    //                                     this.state.status
+    //                                 ) || null
+    //                             ),
+
+    //                     start:
+    //                         this.state.start,
+
+    //                     page_length:
+    //                         this.state.page_length,
+    //                     final_swift_pending:
+    //                         is_final_swift_view
+    //                             ? 1
+    //                             : 0,
+    //                 },
+    //             });
+
+    //         const result =
+    //             response.message || {};
+    //         this.operations =
+    //             result.operations || [];
+
+    //         /*
+    //         * إذا كان السجل المحدد لم يعد ضمن النتائج
+    //         * بسبب فلتر أو تغيير حالة، نلغي التحديد.
+    //         */
+    //         if (
+    //             this.state.selected_operation_name &&
+    //             !this.operations.some(
+    //                 (operation) =>
+    //                     operation.name ===
+    //                     this.state.selected_operation_name
+    //             )
+    //         ) {
+    //             this.state.selected_operation_name = null;
+    //         }
+
+    //         this.render_operations(
+    //                 this.operations
+    //             );
+
+    //         this.update_selected_actions();
+
+    //         this.update_counts(
+    //             result.counts || {}
+    //         );
+
+    //         this.update_result_count(
+    //             result.total || 0
+    //         );
+
+    //     } catch (error) {
+    //         console.error(
+    //             "Archive operations loading failed:",
+    //             error
+    //         );
+
+    //         frappe.msgprint({
+    //             title: __("تعذر تحميل العمليات"),
+    //             message:
+    //                 error?.message ||
+    //                 __(
+    //                     "حدث خطأ أثناء تحميل سجلات العمليات."
+    //                 ),
+    //             indicator: "red",
+    //         });
+
+    //     } finally {
+    //         $refresh.prop("disabled", false);
+    //     }
+    // }
     async load_operations() {
-        const $wrapper = $(this.wrapper);
+
+        const $wrapper =
+            $(this.wrapper);
+
 
         const $refresh =
-            $wrapper.find(".archive-refresh-button");
+            $wrapper.find(
+                ".archive-refresh-button"
+            );
 
-        $refresh.prop("disabled", true);
+
+        $refresh.prop(
+            "disabled",
+            true
+        );
+
 
         try {
-            const is_final_swift_view =
-                this.state.status ===
-                "final_swift";
+
             const response =
                 await frappe.call({
+
                     method:
-                        "archive.api.operations.get_operations",
+                        "archive.api.operations.get_operations_context",
 
-                    args: {
-                        search:
-                            this.state.search || null,
-
-                       status:
-                            is_final_swift_view
-                                ? null
-                                : (
-                                    this.get_status_value(
-                                        this.state.status
-                                    ) || null
-                                ),
-
-                        start:
-                            this.state.start,
-
-                        page_length:
-                            this.state.page_length,
-                        final_swift_pending:
-                            is_final_swift_view
-                                ? 1
-                                : 0,
-                    },
+                    type:
+                        "GET",
                 });
 
+
             const result =
-                response.message || {};
-            this.operations =
-                result.operations || [];
+                response.message
+                || {};
 
-            /*
-            * إذا كان السجل المحدد لم يعد ضمن النتائج
-            * بسبب فلتر أو تغيير حالة، نلغي التحديد.
-            */
-            if (
-                this.state.selected_operation_name &&
-                !this.operations.some(
-                    (operation) =>
-                        operation.name ===
-                        this.state.selected_operation_name
-                )
-            ) {
-                this.state.selected_operation_name = null;
-            }
 
-            this.render_operations(
-                    this.operations
+            const records =
+                result.records
+                || [];
+
+
+            this.context_version =
+                result.version
+                || null;
+
+
+            this.data_source
+                .set_records(
+                    records
                 );
 
-            this.update_selected_actions();
 
-            this.update_counts(
-                result.counts || {}
-            );
+            this.state.page = 1;
 
-            this.update_result_count(
-                result.total || 0
-            );
+
+            this.apply_local_query();
+
 
         } catch (error) {
+
             console.error(
-                "Archive operations loading failed:",
+                "Archive operations context loading failed:",
                 error
             );
 
+
             frappe.msgprint({
-                title: __("تعذر تحميل العمليات"),
+
+                title:
+                    __("تعذر تحميل العمليات"),
+
                 message:
-                    error?.message ||
+                    error?.message
+                    ||
                     __(
-                        "حدث خطأ أثناء تحميل سجلات العمليات."
+                        "حدث خطأ أثناء تحميل بيانات العمليات."
                     ),
-                indicator: "red",
+
+                indicator:
+                    "red",
             });
 
+
         } finally {
-            $refresh.prop("disabled", false);
+
+            $refresh.prop(
+                "disabled",
+                false
+            );
         }
+    }
+
+    get_active_filters() {
+
+        if (
+            this.state.status
+            === "final_swift"
+        ) {
+            return {
+                final_swift_pending:
+                    true,
+            };
+        }
+
+
+        const status =
+            this.get_status_value(
+                this.state.status
+            );
+
+
+        if (!status) {
+            return {};
+        }
+
+
+        return {
+            status:
+                status,
+        };
+    }
+    get_local_counts(
+        searched_ids
+    ) {
+
+        const counts = {
+            all: 0,
+
+            "غير مؤكدة": 0,
+            "مؤكدة": 0,
+            "مرتجعة": 0,
+            "محضورة": 0,
+
+            final_swift: 0,
+        };
+
+
+        for (
+            const id
+            of searched_ids || []
+        ) {
+
+            const operation =
+                this.data_source
+                    .records
+                    .get(id);
+
+
+            if (!operation) {
+                continue;
+            }
+
+
+            counts.all += 1;
+
+
+            if (
+                Object.prototype
+                    .hasOwnProperty
+                    .call(
+                        counts,
+                        operation.status
+                    )
+            ) {
+                counts[
+                    operation.status
+                ] += 1;
+            }
+
+
+            if (
+                operation.final_swift_pending
+            ) {
+                counts.final_swift += 1;
+            }
+        }
+
+
+        return counts;
+    }
+
+    apply_local_query() {
+
+        if (!this.data_source) {
+            return;
+        }
+
+
+        const result =
+            this.data_source.query({
+
+                search:
+                    this.state.search,
+
+                filters:
+                    this.get_active_filters(),
+
+                sort:
+                    this.state.sort,
+
+                page:
+                    this.state.page,
+
+                page_length:
+                    this.state.page_length,
+            });
+
+
+        this.state.page =
+            result.page;
+
+
+        this.state.page_length =
+            result.page_length === 0
+                ? "all"
+                : String(
+                    result.page_length
+                );
+
+
+        this.operations =
+            result.records;
+
+
+        if (
+            this.state
+                .selected_operation_name
+            &&
+            !this.operations.some(
+                (operation) =>
+                    operation.name
+                    ===
+                    this.state
+                        .selected_operation_name
+            )
+        ) {
+            this.state
+                .selected_operation_name =
+                    null;
+        }
+
+
+        this.render_operations(
+            this.operations
+        );
+
+
+        this.update_selected_actions();
+
+
+        this.update_counts(
+            this.get_local_counts(
+                result.searched_ids
+            )
+        );
+
+
+        this.update_result_count(
+            result.total_rows
+        );
+
+
+        this.pagination?.update({
+
+            page:
+                result.page,
+
+            page_length:
+                result.page_length,
+
+            total_rows:
+                result.total_rows,
+
+            total_pages:
+                result.total_pages,
+        });
+
+
+        this.update_sort_indicators();
+    }
+
+    change_sort(
+        field
+    ) {
+
+        if (!field) {
+            return;
+        }
+
+
+        if (
+            this.state.sort?.field
+            === field
+        ) {
+
+            this.state.sort.direction =
+                this.state.sort.direction
+                === "asc"
+                    ? "desc"
+                    : "asc";
+
+        } else {
+
+            this.state.sort = {
+                field:
+                    field,
+
+                direction:
+                    "asc",
+            };
+        }
+
+
+        this.state.page = 1;
+
+
+        this.apply_local_query();
+
+
+        this.scroll_grid_to_top();
+    }
+
+    update_sort_indicators() {
+
+        const $headers =
+            $(this.wrapper)
+                .find(
+                    ".generic-sortable-column"
+                );
+
+
+        $headers.each(
+            (
+                index,
+                element
+            ) => {
+
+                const $header =
+                    $(element);
+
+
+                const field =
+                    $header.data(
+                        "sort-field"
+                    );
+
+
+                const $indicator =
+                    $header.find(
+                        ".generic-sort-indicator"
+                    );
+
+
+                if (
+                    this.state.sort?.field
+                    === field
+                ) {
+
+                    const direction =
+                        this.state
+                            .sort
+                            .direction;
+
+
+                    $indicator.text(
+                        direction === "asc"
+                            ? "↑"
+                            : "↓"
+                    );
+
+
+                    $header.attr(
+                        "aria-sort",
+                        direction === "asc"
+                            ? "ascending"
+                            : "descending"
+                    );
+
+                } else {
+
+                    $indicator.text(
+                        "↕"
+                    );
+
+
+                    $header.removeAttr(
+                        "aria-sort"
+                    );
+                }
+            }
+        );
+    }
+
+    scroll_grid_to_top() {
+
+        const element =
+            $(this.wrapper)
+                .find(
+                    ".generic-data-grid-scroll"
+                )
+                .get(0);
+
+
+        if (!element) {
+            return;
+        }
+
+
+        element.scrollTop = 0;
     }
 
 
@@ -1536,34 +2326,86 @@ class ArchiveOperationsPage {
             });
 
 
+        // $wrapper
+        //     .find(".archive-summary-card")
+            // .on("click", (event) => {
+            //     const status =
+            //         $(event.currentTarget)
+            //             .data("status");
+
+            //     if (
+            //         this.state.status === status
+            //     ) {
+            //         return;
+            //     }
+
+            //     this.state.status = status;
+            //     this.state.start = 0;
+
+            //     $wrapper
+            //         .find(".archive-summary-card")
+            //         .removeClass("is-active");
+
+            //     $(event.currentTarget)
+            //         .addClass("is-active");
+
+            //     this.load_operations();
+            // });
+
         $wrapper
-            .find(".archive-summary-card")
-            .on("click", (event) => {
-                const status =
+            .find(
+                ".archive-summary-card"
+            )
+            .on(
+                "click",
+                (event) => {
+
+                    const status =
+                        $(event.currentTarget)
+                            .data(
+                                "status"
+                            );
+
+
+                    if (
+                        this.state.status
+                        === status
+                    ) {
+                        return;
+                    }
+
+
+                    this.state.status =
+                        status;
+
+
+                    this.state.page = 1;
+
+
+                    $wrapper
+                        .find(
+                            ".archive-summary-card"
+                        )
+                        .removeClass(
+                            "is-active"
+                        );
+
+
                     $(event.currentTarget)
-                        .data("status");
+                        .addClass(
+                            "is-active"
+                        );
 
-                if (
-                    this.state.status === status
-                ) {
-                    return;
+
+                    this.apply_local_query();
+
+
+                    this.scroll_grid_to_top();
                 }
-
-                this.state.status = status;
-                this.state.start = 0;
-
-                $wrapper
-                    .find(".archive-summary-card")
-                    .removeClass("is-active");
-
-                $(event.currentTarget)
-                    .addClass("is-active");
-
-                this.load_operations();
-            });
+            );
 
 
-        let search_timer = null;
+        
         
         $wrapper
             .find(
@@ -1587,24 +2429,91 @@ class ArchiveOperationsPage {
                 }
             );
 
+        // $wrapper
+        //     .find(".archive-operation-search")
+        //     .on("input", (event) => {
+        //         const value =
+        //             event.target.value.trim();
+
+        //         clearTimeout(search_timer);
+
+        //         search_timer =
+        //             setTimeout(() => {
+        //                 this.state.search =
+        //                     value;
+
+        //                 this.state.start = 0;
+
+        //                 this.load_operations();
+        //             }, 350);
+        //     });
+
         $wrapper
-            .find(".archive-operation-search")
-            .on("input", (event) => {
-                const value =
-                    event.target.value.trim();
+            .find(
+                ".archive-operation-search"
+            )
+            .on(
+                "input",
+                (event) => {
 
-                clearTimeout(search_timer);
+                    const value =
+                        event.target.value;
 
-                search_timer =
-                    setTimeout(() => {
-                        this.state.search =
-                            value;
 
-                        this.state.start = 0;
+                    this.state.search =
+                        value;
 
-                        this.load_operations();
-                    }, 350);
-            });
+
+                    this.state.page = 1;
+
+
+                    if (
+                        this.search_frame
+                    ) {
+                        cancelAnimationFrame(
+                            this.search_frame
+                        );
+                    }
+
+
+                    this.search_frame =
+                        requestAnimationFrame(
+                            () => {
+
+                                this.search_frame =
+                                    null;
+
+
+                                this.apply_local_query();
+                            }
+                        );
+                }
+            );
+
+        
+        $wrapper
+            .find(
+                ".generic-sortable-column"
+            )
+            .on(
+                "click",
+                (event) => {
+
+                    const field =
+                        $(event.currentTarget)
+                            .data(
+                                "sort-field"
+                            );
+
+
+                    this.change_sort(
+                        field
+                    );
+                }
+            );
+
+        
+        
 
 
         $wrapper
