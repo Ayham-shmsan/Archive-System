@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from pathlib import Path
 from frappe.utils import getdate, now_datetime , cstr,cint
 from typing import Any
 from archive.api.operation_timeline import (
@@ -102,6 +103,21 @@ OPERATION_FIELDS = {
     "is_blocked_operation",
 }
 MAX_FINAL_SWIFT_FILES = 10
+
+FINAL_SWIFT_ALLOWED_EXTENSIONS = {
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".gif",
+    ".bmp",
+    ".tif",
+    ".tiff",
+    ".heic",
+    ".heif",
+    ".avif",
+}
 # ============================================================
 # Statuses
 # ============================================================
@@ -2637,7 +2653,7 @@ def attach_final_swift(
 
 
     # ========================================================
-    # Maximum 5 files
+    # Maximum 10 files
     # ========================================================
 
     current_count = (
@@ -2686,15 +2702,29 @@ def attach_final_swift(
             )
         )
 
-        if not (
-            file_doc.file_name or ""
-        ).lower().endswith(
-            ".pdf"
+        file_name = (
+            file_doc.file_name
+            or ""
+        ).strip()
+
+
+        extension = (
+            Path(
+                file_name
+            )
+            .suffix
+            .lower()
+        )
+
+
+        if (
+            extension
+            not in FINAL_SWIFT_ALLOWED_EXTENSIONS
         ):
             frappe.throw(
                 _(
-                    "جميع ملفات السويفت النهائي "
-                    "يجب أن تكون بصيغة PDF."
+                    "ملفات السويفت النهائي "
+                    "يجب أن تكون PDF أو صور فقط."
                 )
             )
 

@@ -849,7 +849,7 @@ class ArchiveOperationsPage {
             )
             >=
             Number(
-                operation.final_swift_limit || 5
+                operation.final_swift_limit || 10
             )
         ) {
             return;
@@ -878,7 +878,7 @@ class ArchiveOperationsPage {
                             max_files:
                                 Number(
                                     operation.final_swift_limit
-                                    || 5
+                                    || 10
                                 ),
 
                             on_saved:

@@ -171,194 +171,912 @@ class ArchiveOperation(Document):
         self.serial_no = serial_no
 
 
+    # def validate_operation_number_rules(
+        # self,
+    # ):
+    #     blocked = bool(
+    #         cint(
+    #             self.is_blocked_operation
+    #         )
+    #     )
+
+    #     allow_duplicate = bool(
+    #         cint(
+    #             self.allow_duplicate_operation_no
+    #         )
+    #     )
+
+
+    #     # ========================================================
+    #     # Blocked operation
+    #     # ========================================================
+
+    #     if blocked:
+
+    #         self.operation_no = None
+
+    #         self.operation_no_normalized = (
+    #             None
+    #         )
+
+    #         self.operation_no_uniqueness_key = (
+    #             None
+    #         )
+
+    #         self.allow_duplicate_operation_no = (
+    #             0
+    #         )
+
+    #         return
+
+
+    #     # ========================================================
+    #     # Normal operation requires operation number
+    #     # ========================================================
+
+    #     operation_no = cstr(
+    #         self.operation_no
+    #     ).strip()
+
+
+    #     if not operation_no:
+    #         frappe.throw(
+    #             _(
+    #                 "رقم العملية مطلوب، "
+    #                 "إلا إذا كانت العملية محضورة."
+    #             )
+    #         )
+
+
+    #     normalized = (
+    #         normalize_operation_no(
+    #             operation_no
+    #         )
+    #     )
+
+
+    #     if not normalized:
+    #         frappe.throw(
+    #             _("رقم العملية غير صالح.")
+    #         )
+
+
+    #     self.operation_no = (
+    #         operation_no
+    #     )
+
+    #     self.operation_no_normalized = (
+    #         normalized
+    #     )
+
+
+    #     # ========================================================
+    #     # Check existing operation number
+    #     # ========================================================
+
+    #     filters = [
+    #         [
+    #             "Archive Operation",
+    #             "operation_no_normalized",
+    #             "=",
+    #             normalized,
+    #         ]
+    #     ]
+
+
+    #     if self.name:
+    #         filters.append(
+    #             [
+    #                 "Archive Operation",
+    #                 "name",
+    #                 "!=",
+    #                 self.name,
+    #             ]
+    #         )
+
+
+    #     existing = frappe.get_all(
+    #         "Archive Operation",
+    #         filters=filters,
+    #         fields=[
+    #             "name",
+    #             "operation_no",
+    #         ],
+    #         limit=1,
+    #     )
+
+
+    #     # ========================================================
+    #     # Duplicate not explicitly allowed
+    #     # ========================================================
+
+    #     if (
+    #         existing
+    #         and
+    #         not allow_duplicate
+    #     ):
+    #         frappe.throw(
+    #             _(
+    #                 "رقم العملية {0} مستخدم بالفعل "
+    #                 "في العملية {1}. "
+    #                 "إذا كان التكرار مقصودًا فعّل "
+    #                 "\"السماح بتكرار رقم العملية\"."
+    #             ).format(
+    #                 frappe.bold(
+    #                     operation_no
+    #                 ),
+    #                 frappe.bold(
+    #                     existing[0].name
+    #                 ),
+    #             )
+    #         )
+
+
+    #     # ========================================================
+    #     # DB-level uniqueness protection
+    #     # ========================================================
+
+    #     digest = (
+    #         make_operation_no_hash(
+    #             normalized
+    #         )
+    #     )
+
+
+    #     if allow_duplicate:
+
+    #         duplicate_prefix = (
+    #             f"D:{digest}:"
+    #         )
+
+
+    #         current_key = cstr(
+    #             self.operation_no_uniqueness_key
+    #         )
+
+
+    #         # نحافظ على نفس المفتاح إذا كان السجل
+    #         # بالفعل Duplicate لنفس الرقم.
+    #         if current_key.startswith(
+    #             duplicate_prefix
+    #         ):
+    #             return
+
+
+    #         self.operation_no_uniqueness_key = (
+    #             duplicate_prefix
+    #             +
+    #             frappe.generate_hash(
+    #                 length=16
+    #             )
+    #         )
+
+    #     else:
+
+    #         # كل العمليات العادية لنفس الرقم
+    #         # تنتج نفس المفتاح.
+    #         # unique=1 يمنع Race Condition.
+    #         self.operation_no_uniqueness_key = (
+    #             f"N:{digest}"
+    #         )
+
+    # def validate_operation_number_rules(
+            # self,
+        # ):
+        #     blocked = bool(
+        #         cint(
+        #             self.is_blocked_operation
+        #         )
+        #     )
+
+        #     allow_duplicate = bool(
+        #         cint(
+        #             self.allow_duplicate_operation_no
+        #         )
+        #     )
+
+
+        #     # ========================================================
+        #     # Blocked operation
+        #     # ========================================================
+
+        #     if blocked:
+
+        #         self.operation_no = None
+
+        #         self.operation_no_normalized = (
+        #             None
+        #         )
+
+        #         self.operation_no_uniqueness_key = (
+        #             None
+        #         )
+
+        #         self.allow_duplicate_operation_no = (
+        #             0
+        #         )
+
+        #         return
+
+
+        #     # ========================================================
+        #     # Normal operation requires operation number
+        #     # ========================================================
+
+        #     operation_no = cstr(
+        #         self.operation_no
+        #     ).strip()
+
+
+        #     if not operation_no:
+        #         frappe.throw(
+        #             _(
+        #                 "رقم العملية مطلوب، "
+        #                 "إلا إذا كانت العملية محضورة."
+        #             )
+        #         )
+
+
+        #     normalized = (
+        #         normalize_operation_no(
+        #             operation_no
+        #         )
+        #     )
+
+
+        #     if not normalized:
+        #         frappe.throw(
+        #             _("رقم العملية غير صالح.")
+        #         )
+
+
+        #     self.operation_no = (
+        #         operation_no
+        #     )
+
+        #     self.operation_no_normalized = (
+        #         normalized
+        #     )
+
+
+        #     # ========================================================
+        #     # Existing operation:
+        #     # هل رقم العملية تغير فعلاً؟
+        #     # ========================================================
+
+        #     old_doc = None
+
+
+        #     if not self.is_new():
+
+        #         old_doc = (
+        #             self.get_doc_before_save()
+        #         )
+
+
+        #     if old_doc:
+
+        #         old_normalized = (
+        #             normalize_operation_no(
+        #                 old_doc.operation_no
+        #             )
+        #         )
+
+
+        #         old_allow_duplicate = bool(
+        #             cint(
+        #                 old_doc
+        #                     .allow_duplicate_operation_no
+        #             )
+        #         )
+
+
+        #         operation_number_unchanged = (
+        #             old_normalized
+        #             == normalized
+        #         )
+
+
+        #         # ====================================================
+        #         # رقم العملية لم يتغير.
+        #         #
+        #         # لا نعيد التحقق من وجود الرقم لأن هذا السجل
+        #         # موجود أصلاً ضمن المجموعة.
+        #         #
+        #         # هذا يسمح بحفظ:
+        #         # - السويفت النهائي
+        #         # - تغيير الحالة
+        #         # - المرفقات
+        #         # - التعديلات الأخرى
+        #         # بدون اعتبارها محاولة إنشاء رقم مكرر.
+        #         # ====================================================
+
+        #         if operation_number_unchanged:
+
+        #             existing_key = cstr(
+        #                 old_doc
+        #                     .operation_no_uniqueness_key
+        #             ).strip()
+
+
+        #             if existing_key:
+
+        #                 self.operation_no_uniqueness_key = (
+        #                     existing_key
+        #                 )
+
+
+        #             # ================================================
+        #             # إذا حاول المستخدم إلغاء السماح بالتكرار
+        #             # لسجل مكرر بالفعل، نتحقق أولاً.
+        #             # ================================================
+
+        #             if (
+        #                 old_allow_duplicate
+        #                 and
+        #                 not allow_duplicate
+        #             ):
+
+        #                 existing = frappe.get_all(
+        #                     "Archive Operation",
+
+        #                     filters=[
+        #                         [
+        #                             "Archive Operation",
+        #                             "operation_no_normalized",
+        #                             "=",
+        #                             normalized,
+        #                         ],
+        #                         [
+        #                             "Archive Operation",
+        #                             "name",
+        #                             "!=",
+        #                             self.name,
+        #                         ],
+        #                     ],
+
+        #                     fields=[
+        #                         "name",
+        #                     ],
+
+        #                     limit=1,
+        #                 )
+
+
+        #                 # ========================================================
+        #                 # Data Import
+        #                 #
+        #                 # البيانات التاريخية قد تحتوي أرقام عمليات مكررة
+        #                 # بشكل مشروع.
+        #                 #
+        #                 # أثناء Data Import:
+        #                 # - أول ظهور للرقم يبقى السجل الأساسي.
+        #                 # - أي ظهور لاحق لنفس الرقم يعتبر تكراراً تاريخياً
+        #                 #   مسموحاً به تلقائياً.
+        #                 #
+        #                 # الإدخال اليدوي لا يستفيد من هذا الاستثناء.
+        #                 # ========================================================
+
+        #                 is_data_import = bool(
+        #                     getattr(
+        #                         frappe.flags,
+        #                         "in_import",
+        #                         False,
+        #                     )
+        #                 )
+
+
+        #                 if (
+        #                     is_data_import
+        #                     and
+        #                     existing
+        #                 ):
+        #                     self.allow_duplicate_operation_no = (
+        #                         1
+        #                     )
+
+        #                     allow_duplicate = True
+
+
+        #                 if existing:
+
+        #                     frappe.throw(
+        #                         _(
+        #                             "لا يمكن إلغاء السماح "
+        #                             "بتكرار رقم العملية لأن "
+        #                             "الرقم {0} مستخدم في "
+        #                             "عمليات أخرى."
+        #                         ).format(
+        #                             frappe.bold(
+        #                                 operation_no
+        #                             )
+        #                         )
+        #                     )
+
+
+        #                 digest = (
+        #                     make_operation_no_hash(
+        #                         normalized
+        #                     )
+        #                 )
+
+
+                                                
+        #                 if (
+        #                     existing
+        #                     and
+        #                     allow_duplicate
+        #                 ):
+
+        #                     self.operation_no_uniqueness_key = (
+        #                         f"D:{digest}:"
+        #                         +
+        #                         frappe.generate_hash(
+        #                             length=16
+        #                         )
+        #                     )
+
+
+        #                 else:
+
+        #                     self.operation_no_uniqueness_key = (
+        #                         f"N:{digest}"
+        #                     )
+
+
+        #             # ================================================
+        #             # الرقم نفسه لم يتغير:
+        #             # انتهى التحقق هنا.
+        #             # ================================================
+
+        #             return
+
+
+        #     # ========================================================
+        #     # من هنا:
+        #     #
+        #     # - عملية جديدة
+        #     # أو
+        #     # - عملية موجودة لكن رقمها تغير
+        #     #
+        #     # وهنا فقط نفحص التكرار.
+        #     # ========================================================
+
+        #     filters = [
+        #         [
+        #             "Archive Operation",
+        #             "operation_no_normalized",
+        #             "=",
+        #             normalized,
+        #         ]
+        #     ]
+
+
+        #     if self.name:
+
+        #         filters.append(
+        #             [
+        #                 "Archive Operation",
+        #                 "name",
+        #                 "!=",
+        #                 self.name,
+        #             ]
+        #         )
+
+
+        #     existing = frappe.get_all(
+        #         "Archive Operation",
+
+        #         filters=
+        #             filters,
+
+        #         fields=[
+        #             "name",
+        #             "operation_no",
+        #         ],
+
+        #         limit=1,
+        #     )
+
+
+        #     # ========================================================
+        #     # Duplicate exists but not explicitly allowed
+        #     # ========================================================
+
+        #     if (
+        #         existing
+        #         and
+        #         not allow_duplicate
+        #     ):
+
+        #         frappe.throw(
+        #             _(
+        #                 "رقم العملية {0} مستخدم بالفعل "
+        #                 "في العملية {1}. "
+        #                 "إذا كان التكرار مقصودًا فعّل "
+        #                 "\"السماح بتكرار رقم العملية\"."
+        #             ).format(
+        #                 frappe.bold(
+        #                     operation_no
+        #                 ),
+        #                 frappe.bold(
+        #                     existing[0].name
+        #                 ),
+        #             )
+        #         )
+
+
+        #     # ========================================================
+        #     # Build DB uniqueness key
+        #     # ========================================================
+
+        #     digest = (
+        #         make_operation_no_hash(
+        #             normalized
+        #         )
+        #     )
+
+
+        #     # يوجد الرقم بالفعل
+        #     # والمستخدم سمح بالتكرار.
+        #     if (
+        #         existing
+        #         and
+        #         allow_duplicate
+        #     ):
+
+        #         self.operation_no_uniqueness_key = (
+        #             f"D:{digest}:"
+        #             +
+        #             frappe.generate_hash(
+        #                 length=16
+        #             )
+        #         )
+
+
+        #     # أول سجل بهذا الرقم.
+        #     else:
+
+        #         self.operation_no_uniqueness_key = (
+        #             f"N:{digest}"
+        #         )
+
     def validate_operation_number_rules(
-        self,
-    ):
-        blocked = bool(
-            cint(
-                self.is_blocked_operation
-            )
-        )
-
-        allow_duplicate = bool(
-            cint(
-                self.allow_duplicate_operation_no
-            )
-        )
-
-
-        # ========================================================
-        # Blocked operation
-        # ========================================================
-
-        if blocked:
-
-            self.operation_no = None
-
-            self.operation_no_normalized = (
-                None
-            )
-
-            self.operation_no_uniqueness_key = (
-                None
-            )
-
-            self.allow_duplicate_operation_no = (
-                0
-            )
-
-            return
-
-
-        # ========================================================
-        # Normal operation requires operation number
-        # ========================================================
-
-        operation_no = cstr(
-            self.operation_no
-        ).strip()
-
-
-        if not operation_no:
-            frappe.throw(
-                _(
-                    "رقم العملية مطلوب، "
-                    "إلا إذا كانت العملية محضورة."
-                )
-            )
-
-
-        normalized = (
-            normalize_operation_no(
-                operation_no
-            )
-        )
-
-
-        if not normalized:
-            frappe.throw(
-                _("رقم العملية غير صالح.")
-            )
-
-
-        self.operation_no = (
-            operation_no
-        )
-
-        self.operation_no_normalized = (
-            normalized
-        )
-
-
-        # ========================================================
-        # Check existing operation number
-        # ========================================================
-
-        filters = [
-            [
-                "Archive Operation",
-                "operation_no_normalized",
-                "=",
-                normalized,
-            ]
-        ]
-
-
-        if self.name:
-            filters.append(
-                [
-                    "Archive Operation",
-                    "name",
-                    "!=",
-                    self.name,
-                ]
-            )
-
-
-        existing = frappe.get_all(
-            "Archive Operation",
-            filters=filters,
-            fields=[
-                "name",
-                "operation_no",
-            ],
-            limit=1,
-        )
-
-
-        # ========================================================
-        # Duplicate not explicitly allowed
-        # ========================================================
-
-        if (
-            existing
-            and
-            not allow_duplicate
-        ):
-            frappe.throw(
-                _(
-                    "رقم العملية {0} مستخدم بالفعل "
-                    "في العملية {1}. "
-                    "إذا كان التكرار مقصودًا فعّل "
-                    "\"السماح بتكرار رقم العملية\"."
-                ).format(
-                    frappe.bold(
-                        operation_no
-                    ),
-                    frappe.bold(
-                        existing[0].name
-                    ),
-                )
-            )
-
-
-        # ========================================================
-        # DB-level uniqueness protection
-        # ========================================================
-
-        digest = (
-            make_operation_no_hash(
-                normalized
-            )
-        )
-
-
-        if allow_duplicate:
-
-            duplicate_prefix = (
-                f"D:{digest}:"
-            )
-
-
-            current_key = cstr(
-                self.operation_no_uniqueness_key
-            )
-
-
-            # نحافظ على نفس المفتاح إذا كان السجل
-            # بالفعل Duplicate لنفس الرقم.
-            if current_key.startswith(
-                duplicate_prefix
+                self,
             ):
-                return
-
-
-            self.operation_no_uniqueness_key = (
-                duplicate_prefix
-                +
-                frappe.generate_hash(
-                    length=16
+                blocked = bool(
+                    cint(
+                        self.is_blocked_operation
+                    )
                 )
-            )
 
-        else:
+                allow_duplicate = bool(
+                    cint(
+                        self.allow_duplicate_operation_no
+                    )
+                )
 
-            # كل العمليات العادية لنفس الرقم
-            # تنتج نفس المفتاح.
-            # unique=1 يمنع Race Condition.
-            self.operation_no_uniqueness_key = (
-                f"N:{digest}"
-            )
+                is_data_import = bool(
+                    getattr(
+                        frappe.flags,
+                        "in_import",
+                        False,
+                    )
+                )
+
+
+                # ========================================================
+                # Blocked operation
+                # ========================================================
+
+                if blocked:
+
+                    self.operation_no = None
+
+                    self.operation_no_normalized = (
+                        None
+                    )
+
+                    self.operation_no_uniqueness_key = (
+                        None
+                    )
+
+                    self.allow_duplicate_operation_no = (
+                        0
+                    )
+
+                    return
+
+
+                # ========================================================
+                # Normal operation requires operation number
+                # ========================================================
+
+                operation_no = cstr(
+                    self.operation_no
+                ).strip()
+
+
+                if not operation_no:
+                    frappe.throw(
+                        _(
+                            "رقم العملية مطلوب، "
+                            "إلا إذا كانت العملية محضورة."
+                        )
+                    )
+
+
+                normalized = (
+                    normalize_operation_no(
+                        operation_no
+                    )
+                )
+
+
+                if not normalized:
+                    frappe.throw(
+                        _(
+                            "رقم العملية غير صالح."
+                        )
+                    )
+
+
+                self.operation_no = (
+                    operation_no
+                )
+
+                self.operation_no_normalized = (
+                    normalized
+                )
+
+
+                # ========================================================
+                # Existing document
+                #
+                # إذا كان المستند محفوظاً من قبل ورقم العملية
+                # لم يتغير، فلا نعيد معاملته كتكرار جديد.
+                # ========================================================
+
+                old_doc = None
+
+
+                if not self.is_new():
+
+                    old_doc = (
+                        self.get_doc_before_save()
+                    )
+
+
+                if old_doc:
+
+                    old_normalized = (
+                        normalize_operation_no(
+                            old_doc.operation_no
+                        )
+                    )
+
+                    old_allow_duplicate = bool(
+                        cint(
+                            old_doc
+                                .allow_duplicate_operation_no
+                        )
+                    )
+
+
+                    if (
+                        old_normalized
+                        == normalized
+                    ):
+
+                        existing_key = cstr(
+                            old_doc
+                                .operation_no_uniqueness_key
+                        ).strip()
+
+
+                        if existing_key:
+                            self.operation_no_uniqueness_key = (
+                                existing_key
+                            )
+
+
+                        # ====================================================
+                        # المستخدم يحاول إلغاء السماح بالتكرار
+                        # عن عملية مكررة بالفعل.
+                        # ====================================================
+
+                        if (
+                            old_allow_duplicate
+                            and
+                            not allow_duplicate
+                        ):
+
+                            existing = frappe.get_all(
+                                "Archive Operation",
+
+                                filters=[
+                                    [
+                                        "Archive Operation",
+                                        "operation_no_normalized",
+                                        "=",
+                                        normalized,
+                                    ],
+                                    [
+                                        "Archive Operation",
+                                        "name",
+                                        "!=",
+                                        self.name,
+                                    ],
+                                ],
+
+                                fields=[
+                                    "name",
+                                ],
+
+                                limit=1,
+                            )
+
+
+                            if existing:
+
+                                frappe.throw(
+                                    _(
+                                        "لا يمكن إلغاء السماح "
+                                        "بتكرار رقم العملية لأن "
+                                        "الرقم {0} مستخدم في "
+                                        "عمليات أخرى."
+                                    ).format(
+                                        frappe.bold(
+                                            operation_no
+                                        )
+                                    )
+                                )
+
+
+                            # لم يعد هناك سجل آخر بنفس الرقم،
+                            # لذلك يعود هذا السجل هو السجل الأساسي.
+                            digest = (
+                                make_operation_no_hash(
+                                    normalized
+                                )
+                            )
+
+                            self.operation_no_uniqueness_key = (
+                                f"N:{digest}"
+                            )
+
+
+                        return
+
+
+                # ========================================================
+                # New operation OR operation number changed
+                # ========================================================
+
+                filters = [
+                    [
+                        "Archive Operation",
+                        "operation_no_normalized",
+                        "=",
+                        normalized,
+                    ]
+                ]
+
+
+                if self.name:
+
+                    filters.append(
+                        [
+                            "Archive Operation",
+                            "name",
+                            "!=",
+                            self.name,
+                        ]
+                    )
+
+
+                existing = frappe.get_all(
+                    "Archive Operation",
+
+                    filters=
+                        filters,
+
+                    fields=[
+                        "name",
+                        "operation_no",
+                    ],
+
+                    limit=1,
+                )
+
+
+                # ========================================================
+                # Data Import
+                #
+                # البيانات التاريخية قد تحتوي تكرارات مشروعة.
+                #
+                # أول سجل:
+                #   allow_duplicate = 0
+                #   N:<hash>
+                #
+                # كل سجل تالٍ بنفس الرقم أثناء Data Import:
+                #   allow_duplicate = 1
+                #   D:<hash>:<random>
+                # ========================================================
+
+                if (
+                    is_data_import
+                    and
+                    existing
+                ):
+
+                    self.allow_duplicate_operation_no = (
+                        1
+                    )
+
+                    allow_duplicate = True
+
+
+                # ========================================================
+                # Manual / normal creation
+                #
+                # التكرار ممنوع ما لم يفعّله المستخدم صراحة.
+                # ========================================================
+
+                if (
+                    existing
+                    and
+                    not allow_duplicate
+                ):
+
+                    frappe.throw(
+                        _(
+                            "رقم العملية {0} مستخدم بالفعل "
+                            "في العملية {1}. "
+                            "إذا كان التكرار مقصودًا فعّل "
+                            "\"السماح بتكرار رقم العملية\"."
+                        ).format(
+                            frappe.bold(
+                                operation_no
+                            ),
+                            frappe.bold(
+                                existing[0].name
+                            ),
+                        )
+                    )
+
+
+                # ========================================================
+                # DB uniqueness key
+                # ========================================================
+
+                digest = (
+                    make_operation_no_hash(
+                        normalized
+                    )
+                )
+
+
+                if (
+                    existing
+                    and
+                    allow_duplicate
+                ):
+
+                    self.operation_no_uniqueness_key = (
+                        f"D:{digest}:"
+                        +
+                        frappe.generate_hash(
+                            length=16
+                        )
+                    )
+
+
+                else:
+
+                    self.operation_no_uniqueness_key = (
+                        f"N:{digest}"
+                    )
 
     def validate(self):
         self.validate_blocked_creation_mode()

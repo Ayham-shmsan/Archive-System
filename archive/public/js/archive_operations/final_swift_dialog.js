@@ -26,7 +26,7 @@ class FinalSwiftDialog {
         this.max_files =
             Number(
                 this.options.max_files
-                || 5
+                || 10
             );
 
         this.remaining_slots =
@@ -114,7 +114,7 @@ class FinalSwiftDialog {
 							</h3>
 
 							<p>
-								أرفق ملف الطباعة النهائي للعملية بصيغة PDF
+								أرفق ملفات السويفت النهائي بصيغة PDF أو صور
 							</p>
 						</div>
 
@@ -128,12 +128,23 @@ class FinalSwiftDialog {
 						>
 
 							<input
-                                type="file"
-                                class="archive-final-swift-input"
-                                accept="application/pdf,.pdf"
-                                multiple
-                                hidden
-                            >
+								type="file"
+								class="archive-final-swift-input"
+								accept="
+									application/pdf,
+									image/png,
+									image/jpeg,
+									image/webp,
+									image/gif,
+									image/bmp,
+									image/tiff,
+									image/heic,
+									image/heif,
+									image/avif
+								"
+								multiple
+								hidden
+							>
 
 
 							<div class="archive-upload-icon">
@@ -144,13 +155,13 @@ class FinalSwiftDialog {
 							<div>
 
 								<div class="archive-upload-title">
-                                    اسحب ملفات PDF هنا
-                                </div>
+									اسحب ملفات PDF أو الصور هنا
+								</div>
 
-                                <div class="archive-upload-help">
-                                    أو اضغط لاختيار الملفات
-                                    — الحد الأقصى للعملية 5 ملفات
-                                </div>
+								<div class="archive-upload-help">
+									أو اضغط لاختيار الملفات
+									— الحد الأقصى للعملية ${this.max_files} ملفات
+								</div>
 
 							</div>
 
@@ -402,25 +413,25 @@ class FinalSwiftDialog {
         for (const file of files) {
 
             if (
-                !this.is_pdf(
-                    file
-                )
-            ) {
-                frappe.msgprint({
-                    title:
-                        __("ملف غير صحيح"),
+				!this.is_allowed_file(
+					file
+				)
+			) {
+				frappe.msgprint({
+					title:
+						__("ملف غير صحيح"),
 
-                    message:
-                        __(
-                            "جميع ملفات السويفت النهائي يجب أن تكون بصيغة PDF."
-                        ),
+					message:
+						__(
+							"ملفات السويفت النهائي يجب أن تكون PDF أو صور فقط."
+						),
 
-                    indicator:
-                        "red",
-                });
+					indicator:
+						"red",
+				});
 
-                continue;
-            }
+				continue;
+			}
 
 
             const exists =
@@ -486,23 +497,84 @@ class FinalSwiftDialog {
     }
 
 
-	is_pdf(
-		file
-	) {
-		if (!file) {
-			return false;
-		}
+	// is_pdf(
+		// file
+	// ) {
+	// 	if (!file) {
+	// 		return false;
+	// 	}
 
 
-		return (
-			file.type
+	// 	return (
+	// 		file.type
+	// 			=== "application/pdf"
+	// 		||
+	// 		file.name
+	// 			.toLowerCase()
+	// 			.endsWith(".pdf")
+	// 	);
+	// }
+
+	is_allowed_file(
+			file
+		) {
+			if (!file) {
+				return false;
+			}
+
+
+			const file_name =
+				String(
+					file.name
+					|| ""
+				).toLowerCase();
+
+
+			const allowed_extensions = [
+				".pdf",
+				".png",
+				".jpg",
+				".jpeg",
+				".webp",
+				".gif",
+				".bmp",
+				".tif",
+				".tiff",
+				".heic",
+				".heif",
+				".avif",
+			];
+
+
+			if (
+				file.type
 				=== "application/pdf"
-			||
-			file.name
-				.toLowerCase()
-				.endsWith(".pdf")
-		);
-	}
+			) {
+				return true;
+			}
+
+
+			if (
+				file.type
+				&&
+				file.type.startsWith(
+					"image/"
+				)
+				&&
+				file.type
+				!== "image/svg+xml"
+			) {
+				return true;
+			}
+
+
+			return allowed_extensions.some(
+				(extension) =>
+					file_name.endsWith(
+						extension
+					)
+			);
+		}
 
 
 	// render_file() {
@@ -586,6 +658,30 @@ class FinalSwiftDialog {
 	// 			}
 	// 		);
 	// }
+	get_file_badge(
+		file
+	) {
+		const file_name =
+			String(
+				file?.name
+				|| ""
+			).toLowerCase();
+
+
+		if (
+			file.type
+			=== "application/pdf"
+			||
+			file_name.endsWith(
+				".pdf"
+			)
+		) {
+			return "PDF";
+		}
+
+
+		return "IMG";
+	}
     render_files() {
         const $container =
             this.$body.find(
@@ -620,8 +716,10 @@ class FinalSwiftDialog {
                             <div class="archive-file-info">
 
                                 <div class="archive-file-icon">
-                                    PDF
-                                </div>
+									${this.get_file_badge(
+										file
+									)}
+								</div>
 
 
                                 <div>
@@ -931,8 +1029,8 @@ class FinalSwiftDialog {
 
                 message:
                     __(
-                        "اختر ملف PDF واحداً على الأقل قبل الحفظ."
-                    ),
+						"اختر ملف PDF أو صورة واحدة على الأقل قبل الحفظ."
+					),
 
                 indicator:
                     "red",
