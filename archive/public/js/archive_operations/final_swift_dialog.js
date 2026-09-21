@@ -114,8 +114,8 @@ class FinalSwiftDialog {
 							</h3>
 
 							<p>
-								أرفق ملفات السويفت النهائي بصيغة PDF أو صور
-							</p>
+                                أرفق ملفات السويفت النهائي بصيغة PDF أو صور أو Word أو Excel
+                            </p>
 						</div>
 
 					</div>
@@ -128,23 +128,24 @@ class FinalSwiftDialog {
 						>
 
 							<input
-								type="file"
-								class="archive-final-swift-input"
-								accept="
-									application/pdf,
-									image/png,
-									image/jpeg,
-									image/webp,
-									image/gif,
-									image/bmp,
-									image/tiff,
-									image/heic,
-									image/heif,
-									image/avif
-								"
-								multiple
-								hidden
-							>
+                                type="file"
+                                class="archive-final-swift-input"
+                                accept="
+                                    application/pdf,
+                                    image/*,
+                                    application/msword,
+                                    application/vnd.openxmlformats-officedocument.wordprocessingml.document,
+                                    application/vnd.ms-excel,
+                                    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,
+                                    .pdf,
+                                    .doc,
+                                    .docx,
+                                    .xls,
+                                    .xlsx
+                                "
+                                multiple
+                                hidden
+                            >
 
 
 							<div class="archive-upload-icon">
@@ -155,7 +156,7 @@ class FinalSwiftDialog {
 							<div>
 
 								<div class="archive-upload-title">
-									اسحب ملفات PDF أو الصور هنا
+									اسحب ملفات PDF أو الصور أو Word أو Excel هنا
 								</div>
 
 								<div class="archive-upload-help">
@@ -280,133 +281,7 @@ class FinalSwiftDialog {
             }
         );
     }
-	// bind_events() {
-	// 	const input =
-	// 		this.$body.find(
-	// 			".archive-final-swift-input"
-	// 		)[0];
-
-
-	// 	const $dropzone =
-	// 		this.$body.find(
-	// 			".archive-final-swift-dropzone"
-	// 		);
-
-
-	// 	$dropzone.on(
-	// 		"click",
-	// 		() => {
-	// 			input.click();
-	// 		}
-	// 	);
-
-
-	// 	$(input).on(
-	// 		"change",
-	// 		() => {
-
-	// 			const file =
-	// 				input.files?.[0];
-
-	// 			if (file) {
-	// 				this.set_file(
-	// 					file
-	// 				);
-	// 			}
-
-	// 			input.value = "";
-	// 		}
-	// 	);
-
-
-	// 	$dropzone.on(
-	// 		"dragover",
-	// 		(event) => {
-	// 			event.preventDefault();
-	// 			event.stopPropagation();
-
-	// 			$dropzone.addClass(
-	// 				"is-dragging"
-	// 			);
-	// 		}
-	// 	);
-
-
-	// 	$dropzone.on(
-	// 		"dragleave",
-	// 		(event) => {
-	// 			event.preventDefault();
-	// 			event.stopPropagation();
-
-	// 			$dropzone.removeClass(
-	// 				"is-dragging"
-	// 			);
-	// 		}
-	// 	);
-
-
-	// 	$dropzone.on(
-	// 		"drop",
-	// 		(event) => {
-	// 			event.preventDefault();
-	// 			event.stopPropagation();
-
-	// 			$dropzone.removeClass(
-	// 				"is-dragging"
-	// 			);
-
-	// 			const files =
-	// 				Array.from(
-	// 					event
-	// 						.originalEvent
-	// 						.dataTransfer
-	// 						.files || []
-	// 				);
-
-	// 			const file =
-	// 				files[0];
-
-	// 			if (file) {
-	// 				this.set_file(
-	// 					file
-	// 				);
-	// 			}
-	// 		}
-	// 	);
-	// }
-
-
-	// set_file(
-		// file
-	// ) {
-	// 	if (
-	// 		!this.is_pdf(
-	// 			file
-	// 		)
-	// 	) {
-	// 		frappe.msgprint({
-	// 			title:
-	// 				__("ملف غير صحيح"),
-
-	// 			message:
-	// 				__(
-	// 					"السويفت النهائي يجب أن يكون ملف PDF."
-	// 				),
-
-	// 			indicator:
-	// 				"red",
-	// 		});
-
-	// 		return;
-	// 	}
-
-
-	// 	this.file =
-	// 		file;
-
-
-	// 	this.render_file();
-	// }
+	
     add_files(
         files
     ) {
@@ -497,23 +372,7 @@ class FinalSwiftDialog {
     }
 
 
-	// is_pdf(
-		// file
-	// ) {
-	// 	if (!file) {
-	// 		return false;
-	// 	}
-
-
-	// 	return (
-	// 		file.type
-	// 			=== "application/pdf"
-	// 		||
-	// 		file.name
-	// 			.toLowerCase()
-	// 			.endsWith(".pdf")
-	// 	);
-	// }
+	
 
 	is_allowed_file(
 			file
@@ -543,6 +402,10 @@ class FinalSwiftDialog {
 				".heic",
 				".heif",
 				".avif",
+				".xls",
+        		".xlsx",
+				".docx",
+				".doc"
 			];
 
 
@@ -577,111 +440,116 @@ class FinalSwiftDialog {
 		}
 
 
-	// render_file() {
-	// 	const $container =
-	// 		this.$body.find(
-	// 			".archive-final-swift-file"
-	// 		);
+	
+	// get_file_badge(
+	// 	file
+	// // ) {
+	// 	const file_name =
+	// 		String(
+	// 			file?.name
+	// 			|| ""
+	// 		).toLowerCase();
 
 
-	// 	if (!this.file) {
-	// 		$container.html(`
-	// 			<div class="archive-no-extraction">
-	// 				لم يتم اختيار ملف
-	// 			</div>
-	// 		`);
-
-	// 		return;
+	// 	if (
+	// 		file.type
+	// 		=== "application/pdf"
+	// 		||
+	// 		file_name.endsWith(
+	// 			".pdf"
+	// 		)
+	// 	) {
+	// 		return "PDF";
 	// 	}
 
 
-	// 	$container.html(`
-	// 		<div class="archive-selected-extraction">
-
-	// 			<div class="archive-file-info">
-
-	// 				<div class="archive-file-icon">
-	// 					PDF
-	// 				</div>
-
-
-	// 				<div>
-
-	// 					<div class="archive-file-name">
-	// 						${frappe.utils.escape_html(
-	// 							this.file.name
-	// 						)}
-	// 					</div>
-
-
-	// 					<div class="archive-file-size">
-	// 						${this.format_size(
-	// 							this.file.size
-	// 						)}
-	// 					</div>
-
-	// 				</div>
-
-	// 			</div>
-
-
-	// 			<div class="archive-extraction-actions">
-
-	// 				<button
-	// 					type="button"
-	// 					class="
-	// 						btn
-	// 						btn-default
-	// 						btn-sm
-	// 						archive-remove-final-swift
-	// 					"
-	// 				>
-	// 					إزالة
-	// 				</button>
-
-	// 			</div>
-
-	// 		</div>
-	// 	`);
-
-
-	// 	$container
-	// 		.find(
-	// 			".archive-remove-final-swift"
-	// 		)
-	// 		.on(
-	// 			"click",
-	// 			() => {
-	// 				this.file = null;
-
-	// 				this.render_file();
-	// 			}
-	// 		);
+	// 	return "IMG";
 	// }
-	get_file_badge(
-		file
-	) {
-		const file_name =
-			String(
-				file?.name
-				|| ""
-			).toLowerCase();
+
+    get_file_badge(
+            file
+        ) {
+
+            const file_name =
+                String(
+                    file?.name
+                    || ""
+                ).toLowerCase();
 
 
-		if (
-			file.type
-			=== "application/pdf"
-			||
-			file_name.endsWith(
-				".pdf"
-			)
-		) {
-			return "PDF";
-		}
+            if (
+                file.type
+                === "application/pdf"
+                ||
+                file_name.endsWith(
+                    ".pdf"
+                )
+            ) {
+                return "PDF";
+            }
 
 
-		return "IMG";
-	}
+            if (
+                file_name.endsWith(
+                    ".xls"
+                )
+                ||
+                file_name.endsWith(
+                    ".xlsx"
+                )
+            ) {
+                return "XLS";
+            }
+
+
+            if (
+                file_name.endsWith(
+                    ".doc"
+                )
+                ||
+                file_name.endsWith(
+                    ".docx"
+                )
+            ) {
+                return "DOC";
+            }
+
+
+            if (
+                (
+                    file.type
+                    &&
+                    file.type.startsWith(
+                        "image/"
+                    )
+                )
+                ||
+                [
+                    ".png",
+                    ".jpg",
+                    ".jpeg",
+                    ".webp",
+                    ".gif",
+                    ".bmp",
+                    ".tif",
+                    ".tiff",
+                    ".heic",
+                    ".heif",
+                    ".avif",
+                ].some(
+                    (extension) =>
+                        file_name.endsWith(
+                            extension
+                        )
+                )
+            ) {
+                return "IMG";
+            }
+
+
+            return "FILE";
+        }
+
     render_files() {
         const $container =
             this.$body.find(
@@ -829,212 +697,514 @@ class FinalSwiftDialog {
 	}
 
 
-	// async upload_file() {
-	// 	const form_data =
-	// 		new FormData();
+	
+    // async upload_file(
+    //         file
+        // ) {
+        //     const form_data =
+        //         new FormData();
 
 
-	// 	form_data.append(
-	// 		"file",
-	// 		this.file
-	// 	);
+        //     form_data.append(
+        //         "file",
+        //         file
+        //     );
 
 
-	// 	form_data.append(
-	// 		"is_private",
-	// 		"1"
-	// 	);
+        //     form_data.append(
+        //         "is_private",
+        //         "1"
+        //     );
 
 
-	// 	const response =
-	// 		await fetch(
-	// 			"/api/method/upload_file",
-	// 			{
-	// 				method:
-	// 					"POST",
+        //     const response =
+        //         await fetch(
+        //             "/api/method/upload_file",
+        //             {
+        //                 method:
+        //                     "POST",
 
-	// 				headers: {
-	// 					"X-Frappe-CSRF-Token":
-	// 						frappe.csrf_token,
-	// 				},
+        //                 headers: {
+        //                     "X-Frappe-CSRF-Token":
+        //                         frappe.csrf_token,
+        //                 },
 
-	// 				body:
-	// 					form_data,
-	// 			}
-	// 		);
-
-
-	// 	const result =
-	// 		await response.json();
+        //                 body:
+        //                     form_data,
+        //             }
+        //         );
 
 
-	// 	if (
-	// 		!response.ok
-	// 		||
-	// 		result.exc
-	// 		||
-	// 		!result.message
-	// 	) {
-	// 		throw new Error(
-	// 			"فشل رفع ملف السويفت النهائي."
-	// 		);
-	// 	}
+        //     const result =
+        //         await response.json();
 
 
-	// 	return {
-	// 		file_url:
-	// 			result.message.file_url,
-
-	// 		file_name:
-	// 			result.message.file_name
-	// 			|| this.file.name,
-	// 	};
-	// }
-    async upload_file(
-            file
-        ) {
-            const form_data =
-                new FormData();
+        //     if (
+        //         !response.ok
+        //         ||
+        //         result.exc
+        //         ||
+        //         !result.message
+        //     ) {
+        //         throw new Error(
+        //             `فشل رفع الملف: ${file.name}`
+        //         );
+        //     }
 
 
-            form_data.append(
-                "file",
+        //     return {
+        //         file_url:
+        //             result.message.file_url,
+
+        //         file_name:
+        //             result.message.file_name
+        //                 || file.name,
+        //     };
+        // }
+
+        async upload_file(
                 file
-            );
+            ) {
+
+                // ========================================================
+                // Validate local File
+                // ========================================================
+
+                if (
+                    !file
+                    ||
+                    !file.name
+                ) {
+
+                    throw new Error(
+                        "بيانات الملف غير صحيحة."
+                    );
+                }
 
 
-            form_data.append(
-                "is_private",
-                "1"
-            );
+                if (
+                    !Number(
+                        file.size
+                    )
+                ) {
+
+                    throw new Error(
+                        `الملف فارغ ولا يمكن رفعه: ${file.name}`
+                    );
+                }
 
 
-            const response =
-                await fetch(
-                    "/api/method/upload_file",
-                    {
+                // ========================================================
+                // Upload payload
+                // ========================================================
+
+                const form_data =
+                    new FormData();
+
+
+                form_data.append(
+                    "file",
+                    file,
+                    file.name
+                );
+
+
+                form_data.append(
+                    "is_private",
+                    "1"
+                );
+
+
+                form_data.append(
+                    "total_file_size",
+                    String(
+                        file.size
+                    )
+                );
+
+
+                // ========================================================
+                // Upload
+                // ========================================================
+
+                const response =
+                    await fetch(
+                        "/api/method/upload_file",
+                        {
+                            method:
+                                "POST",
+
+                            headers: {
+                                "X-Frappe-CSRF-Token":
+                                    frappe.csrf_token,
+                            },
+
+                            body:
+                                form_data,
+                        }
+                    );
+
+
+                let result = {};
+
+
+                try {
+
+                    result =
+                        await response.json();
+
+                }
+
+                catch {
+
+                    throw new Error(
+                        `فشل رفع الملف: ${file.name}`
+                    );
+                }
+
+
+                if (
+                    !response.ok
+                    ||
+                    result.exc
+                    ||
+                    !result.message
+                ) {
+
+                    console.error(
+                        "Final swift upload failed:",
+                        {
+                            file:
+                                file.name,
+
+                            size:
+                                file.size,
+
+                            type:
+                                file.type,
+
+                            response:
+                                result,
+                        }
+                    );
+
+
+                    throw new Error(
+                        result.message
+                        ||
+                        `فشل رفع الملف: ${file.name}`
+                    );
+                }
+
+
+                const uploaded = {
+                    file_id:
+                        result.message.name,
+
+                    file_url:
+                        result.message.file_url,
+
+                    file_name:
+                        result.message.file_name
+                        || file.name,
+                };
+
+
+                if (
+                    !uploaded.file_id
+                    ||
+                    !uploaded.file_url
+                ) {
+
+                    throw new Error(
+                        `بيانات الملف المرفوع غير مكتملة: ${file.name}`
+                    );
+                }
+
+
+                return uploaded;
+            }
+
+
+	
+    // async cleanup_files(
+    //         file_urls
+        // ) {
+        //     if (
+        //         !Array.isArray(
+        //             file_urls
+        //         )
+        //         ||
+        //         !file_urls.length
+        //     ) {
+        //         return;
+        //     }
+
+
+        //     try {
+        //         await frappe.call({
+        //             method:
+        //                 "archive.api.operations.delete_temporary_files",
+
+        //             type:
+        //                 "POST",
+
+        //             args: {
+        //                 file_urls:
+        //                     file_urls,
+        //             },
+        //         });
+
+        //     } catch (error) {
+        //         console.error(
+        //             "Final swift temporary files cleanup failed:",
+        //             error
+        //         );
+        //     }
+        // }
+
+        async cleanup_files(
+                uploaded
+            ) {
+
+                if (
+                    !Array.isArray(
+                        uploaded
+                    )
+                    ||
+                    !uploaded.length
+                ) {
+                    return;
+                }
+
+
+                const file_ids =
+                    uploaded
+                        .map(
+                            (item) =>
+                                item.file_id
+                        )
+                        .filter(
+                            Boolean
+                        );
+
+
+                if (!file_ids.length) {
+                    return;
+                }
+
+
+                try {
+
+                    await frappe.call({
                         method:
+                            "archive.api.operations.delete_temporary_files",
+
+                        type:
                             "POST",
 
-                        headers: {
-                            "X-Frappe-CSRF-Token":
-                                frappe.csrf_token,
+                        args: {
+                            file_ids:
+                                file_ids,
                         },
+                    });
 
-                        body:
-                            form_data,
-                    }
-                );
+                }
 
+                catch (error) {
 
-            const result =
-                await response.json();
-
-
-            if (
-                !response.ok
-                ||
-                result.exc
-                ||
-                !result.message
-            ) {
-                throw new Error(
-                    `فشل رفع الملف: ${file.name}`
-                );
+                    console.error(
+                        "Final swift temporary files cleanup failed:",
+                        error
+                    );
+                }
             }
 
+    // async save() {
+    //     if (!this.files.length) {
+    //         frappe.msgprint({
+    //             title:
+    //                 __("السويفت النهائي مطلوب"),
 
-            return {
-                file_url:
-                    result.message.file_url,
+    //             message:
+    //                 __(
+	// 					"اختر ملف PDF أو صورة واحدة على الأقل قبل الحفظ."
+	// 				),
 
-                file_name:
-                    result.message.file_name
-                        || file.name,
-            };
-        }
+    //             indicator:
+    //                 "red",
+    //         });
 
-
-	// async cleanup_file(
-	// 	file_url
-	// ) {
-	// 	if (!file_url) {
-	// 		return;
-	// 	}
-
-
-	// 	try {
-	// 		await frappe.call({
-	// 			method:
-	// 				"archive.api.operations.delete_temporary_files",
-
-	// 			type:
-	// 				"POST",
-
-	// 			args: {
-	// 				file_urls: [
-	// 					file_url,
-	// 				],
-	// 			},
-	// 		});
-
-	// 	} catch (error) {
-	// 		console.error(
-	// 			"Final swift temporary file cleanup failed:",
-	// 			error
-	// 		);
-	// 	}
-	// }
-    async cleanup_files(
-            file_urls
-        ) {
-            if (
-                !Array.isArray(
-                    file_urls
-                )
-                ||
-                !file_urls.length
-            ) {
-                return;
-            }
+    //         return;
+    //     }
 
 
-            try {
-                await frappe.call({
-                    method:
-                        "archive.api.operations.delete_temporary_files",
+    //     if (
+    //         this.current_count
+    //         +
+    //         this.files.length
+    //         >
+    //         this.max_files
+    //     ) {
+    //         frappe.msgprint({
+    //             title:
+    //                 __("الحد الأقصى"),
 
-                    type:
-                        "POST",
+    //             message:
+    //                 `الحد الأقصى لملفات السويفت النهائي هو ${this.max_files} ملفات.`,
 
-                    args: {
-                        file_urls:
-                            file_urls,
-                    },
-                });
+    //             indicator:
+    //                 "orange",
+    //         });
 
-            } catch (error) {
-                console.error(
-                    "Final swift temporary files cleanup failed:",
-                    error
-                );
-            }
-        }
+    //         return;
+    //     }
 
+
+    //     const button =
+    //         this.dialog
+    //             .get_primary_btn();
+
+
+    //     button.prop(
+    //         "disabled",
+    //         true
+    //     );
+
+
+    //     const uploaded = [];
+
+
+    //     try {
+
+    //         /*
+    //         * رفع جميع الملفات الجديدة.
+    //         */
+    //         for (
+    //             const file
+    //             of this.files
+    //         ) {
+    //             const result =
+    //                 await this.upload_file(
+    //                     file
+    //                 );
+
+    //             uploaded.push(
+    //                 result
+    //             );
+    //         }
+
+
+    //         /*
+    //         * إرسال جميع الملفات دفعة واحدة
+    //         * إلى Backend.
+    //         */
+    //         const response =
+    //             await frappe.call({
+    //                 method:
+    //                     "archive.api.operations.attach_final_swift",
+
+    //                 type:
+    //                     "POST",
+
+    //                 args: {
+    //                     operation_name:
+    //                         this.operation_name,
+
+    //                     file_urls:
+    //                         uploaded.map(
+    //                             (item) =>
+    //                                 item.file_url
+    //                         ),
+    //                 },
+    //             });
+
+
+    //         const result =
+    //             response.message || {};
+
+
+    //         this.dialog.hide();
+
+
+    //         frappe.show_alert({
+    //             message:
+    //                 `تم إرفاق ${uploaded.length} ملف سويفت نهائي للعملية ${this.operation_name}`,
+
+    //             indicator:
+    //                 "green",
+    //         });
+
+
+    //         if (
+    //             typeof this.options.on_saved
+    //             === "function"
+    //         ) {
+    //             await this.options.on_saved(
+    //                 result
+    //             );
+    //         }
+
+    //     } catch (error) {
+
+    //         /*
+    //         * إذا رفعنا بعض الملفات ثم فشل الحفظ،
+    //         * نحذف جميع الملفات المؤقتة الجديدة.
+    //         */
+    //         await this.cleanup_files(
+    //             uploaded.map(
+    //                 (item) =>
+    //                     item.file_url
+    //             )
+    //         );
+
+
+    //         console.error(
+    //             "Final swift save failed:",
+    //             error
+    //         );
+
+
+    //         frappe.msgprint({
+    //             title:
+    //                 __("تعذر إرفاق السويفت النهائي"),
+
+    //             message:
+    //                 error?.message ||
+    //                 __(
+    //                     "حدث خطأ أثناء إرفاق ملفات السويفت النهائي."
+    //                 ),
+
+    //             indicator:
+    //                 "red",
+    //         });
+
+    //     } finally {
+    //         button.prop(
+    //             "disabled",
+    //             false
+    //         );
+    //     }
+    // }
     async save() {
-        if (!this.files.length) {
+
+        if (
+            !this.files.length
+        ) {
+
             frappe.msgprint({
                 title:
                     __("السويفت النهائي مطلوب"),
 
                 message:
                     __(
-						"اختر ملف PDF أو صورة واحدة على الأقل قبل الحفظ."
-					),
+                        "اختر ملفاً واحداً على الأقل قبل الحفظ."
+                    ),
 
                 indicator:
                     "red",
             });
+
 
             return;
         }
@@ -1047,6 +1217,7 @@ class FinalSwiftDialog {
             >
             this.max_files
         ) {
+
             frappe.msgprint({
                 title:
                     __("الحد الأقصى"),
@@ -1057,6 +1228,7 @@ class FinalSwiftDialog {
                 indicator:
                     "orange",
             });
+
 
             return;
         }
@@ -1073,22 +1245,39 @@ class FinalSwiftDialog {
         );
 
 
-        const uploaded = [];
+        /*
+        * كل عنصر هنا يحمل:
+        *
+        * {
+        *     file_id,
+        *     file_url,
+        *     file_name
+        * }
+        */
+        const uploaded =
+            [];
 
 
         try {
 
-            /*
-            * رفع جميع الملفات الجديدة.
-            */
+            // ====================================================
+            // Upload all new Files
+            //
+            // إذا فشل الملف الثالث مثلاً،
+            // uploaded يحتوي الأول والثاني
+            // ليتم تنظيفهما في catch.
+            // ====================================================
+
             for (
                 const file
                 of this.files
             ) {
+
                 const result =
                     await this.upload_file(
                         file
                     );
+
 
                 uploaded.push(
                     result
@@ -1096,10 +1285,12 @@ class FinalSwiftDialog {
             }
 
 
-            /*
-            * إرسال جميع الملفات دفعة واحدة
-            * إلى Backend.
-            */
+            // ====================================================
+            // Exact File identity payload
+            //
+            // لا نرسل file_urls بعد الآن.
+            // ====================================================
+
             const response =
                 await frappe.call({
                     method:
@@ -1112,17 +1303,26 @@ class FinalSwiftDialog {
                         operation_name:
                             this.operation_name,
 
-                        file_urls:
-                            uploaded.map(
-                                (item) =>
-                                    item.file_url
-                            ),
+                        files:
+                            uploaded,
                     },
                 });
 
 
             const result =
-                response.message || {};
+                response.message
+                || {};
+
+
+            // ====================================================
+            // Success
+            //
+            // الملفات أصبحت Final Swift مرتبطة بالعملية.
+            // لا ننظفها هنا.
+            // ====================================================
+
+            this.files =
+                [];
 
 
             this.dialog.hide();
@@ -1138,26 +1338,38 @@ class FinalSwiftDialog {
 
 
             if (
-                typeof this.options.on_saved
+                typeof this.options
+                    .on_saved
                 === "function"
             ) {
-                await this.options.on_saved(
-                    result
-                );
+
+                await this.options
+                    .on_saved(
+                        result
+                    );
             }
 
-        } catch (error) {
+        }
 
-            /*
-            * إذا رفعنا بعض الملفات ثم فشل الحفظ،
-            * نحذف جميع الملفات المؤقتة الجديدة.
-            */
-            await this.cleanup_files(
-                uploaded.map(
-                    (item) =>
-                        item.file_url
-                )
-            );
+        catch (error) {
+
+            // ====================================================
+            // Failure cleanup
+            //
+            // نحذف File records المؤقتة بالـfile_id الدقيق.
+            //
+            // Browser File objects في this.files تبقى،
+            // لذلك يستطيع المستخدم Retry مباشرة.
+            // ====================================================
+
+            if (
+                uploaded.length
+            ) {
+
+                await this.cleanup_files(
+                    uploaded
+                );
+            }
 
 
             console.error(
@@ -1171,7 +1383,8 @@ class FinalSwiftDialog {
                     __("تعذر إرفاق السويفت النهائي"),
 
                 message:
-                    error?.message ||
+                    error?.message
+                    ||
                     __(
                         "حدث خطأ أثناء إرفاق ملفات السويفت النهائي."
                     ),
@@ -1180,152 +1393,17 @@ class FinalSwiftDialog {
                     "red",
             });
 
-        } finally {
+        }
+
+        finally {
+
             button.prop(
                 "disabled",
                 false
             );
         }
     }
-	// async save() {
-	// 	if (!this.file) {
-	// 		frappe.msgprint({
-	// 			title:
-	// 				__("السويفت النهائي مطلوب"),
-
-	// 			message:
-	// 				__(
-	// 					"اختر ملف PDF قبل الحفظ."
-	// 				),
-
-	// 			indicator:
-	// 				"red",
-	// 		});
-
-	// 		return;
-	// 	}
-
-
-	// 	const button =
-	// 		this.dialog
-	// 			.get_primary_btn();
-
-
-	// 	button.prop(
-	// 		"disabled",
-	// 		true
-	// 	);
-
-
-	// 	let uploaded = null;
-
-
-	// 	try {
-	// 		/*
-	// 		 * نرفع الملف أولاً كـ Private File.
-	// 		 */
-	// 		uploaded =
-	// 			await this.upload_file();
-
-
-	// 		/*
-	// 		 * Backend هو المسؤول عن:
-	// 		 *
-	// 		 * - التحقق من الصلاحية
-	// 		 * - التحقق من البنك
-	// 		 * - التحقق من عدم وجود سويفت سابق
-	// 		 * - إضافته إلى attachments
-	// 		 * - is_final_swift = 1
-	// 		 * - final_swift_file
-	// 		 * - uploaded_at
-	// 		 * - uploaded_by
-	// 		 */
-	// 		const response =
-	// 			await frappe.call({
-	// 				method:
-	// 					"archive.api.operations.attach_final_swift",
-
-	// 				type:
-	// 					"POST",
-
-	// 				args: {
-	// 					operation_name:
-	// 						this.operation_name,
-
-	// 					file_url:
-	// 						uploaded.file_url,
-	// 				},
-	// 			});
-
-
-	// 		const result =
-	// 			response.message || {};
-
-
-	// 		this.dialog.hide();
-
-
-	// 		frappe.show_alert({
-	// 			message:
-	// 				`تم إرفاق السويفت النهائي للعملية ${this.operation_name}`,
-
-	// 			indicator:
-	// 				"green",
-	// 		});
-
-
-	// 		if (
-	// 			typeof this.options.on_saved
-	// 			=== "function"
-	// 		) {
-	// 			await this.options.on_saved(
-	// 				result
-	// 			);
-	// 		}
-
-	// 	} catch (error) {
-
-	// 		/*
-	// 		 * إذا فشل ربط الملف بالعملية
-	// 		 * نحذف الملف المؤقت الذي تم رفعه.
-	// 		 */
-	// 		if (
-	// 			uploaded?.file_url
-	// 		) {
-	// 			await this.cleanup_file(
-	// 				uploaded.file_url
-	// 			);
-	// 		}
-
-
-	// 		console.error(
-	// 			"Final swift save failed:",
-	// 			error
-	// 		);
-
-
-	// 		frappe.msgprint({
-	// 			title:
-	// 				__("تعذر إرفاق السويفت النهائي"),
-
-	// 			message:
-	// 				error?.message ||
-	// 				__(
-	// 					"حدث خطأ أثناء إرفاق الملف النهائي."
-	// 				),
-
-	// 			indicator:
-	// 				"red",
-	// 		});
-
-	// 	} finally {
-	// 		button.prop(
-	// 			"disabled",
-	// 			false
-	// 		);
-	// 	}
-	// }
-
+	
 
 	cancel() {
 		/*

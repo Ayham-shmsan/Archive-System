@@ -1,0 +1,6 @@
+{
+ "doc_type": "Archive Operation",
+ "doctype": "Permission Type",
+ "name": "archive_operation_re_extract_operation_data",
+ "perm_type": "re_extract_operation_data"
+}

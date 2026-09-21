@@ -341,3 +341,244 @@
 		justify-content: flex-end;
 	}
 }
+
+
+/* ==========================================
+   Operation Identity + Shared Documents
+   ========================================== */
+
+.archive-operation-identity-layout {
+	display: grid;
+	grid-template-columns:
+		minmax(300px, 0.8fr)
+		minmax(440px, 1.2fr);
+	gap: 18px;
+	align-items: start;
+}
+
+
+.archive-operation-identity-panel,
+.archive-shared-documents-panel {
+	min-width: 0;
+}
+
+
+.archive-operation-number-fields {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 6px;
+}
+
+
+.archive-shared-documents-panel {
+	border: 1px solid var(--border-color);
+	border-radius: 12px;
+	padding: 12px;
+	background: var(--control-bg);
+}
+
+
+.archive-shared-documents-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 10px;
+}
+
+
+.archive-shared-documents-title {
+	font-size: 13px;
+	font-weight: 700;
+}
+
+
+.archive-shared-documents-help {
+	font-size: 11px;
+	color: var(--text-muted);
+	margin-top: 3px;
+}
+
+
+.archive-shared-documents-counter {
+	flex: 0 0 auto;
+
+	padding: 4px 9px;
+
+	border-radius: 999px;
+
+	background: var(--subtle-fg);
+
+	font-size: 11px;
+	font-weight: 600;
+}
+
+
+.archive-shared-documents-dropzone {
+	border: 1px dashed var(--border-color);
+	border-radius: 10px;
+
+	min-height: 88px;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+
+	cursor: pointer;
+	text-align: center;
+
+	background: var(--card-bg);
+
+	transition:
+		border-color 0.15s ease,
+		background-color 0.15s ease;
+}
+
+
+.archive-shared-documents-dropzone:hover,
+.archive-shared-documents-dropzone.is-dragging {
+	border-color: var(--primary);
+	background: var(--subtle-fg);
+}
+
+
+.archive-shared-documents-list {
+	display: grid;
+	gap: 8px;
+
+	margin-top: 10px;
+}
+
+
+.archive-existing-document {
+	background: var(--subtle-fg);
+}
+
+
+.archive-existing-badge {
+	display: inline-flex;
+	align-items: center;
+
+	padding: 3px 8px;
+
+	border-radius: 999px;
+
+	font-size: 11px;
+	font-weight: 600;
+
+	color: var(--green-700);
+	background: var(--green-100);
+}
+
+
+.archive-operation-context-info {
+	margin-top: 8px;
+}
+
+
+.archive-existing-operation-info {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 7px;
+
+	padding: 8px 10px;
+
+	border: 1px solid var(--border-color);
+	border-radius: 9px;
+
+	background: var(--subtle-fg);
+
+	font-size: 11px;
+}
+
+
+.archive-existing-operation-info span {
+	white-space: nowrap;
+}
+
+
+@media (max-width: 1100px) {
+
+	.archive-operation-identity-layout {
+		grid-template-columns: 1fr;
+	}
+}
+
+/* ==========================================
+   Operation Number Suggestions
+   ========================================== */
+
+.archive-operation-number-fields {
+	position: relative;
+}
+
+
+.archive-operation-number-suggestions {
+	position: relative;
+	z-index: 20;
+
+	margin-top: -6px;
+	margin-bottom: 10px;
+
+	border: 1px solid var(--border-color);
+	border-radius: 10px;
+
+	background: var(--card-bg);
+
+	box-shadow:
+		0 8px 24px rgba(0, 0, 0, 0.08);
+
+	overflow: hidden;
+
+	max-height: 260px;
+	overflow-y: auto;
+}
+
+
+.archive-operation-number-suggestion {
+	width: 100%;
+
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+
+	padding: 10px 12px;
+
+	border: 0;
+	border-bottom: 1px solid var(--border-color);
+
+	background: transparent;
+
+	text-align: right;
+
+	cursor: pointer;
+}
+
+
+.archive-operation-number-suggestion:last-child {
+	border-bottom: 0;
+}
+
+
+.archive-operation-number-suggestion:hover,
+.archive-operation-number-suggestion.is-active {
+	background: var(--subtle-fg);
+}
+
+
+.archive-operation-number-suggestion-value {
+	font-weight: 700;
+	font-size: 13px;
+}
+
+
+.archive-operation-number-suggestion-meta {
+	flex: 0 0 auto;
+
+	font-size: 11px;
+
+	color: var(--text-muted);
+}

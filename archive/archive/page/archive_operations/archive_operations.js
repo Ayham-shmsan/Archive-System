@@ -23,6 +23,15 @@ class ArchiveOperationsPage {
     constructor(wrapper) {
         this.wrapper = wrapper;
 
+        this.customer_rate_manual_value =
+            "";
+
+        this.customer_rate_last_currency =
+            "";
+
+        this.updating_customer_rate_mode =
+            false;
+
         this.state = {
             status: "all",
             search: "",
@@ -712,30 +721,73 @@ class ArchiveOperationsPage {
         this.initialize_filters();
         this.update_sort_indicators();
     }
-    open_status_dialog(
-        operation_name,
-        current_status
-    ) {
+    // open_status_dialog(
+    //     operation_name,
+    //     current_status
+    // ) {
 
+    //     if (
+    //         current_status
+    //         === "معلقة"
+    //     ) {
+    //         return;
+    //     }
+
+    //     const statuses = [
+    //         "غير مؤكدة",
+    //         "مؤكدة",
+    //         "محضورة",
+    //         "مرتجعة",
+    //         "معلقة",
+    //     ];
+
+    //     const available_statuses =
+    //         statuses.filter(
+    //             (status) =>
+    //                 status !== current_status
+    //         );
+    open_status_dialog(
+        operation
+    ) {
         if (
-            current_status
-            === "معلقة"
+            !operation
+            ||
+            operation.status === "معلقة"
+            ||
+            !operation.can_change_status
         ) {
             return;
         }
 
-        const statuses = [
-            "غير مؤكدة",
-            "مؤكدة",
-            "محضورة",
-            "مرتجعة",
-        ];
+
+        const operation_name =
+            operation.name;
+
+        const current_status =
+            operation.status;
+
 
         const available_statuses =
-            statuses.filter(
-                (status) =>
-                    status !== current_status
-            );
+            Array.isArray(
+                operation.allowed_status_transitions
+            )
+                ? operation.allowed_status_transitions
+                : [];
+
+
+        if (!available_statuses.length) {
+            frappe.show_alert({
+                message:
+                    __(
+                        "لا توجد حالات متاحة لهذه العملية"
+                    ),
+
+                indicator:
+                    "orange",
+            });
+
+            return;
+        }
 
         const dialog =
             new frappe.ui.Dialog({
@@ -793,7 +845,7 @@ class ArchiveOperationsPage {
                             1,
 
                         description:
-                            "التاريخ الفعلي لتأكيد أو إرجاع أو حضر العملية.",
+                            "التاريخ الفعلي لتغيير حالة العملية.",
                     },
 
                     {
@@ -3173,10 +3225,13 @@ class ArchiveOperationsPage {
                     return;
                 }
 
+                // this.open_status_dialog(
+                //     operation.name,
+                //     operation.status
+                // );
                 this.open_status_dialog(
-                    operation.name,
-                    operation.status
-                );
+                        operation
+                    );
             });
     }
 

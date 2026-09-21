@@ -1,0 +1,46 @@
+{
+  "actions": [],
+  "autoname": "format:OPG-{#####}",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "operation_no",
+    "operation_no_normalized"
+  ],
+  "fields": [
+    {
+      "fieldname": "operation_no",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "رقم العملية",
+      "read_only": 1
+    },
+    {
+      "fieldname": "operation_no_normalized",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "label": "Normalized Operation No",
+      "read_only": 1,
+      "search_index": 1,
+      "unique": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "module": "Archive",
+  "name": "Archive Operation Group",
+  "naming_rule": "Expression (old style)",
+  "permissions": [
+    {
+      "export": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager"
+    }
+  ],
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "states": [],
+  "title_field": "operation_no"
+}

@@ -9,3 +9,4 @@
 # Patches added in this section will be executed after fixtures and customizations
 # (Custom Field, Property Setter, etc) are synced
 #archive.patches.backfill_operation_number_identity
+archive.patches.v1_0.fix_operation_serial_sequence

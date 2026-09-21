@@ -7,27 +7,52 @@ from archive.api.operation_timeline import (
     log_operation_event,
     can_view_operation_timeline,
 )
+from archive.services.uploaded_files import (
+    delete_temporary_uploaded_files,
+    get_unattached_uploaded_file,
+)
 
+from archive.services.operation_permissions import (
+    can_manage_operation_attachments,
+    can_re_extract_operation_data,
+)
 from archive.api.operation_search import (
     search_operation_names,
 )
 
+from archive.domain.shared_documents import (
+    create_shared_operation_documents,
+    MAX_SHARED_DOCUMENTS,
+)
+from archive.api.pdf_parser import (
+    extract_operation_data
+    as extract_pdf_operation_data,
+)
+
 
 MANUAL_FIELD_LABELS = {
-    "operation_no":
-        "رقم العملية",
-
     "customer":
         "اسم العميل",
 
     "customer_rate":
         "سعر العميل",
 
+    "customer_rate_type":
+        "نوع عمولة العميل",
+    "customer_rate_amount":
+        "مبلغ التسعير",
+
+    "customer_rate_currency":
+        "عملة سعر العميل",
+
     "from_account":
         "عن طريق",
 
     "request_date":
         "تاريخ الطلب",
+
+    "execution_datetime":
+        "تاريخ تنفيذ العملية",
 
     "swift_code":
         "رمز SWIFT",
@@ -37,8 +62,10 @@ MANUAL_FIELD_LABELS = {
 
     "transferring_bank":
         "اسم البنك المحول",
-}
 
+    "user_notes":
+        "ملاحظات المستخدم",
+}
 
 PDF_EXTRACTED_FIELD_LABELS = {
     "sender_account":
@@ -85,6 +112,9 @@ OPERATION_FIELDS = {
     "amount",
     "currency",
     "customer_rate",
+    "customer_rate_type",
+    "customer_rate_amount",
+    "customer_rate_currency",
     "beneficiary_name",
     "beneficiary_account",
     "beneficiary_bank",
@@ -101,6 +131,7 @@ OPERATION_FIELDS = {
     "notes",
     "allow_duplicate_operation_no",
     "is_blocked_operation",
+    "user_notes",
 }
 MAX_FINAL_SWIFT_FILES = 10
 
@@ -117,34 +148,99 @@ FINAL_SWIFT_ALLOWED_EXTENSIONS = {
     ".heic",
     ".heif",
     ".avif",
+    ".xlsx",
+    ".xls",
+    ".docx",
+    ".doc"
 }
+
 # ============================================================
-# Statuses
+# Operation statuses
 # ============================================================
 
 VALID_STATUSES = (
+    "معلقة",
     "غير مؤكدة",
     "مؤكدة",
     "مرتجعة",
     "محضورة",
 )
 
-ACTION_STATUSES = (
-    "غير مؤكدة",
-    "مؤكدة",
-    "مرتجعة",
-    "محضورة",
-)
+
+STATUS_ACTION_TRANSITIONS = {
+    "معلقة": (),
+
+    "غير مؤكدة": (
+        "معلقة",
+        "مؤكدة",
+        "مرتجعة",
+        "محضورة",
+    ),
+
+    "مؤكدة": (
+        "معلقة",
+        "غير مؤكدة",
+        "مرتجعة",
+        "محضورة",
+    ),
+
+    "مرتجعة": (
+        "معلقة",
+        "غير مؤكدة",
+        "مؤكدة",
+        "محضورة",
+    ),
+
+    "محضورة": (
+        "معلقة",
+        "غير مؤكدة",
+        "مؤكدة",
+        "مرتجعة",
+    ),
+}
+
+
+# للتوافق مع أي كود قديم يعتمد عليها.
+ACTION_STATUSES = VALID_STATUSES
+
+
+def get_allowed_status_transitions(
+    current_status: str,
+) -> tuple[str, ...]:
+    """
+    الحالات التي يسمح الوصول إليها من زر الإجراءات.
+
+    قاعدة الانتقال موجودة هنا فقط حتى لا تتكرر
+    داخل الواجهة أو الـ API.
+    """
+
+    current_status = (
+        current_status or ""
+    ).strip()
+
+    return STATUS_ACTION_TRANSITIONS.get(
+        current_status,
+        (),
+    )
 
 MANUAL_EDITABLE_FIELDS = {
-    "operation_no",
     "customer",
+
     "customer_rate",
+    "customer_rate_type",
+    "customer_rate_amount",
+    "customer_rate_currency",
+
     "from_account",
+
     "request_date",
+    "execution_datetime",
+
     "swift_code",
     "country",
     "transferring_bank",
+
+    "user_notes",
 }
 
 
@@ -164,9 +260,6 @@ FINAL_SWIFT_PERMISSION = (
     "attach_final_swift"
 )
 
-MANAGE_ATTACHMENTS_PERMISSION = (
-    "manage_attachments"
-)
 
 
 # ============================================================
@@ -188,66 +281,365 @@ def _parse(
 
     return value
 
+def _normalize_customer_rate_values(
+    values: dict[str, Any],
+) -> None:
+    """
+    توحيد سعر العميل عند إنشاء العملية.
 
-def _get_uploaded_file(
-    file_url: str,
+    دولار:
+        له/عليه + مبلغ التسعير
+        -> customer_rate تلقائي.
+
+    بدون:
+        -> بدون عمولة.
+
+    سعودي:
+        customer_rate يدوي.
+        لا يوجد type ولا amount.
+    """
+
+    rate_currency = cstr(
+        values.get(
+            "customer_rate_currency"
+        )
+    ).strip()
+
+
+    if not rate_currency:
+
+        frappe.throw(
+            _("عملة سعر العميل مطلوبة.")
+        )
+
+
+    # ========================================================
+    # Saudi
+    # ========================================================
+
+    if rate_currency == "سعودي":
+
+        values[
+            "customer_rate_type"
+        ] = None
+
+        values[
+            "customer_rate_amount"
+        ] = None
+
+
+        if not cstr(
+            values.get(
+                "customer_rate"
+            )
+        ).strip():
+
+            frappe.throw(
+                _(
+                    "سعر العميل مطلوب "
+                    "عند اختيار العملة سعودي."
+                )
+            )
+
+
+        return
+
+
+    # ========================================================
+    # Dollar only
+    # ========================================================
+
+    if rate_currency != "دولار":
+
+        frappe.throw(
+            _("عملة سعر العميل غير صحيحة.")
+        )
+
+
+    rate_type = cstr(
+        values.get(
+            "customer_rate_type"
+        )
+    ).strip()
+
+
+    if rate_type not in {
+        "له",
+        "عليه",
+        "بدون",
+        "بدل حوالة مرتجعة",
+    }:
+
+        frappe.throw(
+            _(
+                "نوع العمولة مطلوب للدولار: "
+                "له أو عليه أو بدون أو بدل حوالة مرتجعة"
+            )
+        )
+
+
+    # ========================================================
+    # No commission
+    # ========================================================
+
+    if rate_type == "بدون":
+
+        values[
+            "customer_rate_amount"
+        ] = None
+
+        values[
+            "customer_rate"
+        ] = "بدون عمولة"
+
+        return
+    
+    if rate_type == "بدل حوالة مرتجعة":
+    
+            values[
+                "customer_rate_amount"
+            ] = None
+    
+            values[
+                "customer_rate"
+            ] = "بدل حوالة مرتجعة"
+    
+            return
+
+
+    # ========================================================
+    # Dollar amount
+    # ========================================================
+
+    raw_amount = values.get(
+        "customer_rate_amount"
+    )
+
+
+    try:
+
+        rate_amount = float(
+            raw_amount
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+
+        frappe.throw(
+            _(
+                "مبلغ التسعير يجب أن يكون رقماً."
+            )
+        )
+
+
+    if rate_amount <= 0:
+
+        frappe.throw(
+            _(
+                "مبلغ التسعير يجب أن يكون أكبر من صفر."
+            )
+        )
+
+
+    rate_amount = round(
+        rate_amount,
+        6,
+    )
+
+
+    amount_text = (
+        f"{rate_amount:.6f}"
+        .rstrip("0")
+        .rstrip(".")
+    )
+
+
+    values[
+        "customer_rate_amount"
+    ] = rate_amount
+
+
+    values[
+        "customer_rate"
+    ] = (
+        f"{rate_type} "
+        f"{amount_text} "
+        "$ بالألف"
+    )
+
+def _prepare_shared_document_file_docs(
+    shared_documents,
+    *,
+    forbidden_file_urls: set[str] | None = None,
 ):
-    file_name = frappe.db.get_value(
-        "File",
-        {
-            "file_url": file_url,
-        },
-        "name",
-    )
+    """
+    تحويل Payload المستندات المشتركة إلى File documents
+    مؤكدة الهوية وغير مرتبطة.
 
-    if not file_name:
-        frappe.throw(
-            _(
-                "الملف غير موجود: {0}"
-            ).format(
-                file_url
-            )
-        )
+    File.name / file_id هو الهوية الأساسية.
 
-    file_doc = frappe.get_doc(
-        "File",
-        file_name,
-    )
+    file_url يستخدم للتحقق فقط وللتوافق مع
+    المسارات القديمة.
 
-    user = frappe.session.user
+    forbidden_file_urls:
+        ملفات لا يجوز استخدامها كمستند مشترك،
+        وأهمها Extraction Source.
+    """
 
-    is_system_manager = (
-        "System Manager"
-        in frappe.get_roles(
-            user
-        )
-    )
-
-    if (
-        file_doc.owner != user
-        and not is_system_manager
+    if not isinstance(
+        shared_documents,
+        list,
     ):
         frappe.throw(
             _(
-                "لا تملك صلاحية استخدام هذا الملف."
-            ),
-            frappe.PermissionError,
-        )
-
-    if (
-        file_doc.attached_to_doctype
-        or file_doc.attached_to_name
-    ):
-        frappe.throw(
-            _(
-                "الملف مرتبط بمستند آخر بالفعل: {0}"
-            ).format(
-                file_doc.file_name
+                "بيانات مستندات العملية غير صحيحة."
             )
         )
 
-    return file_doc
 
+    forbidden_file_urls = {
+        cstr(
+            file_url
+        ).strip()
+
+        for file_url
+        in (
+            forbidden_file_urls
+            or set()
+        )
+
+        if cstr(
+            file_url
+        ).strip()
+    }
+
+
+    file_docs = []
+
+    seen_files = set()
+
+
+    for item in (
+        shared_documents
+        or []
+    ):
+
+        file_id = None
+        file_url = None
+
+
+        if isinstance(
+            item,
+            str,
+        ):
+
+            # توافق مع أي استدعاء قديم.
+            file_url = cstr(
+                item
+            ).strip()
+
+
+        elif isinstance(
+            item,
+            dict,
+        ):
+
+            file_id = cstr(
+                item.get(
+                    "file_id"
+                )
+            ).strip() or None
+
+
+            file_url = cstr(
+                item.get(
+                    "file_url"
+                )
+                or item.get(
+                    "file"
+                )
+            ).strip()
+
+
+        else:
+
+            frappe.throw(
+                _(
+                    "بيانات أحد المستندات "
+                    "المشتركة غير صحيحة."
+                )
+            )
+
+
+        if not file_url:
+
+            frappe.throw(
+                _(
+                    "يوجد مستند مشترك بدون رابط ملف."
+                )
+            )
+
+
+        # ====================================================
+        # Request identity
+        # // ====================================================
+
+        identity_key = (
+            f"id:{file_id}"
+            if file_id
+            else f"url:{file_url}"
+        )
+
+
+        if (
+            identity_key
+            in seen_files
+        ):
+            continue
+
+
+        seen_files.add(
+            identity_key
+        )
+
+
+        # ====================================================
+        # Extraction and Shared Documents stay separate
+        # ====================================================
+
+        if (
+            file_url
+            in forbidden_file_urls
+        ):
+
+            frappe.throw(
+                _(
+                    "ملف استخراج البيانات "
+                    "لا يمكن استخدامه كمستند "
+                    "مشترك في نفس العملية."
+                )
+            )
+
+
+        file_doc = (
+            get_unattached_uploaded_file(
+                file_id=
+                    file_id,
+
+                file_url=
+                    file_url,
+            )
+        )
+
+
+        file_docs.append(
+            file_doc
+        )
+
+
+    return file_docs
 
 def get_final_swift_count(
     operation,
@@ -285,27 +677,7 @@ def get_final_swift_count(
                 1,
         },
     )
-def can_manage_operation_attachments(
-    operation=None,
-) -> bool:
-    """
-    صلاحية إدارة مرفقات Archive Operation.
-    """
 
-    user = frappe.session.user
-
-    if user == "Administrator":
-        return True
-
-    return bool(
-        frappe.has_permission(
-            "Archive Operation",
-            ptype=
-                MANAGE_ATTACHMENTS_PERMISSION,
-            user=
-                user,
-        )
-    )
 
 def get_final_swift_banks() -> set[str]:
 
@@ -474,47 +846,437 @@ def can_release_pending_operation() -> bool:
                 user,
         )
     )
+
+def serialize_part_attachment(
+    row,
+) -> dict[str, Any]:
+
+    return {
+        "name":
+            row.name,
+
+        "file":
+            row.file,
+
+        "file_name":
+            row.file_name,
+
+        "is_extraction_source":
+            bool(
+                row.is_extraction_source
+            ),
+
+        "is_final_swift":
+            bool(
+                row.is_final_swift
+            ),
+
+        "owner":
+            row.owner,
+
+        "creation":
+            row.creation,
+    }
+
+
+def serialize_shared_document_for_view(
+    row,
+) -> dict[str, Any]:
+
+    return {
+        "name":
+            row.name,
+
+        "operation_group":
+            row.operation_group,
+
+        "source_operation":
+            row.source_operation,
+
+        "document_role":
+            row.document_role,
+
+        "file":
+            row.file,
+
+        "file_name":
+            row.file_name,
+
+        "file_extension":
+            row.file_extension,
+
+        "file_size":
+            row.file_size,
+
+        "owner":
+            row.owner,
+
+        "creation":
+            row.creation,
+    }
+
+
+def get_operation_group_view_context(
+    operation,
+) -> dict[str, Any]:
+
+    operation_group = cstr(
+        operation.operation_group
+    ).strip()
+
+
+    if not operation_group:
+
+        frappe.throw(
+            _(
+                "هذه العملية غير مرتبطة "
+                "بمجموعة عملية."
+            )
+        )
+
+
+    group = frappe.db.get_value(
+        "Archive Operation Group",
+
+        operation_group,
+
+        [
+            "name",
+            "operation_no",
+            "operation_no_normalized",
+        ],
+
+        as_dict=True,
+    )
+
+
+    if not group:
+
+        frappe.throw(
+            _(
+                "مجموعة العملية غير موجودة."
+            )
+        )
+
+
+    parts_count = frappe.db.count(
+        "Archive Operation",
+        {
+            "operation_group":
+                operation_group,
+        },
+    )
+
+
+    shared_documents = frappe.get_all(
+        "Archive Operation Document",
+
+        filters={
+            "operation_group":
+                operation_group,
+        },
+
+        fields=[
+            "name",
+            "operation_group",
+            "source_operation",
+            "document_role",
+            "file",
+            "file_name",
+            "file_extension",
+            "file_size",
+            "owner",
+            "creation",
+        ],
+
+        order_by=
+            "creation asc",
+
+        limit_page_length=
+            0,
+    )
+
+
+    return {
+        "name":
+            group.name,
+
+        "operation_no":
+            group.operation_no,
+
+        "operation_no_normalized":
+            group.operation_no_normalized,
+
+        "parts_count":
+            parts_count,
+
+        "shared_documents":
+            [
+                serialize_shared_document_for_view(
+                    row
+                )
+                for row
+                in shared_documents
+            ],
+
+        "shared_documents_count":
+            len(
+                shared_documents
+            ),
+
+        "shared_documents_limit":
+            MAX_SHARED_DOCUMENTS,
+    }
+
 # ============================================================
 # Serialize operation for view
 # ============================================================
 
+# def serialize_operation_for_view(
+#     operation,
+# ) -> dict[str, Any]:
+
+#     attachments = []
+
+#     extraction_source = None
+
+#     final_swift_files = []
+
+
+#     for row in (
+#         operation.attachments
+#         or []
+#     ):
+
+#         serialized = (
+#             serialize_part_attachment(
+#                 row
+#             )
+#         )
+
+
+#         attachments.append(
+#             serialized
+#         )
+
+
+#         if row.is_extraction_source:
+
+#             extraction_source = (
+#                 serialized
+#             )
+
+
+#         if row.is_final_swift:
+
+#             final_swift_files.append(
+#                 serialized
+#             )
+
+#     status_history = []
+
+#     for row in (
+#         operation.status_history
+#         or []
+#     ):
+#         status_history.append(
+#             {
+#                 "from_status":
+#                     row.from_status,
+
+#                 "to_status":
+#                     row.to_status,
+
+#                 "status_effective_datetime":
+#                     row.status_effective_datetime,
+
+#                 "system_datetime":
+#                     row.system_datetime,
+
+#                 "changed_by":
+#                     row.changed_by,
+
+#                 "remarks":
+#                     row.remarks,
+#             }
+#         )
+
+#     return {
+#         "name":
+#             operation.name,
+
+#         "serial_no":
+#             operation.serial_no,
+
+#         "operation_no":
+#             operation.operation_no,
+
+#         "customer":
+#             operation.customer,
+
+#         "amount":
+#             operation.amount,
+
+#         "currency":
+#             operation.currency,
+
+#         "customer_rate":
+#             operation.customer_rate,
+
+#         "beneficiary_name":
+#             operation.beneficiary_name,
+
+#         "beneficiary_account":
+#             operation.beneficiary_account,
+
+#         "beneficiary_bank":
+#             operation.beneficiary_bank,
+
+#         "swift_code":
+#             operation.swift_code,
+
+#         "country":
+#             operation.country,
+
+#         "sender_name":
+#             operation.sender_name,
+
+#         "sender_account":
+#             operation.sender_account,
+
+#         "execution_datetime":
+#             operation.execution_datetime,
+
+#         "transferring_bank":
+#             operation.transferring_bank,
+
+#         "request_date":
+#             operation.request_date,
+
+#         "from_account":
+#             operation.from_account,
+
+#         "reference_no":
+#             operation.reference_no,
+
+#         "bank_transfer_rate":
+#             operation.bank_transfer_rate,
+
+#         "notes":
+#             operation.notes,
+
+#         "status":
+#             operation.status,
+
+#         "status_effective_datetime":
+#             operation.status_effective_datetime,
+
+#         "status_changed_at":
+#             operation.status_changed_at,
+
+#         "status_changed_by":
+#             operation.status_changed_by,
+
+#         "extraction_source_file":
+#             operation.extraction_source_file,
+
+#         "attachments":
+#             attachments,
+
+#         "status_history":
+#             status_history,
+#         "final_swift_file":
+#             operation.final_swift_file,
+
+#         "final_swift_uploaded_at":
+#             operation.final_swift_uploaded_at,
+
+#         "final_swift_uploaded_by":
+#             operation.final_swift_uploaded_by,
+#     }
 def serialize_operation_for_view(
     operation,
 ) -> dict[str, Any]:
 
+    # ========================================================
+    # Part-specific attachments
+    #
+    # Archive Operation.attachments تحتوي الملفات
+    # الخاصة بهذا الجزء فقط:
+    #
+    # - Extraction Source
+    # - Final Swift
+    #
+    # نحتفظ أيضاً بالقائمة الكاملة مؤقتاً
+    # للتوافق مع واجهة View القديمة إلى أن يتم
+    # استبدالها بالواجهة الجديدة.
+    # ========================================================
+
     attachments = []
+
+    extraction_source = None
+
+    final_swift_files = []
+
 
     for row in (
         operation.attachments
         or []
     ):
-        attachments.append(
-            {
-                "name":
-                    row.name,
-                "file":
-                    row.file,
 
-                "file_name":
-                    row.file_name,
-
-                "is_extraction_source":
-                    bool(
-                        row.is_extraction_source
-                    ),
-                "is_final_swift":
-                    bool(
-                        row.is_final_swift
-                    ),
-            }
+        attachment = (
+            serialize_part_attachment(
+                row
+            )
         )
 
+
+        attachments.append(
+            attachment
+        )
+
+
+        # ====================================================
+        # Extraction Source
+        #
+        # ملف واحد خاص بهذا Archive Operation / Part.
+        # ====================================================
+
+        if row.is_extraction_source:
+
+            extraction_source = (
+                attachment
+            )
+
+
+        # ====================================================
+        # Final Swift
+        #
+        # قد يكون ملفاً واحداً أو عدة ملفات.
+        #
+        # يبقى Part-specific ولا يدخل في عداد
+        # Shared Documents الخاص بالـGroup.
+        # ====================================================
+
+        if row.is_final_swift:
+
+            final_swift_files.append(
+                attachment
+            )
+
+
+    # ========================================================
+    # Status history
+    # ========================================================
+
     status_history = []
+
 
     for row in (
         operation.status_history
         or []
     ):
+
         status_history.append(
             {
                 "from_status":
@@ -537,15 +1299,51 @@ def serialize_operation_for_view(
             }
         )
 
+
+    # ========================================================
+    # View model
+    # ========================================================
+
     return {
+
+        # ====================================================
+        # Technical identity
+        # ====================================================
+
         "name":
             operation.name,
 
         "serial_no":
             operation.serial_no,
 
+
+        # ====================================================
+        # Operation / Group identity
+        # ====================================================
+
         "operation_no":
             operation.operation_no,
+
+        "operation_group":
+            operation.operation_group,
+
+        "operation_no_normalized":
+            operation.operation_no_normalized,
+
+        "allow_duplicate_operation_no":
+            bool(
+                operation.allow_duplicate_operation_no
+            ),
+
+        "is_blocked_operation":
+            bool(
+                operation.is_blocked_operation
+            ),
+
+
+        # ====================================================
+        # Operation data
+        # ====================================================
 
         "customer":
             operation.customer,
@@ -558,6 +1356,22 @@ def serialize_operation_for_view(
 
         "customer_rate":
             operation.customer_rate,
+
+        "customer_rate_type":
+            operation.customer_rate_type,
+        "customer_rate_amount":
+            operation.customer_rate_amount,
+
+        "customer_rate_currency":
+            operation.customer_rate_currency,
+
+        "user_notes":
+            operation.user_notes,
+
+
+        # ====================================================
+        # Beneficiary
+        # ====================================================
 
         "beneficiary_name":
             operation.beneficiary_name,
@@ -573,6 +1387,11 @@ def serialize_operation_for_view(
 
         "country":
             operation.country,
+
+
+        # ====================================================
+        # Sender / transfer
+        # ====================================================
 
         "sender_name":
             operation.sender_name,
@@ -601,6 +1420,11 @@ def serialize_operation_for_view(
         "notes":
             operation.notes,
 
+
+        # ====================================================
+        # Status
+        # ====================================================
+
         "status":
             operation.status,
 
@@ -613,14 +1437,61 @@ def serialize_operation_for_view(
         "status_changed_by":
             operation.status_changed_by,
 
+        "status_history":
+            status_history,
+
+
+        # ====================================================
+        # Extraction
+        #
+        # extraction_source:
+        #   الـRow الكامل الخاص بالملف.
+        #
+        # extraction_source_file:
+        #   نبقيه مؤقتاً للتوافق مع الكود القديم.
+        # ====================================================
+
+        "extraction_source":
+            extraction_source,
+
         "extraction_source_file":
             operation.extraction_source_file,
+
+
+        # ====================================================
+        # Part attachments
+        #
+        # attachments:
+        #   Compatibility فقط حالياً.
+        #
+        # لاحقاً الواجهة الجديدة لن تعرضها كقسم
+        # "مرفقات" عام.
+        # ====================================================
 
         "attachments":
             attachments,
 
-        "status_history":
-            status_history,
+
+        # ====================================================
+        # Final Swift
+        #
+        # القائمة الحقيقية هي final_swift_files.
+        #
+        # final_swift_file القديم مجرد Summary يشير
+        # إلى آخر ملف، لذلك لا نعتمد عليه في العرض.
+        # ====================================================
+
+        "final_swift_files":
+            final_swift_files,
+
+        "final_swift_count":
+            len(
+                final_swift_files
+            ),
+
+        "final_swift_limit":
+            MAX_FINAL_SWIFT_FILES,
+
         "final_swift_file":
             operation.final_swift_file,
 
@@ -631,18 +1502,23 @@ def serialize_operation_for_view(
             operation.final_swift_uploaded_by,
     }
 
-
-# ============================================================
-# Create operation
-# ============================================================
-
+#
 @frappe.whitelist(
     methods=["POST"]
 )
 def create_operation(
     values: dict[str, Any] | str | None = None,
-    attachments: list[dict[str, Any]] | list[str] | str | None = None,
-    extraction_source_file: str | None = None,
+
+    shared_documents:
+        list[dict[str, Any]]
+        | list[str]
+        | str
+        | None = None,
+
+    extraction_source_file:
+        str | None = None,
+    extraction_file_id:
+        str | None = None,
 ) -> dict[str, Any]:
 
     values = _parse(
@@ -650,10 +1526,19 @@ def create_operation(
         {},
     )
 
-    attachments = _parse(
-        attachments,
+    shared_documents = _parse(
+        shared_documents,
         [],
     )
+
+    extraction_file_id = cstr(
+        extraction_file_id
+    ).strip() or None
+
+
+    # ========================================================
+    # Validate payload
+    # ========================================================
 
     if not isinstance(
         values,
@@ -665,143 +1550,206 @@ def create_operation(
             )
         )
 
+
     if not isinstance(
-        attachments,
+        shared_documents,
         list,
     ):
         frappe.throw(
             _(
-                "بيانات المرفقات غير صحيحة."
+                "بيانات مستندات العملية غير صحيحة."
             )
         )
 
-    if not attachments:
-        frappe.throw(
-            _(
-                "يجب إضافة مرفق واحد على الأقل "
-                "قبل حفظ العملية."
-            )
-        )
+    _normalize_customer_rate_values(
+        values
+    )
 
-    file_docs = {}
-    attachment_rows = []
 
-    for attachment in attachments:
+    extraction_source_file = cstr(
+        extraction_source_file
+    ).strip() or None
 
-        if isinstance(
-            attachment,
-            str,
-        ):
-            file_url = attachment
 
-        else:
-            file_url = (
-                attachment.get(
-                    "file_url"
-                )
-            )
+    # ========================================================
+    # Extraction file
+    #
+    # خاص بالجزء الحالي.
+    # ========================================================
 
-        if not file_url:
-            frappe.throw(
-                _(
-                    "يوجد مرفق بدون رابط ملف."
-                )
-            )
+    extraction_file_doc = None
 
-        # منع تكرار نفس الملف.
-        if file_url in file_docs:
-            continue
-
-        file_doc = (
-            _get_uploaded_file(
-                file_url
-            )
-        )
-
-        file_docs[
-            file_url
-        ] = file_doc
-
-        attachment_rows.append(
-            {
-                "file":
-                    file_url,
-
-                "file_name":
-                    file_doc.file_name,
-
-                "is_extraction_source":
-                    (
-                        1
-                        if (
-                            file_url
-                            == extraction_source_file
-                        )
-                        else 0
-                    ),
-            }
-        )
 
     if extraction_source_file:
-        if (
-            extraction_source_file
-            not in file_docs
+
+        extraction_file_doc = (
+            get_unattached_uploaded_file(
+                file_id=
+                    extraction_file_id,
+
+                file_url=
+                    extraction_source_file,
+            )
+        )
+
+
+    # ========================================================
+    # Shared documents
+    #
+    # خاصة بمجموعة العملية.
+    # ========================================================
+
+    shared_file_docs = []
+
+    seen_shared_files = set()
+
+
+    for item in shared_documents:
+
+        file_id = None
+        file_url = None
+
+
+        if isinstance(
+            item,
+            str,
         ):
+
+            # توافق مؤقت فقط مع أي استدعاء قديم.
+            file_url = cstr(
+                item
+            ).strip()
+
+
+        elif isinstance(
+            item,
+            dict,
+        ):
+
+            file_id = cstr(
+                item.get(
+                    "file_id"
+                )
+            ).strip() or None
+
+
+            file_url = cstr(
+                item.get(
+                    "file_url"
+                )
+            ).strip()
+
+
+        else:
+
             frappe.throw(
                 _(
-                    "ملف استخراج البيانات يجب "
-                    "أن يكون ضمن مرفقات العملية."
+                    "بيانات أحد المستندات "
+                    "غير صحيحة."
                 )
             )
 
-    # doc = frappe.new_doc(
-    #     "Archive Operation"
-    # )
 
-    # for fieldname in (
-    #     OPERATION_FIELDS
-    # ):
-    #     if (
-    #         fieldname
-    #         not in values
-    #     ):
-    #         continue
+        if not file_url:
 
-    #     value = values.get(
-    #         fieldname
-    #     )
+            frappe.throw(
+                _(
+                    "يوجد مستند بدون رابط ملف."
+                )
+            )
 
-    #     if value == "":
-    #         value = None
 
-    #     doc.set(
-    #         fieldname,
-    #         value,
-    #     )
+        # ========================================================
+        # Request identity
+        #
+        # File.name هو الهوية الأساسية.
+        # URL يستخدم فقط كتوافق قديم.
+        # ========================================================
 
-    # # أي عملية جديدة تبدأ غير مؤكدة.
-    # doc.status = (
-    #     "غير مؤكدة"
-    # )
+        identity_key = (
+            f"id:{file_id}"
+            if file_id
+            else f"url:{file_url}"
+        )
+
+
+        if (
+            identity_key
+            in seen_shared_files
+        ):
+            continue
+
+
+        seen_shared_files.add(
+            identity_key
+        )
+
+
+        # ========================================================
+        # Extraction remains a separate role
+        # ========================================================
+
+        if (
+            extraction_source_file
+            and
+            file_url
+            ==
+            extraction_source_file
+        ):
+
+            frappe.throw(
+                _(
+                    "ملف استخراج البيانات "
+                    "لا يمكن استخدامه كمستند "
+                    "مشترك في نفس العملية."
+                )
+            )
+
+
+        file_doc = (
+            get_unattached_uploaded_file(
+                file_id=
+                    file_id,
+
+                file_url=
+                    file_url,
+            )
+        )
+
+
+        shared_file_docs.append(
+            file_doc
+        )
+
+
+    # ========================================================
+    # Create Archive Operation
+    # ========================================================
+
     doc = frappe.new_doc(
         "Archive Operation"
     )
 
+
     for fieldname in (
         OPERATION_FIELDS
     ):
+
         if (
             fieldname
             not in values
         ):
             continue
 
+
         value = values.get(
             fieldname
         )
 
+
         if value == "":
             value = None
+
 
         doc.set(
             fieldname,
@@ -810,7 +1758,7 @@ def create_operation(
 
 
     # ========================================================
-    # Operation creation mode
+    # Creation mode
     # ========================================================
 
     doc.allow_duplicate_operation_no = cint(
@@ -819,6 +1767,7 @@ def create_operation(
         )
     )
 
+
     doc.is_blocked_operation = cint(
         values.get(
             "is_blocked_operation"
@@ -826,57 +1775,57 @@ def create_operation(
     )
 
 
-    # ========================================================
-    # Blocked operation
-    # ========================================================
-
     if doc.is_blocked_operation:
 
-        # العملية المحضورة لا تحتاج رقم عملية.
         doc.operation_no = None
 
-        # لا يوجد معنى للسماح بالتكرار بدون رقم.
-        doc.allow_duplicate_operation_no = 0
+        doc.allow_duplicate_operation_no = (
+            0
+        )
 
-        # تبدأ مباشرة محضورة.
         doc.status = (
             "محضورة"
         )
 
-
-    # ========================================================
-    # Normal operation
-    # ========================================================
-
     else:
 
-        # أي عملية طبيعية جديدة تبدأ معلقة.
         doc.status = (
             "معلقة"
         )
 
+
+    # ========================================================
+    # Extraction source
+    # ========================================================
+
     if extraction_source_file:
+
         doc.extraction_source_file = (
             extraction_source_file
         )
 
-    for row in attachment_rows:
-        doc.append(
-            "attachments",
-            row,
-        )
 
-    # صلاحية Create يتم فحصها هنا تلقائياً.
+    # ========================================================
+    # Insert
+    #
+    # هنا Controller يقوم بـ:
+    #
+    # - validation
+    # - duplicate number validation
+    # - operation group assignment
+    # - sync extraction source
+    # ========================================================
+
     doc.insert()
 
-    # بعد إنشاء العملية نربط ملفات File
-    # فعلياً بالمستند.
-    for (
-        file_url,
-        file_doc,
-    ) in file_docs.items():
 
-        file_doc.db_set(
+    # ========================================================
+    # Attach extraction File physically to this part
+    # ========================================================
+
+    if extraction_file_doc:
+
+        extraction_file_doc.db_set(
             {
                 "attached_to_doctype":
                     "Archive Operation",
@@ -885,31 +1834,53 @@ def create_operation(
                     doc.name,
 
                 "attached_to_field":
-                    "attachments",
+                    "extraction_source_file",
             },
             update_modified=False,
         )
 
+
+    # ========================================================
+    # Create shared documents
+    #
+    # doc.operation_group أصبح معروفاً الآن.
+    # ========================================================
+
+    created_shared_documents = (
+        create_shared_operation_documents(
+            operation=
+                doc,
+
+            file_docs=
+                shared_file_docs,
+        )
+    )
+
+
     # ========================================================
     # Timeline: operation created
     # ========================================================
-    created_event_title = (
-                "تم إنشاء العملية كعملية محضورة"
-                if doc.is_blocked_operation
-                else "تم إنشاء العملية"
-            )
 
-    
+    created_event_title = (
+        "تم إنشاء العملية كعملية محضورة"
+        if doc.is_blocked_operation
+        else
+        "تم إنشاء العملية"
+    )
+
+
     log_operation_event(
         doc.name,
         "created",
         created_event_title,
+
         details={
             "status":
                 doc.status,
 
             "operation_no":
                 doc.operation_no,
+
             "allow_duplicate_operation_no":
                 bool(
                     doc.allow_duplicate_operation_no
@@ -932,6 +1903,7 @@ def create_operation(
             "transferring_bank":
                 doc.transferring_bank,
         },
+
         event_source=
             "User",
     )
@@ -945,6 +1917,7 @@ def create_operation(
 
         extracted_fields = []
 
+
         for (
             fieldname,
             label,
@@ -956,11 +1929,13 @@ def create_operation(
                 fieldname
             )
 
+
             if (
                 value is None
                 or value == ""
             ):
                 continue
+
 
             extracted_fields.append(
                 {
@@ -976,18 +1951,11 @@ def create_operation(
             )
 
 
-        extraction_file_doc = (
-            file_docs.get(
-                extraction_source_file
-            )
-        )
-
-        
-
         log_operation_event(
             doc.name,
             "data_extracted",
             "تم استخراج بيانات العملية من المستند",
+
             details={
                 "file_url":
                     extraction_source_file,
@@ -1002,49 +1970,48 @@ def create_operation(
                 "fields":
                     extracted_fields,
             },
+
             event_source=
                 "PDF Extraction",
         )
 
 
     # ========================================================
-    # Timeline: initial attachments
+    # Timeline: shared documents
     # ========================================================
 
-    created_attachments = [
-        {
-            "file_name":
-                file_doc.file_name,
-
-            "file_url":
-                file_url,
-
-            "is_extraction_source":
-                (
-                    file_url
-                    == extraction_source_file
-                ),
-        }
-        for (
-            file_url,
-            file_doc,
-        ) in file_docs.items()
-    ]
-
-
-    if created_attachments:
+    if created_shared_documents:
 
         log_operation_event(
             doc.name,
             "attachment_added",
-            "تم إرفاق ملفات مع إنشاء العملية",
+            "تم إرفاق مستندات مشتركة مع إنشاء العملية",
+
             details={
-                "files":
-                    created_attachments,
+                "operation_group":
+                    doc.operation_group,
+
+                "files": [
+                    {
+                        "document":
+                            document.name,
+
+                        "file_name":
+                            document.file_name,
+
+                        "file_url":
+                            document.file,
+                    }
+
+                    for document
+                    in created_shared_documents
+                ],
             },
+
             event_source=
                 "User",
         )
+
 
     return {
         "name":
@@ -1055,83 +2022,61 @@ def create_operation(
 
         "status":
             doc.status,
-    }
 
+        "operation_group":
+            doc.operation_group,
+
+        "shared_documents_count":
+            len(
+                created_shared_documents
+            ),
+    }
 
 # ============================================================
 # Delete temporary files
 # ============================================================
-
 @frappe.whitelist(
     methods=["POST"]
 )
 def delete_temporary_files(
-    file_urls: list[str] | str | None = None,
-) -> None:
-    """
-    تنظيف الملفات التي تم رفعها مؤقتاً
-    إذا فشل إنشاء العملية أو تم إلغاء الإدخال.
-    """
+    file_ids: list[str] | str | None = None,
+) -> dict[str, Any]:
 
-    file_urls = _parse(
-        file_urls,
+    file_ids = _parse(
+        file_ids,
         [],
     )
 
+
+    if isinstance(
+        file_ids,
+        str,
+    ):
+        file_ids = [
+            file_ids
+        ]
+
+
     if not isinstance(
-        file_urls,
+        file_ids,
         list,
     ):
-        return
+        return {
+            "deleted": [],
+        }
 
-    user = frappe.session.user
 
-    is_system_manager = (
-        "System Manager"
-        in frappe.get_roles(
-            user
+    deleted = (
+        delete_temporary_uploaded_files(
+            file_ids
         )
     )
 
-    for file_url in file_urls:
 
-        file_name = (
-            frappe.db.get_value(
-                "File",
-                {
-                    "file_url":
-                        file_url,
-                },
-                "name",
-            )
-        )
-
-        if not file_name:
-            continue
-
-        file_doc = frappe.get_doc(
-            "File",
-            file_name,
-        )
-
-        if (
-            file_doc.owner
-            != user
-            and not is_system_manager
-        ):
-            continue
-
-        # لا نحذف ملفاً أصبح مرتبطاً بمستند.
-        if (
-            file_doc.attached_to_doctype
-            or file_doc.attached_to_name
-        ):
-            continue
-
-        file_doc.delete(
-            ignore_permissions=True
-        )
-
+    return {
+        "deleted":
+            deleted,
+    }
 
 # ============================================================
 # Operations list
@@ -2217,6 +3162,20 @@ def get_operations_context() -> dict[str, Any]:
                 can_change_advanced_status
             )
 
+        operation[
+            "allowed_status_transitions"
+            ] = (
+            list(
+                get_allowed_status_transitions(
+                    operation.status
+                )
+            )
+            if operation[
+                "can_change_status"
+            ]
+            else []
+            )
+
 
         # في التصميم الحالي name هو الاسم المقروء
         # للعميل والحساب.
@@ -2283,35 +3242,56 @@ def get_operations_context() -> dict[str, Any]:
     methods=["GET", "POST"]
 )
 def get_operation_for_view(
-    operation_name: str,) -> dict[str, Any]:
+    operation_name: str,
+) -> dict[str, Any]:
+
+    # ========================================================
+    # Validate operation identity
+    # ========================================================
 
     operation_name = (
         operation_name or ""
     ).strip()
 
+
     if not operation_name:
+
         frappe.throw(
             _(
                 "اسم العملية مطلوب."
             )
         )
 
+
+    # ========================================================
+    # Load current Part
+    # ========================================================
+
     operation = frappe.get_doc(
         "Archive Operation",
         operation_name,
     )
 
-    # يجب أن يملك المستخدم Read على العملية.
+
+    # المستخدم يجب أن يستطيع قراءة Archive Operation نفسها.
     operation.check_permission(
         "read"
     )
 
-    # صلاحية Write العادية من Role Permission Manager.
+
+    # ========================================================
+    # Basic edit permission
+    #
+    # هذه ما زالت صلاحية Write الحالية.
+    # سنعيد تصميم editable fields في مرحلة Edit لاحقاً.
+    # ========================================================
+
     can_edit = bool(
         operation.has_permission(
             "write"
         )
     )
+
 
     editable_fields = (
         sorted(
@@ -2321,13 +3301,120 @@ def get_operation_for_view(
         else []
     )
 
+
+    # ========================================================
+    # Part read model
+    #
+    # يحتوي:
+    # - بيانات العملية
+    # - Extraction
+    # - Final Swift files
+    # ========================================================
+
+    operation_data = (
+        serialize_operation_for_view(
+            operation
+        )
+    )
+
+
+    # ========================================================
+    # Group read model
+    #
+    # يحتوي:
+    # - Group identity
+    # - parts count
+    # - Shared Documents
+    # - Shared Documents limit
+    # ========================================================
+
+    group_data = (
+        get_operation_group_view_context(
+            operation
+        )
+    )
+
+
+    # ========================================================
+    # Final Swift state
+    #
+    # نستخدم العدد الذي خرج من نفس operation serializer،
+    # حتى يبقى Final Swift منفصلاً تماماً عن Shared Documents.
+    # ========================================================
+
+    final_swift_state = (
+        get_final_swift_state(
+            operation,
+
+            final_swift_count=
+                operation_data[
+                    "final_swift_count"
+                ],
+        )
+    )
+
+
+    # ========================================================
+    # Actionable Final Swift permission
+    #
+    # وجود الصلاحية وحده لا يكفي.
+    #
+    # يجب أيضاً:
+    # - أن يكون البنك يحتاج Final Swift
+    # - ألا يكون وصل للحد الأقصى
+    # ========================================================
+
+    can_add_final_swift = bool(
+        final_swift_state[
+            "final_swift_required"
+        ]
+        and
+        final_swift_state[
+            "final_swift_remaining"
+        ] > 0
+        and
+        can_attach_final_swift(
+            operation
+        )
+    )
+
+
+    # ========================================================
+    # Final View Read Model
+    # ========================================================
+
     return {
+
+        # ====================================================
+        # Current Archive Operation / Part
+        # ====================================================
+
         "operation":
-            serialize_operation_for_view(
-                operation
-            ),
+            operation_data,
+
+
+        # ====================================================
+        # Archive Operation Group
+        # ====================================================
+
+        "group":
+            group_data,
+
+
+        # ====================================================
+        # Final Swift state
+        # ====================================================
+
+        "final_swift":
+            final_swift_state,
+
+
+        # ====================================================
+        # Permissions / capabilities
+        # ====================================================
 
         "permissions": {
+
             "can_edit":
                 can_edit,
 
@@ -2338,8 +3425,17 @@ def get_operation_for_view(
                 can_change_operation_status(
                     operation.status
                 ),
+
             "can_manage_attachments":
                 can_manage_operation_attachments(
+                    operation
+                ),
+
+            "can_attach_final_swift":
+                can_add_final_swift,
+
+            "can_re_extract":
+                can_re_extract_operation_data(
                     operation
                 ),
         },
@@ -2347,42 +3443,281 @@ def get_operation_for_view(
 
 
 
+# @frappe.whitelist(
+#     methods=["POST"]
+# )
+# def register_attachment_download(
+#     operation_name: str,
+#     attachment_name: str,
+# ) -> dict[str, Any]:
+#     """
+#     تسجيل تنزيل مرفق من نافذة عرض العملية.
+
+#     لا نقبل file_url مباشرة من الواجهة.
+#     نتحقق من أن صف المرفق تابع فعلاً للعملية.
+#     """
+
+#     operation_name = (
+#         operation_name or ""
+#     ).strip()
+
+#     attachment_name = (
+#         attachment_name or ""
+#     ).strip()
+
+
+#     if not operation_name:
+#         frappe.throw(
+#             _("اسم العملية مطلوب.")
+#         )
+
+#     if not attachment_name:
+#         frappe.throw(
+#             _("المرفق مطلوب.")
+#         )
+
+
+#     # ========================================================
+#     # Operation
+#     # ========================================================
+
+#     operation = frappe.get_doc(
+#         "Archive Operation",
+#         operation_name,
+#     )
+
+#     operation.check_permission(
+#         "read"
+#     )
+#     # ========================================================
+#     # Download permission
+#     # ========================================================
+#     if not can_manage_operation_attachments(
+#         operation
+#     ):
+#         frappe.throw(
+#             _(
+#                 "ليس لديك صلاحية تنزيل مرفقات هذه العملية."
+#             ),
+#             frappe.PermissionError,
+#         )
+
+
+#     # ========================================================
+#     # Find attachment inside this operation
+#     # ========================================================
+
+#     attachment = next(
+#         (
+#             row
+#             for row in (
+#                 operation.attachments
+#                 or []
+#             )
+#             if row.name
+#             == attachment_name
+#         ),
+#         None,
+#     )
+
+
+#     if not attachment:
+#         frappe.throw(
+#             _(
+#                 "المرفق غير موجود في هذه العملية."
+#             )
+#         )
+
+
+#     if not attachment.file:
+#         frappe.throw(
+#             _(
+#                 "المرفق لا يحتوي على ملف."
+#             )
+#         )
+
+
+#     # ========================================================
+#     # Make sure File still exists
+#     # ========================================================
+
+#     file_doc_name = frappe.db.get_value(
+#         "File",
+#         {
+#             "file_url":
+#                 attachment.file,
+
+#             "attached_to_doctype":
+#                 "Archive Operation",
+
+#             "attached_to_name":
+#                 operation.name,
+#         },
+#         "name",
+#     )
+
+
+#     if not file_doc_name:
+#         frappe.throw(
+#             _(
+#                 "ملف المرفق غير موجود."
+#             )
+#         )
+
+
+#     file_doc = frappe.get_doc(
+#         "File",
+#         file_doc_name,
+#     )
+
+
+#     # ========================================================
+#     # Audit log
+#     # ========================================================
+
+#     event_datetime = (
+#         now_datetime()
+#     )
+
+#     event_user = (
+#         frappe.session.user
+#     )
+
+
+#     log_operation_event(
+#         operation.name,
+#         "attachment_downloaded",
+#         "تم تنزيل المرفق: {0}".format(
+#             attachment.file_name
+#             or file_doc.file_name
+#             or "مرفق"
+#         ),
+#         details={
+#             "attachment_name":
+#                 attachment.name,
+
+#             "file_name":
+#                 attachment.file_name
+#                 or file_doc.file_name,
+
+#             "file_url":
+#                 attachment.file,
+
+#             "is_extraction_source":
+#                 bool(
+#                     attachment.is_extraction_source
+#                 ),
+
+#             "is_final_swift":
+#                 bool(
+#                     attachment.is_final_swift
+#                 ),
+#         },
+#         event_source=
+#             "User",
+
+#         event_user=
+#             event_user,
+
+#         event_datetime=
+#             event_datetime,
+#     )
+
+
+#     return {
+#         "file_url":
+#             attachment.file,
+
+#         "file_name":
+#             attachment.file_name
+#             or file_doc.file_name,
+#     }
+
 @frappe.whitelist(
     methods=["POST"]
 )
 def register_attachment_download(
     operation_name: str,
-    attachment_name: str,
+
+    attachment_name:
+        str | None = None,
+
+    shared_document_name:
+        str | None = None,
 ) -> dict[str, Any]:
     """
-    تسجيل تنزيل مرفق من نافذة عرض العملية.
+    تسجيل تنزيل مستند من شاشة عرض العملية.
+
+    يدعم:
+
+    1. Part-level attachment
+       - Extraction Source
+       - Final Swift
+
+    2. Group-level document
+       - Shared Document
 
     لا نقبل file_url مباشرة من الواجهة.
-    نتحقق من أن صف المرفق تابع فعلاً للعملية.
+
+    يجب دائماً إرسال هوية المستند نفسه:
+        attachment_name
+    أو:
+        shared_document_name
     """
 
-    operation_name = (
-        operation_name or ""
+    operation_name = cstr(
+        operation_name
     ).strip()
 
-    attachment_name = (
-        attachment_name or ""
+
+    attachment_name = cstr(
+        attachment_name
     ).strip()
 
+
+    shared_document_name = cstr(
+        shared_document_name
+    ).strip()
+
+
+    # ========================================================
+    # Validate request
+    # ========================================================
 
     if not operation_name:
+
         frappe.throw(
             _("اسم العملية مطلوب.")
         )
 
-    if not attachment_name:
+
+    if (
+        not attachment_name
+        and
+        not shared_document_name
+    ):
+
         frappe.throw(
-            _("المرفق مطلوب.")
+            _("المستند المطلوب تنزيله غير محدد.")
+        )
+
+
+    if (
+        attachment_name
+        and
+        shared_document_name
+    ):
+
+        frappe.throw(
+            _(
+                "لا يمكن تحديد مرفق ومستند "
+                "مشترك في طلب تنزيل واحد."
+            )
         )
 
 
     # ========================================================
-    # Operation
+    # Current Archive Operation / Part
     # ========================================================
 
     operation = frappe.get_doc(
@@ -2390,64 +3725,152 @@ def register_attachment_download(
         operation_name,
     )
 
+
     operation.check_permission(
         "read"
     )
+
+
     # ========================================================
     # Download permission
-    # ========================================================
-    if not can_manage_operation_attachments(
-        operation
-    ):
-        frappe.throw(
-            _(
-                "ليس لديك صلاحية تنزيل مرفقات هذه العملية."
-            ),
-            frappe.PermissionError,
-        )
-
-
-    # ========================================================
-    # Find attachment inside this operation
+    #
+    # نبقي نفس قاعدة الصلاحية الحالية.
+    # لا نغير نظام الصلاحيات في هذا التعديل.
     # ========================================================
 
-    attachment = next(
-        (
-            row
-            for row in (
-                operation.attachments
-                or []
-            )
-            if row.name
-            == attachment_name
-        ),
-        None,
+    # if not can_manage_operation_attachments(
+    #     operation
+    # ):
+
+    #     frappe.throw(
+    #         _(
+    #             "ليس لديك صلاحية تنزيل "
+    #             "مستندات هذه العملية."
+    #         ),
+    #         frappe.PermissionError,
+    #     )
+
+
+    event_datetime = (
+        now_datetime()
     )
 
 
-    if not attachment:
-        frappe.throw(
-            _(
-                "المرفق غير موجود في هذه العملية."
-            )
-        )
-
-
-    if not attachment.file:
-        frappe.throw(
-            _(
-                "المرفق لا يحتوي على ملف."
-            )
-        )
+    event_user = (
+        frappe.session.user
+    )
 
 
     # ========================================================
-    # Make sure File still exists
+    # PATH A
+    # Part-level attachment
+    #
+    # Extraction Source / Final Swift
     # ========================================================
 
-    file_doc_name = frappe.db.get_value(
-        "File",
-        {
+    if attachment_name:
+        # ====================================================
+        # Part attachment download permission
+        #
+        # Extraction / Final Swift يحافظان على
+        # صلاحية إدارة مرفقات العملية الحالية.
+        # ====================================================
+
+        if not can_manage_operation_attachments(
+            operation
+        ):
+
+            frappe.throw(
+                _(
+                    "ليس لديك صلاحية تنزيل "
+                    "مرفقات هذه العملية."
+                ),
+                frappe.PermissionError,
+            )
+
+        attachment = next(
+            (
+                row
+
+                for row
+                in (
+                    operation.attachments
+                    or []
+                )
+
+                if (
+                    row.name
+                    ==
+                    attachment_name
+                )
+            ),
+            None,
+        )
+
+
+        if not attachment:
+
+            frappe.throw(
+                _(
+                    "المرفق غير موجود "
+                    "في هذه العملية."
+                )
+            )
+
+
+        if not attachment.file:
+
+            frappe.throw(
+                _(
+                    "المرفق لا يحتوي على ملف."
+                )
+            )
+
+
+        # ====================================================
+        # Determine attachment role
+        # ====================================================
+
+        if attachment.is_final_swift:
+
+            document_kind = (
+                "final_swift"
+            )
+
+            document_label = (
+                "السويفت النهائي"
+            )
+
+
+        elif attachment.is_extraction_source:
+
+            document_kind = (
+                "extraction_source"
+            )
+
+            document_label = (
+                "مستند استخراج البيانات"
+            )
+
+
+        else:
+
+            document_kind = (
+                "operation_attachment"
+            )
+
+            document_label = (
+                "مرفق العملية"
+            )
+
+
+        # ====================================================
+        # Verify File record belongs to this operation
+        #
+        # لا نبحث عالمياً بواسطة URL فقط.
+        # ====================================================
+
+        file_filters = {
             "file_url":
                 attachment.file,
 
@@ -2456,67 +3879,251 @@ def register_attachment_download(
 
             "attached_to_name":
                 operation.name,
-        },
-        "name",
+        }
+
+
+        file_doc_name = frappe.db.get_value(
+            "File",
+            file_filters,
+            "name",
+        )
+
+
+        if not file_doc_name:
+
+            frappe.throw(
+                _(
+                    "ملف المرفق غير موجود."
+                )
+            )
+
+
+        file_doc = frappe.get_doc(
+            "File",
+            file_doc_name,
+        )
+
+
+        file_name = (
+            attachment.file_name
+            or file_doc.file_name
+            or "مرفق"
+        )
+
+
+        # ====================================================
+        # Timeline
+        # ====================================================
+
+        log_operation_event(
+            operation.name,
+            "attachment_downloaded",
+
+            "تم تنزيل {0}: {1}".format(
+                document_label,
+                file_name,
+            ),
+
+            details={
+                "document_kind":
+                    document_kind,
+
+                "attachment_name":
+                    attachment.name,
+
+                "file_id":
+                    file_doc.name,
+
+                "file_name":
+                    file_name,
+
+                "file_url":
+                    attachment.file,
+
+                "is_extraction_source":
+                    bool(
+                        attachment
+                            .is_extraction_source
+                    ),
+
+                "is_final_swift":
+                    bool(
+                        attachment
+                            .is_final_swift
+                    ),
+            },
+
+            event_source=
+                "User",
+
+            event_user=
+                event_user,
+
+            event_datetime=
+                event_datetime,
+        )
+
+
+        return {
+            "file_url":
+                attachment.file,
+
+            "file_name":
+                file_name,
+
+            "document_kind":
+                document_kind,
+        }
+
+
+    # ========================================================
+    # PATH B
+    # Group-level Shared Document
+    # ========================================================
+
+    shared_document = frappe.get_doc(
+        "Archive Operation Document",
+        shared_document_name,
     )
 
 
-    if not file_doc_name:
+    # ========================================================
+    # Security boundary
+    #
+    # المستند يجب أن يكون تابعاً لنفس Group
+    # الخاصة بالـPart المفتوح.
+    #
+    # source_operation لا نستخدمها للتحقق،
+    # لأن المستند Shared وقد يكون أضيف أصلاً
+    # من Part آخر داخل نفس Group.
+    # ========================================================
+
+    if (
+        cstr(
+            shared_document
+                .operation_group
+        ).strip()
+        !=
+        cstr(
+            operation
+                .operation_group
+        ).strip()
+    ):
+
         frappe.throw(
             _(
-                "ملف المرفق غير موجود."
+                "المستند المشترك لا يتبع "
+                "مجموعة هذه العملية."
+            ),
+            frappe.PermissionError,
+        )
+
+
+    if not shared_document.file:
+
+        frappe.throw(
+            _(
+                "المستند المشترك لا يحتوي "
+                "على ملف."
             )
         )
 
 
-    file_doc = frappe.get_doc(
+    # ========================================================
+    # Verify exact File is attached to this AOD
+    #
+    # لا نستخدم file_url وحده كهوية.
+    # ========================================================
+
+    shared_file_doc_name = (
+        frappe.db.get_value(
+            "File",
+            {
+                "file_url":
+                    shared_document.file,
+
+                "attached_to_doctype":
+                    "Archive Operation Document",
+
+                "attached_to_name":
+                    shared_document.name,
+            },
+            "name",
+        )
+    )
+
+
+    if not shared_file_doc_name:
+
+        frappe.throw(
+            _(
+                "ملف المستند المشترك "
+                "غير موجود."
+            )
+        )
+
+
+    shared_file_doc = frappe.get_doc(
         "File",
-        file_doc_name,
+        shared_file_doc_name,
+    )
+
+
+    file_name = (
+        shared_document.file_name
+        or shared_file_doc.file_name
+        or "مستند مشترك"
     )
 
 
     # ========================================================
-    # Audit log
+    # Timeline
+    #
+    # مهم:
+    #
+    # الحدث يسجل على العملية التي قام المستخدم
+    # بالتنزيل منها الآن.
+    #
+    # حتى لو كان source_operation للمستند
+    # Part آخر داخل نفس Group.
     # ========================================================
-
-    event_datetime = (
-        now_datetime()
-    )
-
-    event_user = (
-        frappe.session.user
-    )
-
 
     log_operation_event(
         operation.name,
         "attachment_downloaded",
-        "تم تنزيل المرفق: {0}".format(
-            attachment.file_name
-            or file_doc.file_name
-            or "مرفق"
+
+        "تم تنزيل مستند مشترك: {0}".format(
+            file_name
         ),
+
         details={
-            "attachment_name":
-                attachment.name,
+            "document_kind":
+                "shared_document",
+
+            "shared_document_name":
+                shared_document.name,
+
+            "operation_group":
+                operation.operation_group,
+
+            "source_operation":
+                shared_document
+                    .source_operation,
+
+            "document_role":
+                shared_document
+                    .document_role,
+
+            "file_id":
+                shared_file_doc.name,
 
             "file_name":
-                attachment.file_name
-                or file_doc.file_name,
+                file_name,
 
             "file_url":
-                attachment.file,
-
-            "is_extraction_source":
-                bool(
-                    attachment.is_extraction_source
-                ),
-
-            "is_final_swift":
-                bool(
-                    attachment.is_final_swift
-                ),
+                shared_document.file,
         },
+
         event_source=
             "User",
 
@@ -2530,81 +4137,491 @@ def register_attachment_download(
 
     return {
         "file_url":
-            attachment.file,
+            shared_document.file,
 
         "file_name":
-            attachment.file_name
-            or file_doc.file_name,
+            file_name,
+
+        "document_kind":
+            "shared_document",
     }
 
 
 
+# @frappe.whitelist(
+#     methods=["POST"]
+# )
+# def attach_final_swift(
+#     operation_name: str,
+#     file_urls: list[str] | str | None = None,
+# ) -> dict[str, Any]:
+
+#     operation_name = (
+#         operation_name or ""
+#     ).strip()
+
+#     file_urls = _parse(
+#         file_urls,
+#         [],
+#     )
+
+#     if isinstance(
+#         file_urls,
+#         str,
+#     ):
+#         file_urls = [
+#             file_urls
+#         ]
+
+#     if not operation_name:
+#         frappe.throw(
+#             _("اسم العملية مطلوب.")
+#         )
+
+#     if not isinstance(
+#         file_urls,
+#         list,
+#     ):
+#         frappe.throw(
+#             _(
+#                 "بيانات ملفات السويفت النهائي غير صحيحة."
+#             )
+#         )
+
+#     file_urls = [
+#         str(file_url).strip()
+#         for file_url in file_urls
+#         if str(file_url).strip()
+#     ]
+
+#     # إزالة التكرار مع المحافظة على الترتيب
+#     file_urls = list(
+#         dict.fromkeys(
+#             file_urls
+#         )
+#     )
+
+#     if not file_urls:
+#         frappe.throw(
+#             _(
+#                 "يجب إرفاق ملف سويفت نهائي واحد على الأقل."
+#             )
+#         )
+
+
+#     operation = frappe.get_doc(
+#         "Archive Operation",
+#         operation_name,
+#     )
+
+#     operation.check_permission(
+#         "read"
+#     )
+
+
+#     # ========================================================
+#     # Permission
+#     # ========================================================
+
+#     if not can_attach_final_swift(
+#         operation
+#     ):
+#         frappe.throw(
+#             _(
+#                 "ليس لديك صلاحية إرفاق السويفت النهائي."
+#             ),
+#             frappe.PermissionError,
+#         )
+
+
+#     # ========================================================
+#     # Bank
+#     # ========================================================
+
+#     configured_banks = (
+#         get_final_swift_banks()
+#     )
+
+#     swift_state = (
+#         get_final_swift_state(
+#             operation,
+#             configured_banks,
+#         )
+#     )
+
+#     if not swift_state[
+#         "final_swift_required"
+#     ]:
+#         frappe.throw(
+#             _(
+#                 "البنك المحول لهذه العملية غير موجود "
+#                 "ضمن بنوك السويفت النهائي في الإعدادات."
+#             )
+#         )
+
+
+#     # ========================================================
+#     # Maximum 10 files
+#     # ========================================================
+
+#     current_count = (
+#         swift_state[
+#             "final_swift_count"
+#         ]
+#     )
+
+#     remaining = (
+#         MAX_FINAL_SWIFT_FILES
+#         - current_count
+#     )
+
+#     if remaining <= 0:
+#         frappe.throw(
+#             _(
+#                 "تم الوصول إلى الحد الأقصى "
+#                 "لملفات السويفت النهائي وهو {0} ملفات."
+#             ).format(
+#                 MAX_FINAL_SWIFT_FILES
+#             )
+#         )
+#     if len(file_urls) > remaining:
+#         frappe.throw(
+#             _(
+#                 "يمكن إضافة {0} ملف فقط لهذه العملية. "
+#                 "الحد الأقصى هو {1} ملفات."
+#             ).format(
+#                 remaining,
+#                 MAX_FINAL_SWIFT_FILES,
+#             )
+#         )
+
+
+#     # ========================================================
+#     # Validate every file before modifying operation
+#     # ========================================================
+
+#     file_docs = []
+
+#     for file_url in file_urls:
+
+#         file_doc = (
+#             get_unattached_uploaded_file(
+#                 file_url
+#             )
+#         )
+
+#         file_name = (
+#             file_doc.file_name
+#             or ""
+#         ).strip()
+
+
+#         extension = (
+#             Path(
+#                 file_name
+#             )
+#             .suffix
+#             .lower()
+#         )
+
+
+#         if (
+#             extension
+#             not in FINAL_SWIFT_ALLOWED_EXTENSIONS
+#         ):
+#             frappe.throw(
+#                 _(
+#                     "ملفات السويفت النهائي "
+#                     "يجب أن تكون PDF أو صور فقط."
+#                 )
+#             )
+
+#         file_docs.append(
+#             file_doc
+#         )
+
+
+#     uploaded_at = (
+#         now_datetime()
+#     )
+
+#     uploaded_by = (
+#         frappe.session.user
+#     )
+
+
+#     # ========================================================
+#     # Append all final swift files
+#     # ========================================================
+
+#     for file_doc in file_docs:
+
+#         operation.append(
+#             "attachments",
+#             {
+#                 "file":
+#                     file_doc.file_url,
+
+#                 "file_name":
+#                     file_doc.file_name,
+
+#                 "is_extraction_source":
+#                     0,
+
+#                 "is_final_swift":
+#                     1,
+#             },
+#         )
+
+
+#     # مرجع مختصر لآخر ملف تم رفعه
+#     operation.final_swift_file = (
+#         file_docs[-1].file_url
+#     )
+
+#     operation.final_swift_uploaded_at = (
+#         uploaded_at
+#     )
+
+#     operation.final_swift_uploaded_by = (
+#         uploaded_by
+#     )
+
+
+#     operation.save(
+#         ignore_permissions=True
+#     )
+
+
+#     # ========================================================
+#     # Link File documents
+#     # ========================================================
+
+#     for file_doc in file_docs:
+
+#         file_doc.db_set(
+#             {
+#                 "attached_to_doctype":
+#                     "Archive Operation",
+
+#                 "attached_to_name":
+#                     operation.name,
+
+#                 "attached_to_field":
+#                     "attachments",
+#             },
+#             update_modified=False,
+#         )
+
+
+#     final_swift_count = (
+#         get_final_swift_count(
+#             operation
+#         )
+#     )
+#     log_operation_event(
+#         operation.name,
+#         "final_swift_added",
+#         (
+#             "تم إرفاق ملف سويفت نهائي"
+#             if len(file_docs) == 1
+#             else
+#             "تم إرفاق {0} ملفات سويفت نهائي".format(
+#                 len(file_docs)
+#             )
+#         ),
+#         details={
+#             "files": [
+#                 {
+#                     "file_name":
+#                         file_doc.file_name,
+
+#                     "file_url":
+#                         file_doc.file_url,
+#                 }
+#                 for file_doc
+#                 in file_docs
+#             ],
+
+#             "added_count":
+#                 len(
+#                     file_docs
+#                 ),
+
+#             "final_swift_count":
+#                 final_swift_count,
+
+#             "final_swift_limit":
+#                 MAX_FINAL_SWIFT_FILES,
+#         },
+#         event_source=
+#             "User",
+
+#         event_user=
+#             uploaded_by,
+
+#         event_datetime=
+#             uploaded_at,
+#     )
+
+
+#     return {
+#         "name":
+#             operation.name,
+
+#         "final_swift_file":
+#             operation.final_swift_file,
+
+#         "final_swift_uploaded_at":
+#             operation.final_swift_uploaded_at,
+
+#         "final_swift_uploaded_by":
+#             operation.final_swift_uploaded_by,
+
+#         "has_final_swift":
+#             final_swift_count > 0,
+
+#         "final_swift_pending":
+#             False,
+
+#         "final_swift_count":
+#             final_swift_count,
+
+#         "final_swift_limit":
+#             MAX_FINAL_SWIFT_FILES,
+
+#         "final_swift_remaining":
+#             max(
+#                 MAX_FINAL_SWIFT_FILES
+#                 - final_swift_count,
+#                 0,
+#             ),
+#     }
 
 @frappe.whitelist(
     methods=["POST"]
 )
 def attach_final_swift(
     operation_name: str,
-    file_urls: list[str] | str | None = None,
+
+    files:
+        list[dict[str, Any]]
+        | str
+        | None = None,
+
+    # ========================================================
+    # Legacy compatibility
+    #
+    # نبقيه مؤقتاً فقط حتى نعدل
+    # final_swift_dialog.js في الخطوة التالية.
+    #
+    # المسار الجديد يجب أن يستخدم files + file_id.
+    # ========================================================
+    file_urls:
+        list[str]
+        | str
+        | None = None,
 ) -> dict[str, Any]:
 
-    operation_name = (
-        operation_name or ""
+    operation_name = cstr(
+        operation_name
     ).strip()
+
+
+    files = _parse(
+        files,
+        [],
+    )
+
 
     file_urls = _parse(
         file_urls,
         [],
     )
 
+
+    # ========================================================
+    # Validate operation
+    # ========================================================
+
+    if not operation_name:
+
+        frappe.throw(
+            _("اسم العملية مطلوب.")
+        )
+
+
+    # ========================================================
+    # Validate new payload
+    # ========================================================
+
+    if not isinstance(
+        files,
+        list,
+    ):
+
+        frappe.throw(
+            _(
+                "بيانات ملفات السويفت النهائي "
+                "غير صحيحة."
+            )
+        )
+
+
+    # ========================================================
+    # Validate legacy payload
+    # ========================================================
+
     if isinstance(
         file_urls,
         str,
     ):
+
         file_urls = [
             file_urls
         ]
 
-    if not operation_name:
-        frappe.throw(
-            _("اسم العملية مطلوب.")
-        )
 
     if not isinstance(
         file_urls,
         list,
     ):
+
         frappe.throw(
             _(
-                "بيانات ملفات السويفت النهائي غير صحيحة."
+                "بيانات ملفات السويفت النهائي "
+                "القديمة غير صحيحة."
             )
         )
 
-    file_urls = [
-        str(file_url).strip()
-        for file_url in file_urls
-        if str(file_url).strip()
-    ]
 
-    # إزالة التكرار مع المحافظة على الترتيب
-    file_urls = list(
-        dict.fromkeys(
-            file_urls
-        )
-    )
+    # ========================================================
+    # Do not accept both payload styles
+    # ========================================================
 
-    if not file_urls:
+    if (
+        files
+        and
+        file_urls
+    ):
+
         frappe.throw(
             _(
-                "يجب إرفاق ملف سويفت نهائي واحد على الأقل."
+                "لا يمكن إرسال files و file_urls "
+                "معاً في نفس الطلب."
             )
         )
 
+
+    # ========================================================
+    # Current operation
+    # ========================================================
 
     operation = frappe.get_doc(
         "Archive Operation",
         operation_name,
     )
+
 
     operation.check_permission(
         "read"
@@ -2612,27 +4629,30 @@ def attach_final_swift(
 
 
     # ========================================================
-    # Permission
+    # Dedicated Final Swift permission
     # ========================================================
 
     if not can_attach_final_swift(
         operation
     ):
+
         frappe.throw(
             _(
-                "ليس لديك صلاحية إرفاق السويفت النهائي."
+                "ليس لديك صلاحية إرفاق "
+                "السويفت النهائي."
             ),
             frappe.PermissionError,
         )
 
 
     # ========================================================
-    # Bank
+    # Final Swift business state
     # ========================================================
 
     configured_banks = (
         get_final_swift_banks()
     )
+
 
     swift_state = (
         get_final_swift_state(
@@ -2641,20 +4661,19 @@ def attach_final_swift(
         )
     )
 
+
     if not swift_state[
         "final_swift_required"
     ]:
+
         frappe.throw(
             _(
-                "البنك المحول لهذه العملية غير موجود "
-                "ضمن بنوك السويفت النهائي في الإعدادات."
+                "البنك المحول لهذه العملية "
+                "غير موجود ضمن بنوك "
+                "السويفت النهائي في الإعدادات."
             )
         )
 
-
-    # ========================================================
-    # Maximum 10 files
-    # ========================================================
 
     current_count = (
         swift_state[
@@ -2662,24 +4681,218 @@ def attach_final_swift(
         ]
     )
 
+
     remaining = (
         MAX_FINAL_SWIFT_FILES
-        - current_count
+        -
+        current_count
     )
 
+
     if remaining <= 0:
+
         frappe.throw(
             _(
                 "تم الوصول إلى الحد الأقصى "
-                "لملفات السويفت النهائي وهو {0} ملفات."
+                "لملفات السويفت النهائي وهو "
+                "{0} ملفات."
             ).format(
                 MAX_FINAL_SWIFT_FILES
             )
         )
-    if len(file_urls) > remaining:
+
+
+    # ========================================================
+    # Resolve exact File documents
+    #
+    # New mode:
+    #     file_id هو الهوية الأساسية.
+    #
+    # Legacy mode:
+    #     file_url فقط حتى نعدل الواجهة في
+    #     الخطوة التالية.
+    # ========================================================
+
+    file_docs = []
+
+    seen_file_ids = set()
+
+    seen_file_urls = set()
+
+
+    # ========================================================
+    # NEW exact identity payload
+    # ========================================================
+
+    if files:
+
+        for item in files:
+
+            if not isinstance(
+                item,
+                dict,
+            ):
+
+                frappe.throw(
+                    _(
+                        "صيغة أحد ملفات "
+                        "السويفت النهائي غير صحيحة."
+                    )
+                )
+
+
+            file_id = cstr(
+                item.get(
+                    "file_id"
+                )
+            ).strip()
+
+
+            file_url = cstr(
+                item.get(
+                    "file_url"
+                )
+                or item.get(
+                    "file"
+                )
+            ).strip()
+
+
+            if not file_id:
+
+                frappe.throw(
+                    _(
+                        "يوجد ملف سويفت نهائي "
+                        "بدون معرف File."
+                    )
+                )
+
+
+            if not file_url:
+
+                frappe.throw(
+                    _(
+                        "يوجد ملف سويفت نهائي "
+                        "بدون رابط ملف."
+                    )
+                )
+
+
+            # ====================================================
+            # Duplicate exact File inside same request
+            # ====================================================
+
+            if (
+                file_id
+                in seen_file_ids
+            ):
+                continue
+
+
+            seen_file_ids.add(
+                file_id
+            )
+
+
+            # ====================================================
+            # Exact temporary File
+            #
+            # file_id هو الهوية.
+            # file_url تحقق إضافي فقط.
+            # ====================================================
+
+            file_doc = (
+                get_unattached_uploaded_file(
+                    file_id=
+                        file_id,
+
+                    file_url=
+                        file_url,
+                )
+            )
+
+
+            file_docs.append(
+                file_doc
+            )
+
+
+    # ========================================================
+    # LEGACY URL-only payload
+    #
+    # مؤقت حتى تعديل final_swift_dialog.js.
+    # ========================================================
+
+    else:
+
+        for raw_file_url in (
+            file_urls
+        ):
+
+            file_url = cstr(
+                raw_file_url
+            ).strip()
+
+
+            if not file_url:
+                continue
+
+
+            if (
+                file_url
+                in seen_file_urls
+            ):
+                continue
+
+
+            seen_file_urls.add(
+                file_url
+            )
+
+
+            file_doc = (
+                get_unattached_uploaded_file(
+                    file_url=
+                        file_url,
+                )
+            )
+
+
+            file_docs.append(
+                file_doc
+            )
+
+
+    # ========================================================
+    # At least one file
+    # ========================================================
+
+    if not file_docs:
+
         frappe.throw(
             _(
-                "يمكن إضافة {0} ملف فقط لهذه العملية. "
+                "يجب إرفاق ملف سويفت نهائي "
+                "واحد على الأقل."
+            )
+        )
+
+
+    # ========================================================
+    # Maximum count
+    # ========================================================
+
+    if (
+        len(
+            file_docs
+        )
+        >
+        remaining
+    ):
+
+        frappe.throw(
+            _(
+                "يمكن إضافة {0} ملف فقط "
+                "لهذه العملية. "
                 "الحد الأقصى هو {1} ملفات."
             ).format(
                 remaining,
@@ -2689,22 +4902,16 @@ def attach_final_swift(
 
 
     # ========================================================
-    # Validate every file before modifying operation
+    # Validate every File before changing anything
     # ========================================================
 
-    file_docs = []
+    for file_doc in (
+        file_docs
+    ):
 
-    for file_url in file_urls:
-
-        file_doc = (
-            _get_uploaded_file(
-                file_url
-            )
-        )
-
-        file_name = (
+        file_name = cstr(
             file_doc.file_name
-            or ""
+            or file_doc.file_url
         ).strip()
 
 
@@ -2719,23 +4926,26 @@ def attach_final_swift(
 
         if (
             extension
-            not in FINAL_SWIFT_ALLOWED_EXTENSIONS
+            not in
+            FINAL_SWIFT_ALLOWED_EXTENSIONS
         ):
+
             frappe.throw(
                 _(
-                    "ملفات السويفت النهائي "
-                    "يجب أن تكون PDF أو صور فقط."
+                    "صيغة أحد ملفات السويفت "
+                    "النهائي غير مدعومة."
                 )
             )
 
-        file_docs.append(
-            file_doc
-        )
 
+    # ========================================================
+    # Audit values
+    # ========================================================
 
     uploaded_at = (
         now_datetime()
     )
+
 
     uploaded_by = (
         frappe.session.user
@@ -2743,10 +4953,17 @@ def attach_final_swift(
 
 
     # ========================================================
-    # Append all final swift files
+    # Append Final Swift child rows
+    #
+    # هذه الملفات:
+    # - Part-specific
+    # - لا تدخل في Shared Documents
+    # - لا تدخل في عداد Shared Documents = 10
     # ========================================================
 
-    for file_doc in file_docs:
+    for file_doc in (
+        file_docs
+    ):
 
         operation.append(
             "attachments",
@@ -2766,30 +4983,45 @@ def attach_final_swift(
         )
 
 
-    # مرجع مختصر لآخر ملف تم رفعه
+    # ========================================================
+    # Summary fields
+    #
+    # تشير إلى آخر Final Swift فقط.
+    #
+    # القائمة الحقيقية تبقى في attachments.
+    # ========================================================
+
     operation.final_swift_file = (
-        file_docs[-1].file_url
+        file_docs[-1]
+            .file_url
     )
+
 
     operation.final_swift_uploaded_at = (
         uploaded_at
     )
+
 
     operation.final_swift_uploaded_by = (
         uploaded_by
     )
 
 
-    operation.save(
-        ignore_permissions=True
-    )
-
-
     # ========================================================
-    # Link File documents
+    # Bind the exact uploaded File records BEFORE save
+    #
+    # Archive Operation Attachment.file هو Attach.
+    #
+    # لذلك نربط File المحدد نفسه بالحقل "file"
+    # قبل operation.save().
+    #
+    # إذا فشل الحفظ:
+    # transaction rollback يعيد File إلى حالته السابقة.
     # ========================================================
 
-    for file_doc in file_docs:
+    for file_doc in (
+        file_docs
+    ):
 
         file_doc.db_set(
             {
@@ -2800,10 +5032,34 @@ def attach_final_swift(
                     operation.name,
 
                 "attached_to_field":
-                    "attachments",
+                    "file",
             },
             update_modified=False,
         )
+
+
+    # ========================================================
+    # ONE operation save
+    #
+    # Frappe يرى الآن File record مرتبطاً بالفعل
+    # بالزوج:
+    #
+    #     file_url + attached_to_field="file"
+    #
+    # فلا يحتاج اختيار orphan آخر لنفس URL
+    # من أجل Child Attach field.
+    # ========================================================
+
+    operation.save(
+        ignore_permissions=True
+    )
+
+
+    # ========================================================
+    # Reload authoritative state
+    # ========================================================
+
+    operation.reload()
 
 
     final_swift_count = (
@@ -2811,26 +5067,42 @@ def attach_final_swift(
             operation
         )
     )
+
+
+    # ========================================================
+    # Timeline
+    # ========================================================
+
     log_operation_event(
         operation.name,
         "final_swift_added",
+
         (
             "تم إرفاق ملف سويفت نهائي"
-            if len(file_docs) == 1
+            if len(
+                file_docs
+            ) == 1
             else
             "تم إرفاق {0} ملفات سويفت نهائي".format(
-                len(file_docs)
+                len(
+                    file_docs
+                )
             )
         ),
+
         details={
             "files": [
                 {
+                    "file_id":
+                        file_doc.name,
+
                     "file_name":
                         file_doc.file_name,
 
                     "file_url":
                         file_doc.file_url,
                 }
+
                 for file_doc
                 in file_docs
             ],
@@ -2846,6 +5118,7 @@ def attach_final_swift(
             "final_swift_limit":
                 MAX_FINAL_SWIFT_FILES,
         },
+
         event_source=
             "User",
 
@@ -2856,6 +5129,10 @@ def attach_final_swift(
             uploaded_at,
     )
 
+
+    # ========================================================
+    # Response
+    # ========================================================
 
     return {
         "name":
@@ -2885,12 +5162,27 @@ def attach_final_swift(
         "final_swift_remaining":
             max(
                 MAX_FINAL_SWIFT_FILES
-                - final_swift_count,
+                -
+                final_swift_count,
                 0,
             ),
+
+        "files": [
+            {
+                "file_id":
+                    file_doc.name,
+
+                "file_name":
+                    file_doc.file_name,
+
+                "file_url":
+                    file_doc.file_url,
+            }
+
+            for file_doc
+            in file_docs
+        ],
     }
-
-
 # ============================================================
 # Change operation status
 # ============================================================
@@ -2985,6 +5277,28 @@ def change_operation_status(
         frappe.throw(
             _(
                 "الحالة الجديدة مطابقة للحالة الحالية."
+            )
+        )
+
+    allowed_statuses = (
+        get_allowed_status_transitions(
+            old_status
+        )
+    )
+
+
+    if status not in allowed_statuses:
+        frappe.throw(
+            _(
+                "لا يسمح بتغيير حالة العملية "
+                "من {0} إلى {1}."
+            ).format(
+                frappe.bold(
+                    old_status
+                ),
+                frappe.bold(
+                    status
+                ),
             )
         )
 
@@ -3134,6 +5448,959 @@ def change_operation_status(
     }
 
 
+@frappe.whitelist(
+    methods=["POST"]
+)
+def save_operation_re_extraction(
+    operation_name: str,
+    values: dict[str, Any] | str | None = None,
+
+    shared_documents:
+        list[dict[str, Any]]
+        | list[str]
+        | str
+        | None = None,
+
+    file_id: str | None = None,
+    file_url: str | None = None,
+) -> dict[str, Any]:
+    """
+    حفظ إعادة استخراج بيانات عملية موجودة.
+
+    القواعد:
+
+    - يتطلب صلاحية re_extract_operation_data.
+    - ملف الاستخراج الجديد يجب أن يكون PDF مؤقتاً
+      وغير مرتبط بأي مستند.
+    - لا نثق بنتيجة الاستخراج القادمة من المتصفح.
+      الـBackend يعيد تشغيل Parser على الملف نفسه.
+    - الحقول المستخرجة تطبق أولاً.
+    - التعديلات اليدوية المسموحة تطبق بعدها.
+      لذلك execution_datetime المصحح يدوياً يفوز
+      على قيمة الـParser.
+    - operation_no لا يتغير من هذا المسار.
+    - Shared Documents وFinal Swift لا تتأثر.
+    """
+
+    # ========================================================
+    # Request payload
+    # ========================================================
+
+    operation_name = cstr(
+        operation_name
+    ).strip()
+
+
+    values = _parse(
+        values,
+        {},
+    )
+    shared_documents = _parse(
+        shared_documents,
+        [],
+    )
+
+
+    file_id = cstr(
+        file_id
+    ).strip()
+
+
+    file_url = cstr(
+        file_url
+    ).strip()
+
+
+    if not operation_name:
+
+        frappe.throw(
+            _("اسم العملية مطلوب.")
+        )
+
+
+    if not isinstance(
+        values,
+        dict,
+    ):
+
+        frappe.throw(
+            _("بيانات التعديل غير صحيحة.")
+        )
+
+
+    if not isinstance(
+        shared_documents,
+        list,
+    ):
+
+        frappe.throw(
+            _(
+                "بيانات المستندات المشتركة غير صحيحة."
+            )
+        )
+
+
+    if not file_id:
+
+        frappe.throw(
+            _(
+                "معرف ملف إعادة الاستخراج مطلوب."
+            )
+        )
+
+
+    if not file_url:
+
+        frappe.throw(
+            _(
+                "رابط ملف إعادة الاستخراج مطلوب."
+            )
+        )
+
+
+    # ========================================================
+    # Current operation
+    # ========================================================
+
+    operation = frappe.get_doc(
+        "Archive Operation",
+        operation_name,
+    )
+
+
+    operation.check_permission(
+        "read"
+    )
+
+
+    # ========================================================
+    # Dedicated re-extraction permission
+    # ========================================================
+
+    if not can_re_extract_operation_data(
+        operation
+    ):
+
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية إعادة استخراج "
+                "بيانات هذه العملية."
+            ),
+            frappe.PermissionError,
+        )
+
+
+    # ========================================================
+    # Normal Write permission
+    #
+    # إعادة الاستخراج نفسها لا تحتاج Write.
+    #
+    # لكن إذا أرسل المستخدم تعديلات يدوية أخرى،
+    # يجب أن يملك Write.
+    # ========================================================
+
+    can_edit = bool(
+        operation.has_permission(
+            "write"
+        )
+    )
+
+    can_manage_attachments = (
+        can_manage_operation_attachments(
+            operation
+        )
+    )
+
+
+    if (
+        shared_documents
+        and
+        not can_manage_attachments
+    ):
+
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية إضافة "
+                "مستندات مشتركة للعملية."
+            ),
+            frappe.PermissionError,
+        )
+
+
+    if (
+        values
+        and
+        not can_edit
+    ):
+
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية تعديل "
+                "بيانات العملية يدوياً."
+            ),
+            frappe.PermissionError,
+        )
+
+
+    # ========================================================
+    # Manual field protection
+    # ========================================================
+
+    received_fields = set(
+        values.keys()
+    )
+
+
+    if (
+        "operation_no"
+        in received_fields
+    ):
+
+        frappe.throw(
+            _(
+                "لا يمكن تغيير رقم العملية "
+                "من مسار إعادة الاستخراج."
+            ),
+            frappe.PermissionError,
+        )
+
+
+    forbidden_fields = (
+        received_fields
+        - MANUAL_EDITABLE_FIELDS
+    )
+
+
+    if forbidden_fields:
+
+        frappe.throw(
+            _(
+                "لا يسمح بتعديل الحقول التالية: {0}"
+            ).format(
+                ", ".join(
+                    sorted(
+                        forbidden_fields
+                    )
+                )
+            ),
+            frappe.PermissionError,
+        )
+
+
+    # ========================================================
+    # Exact temporary File
+    #
+    # File.name / file_id هو الهوية الأساسية.
+    # file_url مجرد تحقق إضافي.
+    # ========================================================
+
+    new_file_doc = (
+        get_unattached_uploaded_file(
+            file_id=
+                file_id,
+
+            file_url=
+                file_url,
+        )
+    )
+
+
+    # ========================================================
+    # PDF only
+    # ========================================================
+
+    new_file_name = cstr(
+        new_file_doc.file_name
+        or new_file_doc.file_url
+    ).strip()
+
+
+    extension = (
+        Path(
+            new_file_name
+        )
+        .suffix
+        .lower()
+    )
+
+
+    if extension != ".pdf":
+
+        frappe.throw(
+            _(
+                "ملف إعادة استخراج البيانات "
+                "يجب أن يكون بصيغة PDF."
+            )
+        )
+
+    # ========================================================
+    # Pending Shared Documents
+    #
+    # يتم التحقق منها كلها قبل لمس Archive Operation.
+    #
+    # لا يجوز استخدام:
+    # - Extraction القديم
+    # - Extraction الجديد
+    # كمستند Shared.
+    # ========================================================
+
+    shared_file_docs = (
+        _prepare_shared_document_file_docs(
+            shared_documents,
+
+            forbidden_file_urls={
+                operation.extraction_source_file,
+                new_file_doc.file_url,
+            },
+        )
+    )
+
+
+    # ========================================================
+    # Server-side PDF extraction
+    #
+    # لا نعتمد على pending_extracted_data القادمة
+    # من JavaScript لأنها Client data ويمكن تزويرها.
+    # ========================================================
+
+    parser_result = (
+        extract_pdf_operation_data(
+            new_file_doc.file_url
+        )
+        or {}
+    )
+
+
+    if not isinstance(
+        parser_result,
+        dict,
+    ):
+
+        frappe.throw(
+            _(
+                "نتيجة استخراج بيانات PDF غير صحيحة."
+            )
+        )
+
+
+    parser_data = (
+        parser_result.get(
+            "data"
+        )
+        or {}
+    )
+
+
+    if not isinstance(
+        parser_data,
+        dict,
+    ):
+
+        frappe.throw(
+            _(
+                "بيانات PDF المستخرجة غير صحيحة."
+            )
+        )
+
+
+    # ========================================================
+    # Extracted field whitelist
+    #
+    # operation_no ليس من حق الـPDF إطلاقاً.
+    # request_date ليس حقلاً مستخرجاً.
+    # ========================================================
+
+    extracted_values = {}
+
+
+    for fieldname in (
+        PDF_EXTRACTED_FIELD_LABELS
+    ):
+
+        value = parser_data.get(
+            fieldname
+        )
+
+
+        if (
+            value is None
+            or value == ""
+        ):
+            continue
+
+
+        extracted_values[
+            fieldname
+        ] = value
+
+
+    if not extracted_values:
+
+        frappe.throw(
+            _(
+                "لم يتم العثور على بيانات قابلة "
+                "للاستخراج من ملف PDF."
+            )
+        )
+
+
+    # ========================================================
+    # Manual changes audit snapshot
+    #
+    # execution_datetime لا نسجله كـmanual_edit أثناء
+    # إعادة الاستخراج، لأن حدث data_extracted الواحد
+    # يمثل القيمة النهائية حتى لو صححها المستخدم.
+    # ========================================================
+
+    manual_changes = []
+
+
+    for fieldname in (
+        MANUAL_EDITABLE_FIELDS
+    ):
+
+        if (
+            fieldname
+            not in values
+        ):
+            continue
+
+
+        if (
+            fieldname
+            == "execution_datetime"
+        ):
+            continue
+
+
+        old_value = operation.get(
+            fieldname
+        )
+
+
+        new_value = values.get(
+            fieldname
+        )
+
+
+        if new_value == "":
+            new_value = None
+
+
+        if (
+            str(
+                old_value
+                if old_value is not None
+                else ""
+            )
+            ==
+            str(
+                new_value
+                if new_value is not None
+                else ""
+            )
+        ):
+            continue
+
+
+        manual_changes.append(
+            {
+                "fieldname":
+                    fieldname,
+
+                "label":
+                    MANUAL_FIELD_LABELS.get(
+                        fieldname,
+                        fieldname,
+                    ),
+
+                "old_value":
+                    old_value,
+
+                "new_value":
+                    new_value,
+            }
+        )
+
+
+    # ========================================================
+    # Existing extraction source rows
+    # ========================================================
+
+    old_extraction_rows = [
+        row
+        for row in (
+            operation.attachments
+            or []
+        )
+        if row.is_extraction_source
+    ]
+
+
+    old_extraction_urls = {
+        cstr(
+            row.file
+        ).strip()
+
+        for row
+        in old_extraction_rows
+
+        if cstr(
+            row.file
+        ).strip()
+    }
+
+
+    # ========================================================
+    # Existing physical File records
+    #
+    # نحفظ أسماء File records القديمة حتى نفصلها
+    # عن العملية بعد نجاح Document validation/save.
+    #
+    # لا نحذف الملف الفيزيائي هنا؛ الحذف قبل COMMIT
+    # قد يكسر atomicity، خصوصاً إذا كان هناك File
+    # آخر بنفس file_url/content.
+    # ========================================================
+
+    old_file_ids = []
+
+
+    for old_file_url in (
+        old_extraction_urls
+    ):
+
+        old_file_ids.extend(
+            frappe.get_all(
+                "File",
+
+                filters={
+                    "file_url":
+                        old_file_url,
+
+                    "attached_to_doctype":
+                        "Archive Operation",
+
+                    "attached_to_name":
+                        operation.name,
+
+                    "attached_to_field":
+                        "extraction_source_file",
+                },
+
+                pluck=
+                    "name",
+            )
+        )
+
+
+    old_file_ids = list(
+        dict.fromkeys(
+            old_file_ids
+        )
+    )
+
+
+    # ========================================================
+    # Remove old extraction child rows
+    #
+    # Final Swift rows remain untouched.
+    # ========================================================
+
+    for row in list(
+        operation.attachments
+        or []
+    ):
+
+        if not row.is_extraction_source:
+            continue
+
+
+        operation.remove(
+            row
+        )
+
+
+    # ========================================================
+    # New extraction source
+    # ========================================================
+
+    operation.extraction_source_file = (
+        new_file_doc.file_url
+    )
+
+
+    operation.append(
+        "attachments",
+        {
+            "file":
+                new_file_doc.file_url,
+
+            "file_name":
+                new_file_doc.file_name,
+
+            "is_extraction_source":
+                1,
+
+            "is_final_swift":
+                0,
+        },
+    )
+
+
+    # ========================================================
+    # Apply extracted PDF values first
+    # ========================================================
+
+    for (
+        fieldname,
+        value,
+    ) in extracted_values.items():
+
+        operation.set(
+            fieldname,
+            value,
+        )
+
+
+    # ========================================================
+    # Apply manual values second
+    #
+    # execution_datetime الموجود في values
+    # يفوز هنا على قيمة PDF إذا عدله المستخدم.
+    # ========================================================
+
+    for fieldname in (
+        MANUAL_EDITABLE_FIELDS
+    ):
+
+        if (
+            fieldname
+            not in values
+        ):
+            continue
+
+
+        value = values.get(
+            fieldname
+        )
+
+
+        if value == "":
+            value = None
+
+
+        operation.set(
+            fieldname,
+            value,
+        )
+
+
+    # ========================================================
+    # ONE Archive Operation save
+    #
+    # Controller ينفذ هنا:
+    # - customer rate validation
+    # - strict date validation
+    # - operation number rules
+    # - group validation
+    # - extraction sync
+    # - attachment validation
+    #
+    # إذا فشل أي شيء:
+    # request transaction ستعمل rollback،
+    # والمصدر القديم يبقى كما كان في DB.
+    # ========================================================
+
+    operation.save(
+        ignore_permissions=True
+    )
+
+
+    # ========================================================
+    # Link new File record to current Part
+    # ========================================================
+
+    new_file_doc.db_set(
+        {
+            "attached_to_doctype":
+                "Archive Operation",
+
+            "attached_to_name":
+                operation.name,
+
+            "attached_to_field":
+                "extraction_source_file",
+        },
+        update_modified=False,
+    )
+
+
+    # ========================================================
+    # Detach previous extraction File records
+    #
+    # لا نحذفها فيزيائياً داخل هذه المعاملة.
+    #
+    # هذا متعمد لحماية atomicity ولأن file_url قد
+    # يكون مشتركاً بين File records متطابقة المحتوى.
+    # ========================================================
+
+    for old_file_id in (
+        old_file_ids
+    ):
+
+        if (
+            old_file_id
+            == new_file_doc.name
+        ):
+            continue
+
+
+        if not frappe.db.exists(
+            "File",
+            old_file_id,
+        ):
+            continue
+
+
+        old_file_doc = frappe.get_doc(
+            "File",
+            old_file_id,
+        )
+
+
+        if (
+            old_file_doc.attached_to_doctype
+            != "Archive Operation"
+            or
+            old_file_doc.attached_to_name
+            != operation.name
+        ):
+            continue
+
+
+        old_file_doc.db_set(
+            {
+                "attached_to_doctype":
+                    None,
+
+                "attached_to_name":
+                    None,
+
+                "attached_to_field":
+                    None,
+            },
+            update_modified=False,
+        )
+
+
+    # ========================================================
+    # Reload final authoritative values
+    # ========================================================
+
+    operation.reload()
+    # ========================================================
+    # Create Group Shared Documents
+    #
+    # نفس Domain Service المستخدمة في Create.
+    #
+    # Final Swift لا يدخل هنا إطلاقاً.
+    # ========================================================
+
+    created_shared_documents = (
+        create_shared_operation_documents(
+            operation=
+                operation,
+
+            file_docs=
+                shared_file_docs,
+        )
+    )
+
+
+    # ========================================================
+    # Timeline: normal manual changes
+    #
+    # execution_datetime مستبعد أعلاه عمداً.
+    # ========================================================
+
+    if manual_changes:
+
+        log_operation_event(
+            operation.name,
+            "manual_edit",
+            "تم تعديل بيانات العملية",
+
+            details={
+                "changes":
+                    manual_changes,
+            },
+
+            event_source=
+                "User",
+        )
+
+
+    # ========================================================
+    # Timeline: re-extraction
+    #
+    # نسجل القيم النهائية المحفوظة، وليس مجرد
+    # Raw parser values.
+    # ========================================================
+
+    extracted_fields = []
+
+
+    for (
+        fieldname,
+        label,
+    ) in (
+        PDF_EXTRACTED_FIELD_LABELS.items()
+    ):
+
+        if (
+            fieldname
+            not in extracted_values
+        ):
+            continue
+
+
+        final_value = operation.get(
+            fieldname
+        )
+
+
+        if (
+            final_value is None
+            or final_value == ""
+        ):
+            continue
+
+
+        extracted_fields.append(
+            {
+                "fieldname":
+                    fieldname,
+
+                "label":
+                    label,
+
+                "value":
+                    final_value,
+            }
+        )
+
+
+    log_operation_event(
+        operation.name,
+        "data_extracted",
+        "تمت إعادة استخراج بيانات العملية من المستند",
+
+        details={
+            "file_url":
+                new_file_doc.file_url,
+
+            "file_name":
+                new_file_doc.file_name,
+
+            "fields":
+                extracted_fields,
+        },
+
+        event_source=
+            "PDF Extraction",
+    )
+    if created_shared_documents:
+
+        log_operation_event(
+            operation.name,
+            "attachment_added",
+            "تم إرفاق مستندات مشتركة",
+
+            details={
+                "operation_group":
+                    operation.operation_group,
+
+                "files": [
+                    {
+                        "document":
+                            document.name,
+
+                        "file_name":
+                            document.file_name,
+
+                        "file_url":
+                            document.file,
+                    }
+
+                    for document
+                    in created_shared_documents
+                ],
+            },
+
+            event_source=
+                "User",
+        )
+
+
+    # ========================================================
+    # Response
+    # ========================================================
+
+    return {
+        "operation":
+            serialize_operation_for_view(
+                operation
+            ),
+
+        "group":
+            get_operation_group_view_context(
+                operation
+            ),
+
+        "shared_documents_added":
+            len(
+                created_shared_documents
+            ),
+
+        "permissions": {
+            "can_edit":
+                can_edit,
+
+            "editable_fields":
+                (
+                    sorted(
+                        MANUAL_EDITABLE_FIELDS
+                    )
+                    if can_edit
+                    else []
+                ),
+
+            "can_re_extract":
+                can_re_extract_operation_data(
+                    operation
+                ),
+
+            "can_manage_attachments":
+                can_manage_attachments,
+
+            "can_attach_final_swift":
+                bool(
+                    get_final_swift_state(
+                        operation
+                    )[
+                        "final_swift_remaining"
+                    ]
+                    > 0
+                    and
+                    can_attach_final_swift(
+                        operation
+                    )
+                ),
+        },
+
+        "re_extraction_saved":
+            True,
+    }
 
 @frappe.whitelist(
     methods=["POST"]
@@ -3141,8 +6408,22 @@ def change_operation_status(
 def save_operation_view_changes(
     operation_name: str,
     values: dict[str, Any] | str | None = None,
-    new_attachments: list[dict[str, Any]] | str | None = None,
-    delete_attachment_names: list[str] | str | None = None,
+
+    shared_documents:
+        list[dict[str, Any]]
+        | list[str]
+        | str
+        | None = None,
+
+    new_attachments:
+        list[dict[str, Any]]
+        | str
+        | None = None,
+
+    delete_attachment_names:
+        list[str]
+        | str
+        | None = None,
 ) -> dict[str, Any]:
 
     operation_name = (
@@ -3152,6 +6433,11 @@ def save_operation_view_changes(
     values = _parse(
         values,
         {},
+    )
+
+    shared_documents = _parse(
+        shared_documents,
+        [],
     )
 
     new_attachments = _parse(
@@ -3190,6 +6476,17 @@ def save_operation_view_changes(
             _("بيانات المرفقات المحذوفة غير صحيحة.")
         )
 
+    if not isinstance(
+        shared_documents,
+        list,
+    ):
+
+        frappe.throw(
+            _(
+                "بيانات المستندات المشتركة غير صحيحة."
+            )
+        )
+
 
     operation = frappe.get_doc(
         "Archive Operation",
@@ -3217,6 +6514,20 @@ def save_operation_view_changes(
         )
     )
 
+    if (
+        shared_documents
+        and
+        not can_manage_attachments
+    ):
+
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية إضافة "
+                "مستندات مشتركة للعملية."
+            ),
+            frappe.PermissionError,
+        )
+
 
     if values and not can_edit:
         frappe.throw(
@@ -3241,6 +6552,28 @@ def save_operation_view_changes(
             frappe.PermissionError,
         )
 
+    # ========================================================
+    # Validate new Shared Documents BEFORE changing anything
+    #
+    # Extraction Source لا يمكن تحويله إلى Shared Document.
+    # ========================================================
+
+    shared_file_docs = (
+        _prepare_shared_document_file_docs(
+            shared_documents,
+
+            forbidden_file_urls={
+                operation.extraction_source_file,
+            },
+        )
+    )
+
+
+
+
+    # ========================================================
+    # Validate editable fields
+    # ========================================================
 
     # ========================================================
     # Validate editable fields
@@ -3249,6 +6582,35 @@ def save_operation_view_changes(
     received_fields = set(
         values.keys()
     )
+
+
+    # ========================================================
+    # Operation number protection
+    #
+    # تغيير رقم عملية موجودة ليس تعديلاً عادياً.
+    #
+    # يجب أن يمر لاحقاً من مسار مخصص يعرف:
+    #
+    # - عدد أجزاء Source Group.
+    # - هل Source Group مفردة أم متعددة الأجزاء.
+    # - Target Group.
+    # - قواعد retain / discard للملفات.
+    # - Shared Documents الخاصة بالمصدر والهدف.
+    #
+    # لذلك يمنع هذا Endpoint من تعديل operation_no
+    # حتى لو أرسلته الواجهة أو تم استدعاء API يدوياً.
+    # ========================================================
+
+    if "operation_no" in received_fields:
+
+        frappe.throw(
+            _(
+                "لا يمكن تغيير رقم العملية "
+                "من مسار التعديل العام."
+            ),
+            frappe.PermissionError,
+        )
+
 
     forbidden_fields = (
         received_fields
@@ -3384,7 +6746,7 @@ def save_operation_view_changes(
 
 
         file_doc = (
-            _get_uploaded_file(
+            get_unattached_uploaded_file(
                 file_url
             )
         )
@@ -3608,6 +6970,25 @@ def save_operation_view_changes(
     operation.save(
         ignore_permissions=True
     )
+    # ========================================================
+    # Shared Documents
+    #
+    # Group-level.
+    # يستخدم نفس Domain Service الخاصة بـCreate.
+    #
+    # إذا فشل الحد الأقصى أو أي Validation هنا،
+    # Request كلها تعمل rollback.
+    # ========================================================
+
+    created_shared_documents = (
+        create_shared_operation_documents(
+            operation=
+                operation,
+
+            file_docs=
+                shared_file_docs,
+        )
+    )
 
     if manual_changes:
 
@@ -3711,6 +7092,37 @@ def save_operation_view_changes(
             event_source=
                 "User",
         )
+    if created_shared_documents:
+
+        log_operation_event(
+            operation.name,
+            "attachment_added",
+            "تم إرفاق مستندات مشتركة",
+
+            details={
+                "operation_group":
+                    operation.operation_group,
+
+                "files": [
+                    {
+                        "document":
+                            document.name,
+
+                        "file_name":
+                            document.file_name,
+
+                        "file_url":
+                            document.file,
+                    }
+
+                    for document
+                    in created_shared_documents
+                ],
+            },
+
+            event_source=
+                "User",
+        )
     if deleted_normal_files:
 
         log_operation_event(
@@ -3778,6 +7190,17 @@ def save_operation_view_changes(
         "operation":
             serialize_operation_for_view(
                 operation
+            ),
+
+
+        "group":
+            get_operation_group_view_context(
+                operation
+            ),
+
+        "shared_documents_added":
+            len(
+                created_shared_documents
             ),
 
         "permissions": {

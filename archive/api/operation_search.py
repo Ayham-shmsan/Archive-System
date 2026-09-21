@@ -276,9 +276,6 @@ def _append_account_values(
         operation.from_account,
         [
             "account_name",
-            "account_number",
-            "bank_name",
-            "currency",
         ],
         as_dict=True,
     )
