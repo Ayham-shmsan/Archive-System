@@ -1644,7 +1644,7 @@ class OperationViewDialog {
 						"user_notes",
 
 					label:
-						"ملاحظات المستخدم",
+						"ملاحظات العملية",
 
 					fieldtype:
 						"Data",

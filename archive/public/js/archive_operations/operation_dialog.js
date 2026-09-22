@@ -79,6 +79,21 @@ archive.ui.OperationDialog = class OperationDialog {
 
 		this.existing_shared_documents =
 			[];
+		const request_date =
+			this.controls.request_date;
+
+
+		if (request_date) {
+
+			request_date.df.read_only =
+				0;
+
+			request_date.set_value(
+				frappe.datetime.get_today()
+			);
+
+			request_date.refresh();
+		}
 
 
 		if (clear_pending) {
@@ -165,7 +180,21 @@ archive.ui.OperationDialog = class OperationDialog {
 
 			this.existing_shared_documents =
 				[];
+			const request_date =
+				this.controls.request_date;
 
+
+			if (request_date) {
+
+				request_date.df.read_only =
+					0;
+
+				request_date.set_value(
+					frappe.datetime.get_today()
+				);
+
+				request_date.refresh();
+			}
 			this.render_operation_context();
 
 			this.render_shared_documents();
@@ -196,6 +225,22 @@ archive.ui.OperationDialog = class OperationDialog {
 			)
 				? exact.documents
 				: [];
+		const request_date =
+			this.controls.request_date;
+
+
+		if (request_date) {
+
+			request_date.set_value(
+				exact.request_date
+				|| ""
+			);
+
+			request_date.df.read_only =
+				1;
+
+			request_date.refresh();
+		}
 
 
 		this.render_operation_context();
@@ -1820,7 +1865,7 @@ archive.ui.OperationDialog = class OperationDialog {
 						"user_notes",
 
 					label:
-						"ملاحظات المستخدم",
+						"ملاحظات العملية",
 
 					fieldtype:
 						"Data",
@@ -1946,7 +1991,7 @@ archive.ui.OperationDialog = class OperationDialog {
 				},
                 {
                     fieldname: "notes",
-                    label: "ملاحظات",
+                    label: "ملاحظات التحويل",
                     fieldtype: "Data",
                 },
 			]

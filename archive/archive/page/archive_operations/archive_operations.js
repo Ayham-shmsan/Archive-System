@@ -1654,7 +1654,7 @@ class ArchiveOperationsPage {
                                         class="generic-sortable-column"
                                         data-sort-field="notes"
                                     >
-                                        ملاحظات
+                                        ملاحظات التحويل
                                         <span class="generic-sort-indicator"></span>
                                     </th>
 

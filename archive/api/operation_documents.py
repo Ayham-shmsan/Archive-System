@@ -1209,6 +1209,39 @@ def lookup_operation_numbers(
 
     if exact_row:
 
+        # ====================================================
+        # Original / parent Part
+        #
+        # أول جزء في المجموعة هو مصدر تاريخ الطلب
+        # لجميع الأجزاء اللاحقة.
+        # ====================================================
+
+        original_parts = frappe.get_all(
+            "Archive Operation",
+
+            filters={
+                "operation_group":
+                    exact_row.operation_group,
+            },
+
+            fields=[
+                "name",
+                "request_date",
+            ],
+
+            order_by=
+                "creation asc, name asc",
+
+            limit_page_length=
+                1,
+        )
+
+
+        original_part = (
+            original_parts[0]
+            if original_parts
+            else None
+        )
         documents = frappe.get_all(
             "Archive Operation Document",
 
@@ -1260,6 +1293,13 @@ def lookup_operation_numbers(
             "documents_count":
                 len(
                     documents
+                ),
+
+            "request_date":
+                (
+                    original_part.request_date
+                    if original_part
+                    else None
                 ),
 
             "documents":

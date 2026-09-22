@@ -65,7 +65,7 @@ MANUAL_FIELD_LABELS = {
         "اسم البنك المحول",
 
     "user_notes":
-        "ملاحظات المستخدم",
+        "ملاحظات العملية",
 }
 
 PDF_EXTRACTED_FIELD_LABELS = {
@@ -100,7 +100,7 @@ PDF_EXTRACTED_FIELD_LABELS = {
         "اسم المرسل",
 
     "notes":
-        "ملاحظات",
+        "ملاحظات التحويل",
 }
 # ============================================================
 # Operation fields
@@ -1479,6 +1479,107 @@ def create_operation(
     _normalize_customer_rate_values(
         values
     )
+
+    # ========================================================
+    # Existing operation number
+    #
+    # إذا كانت العملية Part إضافياً لرقم موجود،
+    # تاريخ الطلب يؤخذ من أول Part في نفس Group.
+    #
+    # لا نثق بقيمة request_date القادمة من المتصفح.
+    # ========================================================
+
+    if not cint(
+        values.get(
+            "is_blocked_operation"
+        )
+    ):
+
+        operation_no = cstr(
+            values.get(
+                "operation_no"
+            )
+        ).strip()
+
+
+        if operation_no:
+
+            from archive.archive.doctype.archive_operation.archive_operation import (
+                normalize_operation_no,
+            )
+
+
+            normalized_operation_no = (
+                normalize_operation_no(
+                    operation_no
+                )
+            )
+
+
+            existing_group = (
+                frappe.db.get_value(
+                    "Archive Operation Group",
+                    {
+                        "operation_no_normalized":
+                            normalized_operation_no,
+                    },
+                    "name",
+                )
+            )
+
+
+            if existing_group:
+
+                original_parts = frappe.get_all(
+                    "Archive Operation",
+
+                    filters={
+                        "operation_group":
+                            existing_group,
+                    },
+
+                    fields=[
+                        "name",
+                        "request_date",
+                    ],
+
+                    order_by=
+                        "creation asc, name asc",
+
+                    limit_page_length=
+                        1,
+                )
+
+
+                if not original_parts:
+
+                    frappe.throw(
+                        _(
+                            "تعذر العثور على العملية الأصلية "
+                            "لرقم العملية المحدد."
+                        )
+                    )
+
+
+                original_request_date = (
+                    original_parts[0]
+                        .request_date
+                )
+
+
+                if not original_request_date:
+
+                    frappe.throw(
+                        _(
+                            "العملية الأصلية لا تحتوي "
+                            "على تاريخ طلب."
+                        )
+                    )
+
+
+                values[
+                    "request_date"
+                ] = original_request_date
 
 
     extraction_source_file = cstr(
