@@ -19,7 +19,11 @@ class OperationViewDialog {
 
 		this.options =
 			options || {};
+		this.pending_deleted_attachment_names =
+			new Set();
 
+		this.pending_deleted_shared_document_names =
+			new Set();
 
 		// ========================================================
 		// Backend read model
@@ -650,6 +654,9 @@ class OperationViewDialog {
 		this.pending_shared_files =
     		[];
 
+		this.deleted_shared_document_names =
+    		new Set();
+
 		// ========================================================
 		// Final Swift files
 		//
@@ -847,6 +854,12 @@ class OperationViewDialog {
 
 			this.pending_shared_files =
 				[];
+			
+			if (
+				this.deleted_shared_document_names
+			) {
+				this.deleted_shared_document_names.clear();
+			}
 
 
 			// ====================================================
@@ -3891,8 +3904,21 @@ class OperationViewDialog {
 				*
 				* Final Swift لا يدخل إطلاقاً.
 				*/
+				const pending_deleted_shared_count =
+					this.shared_documents.filter(
+						(document) =>
+							this.deleted_shared_document_names.has(
+								document.name
+							)
+					).length;
+
+
 				const total_after_add =
-					this.shared_documents.length
+					(
+						this.shared_documents.length
+						-
+						pending_deleted_shared_count
+					)
 					+
 					this.pending_shared_files.length
 					+
@@ -4175,8 +4201,21 @@ class OperationViewDialog {
 		// Final Swift لا يدخل إطلاقاً.
 		// ========================================================
 
+		const pending_deleted_shared_count =
+			shared_documents.filter(
+				(document) =>
+					this.deleted_shared_document_names.has(
+						document.name
+					)
+			).length;
+
+
 		const shared_count =
-			shared_documents.length
+			(
+				shared_documents.length
+				-
+				pending_deleted_shared_count
+			)
 			+
 			pending_shared_files.length;
 
@@ -4250,6 +4289,10 @@ class OperationViewDialog {
 					this.file_extension(
 						file_name
 					);
+				const pending_delete =
+					this.deleted_shared_document_names.has(
+						document.name
+					);
 
 
 				const document_label =
@@ -4311,14 +4354,25 @@ class OperationViewDialog {
 								archive-attachment-actions
 							"
 						>
-
-							<span
-								class="
-									archive-existing-badge
-								"
-							>
-								✓ محفوظ
-							</span>
+							${
+								pending_delete
+									? `
+										<span
+											class="text-danger"
+										>
+											سيتم الحذف عند الحفظ
+										</span>
+									`
+									: `
+										<span
+											class="
+												archive-existing-badge
+											"
+										>
+											✓ محفوظ
+										</span>
+									`
+							}
 
 
 							${
@@ -4348,6 +4402,52 @@ class OperationViewDialog {
 									`
 									: ""
 							}
+
+
+							${
+								this.permissions
+									.can_manage_attachments
+									? (
+										pending_delete
+											? `
+												<button
+													type="button"
+													class="
+														btn
+														btn-default
+														btn-sm
+														archive-undo-shared-document-delete
+													"
+													data-shared-document-name="${this.escape_attribute(
+														document.name
+													)}"
+												>
+													تراجع
+												</button>
+											`
+											: `
+												<button
+													type="button"
+													class="
+														btn
+														btn-default
+														btn-sm
+														archive-mark-shared-document-delete
+													"
+													data-shared-document-name="${this.escape_attribute(
+														document.name
+													)}"
+												>
+													إزالة
+												</button>
+											`
+									)
+									: ""
+							}
+
+						
+
+
 
 						</div>
 
@@ -4478,6 +4578,11 @@ class OperationViewDialog {
 					this.file_extension(
 						file_name
 					);
+				
+				const pending_delete =
+					this.deleted_attachment_names.has(
+						file.name
+					);
 
 
 				rows.push(`
@@ -4571,6 +4676,52 @@ class OperationViewDialog {
 									`
 									: ""
 							}
+							${
+							this.permissions
+								.can_manage_attachments
+								? (
+									pending_delete
+										? `
+											<span
+												class="text-danger"
+											>
+												سيتم الحذف عند الحفظ
+											</span>
+
+											<button
+												type="button"
+												class="
+													btn
+													btn-default
+													btn-sm
+													archive-undo-final-swift-delete
+												"
+												data-attachment-name="${this.escape_attribute(
+													file.name
+												)}"
+											>
+												تراجع
+											</button>
+										`
+										: `
+											<button
+												type="button"
+												class="
+													btn
+													btn-default
+													btn-sm
+													archive-mark-final-swift-delete
+												"
+												data-attachment-name="${this.escape_attribute(
+													file.name
+												)}"
+											>
+												إزالة
+											</button>
+										`
+								)
+								: ""
+						}
 
 						</div>
 
@@ -4592,11 +4743,11 @@ class OperationViewDialog {
 		$list
 			.find(
 				".archive-remove-pending-shared"
-			)
-			.off(
+				)
+				.off(
 				".archiveSharedDocumentsView"
-			)
-			.on(
+				)
+				.on(
 				"click.archiveSharedDocumentsView",
 				(event) => {
 
@@ -4615,7 +4766,526 @@ class OperationViewDialog {
 					);
 				}
 			);
+		
+
+		// ========================================================
+// Mark persisted Shared Document for deletion
+//
+// حذف محلي فقط.
+// لا يتم حذف أي شيء من السيرفر هنا.
+// ========================================================
+
+$list
+    .find(
+        ".archive-mark-shared-document-delete"
+    )
+    .off(
+        ".archiveSharedDocumentPendingDelete"
+    )
+    .on(
+        "click.archiveSharedDocumentPendingDelete",
+        (event) => {
+
+            const document_name =
+                $(
+                    event.currentTarget
+                ).attr(
+                    "data-shared-document-name"
+                );
+
+
+            if (!document_name) {
+                return;
+            }
+
+
+            this.deleted_shared_document_names.add(
+                document_name
+            );
+
+
+            this.render_operation_documents();
+        }
+    );
+
+
+// ========================================================
+// Undo persisted Shared Document deletion
+// ========================================================
+
+$list
+    .find(
+        ".archive-undo-shared-document-delete"
+    )
+    .off(
+        ".archiveSharedDocumentPendingDelete"
+    )
+    .on(
+        "click.archiveSharedDocumentPendingDelete",
+        (event) => {
+
+            const document_name =
+                $(
+                    event.currentTarget
+                ).attr(
+                    "data-shared-document-name"
+                );
+
+
+            if (!document_name) {
+                return;
+            }
+
+
+            this.deleted_shared_document_names.delete(
+                document_name
+            );
+
+
+            this.render_operation_documents();
+        }
+    );
+
+
+		// ========================================================
+// Mark Final Swift for deletion
+//
+// لا يوجد حذف Backend هنا.
+// الحذف الفعلي سيتم فقط عند Save.
+// ========================================================
+
+$list
+    .find(
+        ".archive-mark-final-swift-delete"
+    )
+    .off(
+        ".archiveFinalSwiftPendingDelete"
+    )
+    .on(
+        "click.archiveFinalSwiftPendingDelete",
+        (event) => {
+
+            const attachment_name =
+                $(
+                    event.currentTarget
+                ).attr(
+                    "data-attachment-name"
+                );
+
+
+            if (!attachment_name) {
+                return;
+            }
+
+
+            this.deleted_attachment_names.add(
+                attachment_name
+            );
+
+
+            this.render_operation_documents();
+        }
+    );
+
+
+	// ========================================================
+	// Undo Final Swift deletion
+	// ========================================================
+
+	$list
+		.find(
+			".archive-undo-final-swift-delete"
+		)
+		.off(
+			".archiveFinalSwiftPendingDelete"
+		)
+		.on(
+			"click.archiveFinalSwiftPendingDelete",
+			(event) => {
+
+				const attachment_name =
+					$(
+						event.currentTarget
+					).attr(
+						"data-attachment-name"
+					);
+
+
+				if (!attachment_name) {
+					return;
+				}
+
+
+				this.deleted_attachment_names.delete(
+					attachment_name
+				);
+
+
+				this.render_operation_documents();
+			}
+		);
+
+		// ========================================================
+		// Remove persisted Shared Document
+		// ========================================================
+
+		$list
+			.find(
+				".archive-remove-shared-document"
+			)
+			.off(
+				".archiveRemoveOperationDocument"
+			)
+			.on(
+				"click.archiveRemoveOperationDocument",
+				(event) => {
+
+					const $button =
+						$(
+							event.currentTarget
+						);
+
+
+					this.confirm_remove_operation_document(
+						{
+							shared_document_name:
+								$button.attr(
+									"data-shared-document-name"
+								),
+
+							file_name:
+								$button.attr(
+									"data-file-name"
+								),
+
+							is_final_swift:
+								false,
+
+							$button:
+								$button,
+						}
+					);
+				}
+			);
+
+
+		// ========================================================
+		// Remove Final Swift
+		// ========================================================
+
+		$list
+			.find(
+				".archive-remove-final-swift"
+			)
+			.off(
+				".archiveRemoveOperationDocument"
+			)
+			.on(
+				"click.archiveRemoveOperationDocument",
+				(event) => {
+
+					const $button =
+						$(
+							event.currentTarget
+						);
+
+
+					this.confirm_remove_operation_document(
+						{
+							attachment_name:
+								$button.attr(
+									"data-attachment-name"
+								),
+
+							file_name:
+								$button.attr(
+									"data-file-name"
+								),
+
+							is_final_swift:
+								true,
+
+							$button:
+								$button,
+						}
+					);
+				}
+			);
 	}
+
+
+	confirm_remove_operation_document(
+		{
+			attachment_name = null,
+			shared_document_name = null,
+			file_name = "",
+			is_final_swift = false,
+			$button = null,
+		}
+	) {
+
+		const safe_file_name =
+			this.escape_value(
+				file_name
+				|| "الملف"
+			);
+
+
+		const message =
+			is_final_swift
+				? `
+					هل تريد إزالة السويفت النهائي
+					<strong>${safe_file_name}</strong>؟
+					<br><br>
+					إذا كان هذا آخر سويفت نهائي للعملية،
+					فستعود العملية إلى قائمة العمليات
+					التي ليس لها سويفت نهائي.
+				`
+				: `
+					هل تريد حذف المستند
+					<strong>${safe_file_name}</strong>؟
+					<br><br>
+					هذا المستند مشترك على مستوى العملية الأصلية،
+					وسيختفي من جميع أجزائها.
+				`;
+
+
+		frappe.confirm(
+			message,
+			() => {
+				this.remove_operation_document(
+					{
+						attachment_name:
+							attachment_name,
+
+						shared_document_name:
+							shared_document_name,
+
+						is_final_swift:
+							is_final_swift,
+
+						$button:
+							$button,
+					}
+				);
+			}
+		);
+	}
+
+
+	async remove_operation_document(
+		{
+			attachment_name = null,
+			shared_document_name = null,
+			is_final_swift = false,
+			$button = null,
+		}
+	) {
+
+		const original_html =
+			$button?.length
+				? $button.html()
+				: "";
+
+
+		if ($button?.length) {
+
+			$button
+				.prop(
+					"disabled",
+					true
+				)
+				.html(
+					"جاري الإزالة..."
+				);
+		}
+
+
+		try {
+
+			const response =
+				await frappe.call({
+					method:
+						"archive.api.operations.remove_operation_document",
+
+					type:
+						"POST",
+
+					args: {
+						operation_name:
+							this.operation.name,
+
+						attachment_name:
+							attachment_name,
+
+						shared_document_name:
+							shared_document_name,
+					},
+				});
+
+
+			const result =
+				response.message
+				|| {};
+
+
+			// ====================================================
+			// Current Part
+			// ====================================================
+
+			if (
+				result.operation
+			) {
+
+				this.operation =
+					result.operation;
+
+
+				this.final_swift_files =
+					Array.from(
+						this.operation
+							.final_swift_files
+						|| []
+					);
+			}
+
+
+			// ====================================================
+			// Group
+			// ====================================================
+
+			if (
+				result.group
+			) {
+
+				this.group =
+					result.group;
+
+
+				this.shared_documents =
+					Array.from(
+						result.group
+							.shared_documents
+						|| []
+					);
+
+
+				this.shared_documents_limit =
+					Number(
+						result.group
+							.shared_documents_limit
+						|| 10
+					);
+			}
+
+
+			// ====================================================
+			// Final Swift business state
+			// ====================================================
+
+			if (
+				result.final_swift
+			) {
+
+				this.final_swift =
+					result.final_swift;
+			}
+
+
+			// ====================================================
+			// Refresh document box
+			// ====================================================
+
+			this.render_operation_documents();
+
+
+			frappe.show_alert({
+				message:
+					is_final_swift
+						? __(
+							"تم إزالة السويفت النهائي."
+						)
+						: __(
+							"تم حذف المستند."
+						),
+
+				indicator:
+					"green",
+			});
+
+
+			// ====================================================
+			// Refresh parent operation list + counters
+			//
+			// مهم جداً للـFinal Swift:
+			// إذا أصبح العدد = 0، ستنتقل العملية
+			// إلى قائمة العمليات بدون سويفت نهائي.
+			// ====================================================
+
+			if (
+				typeof this.options
+					.on_saved
+				=== "function"
+			) {
+
+				await this.options
+					.on_saved(
+						this.operation
+					);
+			}
+
+		}
+
+		catch (error) {
+
+			console.error(
+				"Operation document removal failed:",
+				error
+			);
+
+
+			frappe.msgprint({
+				title:
+					__(
+						"تعذر إزالة المستند"
+					),
+
+				message:
+					error?.message
+					||
+					__(
+						"حدث خطأ أثناء إزالة المستند."
+					),
+
+				indicator:
+					"red",
+			});
+
+		}
+
+		finally {
+
+			if (
+				$button?.length
+				&&
+				$.contains(
+					document,
+					$button[0]
+				)
+			) {
+
+				$button
+					.prop(
+						"disabled",
+						false
+					)
+					.html(
+						original_html
+					);
+			}
+		}
+	}
+
 
 
 	
@@ -5517,6 +6187,12 @@ class OperationViewDialog {
 			Boolean(
 				this.pending_shared_files.length
 			);
+		
+
+		const has_pending_shared_deletions =
+			Boolean(
+				this.deleted_shared_document_names.size
+			);
 
 
 		// ========================================================
@@ -5524,7 +6200,11 @@ class OperationViewDialog {
 		// ========================================================
 
 		if (
-			has_pending_shared_documents
+			(
+				has_pending_shared_documents
+				||
+				has_pending_shared_deletions
+			)
 			&&
 			!can_manage_attachments
 		) {
@@ -5535,7 +6215,7 @@ class OperationViewDialog {
 
 				message:
 					__(
-						"ليس لديك صلاحية إضافة مستندات مشتركة للعملية."
+						"ليس لديك صلاحية إضافة أو حذف مستندات العملية."
 					),
 
 				indicator:
@@ -5713,6 +6393,11 @@ class OperationViewDialog {
 							shared_documents:
 								shared_documents,
 
+							delete_shared_document_names:
+								Array.from(
+									this.deleted_shared_document_names
+								),
+
 							file_id:
 								pending_upload.file_id,
 
@@ -5766,13 +6451,17 @@ class OperationViewDialog {
 							shared_documents:
 								shared_documents,
 
+							delete_shared_document_names:
+								Array.from(
+									this.deleted_shared_document_names
+								),
+
 							new_attachments:
 								uploaded,
 
 							delete_attachment_names:
 								Array.from(
-									this
-										.deleted_attachment_names
+									this.deleted_attachment_names
 								),
 						},
 					});
@@ -5888,7 +6577,7 @@ class OperationViewDialog {
 			this.pending_shared_files =
 				[];
 
-
+			this.deleted_shared_document_names.clear();
 			// ========================================================
 			// Re-extraction successfully committed
 			// ========================================================

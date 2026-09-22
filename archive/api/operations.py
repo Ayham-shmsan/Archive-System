@@ -22,6 +22,7 @@ from archive.api.operation_search import (
 
 from archive.domain.shared_documents import (
     create_shared_operation_documents,
+    delete_shared_operation_documents,
     MAX_SHARED_DOCUMENTS,
 )
 from archive.api.pdf_parser import (
@@ -221,6 +222,85 @@ def get_allowed_status_transitions(
     return STATUS_ACTION_TRANSITIONS.get(
         current_status,
         (),
+    )
+
+def build_file_event_title(
+    *,
+    single_title: str,
+    multi_title: str,
+    files,
+) -> str:
+    """
+    يبني عنوان Timeline يحتوي أسماء الملفات.
+
+    أمثلة:
+        تم حذف مستند مشترك: الاشعار السابق.pdf
+        تم إرفاق 3 مستندات مشتركة: a.pdf، b.pdf، و1 أخرى
+    """
+
+    rows = list(files or [])
+
+    count = len(rows)
+
+    base_title = (
+        single_title
+        if count == 1
+        else multi_title
+    )
+
+    if not rows:
+        return base_title
+
+    file_names = []
+
+    for row in rows:
+        file_name = ""
+
+        if isinstance(row, dict):
+            file_name = cstr(
+                row.get("file_name")
+            ).strip()
+        else:
+            file_name = cstr(
+                getattr(
+                    row,
+                    "file_name",
+                    "",
+                )
+            ).strip()
+
+        if file_name:
+            file_names.append(
+                file_name
+            )
+
+    if not file_names:
+        return base_title
+
+    if len(file_names) == 1:
+        return (
+            f"{base_title}: "
+            f"{file_names[0]}"
+        )
+
+    preview_names = file_names[:3]
+
+    suffix = ""
+
+    remaining = (
+        len(file_names)
+        - len(preview_names)
+    )
+
+    if remaining > 0:
+        suffix = (
+            f"، و{remaining} أخرى"
+        )
+
+    return (
+        f"{base_title}: "
+        f"{'، '.join(preview_names)}"
+        f"{suffix}"
     )
 
 MANUAL_EDITABLE_FIELDS = {
@@ -1028,172 +1108,7 @@ def get_operation_group_view_context(
             MAX_SHARED_DOCUMENTS,
     }
 
-# ============================================================
-# Serialize operation for view
-# ============================================================
 
-# def serialize_operation_for_view(
-#     operation,
-# ) -> dict[str, Any]:
-
-#     attachments = []
-
-#     extraction_source = None
-
-#     final_swift_files = []
-
-
-#     for row in (
-#         operation.attachments
-#         or []
-#     ):
-
-#         serialized = (
-#             serialize_part_attachment(
-#                 row
-#             )
-#         )
-
-
-#         attachments.append(
-#             serialized
-#         )
-
-
-#         if row.is_extraction_source:
-
-#             extraction_source = (
-#                 serialized
-#             )
-
-
-#         if row.is_final_swift:
-
-#             final_swift_files.append(
-#                 serialized
-#             )
-
-#     status_history = []
-
-#     for row in (
-#         operation.status_history
-#         or []
-#     ):
-#         status_history.append(
-#             {
-#                 "from_status":
-#                     row.from_status,
-
-#                 "to_status":
-#                     row.to_status,
-
-#                 "status_effective_datetime":
-#                     row.status_effective_datetime,
-
-#                 "system_datetime":
-#                     row.system_datetime,
-
-#                 "changed_by":
-#                     row.changed_by,
-
-#                 "remarks":
-#                     row.remarks,
-#             }
-#         )
-
-#     return {
-#         "name":
-#             operation.name,
-
-#         "serial_no":
-#             operation.serial_no,
-
-#         "operation_no":
-#             operation.operation_no,
-
-#         "customer":
-#             operation.customer,
-
-#         "amount":
-#             operation.amount,
-
-#         "currency":
-#             operation.currency,
-
-#         "customer_rate":
-#             operation.customer_rate,
-
-#         "beneficiary_name":
-#             operation.beneficiary_name,
-
-#         "beneficiary_account":
-#             operation.beneficiary_account,
-
-#         "beneficiary_bank":
-#             operation.beneficiary_bank,
-
-#         "swift_code":
-#             operation.swift_code,
-
-#         "country":
-#             operation.country,
-
-#         "sender_name":
-#             operation.sender_name,
-
-#         "sender_account":
-#             operation.sender_account,
-
-#         "execution_datetime":
-#             operation.execution_datetime,
-
-#         "transferring_bank":
-#             operation.transferring_bank,
-
-#         "request_date":
-#             operation.request_date,
-
-#         "from_account":
-#             operation.from_account,
-
-#         "reference_no":
-#             operation.reference_no,
-
-#         "bank_transfer_rate":
-#             operation.bank_transfer_rate,
-
-#         "notes":
-#             operation.notes,
-
-#         "status":
-#             operation.status,
-
-#         "status_effective_datetime":
-#             operation.status_effective_datetime,
-
-#         "status_changed_at":
-#             operation.status_changed_at,
-
-#         "status_changed_by":
-#             operation.status_changed_by,
-
-#         "extraction_source_file":
-#             operation.extraction_source_file,
-
-#         "attachments":
-#             attachments,
-
-#         "status_history":
-#             status_history,
-#         "final_swift_file":
-#             operation.final_swift_file,
-
-#         "final_swift_uploaded_at":
-#             operation.final_swift_uploaded_at,
-
-#         "final_swift_uploaded_by":
-#             operation.final_swift_uploaded_by,
-#     }
 def serialize_operation_for_view(
     operation,
 ) -> dict[str, Any]:
@@ -2895,6 +2810,7 @@ def get_operations_context() -> dict[str, Any]:
             "allow_duplicate_operation_no",
             "is_blocked_operation",
 
+            "owner",
             "creation",
             "modified",
         ],
@@ -2972,7 +2888,54 @@ def get_operations_context() -> dict[str, Any]:
                 "operation_no_duplicate_index"
             ] = index
             
+    # ========================================================
+    # Operation creators
+    #
+    # owner يحتوي User ID / email.
+    # نعرض full_name في الواجهة وليس البريد.
+    #
+    # Query واحدة لجميع المستخدمين لتجنب N+1.
+    # ========================================================
 
+    creator_ids = {
+        cstr(
+            operation.get("owner")
+        ).strip()
+        for operation in operations
+        if cstr(
+            operation.get("owner")
+        ).strip()
+    }
+
+
+    creator_names = {}
+
+
+    if creator_ids:
+
+        creator_rows = frappe.get_all(
+            "User",
+            filters={
+                "name": [
+                    "in",
+                    list(creator_ids),
+                ],
+            },
+            fields=[
+                "name",
+                "full_name",
+            ],
+            limit_page_length=0,
+        )
+
+
+        creator_names = {
+            row.name:
+                cstr(
+                    row.full_name
+                ).strip()
+            for row in creator_rows
+        }
 
     # ========================================================
     # Final Swift counts
@@ -3064,6 +3027,42 @@ def get_operations_context() -> dict[str, Any]:
     # ========================================================
 
     for operation in operations:
+        operation[
+            "created_by_name"
+        ] = (
+            creator_names.get(
+                cstr(
+                    operation.get("owner")
+                ).strip(),
+                "",
+            )
+        )
+
+        # ========================================================
+        # Search text
+        #
+        # إضافة اسم منشئ العملية إلى البحث المحلي.
+        # ========================================================
+
+        operation[
+            "search_text"
+        ] = " ".join(
+            value
+            for value in [
+                cstr(
+                    operation.get(
+                        "search_text"
+                    )
+                ).strip(),
+
+                cstr(
+                    operation.get(
+                        "created_by_name"
+                    )
+                ).strip(),
+            ]
+            if value
+        )
 
         operation[
             "can_view_timeline"
@@ -3443,195 +3442,7 @@ def get_operation_for_view(
 
 
 
-# @frappe.whitelist(
-#     methods=["POST"]
-# )
-# def register_attachment_download(
-#     operation_name: str,
-#     attachment_name: str,
-# ) -> dict[str, Any]:
-#     """
-#     تسجيل تنزيل مرفق من نافذة عرض العملية.
 
-#     لا نقبل file_url مباشرة من الواجهة.
-#     نتحقق من أن صف المرفق تابع فعلاً للعملية.
-#     """
-
-#     operation_name = (
-#         operation_name or ""
-#     ).strip()
-
-#     attachment_name = (
-#         attachment_name or ""
-#     ).strip()
-
-
-#     if not operation_name:
-#         frappe.throw(
-#             _("اسم العملية مطلوب.")
-#         )
-
-#     if not attachment_name:
-#         frappe.throw(
-#             _("المرفق مطلوب.")
-#         )
-
-
-#     # ========================================================
-#     # Operation
-#     # ========================================================
-
-#     operation = frappe.get_doc(
-#         "Archive Operation",
-#         operation_name,
-#     )
-
-#     operation.check_permission(
-#         "read"
-#     )
-#     # ========================================================
-#     # Download permission
-#     # ========================================================
-#     if not can_manage_operation_attachments(
-#         operation
-#     ):
-#         frappe.throw(
-#             _(
-#                 "ليس لديك صلاحية تنزيل مرفقات هذه العملية."
-#             ),
-#             frappe.PermissionError,
-#         )
-
-
-#     # ========================================================
-#     # Find attachment inside this operation
-#     # ========================================================
-
-#     attachment = next(
-#         (
-#             row
-#             for row in (
-#                 operation.attachments
-#                 or []
-#             )
-#             if row.name
-#             == attachment_name
-#         ),
-#         None,
-#     )
-
-
-#     if not attachment:
-#         frappe.throw(
-#             _(
-#                 "المرفق غير موجود في هذه العملية."
-#             )
-#         )
-
-
-#     if not attachment.file:
-#         frappe.throw(
-#             _(
-#                 "المرفق لا يحتوي على ملف."
-#             )
-#         )
-
-
-#     # ========================================================
-#     # Make sure File still exists
-#     # ========================================================
-
-#     file_doc_name = frappe.db.get_value(
-#         "File",
-#         {
-#             "file_url":
-#                 attachment.file,
-
-#             "attached_to_doctype":
-#                 "Archive Operation",
-
-#             "attached_to_name":
-#                 operation.name,
-#         },
-#         "name",
-#     )
-
-
-#     if not file_doc_name:
-#         frappe.throw(
-#             _(
-#                 "ملف المرفق غير موجود."
-#             )
-#         )
-
-
-#     file_doc = frappe.get_doc(
-#         "File",
-#         file_doc_name,
-#     )
-
-
-#     # ========================================================
-#     # Audit log
-#     # ========================================================
-
-#     event_datetime = (
-#         now_datetime()
-#     )
-
-#     event_user = (
-#         frappe.session.user
-#     )
-
-
-#     log_operation_event(
-#         operation.name,
-#         "attachment_downloaded",
-#         "تم تنزيل المرفق: {0}".format(
-#             attachment.file_name
-#             or file_doc.file_name
-#             or "مرفق"
-#         ),
-#         details={
-#             "attachment_name":
-#                 attachment.name,
-
-#             "file_name":
-#                 attachment.file_name
-#                 or file_doc.file_name,
-
-#             "file_url":
-#                 attachment.file,
-
-#             "is_extraction_source":
-#                 bool(
-#                     attachment.is_extraction_source
-#                 ),
-
-#             "is_final_swift":
-#                 bool(
-#                     attachment.is_final_swift
-#                 ),
-#         },
-#         event_source=
-#             "User",
-
-#         event_user=
-#             event_user,
-
-#         event_datetime=
-#             event_datetime,
-#     )
-
-
-#     return {
-#         "file_url":
-#             attachment.file,
-
-#         "file_name":
-#             attachment.file_name
-#             or file_doc.file_name,
-#     }
 
 @frappe.whitelist(
     methods=["POST"]
@@ -3731,25 +3542,7 @@ def register_attachment_download(
     )
 
 
-    # ========================================================
-    # Download permission
-    #
-    # نبقي نفس قاعدة الصلاحية الحالية.
-    # لا نغير نظام الصلاحيات في هذا التعديل.
-    # ========================================================
-
-    # if not can_manage_operation_attachments(
-    #     operation
-    # ):
-
-    #     frappe.throw(
-    #         _(
-    #             "ليس لديك صلاحية تنزيل "
-    #             "مستندات هذه العملية."
-    #         ),
-    #         frappe.PermissionError,
-    #     )
-
+    
 
     event_datetime = (
         now_datetime()
@@ -4148,355 +3941,6 @@ def register_attachment_download(
 
 
 
-# @frappe.whitelist(
-#     methods=["POST"]
-# )
-# def attach_final_swift(
-#     operation_name: str,
-#     file_urls: list[str] | str | None = None,
-# ) -> dict[str, Any]:
-
-#     operation_name = (
-#         operation_name or ""
-#     ).strip()
-
-#     file_urls = _parse(
-#         file_urls,
-#         [],
-#     )
-
-#     if isinstance(
-#         file_urls,
-#         str,
-#     ):
-#         file_urls = [
-#             file_urls
-#         ]
-
-#     if not operation_name:
-#         frappe.throw(
-#             _("اسم العملية مطلوب.")
-#         )
-
-#     if not isinstance(
-#         file_urls,
-#         list,
-#     ):
-#         frappe.throw(
-#             _(
-#                 "بيانات ملفات السويفت النهائي غير صحيحة."
-#             )
-#         )
-
-#     file_urls = [
-#         str(file_url).strip()
-#         for file_url in file_urls
-#         if str(file_url).strip()
-#     ]
-
-#     # إزالة التكرار مع المحافظة على الترتيب
-#     file_urls = list(
-#         dict.fromkeys(
-#             file_urls
-#         )
-#     )
-
-#     if not file_urls:
-#         frappe.throw(
-#             _(
-#                 "يجب إرفاق ملف سويفت نهائي واحد على الأقل."
-#             )
-#         )
-
-
-#     operation = frappe.get_doc(
-#         "Archive Operation",
-#         operation_name,
-#     )
-
-#     operation.check_permission(
-#         "read"
-#     )
-
-
-#     # ========================================================
-#     # Permission
-#     # ========================================================
-
-#     if not can_attach_final_swift(
-#         operation
-#     ):
-#         frappe.throw(
-#             _(
-#                 "ليس لديك صلاحية إرفاق السويفت النهائي."
-#             ),
-#             frappe.PermissionError,
-#         )
-
-
-#     # ========================================================
-#     # Bank
-#     # ========================================================
-
-#     configured_banks = (
-#         get_final_swift_banks()
-#     )
-
-#     swift_state = (
-#         get_final_swift_state(
-#             operation,
-#             configured_banks,
-#         )
-#     )
-
-#     if not swift_state[
-#         "final_swift_required"
-#     ]:
-#         frappe.throw(
-#             _(
-#                 "البنك المحول لهذه العملية غير موجود "
-#                 "ضمن بنوك السويفت النهائي في الإعدادات."
-#             )
-#         )
-
-
-#     # ========================================================
-#     # Maximum 10 files
-#     # ========================================================
-
-#     current_count = (
-#         swift_state[
-#             "final_swift_count"
-#         ]
-#     )
-
-#     remaining = (
-#         MAX_FINAL_SWIFT_FILES
-#         - current_count
-#     )
-
-#     if remaining <= 0:
-#         frappe.throw(
-#             _(
-#                 "تم الوصول إلى الحد الأقصى "
-#                 "لملفات السويفت النهائي وهو {0} ملفات."
-#             ).format(
-#                 MAX_FINAL_SWIFT_FILES
-#             )
-#         )
-#     if len(file_urls) > remaining:
-#         frappe.throw(
-#             _(
-#                 "يمكن إضافة {0} ملف فقط لهذه العملية. "
-#                 "الحد الأقصى هو {1} ملفات."
-#             ).format(
-#                 remaining,
-#                 MAX_FINAL_SWIFT_FILES,
-#             )
-#         )
-
-
-#     # ========================================================
-#     # Validate every file before modifying operation
-#     # ========================================================
-
-#     file_docs = []
-
-#     for file_url in file_urls:
-
-#         file_doc = (
-#             get_unattached_uploaded_file(
-#                 file_url
-#             )
-#         )
-
-#         file_name = (
-#             file_doc.file_name
-#             or ""
-#         ).strip()
-
-
-#         extension = (
-#             Path(
-#                 file_name
-#             )
-#             .suffix
-#             .lower()
-#         )
-
-
-#         if (
-#             extension
-#             not in FINAL_SWIFT_ALLOWED_EXTENSIONS
-#         ):
-#             frappe.throw(
-#                 _(
-#                     "ملفات السويفت النهائي "
-#                     "يجب أن تكون PDF أو صور فقط."
-#                 )
-#             )
-
-#         file_docs.append(
-#             file_doc
-#         )
-
-
-#     uploaded_at = (
-#         now_datetime()
-#     )
-
-#     uploaded_by = (
-#         frappe.session.user
-#     )
-
-
-#     # ========================================================
-#     # Append all final swift files
-#     # ========================================================
-
-#     for file_doc in file_docs:
-
-#         operation.append(
-#             "attachments",
-#             {
-#                 "file":
-#                     file_doc.file_url,
-
-#                 "file_name":
-#                     file_doc.file_name,
-
-#                 "is_extraction_source":
-#                     0,
-
-#                 "is_final_swift":
-#                     1,
-#             },
-#         )
-
-
-#     # مرجع مختصر لآخر ملف تم رفعه
-#     operation.final_swift_file = (
-#         file_docs[-1].file_url
-#     )
-
-#     operation.final_swift_uploaded_at = (
-#         uploaded_at
-#     )
-
-#     operation.final_swift_uploaded_by = (
-#         uploaded_by
-#     )
-
-
-#     operation.save(
-#         ignore_permissions=True
-#     )
-
-
-#     # ========================================================
-#     # Link File documents
-#     # ========================================================
-
-#     for file_doc in file_docs:
-
-#         file_doc.db_set(
-#             {
-#                 "attached_to_doctype":
-#                     "Archive Operation",
-
-#                 "attached_to_name":
-#                     operation.name,
-
-#                 "attached_to_field":
-#                     "attachments",
-#             },
-#             update_modified=False,
-#         )
-
-
-#     final_swift_count = (
-#         get_final_swift_count(
-#             operation
-#         )
-#     )
-#     log_operation_event(
-#         operation.name,
-#         "final_swift_added",
-#         (
-#             "تم إرفاق ملف سويفت نهائي"
-#             if len(file_docs) == 1
-#             else
-#             "تم إرفاق {0} ملفات سويفت نهائي".format(
-#                 len(file_docs)
-#             )
-#         ),
-#         details={
-#             "files": [
-#                 {
-#                     "file_name":
-#                         file_doc.file_name,
-
-#                     "file_url":
-#                         file_doc.file_url,
-#                 }
-#                 for file_doc
-#                 in file_docs
-#             ],
-
-#             "added_count":
-#                 len(
-#                     file_docs
-#                 ),
-
-#             "final_swift_count":
-#                 final_swift_count,
-
-#             "final_swift_limit":
-#                 MAX_FINAL_SWIFT_FILES,
-#         },
-#         event_source=
-#             "User",
-
-#         event_user=
-#             uploaded_by,
-
-#         event_datetime=
-#             uploaded_at,
-#     )
-
-
-#     return {
-#         "name":
-#             operation.name,
-
-#         "final_swift_file":
-#             operation.final_swift_file,
-
-#         "final_swift_uploaded_at":
-#             operation.final_swift_uploaded_at,
-
-#         "final_swift_uploaded_by":
-#             operation.final_swift_uploaded_by,
-
-#         "has_final_swift":
-#             final_swift_count > 0,
-
-#         "final_swift_pending":
-#             False,
-
-#         "final_swift_count":
-#             final_swift_count,
-
-#         "final_swift_limit":
-#             MAX_FINAL_SWIFT_FILES,
-
-#         "final_swift_remaining":
-#             max(
-#                 MAX_FINAL_SWIFT_FILES
-#                 - final_swift_count,
-#                 0,
-#             ),
-#     }
 
 @frappe.whitelist(
     methods=["POST"]
@@ -5077,17 +4521,17 @@ def attach_final_swift(
         operation.name,
         "final_swift_added",
 
-        (
-            "تم إرفاق ملف سويفت نهائي"
-            if len(
-                file_docs
-            ) == 1
-            else
-            "تم إرفاق {0} ملفات سويفت نهائي".format(
-                len(
-                    file_docs
-                )
-            )
+        build_file_event_title(
+            single_title=
+                "تم إرفاق ملف سويفت نهائي",
+
+            multi_title=
+                "تم إرفاق {0} ملفات سويفت نهائي".format(
+                    len(file_docs)
+                ),
+
+            files=
+                file_docs,
         ),
 
         details={
@@ -5303,7 +4747,7 @@ def change_operation_status(
         )
 
     try:
-        # تاريخ فقط، بدون وقت.
+        # تاريخ الحالة فقط، بدون وقت.
         effective_date = getdate(
             status_effective_datetime
         )
@@ -5314,6 +4758,50 @@ def change_operation_status(
                 "تاريخ الحالة غير صحيح."
             )
         )
+
+
+    # ============================================================
+    # Execution date
+    #
+    # تاريخ الحالة يجب أن يكون >= تاريخ تنفيذ العملية.
+    # ============================================================
+
+    if not operation.execution_datetime:
+        frappe.throw(
+            _(
+                "لا يوجد تاريخ تنفيذ للعملية، "
+                "لذلك لا يمكن تغيير حالتها."
+            )
+        )
+
+
+    try:
+        execution_date = getdate(
+            operation.execution_datetime
+        )
+
+    except Exception:
+        frappe.throw(
+            _(
+                "تاريخ تنفيذ العملية غير صحيح."
+            )
+        )
+
+
+    if (
+        effective_date
+        <
+        execution_date
+    ):
+        frappe.throw(
+            _(
+                "تاريخ الحالة يجب أن يكون أكبر من "
+                "أو يساوي تاريخ تنفيذ العملية ({0})."
+            ).format(
+                execution_date
+            )
+        )
+
 
     # وقت التنفيذ الحقيقي داخل النظام.
     system_datetime = (
@@ -5461,6 +4949,11 @@ def save_operation_re_extraction(
         | str
         | None = None,
 
+    delete_shared_document_names:
+        list[str]
+        | str
+        | None = None,
+
     file_id: str | None = None,
     file_url: str | None = None,
 ) -> dict[str, Any]:
@@ -5479,7 +4972,8 @@ def save_operation_re_extraction(
       لذلك execution_datetime المصحح يدوياً يفوز
       على قيمة الـParser.
     - operation_no لا يتغير من هذا المسار.
-    - Shared Documents وFinal Swift لا تتأثر.
+    - Final Swift لا يتأثر من هذا المسار.
+    - Shared Documents يمكن إضافتها أو حذفها عند الحفظ.
     """
 
     # ========================================================
@@ -5497,6 +4991,11 @@ def save_operation_re_extraction(
     )
     shared_documents = _parse(
         shared_documents,
+        [],
+    )
+
+    delete_shared_document_names = _parse(
+        delete_shared_document_names,
         [],
     )
 
@@ -5536,6 +5035,17 @@ def save_operation_re_extraction(
         frappe.throw(
             _(
                 "بيانات المستندات المشتركة غير صحيحة."
+            )
+        )
+    if not isinstance(
+        delete_shared_document_names,
+        list,
+    ):
+
+        frappe.throw(
+            _(
+                "بيانات المستندات المشتركة "
+                "المحذوفة غير صحيحة."
             )
         )
 
@@ -5613,15 +5123,18 @@ def save_operation_re_extraction(
 
 
     if (
-        shared_documents
+        (
+            shared_documents
+            or delete_shared_document_names
+        )
         and
         not can_manage_attachments
     ):
 
         frappe.throw(
             _(
-                "ليس لديك صلاحية إضافة "
-                "مستندات مشتركة للعملية."
+                "ليس لديك صلاحية إضافة أو حذف "
+                "مستندات العملية المشتركة."
             ),
             frappe.PermissionError,
         )
@@ -6198,6 +5711,30 @@ def save_operation_re_extraction(
     # ========================================================
 
     operation.reload()
+
+
+    # ========================================================
+    # Delete persisted Shared Documents
+    #
+    # يتم فقط أثناء Save الحقيقي.
+    # الإغلاق بدون حفظ لا يصل إلى هنا.
+    #
+    # الحذف أولاً حتى يحرر مكاناً ضمن حد
+    # Shared Documents إذا حذف المستخدم ملفاً
+    # وأضاف ملفاً آخر في نفس الحفظ.
+    # ========================================================
+
+    deleted_shared_documents = (
+        delete_shared_operation_documents(
+            operation=
+                operation,
+
+            document_names=
+                delete_shared_document_names,
+        )
+    )
+
+
     # ========================================================
     # Create Group Shared Documents
     #
@@ -6314,7 +5851,21 @@ def save_operation_re_extraction(
         log_operation_event(
             operation.name,
             "attachment_added",
-            "تم إرفاق مستندات مشتركة",
+
+            build_file_event_title(
+                single_title=
+                    "تم إرفاق مستند مشترك",
+
+                multi_title=
+                    "تم إرفاق {0} مستندات مشتركة".format(
+                        len(
+                            created_shared_documents
+                        )
+                    ),
+
+                files=
+                    created_shared_documents,
+            ),
 
             details={
                 "operation_group":
@@ -6345,7 +5896,36 @@ def save_operation_re_extraction(
     # ========================================================
     # Response
     # ========================================================
+    if deleted_shared_documents:
 
+        log_operation_event(
+            operation.name,
+            "attachment_deleted",
+
+            build_file_event_title(
+                single_title=
+                    "تم حذف مستند مشترك",
+
+                multi_title=
+                    "تم حذف {0} مستندات مشتركة".format(
+                        len(
+                            deleted_shared_documents
+                        )
+                    ),
+
+                files=
+                    deleted_shared_documents,
+            ),
+            details={
+                "operation_group":
+                    operation.operation_group,
+
+                "files":
+                    deleted_shared_documents,
+            },
+            event_source=
+                "User",
+        )
     return {
         "operation":
             serialize_operation_for_view(
@@ -6360,6 +5940,10 @@ def save_operation_re_extraction(
         "shared_documents_added":
             len(
                 created_shared_documents
+            ),
+        "shared_documents_deleted":
+            len(
+                deleted_shared_documents
             ),
 
         "permissions": {
@@ -6402,6 +5986,7 @@ def save_operation_re_extraction(
             True,
     }
 
+
 @frappe.whitelist(
     methods=["POST"]
 )
@@ -6421,6 +6006,11 @@ def save_operation_view_changes(
         | None = None,
 
     delete_attachment_names:
+        list[str]
+        | str
+        | None = None,
+
+    delete_shared_document_names:
         list[str]
         | str
         | None = None,
@@ -6449,6 +6039,10 @@ def save_operation_view_changes(
         delete_attachment_names,
         [],
     )
+    delete_shared_document_names = _parse(
+        delete_shared_document_names,
+        [],
+    )
 
     if not operation_name:
         frappe.throw(
@@ -6474,6 +6068,17 @@ def save_operation_view_changes(
     ):
         frappe.throw(
             _("بيانات المرفقات المحذوفة غير صحيحة.")
+        )
+
+    if not isinstance(
+        delete_shared_document_names,
+        list,
+    ):
+        frappe.throw(
+            _(
+                "بيانات المستندات المشتركة "
+                "المحذوفة غير صحيحة."
+            )
         )
 
     if not isinstance(
@@ -6542,6 +6147,7 @@ def save_operation_view_changes(
         (
             new_attachments
             or delete_attachment_names
+            or delete_shared_document_names
         )
         and not can_manage_attachments
     ):
@@ -6970,14 +6576,37 @@ def save_operation_view_changes(
     operation.save(
         ignore_permissions=True
     )
+
+
+    # ========================================================
+    # Delete persisted Shared Documents
+    #
+    # لا يتم الوصول إلى هنا إلا بعد الضغط على
+    # "حفظ التعديلات".
+    #
+    # الإغلاق بدون حفظ لا يصل إلى هذا المسار.
+    # ========================================================
+
+    deleted_shared_documents = (
+        delete_shared_operation_documents(
+            operation=
+                operation,
+
+            document_names=
+                delete_shared_document_names,
+        )
+    )
+
+
     # ========================================================
     # Shared Documents
     #
     # Group-level.
     # يستخدم نفس Domain Service الخاصة بـCreate.
     #
-    # إذا فشل الحد الأقصى أو أي Validation هنا،
-    # Request كلها تعمل rollback.
+    # الحذف يتم أولاً حتى يحرر مكاناً من حد 10
+    # إذا حذف المستخدم مستنداً وأضاف آخر
+    # في نفس عملية الحفظ.
     # ========================================================
 
     created_shared_documents = (
@@ -7063,18 +6692,24 @@ def save_operation_view_changes(
 
     operation.reload()
 
+
     if new_file_docs:
 
         log_operation_event(
             operation.name,
             "attachment_added",
-            (
-                "تم إضافة مرفق جديد"
-                if len(new_file_docs) == 1
-                else
-                "تم إضافة {0} مرفقات جديدة".format(
-                    len(new_file_docs)
-                )
+
+            build_file_event_title(
+                single_title=
+                    "تم إضافة مرفق جديد",
+
+                multi_title=
+                    "تم إضافة {0} مرفقات جديدة".format(
+                        len(new_file_docs)
+                    ),
+
+                files=
+                    new_file_docs,
             ),
             details={
                 "files": [
@@ -7097,7 +6732,21 @@ def save_operation_view_changes(
         log_operation_event(
             operation.name,
             "attachment_added",
-            "تم إرفاق مستندات مشتركة",
+
+            build_file_event_title(
+                single_title=
+                    "تم إرفاق مستند مشترك",
+
+                multi_title=
+                    "تم إرفاق {0} مستندات مشتركة".format(
+                        len(
+                            created_shared_documents
+                        )
+                    ),
+
+                files=
+                    created_shared_documents,
+            ),
 
             details={
                 "operation_group":
@@ -7123,22 +6772,57 @@ def save_operation_view_changes(
             event_source=
                 "User",
         )
+
+
+    if deleted_shared_documents:
+
+        log_operation_event(
+            operation.name,
+            "attachment_deleted",
+
+            build_file_event_title(
+                single_title=
+                    "تم حذف مستند مشترك",
+
+                multi_title=
+                    "تم حذف {0} مستندات مشتركة".format(
+                        len(
+                            deleted_shared_documents
+                        )
+                    ),
+
+                files=
+                    deleted_shared_documents,
+            ),
+            details={
+                "operation_group":
+                    operation.operation_group,
+
+                "files":
+                    deleted_shared_documents,
+            },
+            event_source=
+                "User",
+        )
     if deleted_normal_files:
 
         log_operation_event(
             operation.name,
             "attachment_deleted",
-            (
-                "تم حذف مرفق"
-                if len(
-                    deleted_normal_files
-                ) == 1
-                else
-                "تم حذف {0} مرفقات".format(
-                    len(
-                        deleted_normal_files
-                    )
-                )
+
+            build_file_event_title(
+                single_title=
+                    "تم حذف مرفق",
+
+                multi_title=
+                    "تم حذف {0} مرفقات".format(
+                        len(
+                            deleted_normal_files
+                        )
+                    ),
+
+                files=
+                    deleted_normal_files,
             ),
             details={
                 "files":
@@ -7155,21 +6839,23 @@ def save_operation_view_changes(
             )
         )
 
-
         log_operation_event(
             operation.name,
             "final_swift_deleted",
-            (
-                "تم حذف ملف سويفت نهائي"
-                if len(
-                    deleted_final_swift_files
-                ) == 1
-                else
-                "تم حذف {0} ملفات سويفت نهائي".format(
-                    len(
-                        deleted_final_swift_files
-                    )
-                )
+
+            build_file_event_title(
+                single_title=
+                    "تم حذف ملف سويفت نهائي",
+
+                multi_title=
+                    "تم حذف {0} ملفات سويفت نهائي".format(
+                        len(
+                            deleted_final_swift_files
+                        )
+                    ),
+
+                files=
+                    deleted_final_swift_files,
             ),
             details={
                 "files":
@@ -7201,6 +6887,10 @@ def save_operation_view_changes(
         "shared_documents_added":
             len(
                 created_shared_documents
+            ),
+        "shared_documents_deleted":
+            len(
+                deleted_shared_documents
             ),
 
         "permissions": {

@@ -3,23 +3,7 @@ frappe.pages["archive-operations"].on_page_load = function (wrapper) {
 };
 
 class ArchiveOperationsPage {
-	// constructor(wrapper) {
-	// 	this.wrapper = wrapper;
-
-	// 	this.state = {
-	// 		status: "all",
-	// 		search: "",
-    //         start: 0,
-	//         page_length: 100000,
-    //         selected_operation_name: null,
-	// 	};
-
-    //     this.operations = [];
-
-	// 	this.make_page();
-	// 	this.render();
-    //     this.load_operations();
-	// }
+	
     constructor(wrapper) {
         this.wrapper = wrapper;
 
@@ -664,6 +648,9 @@ class ArchiveOperationsPage {
                         status: {
                             type: "text",
                         },
+                        created_by_name: {
+                            type: "text",
+                        },
                     },
                 });
 
@@ -746,137 +733,373 @@ class ArchiveOperationsPage {
     //             (status) =>
     //                 status !== current_status
     //         );
+    // open_status_dialog(
+    //     operation
+    //     ) {
+    //     if (
+    //         !operation
+    //         ||
+    //         operation.status === "معلقة"
+    //         ||
+    //         !operation.can_change_status
+    //     ) {
+    //         return;
+    //     }
+
+
+    //     const operation_name =
+    //         operation.name;
+
+    //     const current_status =
+    //         operation.status;
+
+
+    //     const available_statuses =
+    //         Array.isArray(
+    //             operation.allowed_status_transitions
+    //         )
+    //             ? operation.allowed_status_transitions
+    //             : [];
+
+
+    //     if (!available_statuses.length) {
+    //         frappe.show_alert({
+    //             message:
+    //                 __(
+    //                     "لا توجد حالات متاحة لهذه العملية"
+    //                 ),
+
+    //             indicator:
+    //                 "orange",
+    //         });
+
+    //         return;
+    //     }
+
+    //     const dialog =
+    //         new frappe.ui.Dialog({
+    //             title:
+    //                 `إجراءات العملية ${operation_name}`,
+
+    //             fields: [
+    //                 {
+    //                     fieldname:
+    //                         "current_status",
+
+    //                     label:
+    //                         "الحالة الحالية",
+
+    //                     fieldtype:
+    //                         "Data",
+
+    //                     read_only:
+    //                         1,
+
+    //                     default:
+    //                         current_status,
+    //                 },
+
+    //                 {
+    //                     fieldname:
+    //                         "status",
+
+    //                     label:
+    //                         "الحالة الجديدة",
+
+    //                     fieldtype:
+    //                         "Select",
+
+    //                     options:
+    //                         available_statuses.join(
+    //                             "\n"
+    //                         ),
+
+    //                     reqd:
+    //                         1,
+    //                 },
+
+    //                 {
+    //                     fieldname:
+    //                         "status_effective_datetime",
+
+    //                     label:
+    //                         "تاريخ الحالة",
+
+    //                     fieldtype:
+    //                         "Date",
+
+    //                     reqd:
+    //                         1,
+
+    //                     description:
+    //                         "التاريخ الفعلي لتغيير حالة العملية.",
+    //                 },
+
+    //                 {
+    //                     fieldname:
+    //                         "remarks",
+
+    //                     label:
+    //                         "ملاحظات الإجراء",
+
+    //                     fieldtype:
+    //                         "Small Text",
+    //                 },
+    //             ],
+
+    //             primary_action_label:
+    //                 __("تنفيذ الإجراء"),
+
+    //             primary_action:
+    //                 async (values) => {
+    //                     await this.change_operation_status(
+    //                         operation_name,
+    //                         values.status,
+    //                         values.status_effective_datetime,
+    //                         values.remarks,
+    //                         dialog
+    //                     );
+    //                 },
+    //         });
+
+    //     dialog.show();
+    // }
     open_status_dialog(
-        operation
-    ) {
-        if (
-            !operation
-            ||
-            operation.status === "معلقة"
-            ||
-            !operation.can_change_status
+            operation
         ) {
-            return;
+            if (
+                !operation
+                ||
+                operation.status === "معلقة"
+                ||
+                !operation.can_change_status
+            ) {
+                return;
+            }
+
+
+            const operation_name =
+                operation.name;
+
+            const current_status =
+                operation.status;
+
+
+            // ========================================================
+            // Execution date
+            //
+            // تاريخ الحالة لا يجوز أن يسبق تاريخ تنفيذ العملية.
+            // execution_datetime يأتي بصيغة:
+            // YYYY-MM-DD HH:mm:ss
+            // ========================================================
+
+            const execution_date =
+                String(
+                    operation.execution_datetime
+                    || ""
+                )
+                .trim()
+                .slice(
+                    0,
+                    10
+                );
+
+
+            if (!execution_date) {
+
+                frappe.msgprint({
+                    title:
+                        __("تعذر تنفيذ الإجراء"),
+
+                    message:
+                        __(
+                            "لا يوجد تاريخ تنفيذ للعملية، لذلك لا يمكن تغيير حالتها."
+                        ),
+
+                    indicator:
+                        "red",
+                });
+
+                return;
+            }
+
+
+            const available_statuses =
+                Array.isArray(
+                    operation.allowed_status_transitions
+                )
+                    ? operation.allowed_status_transitions
+                    : [];
+
+
+            if (!available_statuses.length) {
+
+                frappe.show_alert({
+                    message:
+                        __(
+                            "لا توجد حالات متاحة لهذه العملية"
+                        ),
+
+                    indicator:
+                        "orange",
+                });
+
+                return;
+            }
+
+
+            const dialog =
+                new frappe.ui.Dialog({
+                    title:
+                        `إجراءات العملية ${operation_name}`,
+
+                    fields: [
+                        {
+                            fieldname:
+                                "current_status",
+
+                            label:
+                                "الحالة الحالية",
+
+                            fieldtype:
+                                "Data",
+
+                            read_only:
+                                1,
+
+                            default:
+                                current_status,
+                        },
+
+                        {
+                            fieldname:
+                                "status",
+
+                            label:
+                                "الحالة الجديدة",
+
+                            fieldtype:
+                                "Select",
+
+                            options:
+                                available_statuses.join(
+                                    "\n"
+                                ),
+
+                            reqd:
+                                1,
+                        },
+
+                        {
+                            fieldname:
+                                "status_effective_datetime",
+
+                            label:
+                                "تاريخ الحالة",
+
+                            fieldtype:
+                                "Date",
+
+                            reqd:
+                                1,
+
+                            description:
+                                `يجب أن يكون تاريخ الحالة أكبر من أو يساوي تاريخ تنفيذ العملية: ${execution_date}`,
+                        },
+
+                        {
+                            fieldname:
+                                "remarks",
+
+                            label:
+                                "ملاحظات الإجراء",
+
+                            fieldtype:
+                                "Small Text",
+                        },
+                    ],
+
+                    primary_action_label:
+                        __("تنفيذ الإجراء"),
+
+                    primary_action:
+                        async (values) => {
+
+                            const status_date =
+                                String(
+                                    values
+                                        .status_effective_datetime
+                                    || ""
+                                ).trim();
+
+
+                            // ====================================================
+                            // Mandatory lower bound
+                            // ====================================================
+
+                            if (
+                                status_date
+                                &&
+                                status_date
+                                <
+                                execution_date
+                            ) {
+
+                                frappe.msgprint({
+                                    title:
+                                        __("تاريخ الحالة غير صحيح"),
+
+                                    message:
+                                        __(
+                                            `تاريخ الحالة يجب أن يكون أكبر من أو يساوي تاريخ تنفيذ العملية (${execution_date}).`
+                                        ),
+
+                                    indicator:
+                                        "red",
+                                });
+
+                                return;
+                            }
+
+
+                            await this.change_operation_status(
+                                operation_name,
+                                values.status,
+                                status_date,
+                                values.remarks,
+                                dialog
+                            );
+                        },
+                });
+
+
+            dialog.show();
+
+
+            // ========================================================
+            // Browser-level minimum date
+            // ========================================================
+
+            const status_date_field =
+                dialog.get_field(
+                    "status_effective_datetime"
+                );
+
+
+            if (
+                status_date_field
+                &&
+                status_date_field.$input
+            ) {
+
+                status_date_field
+                    .$input
+                    .attr(
+                        "min",
+                        execution_date
+                    );
+            }
         }
-
-
-        const operation_name =
-            operation.name;
-
-        const current_status =
-            operation.status;
-
-
-        const available_statuses =
-            Array.isArray(
-                operation.allowed_status_transitions
-            )
-                ? operation.allowed_status_transitions
-                : [];
-
-
-        if (!available_statuses.length) {
-            frappe.show_alert({
-                message:
-                    __(
-                        "لا توجد حالات متاحة لهذه العملية"
-                    ),
-
-                indicator:
-                    "orange",
-            });
-
-            return;
-        }
-
-        const dialog =
-            new frappe.ui.Dialog({
-                title:
-                    `إجراءات العملية ${operation_name}`,
-
-                fields: [
-                    {
-                        fieldname:
-                            "current_status",
-
-                        label:
-                            "الحالة الحالية",
-
-                        fieldtype:
-                            "Data",
-
-                        read_only:
-                            1,
-
-                        default:
-                            current_status,
-                    },
-
-                    {
-                        fieldname:
-                            "status",
-
-                        label:
-                            "الحالة الجديدة",
-
-                        fieldtype:
-                            "Select",
-
-                        options:
-                            available_statuses.join(
-                                "\n"
-                            ),
-
-                        reqd:
-                            1,
-                    },
-
-                    {
-                        fieldname:
-                            "status_effective_datetime",
-
-                        label:
-                            "تاريخ الحالة",
-
-                        fieldtype:
-                            "Date",
-
-                        reqd:
-                            1,
-
-                        description:
-                            "التاريخ الفعلي لتغيير حالة العملية.",
-                    },
-
-                    {
-                        fieldname:
-                            "remarks",
-
-                        label:
-                            "ملاحظات الإجراء",
-
-                        fieldtype:
-                            "Small Text",
-                    },
-                ],
-
-                primary_action_label:
-                    __("تنفيذ الإجراء"),
-
-                primary_action:
-                    async (values) => {
-                        await this.change_operation_status(
-                            operation_name,
-                            values.status,
-                            values.status_effective_datetime,
-                            values.remarks,
-                            dialog
-                        );
-                    },
-            });
-
-        dialog.show();
-    }
 
     open_final_swift_dialog() {
         const operation =
@@ -1268,7 +1491,7 @@ class ArchiveOperationsPage {
                                 <col class="col-notes">
 
                                 <col class="col-final-swift">
-
+                                <col class="col-created-by">
                                 <col class="col-status">
                                 
                             </colgroup>
@@ -1445,11 +1668,20 @@ class ArchiveOperationsPage {
 
                                     <th
                                         class="generic-sortable-column"
+                                        data-sort-field="created_by_name"
+                                    >
+                                        اسم المستخدم
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+                                    <th
+                                        class="generic-sortable-column"
                                         data-sort-field="status"
                                     >
                                         الحالة
                                         <span class="generic-sort-indicator"></span>
                                     </th>
+
+
                                 </tr>
                             </thead>
 
@@ -2512,7 +2744,12 @@ class ArchiveOperationsPage {
 
                 </td>
 
-
+                <!-- المستخدم الذي أنشأ العملية -->
+                <td>
+                    ${this.escape_value(
+                        operation.created_by_name
+                    )}
+                </td>
                 <!-- الحالة -->
                 <td>
                     <span
@@ -2523,6 +2760,8 @@ class ArchiveOperationsPage {
                         )}
                     </span>
                 </td>
+
+
                 
                 
 

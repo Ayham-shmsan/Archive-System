@@ -400,3 +400,444 @@ def create_shared_operation_documents(
 
 
     return created
+
+
+def delete_shared_operation_documents(
+    *,
+    operation,
+    document_names,
+):
+    """
+    حذف مستندات العملية المشتركة المحفوظة على مستوى الـGroup.
+
+    القواعد:
+    - المستند يجب أن يتبع نفس operation_group.
+    - نحذف فقط Archive Operation Document المطلوب بالاسم.
+    - لا نستخدم file_url كهوية عالمية.
+    - File يحذف فقط إذا كان مربوطاً بنفس AOD المحدد.
+    """
+
+    if not document_names:
+        return []
+
+
+    operation_group = cstr(
+        operation.operation_group
+    ).strip()
+
+
+    if not operation_group:
+
+        frappe.throw(
+            _(
+                "العملية غير مرتبطة بمجموعة عملية."
+            )
+        )
+
+
+    # ========================================================
+    # Normalize document names
+    # ========================================================
+
+    normalized_names = []
+
+    seen_names = set()
+
+
+    for document_name in document_names:
+
+        document_name = cstr(
+            document_name
+        ).strip()
+
+
+        if not document_name:
+            continue
+
+
+        if document_name in seen_names:
+            continue
+
+
+        seen_names.add(
+            document_name
+        )
+
+        normalized_names.append(
+            document_name
+        )
+
+
+    if not normalized_names:
+        return []
+
+
+    # ========================================================
+    # Lock Group
+    #
+    # حتى لا يحدث حذف/إضافة متزامنة تؤثر على العدد.
+    # ========================================================
+
+    _lock_operation_group(
+        operation_group
+    )
+
+
+    # ========================================================
+    # Load exact documents
+    #
+    # البحث مقيد بالـGroup الحالي وبنوع Shared Document.
+    # ========================================================
+
+    documents = frappe.get_all(
+        "Archive Operation Document",
+        filters={
+            "name": [
+                "in",
+                normalized_names,
+            ],
+
+            "operation_group":
+                operation_group,
+
+            "document_role":
+                DOCUMENT_ROLE_SHARED_ATTACHMENT,
+        },
+        fields=[
+            "name",
+            "file",
+            "file_name",
+            "document_role",
+            "operation_group",
+            "source_operation",
+        ],
+        limit_page_length=0,
+    )
+
+
+    documents_by_name = {
+        document.name:
+            document
+        for document
+        in documents
+    }
+
+
+    # ========================================================
+    # Every requested document must belong to this Group
+    # ========================================================
+
+    missing_names = [
+        document_name
+        for document_name
+        in normalized_names
+        if document_name
+        not in documents_by_name
+    ]
+
+
+    if missing_names:
+
+        frappe.throw(
+            _(
+                "أحد مستندات العملية المطلوب حذفها "
+                "غير موجود أو لا يتبع مجموعة هذه العملية."
+            )
+        )
+
+
+    deleted_documents = []
+
+
+    # ========================================================
+    # Delete
+    # ========================================================
+
+    for document_name in normalized_names:
+
+        document = (
+            documents_by_name[
+                document_name
+            ]
+        )
+
+
+        # ====================================================
+        # Resolve exact File records attached to this AOD
+        #
+        # مهم:
+        # لا نبحث بواسطة file_url فقط.
+        # ====================================================
+
+        file_rows = frappe.get_all(
+            "File",
+            filters={
+                "attached_to_doctype":
+                    "Archive Operation Document",
+
+                "attached_to_name":
+                    document.name,
+
+                "attached_to_field":
+                    "file",
+            },
+            fields=[
+                "name",
+                "file_name",
+                "file_url",
+            ],
+            limit_page_length=0,
+        )
+
+
+        if len(file_rows) > 1:
+
+            frappe.throw(
+                _(
+                    "وجد أكثر من سجل File مرتبط "
+                    "بالمستند {0}. تم إيقاف الحذف "
+                    "لحماية البيانات."
+                ).format(
+                    document.name
+                )
+            )
+
+
+        file_row = (
+            file_rows[0]
+            if file_rows
+            else None
+        )
+
+
+        deleted_documents.append(
+            {
+                "document":
+                    document.name,
+
+                "file_name":
+                    document.file_name
+                    or (
+                        file_row.file_name
+                        if file_row
+                        else None
+                    ),
+
+                "file_url":
+                    document.file,
+
+                "operation_group":
+                    operation_group,
+            }
+        )
+
+
+        # ====================================================
+        # Delete AOD
+        # ====================================================
+
+        frappe.delete_doc(
+            "Archive Operation Document",
+            document.name,
+            ignore_permissions=True,
+        )
+
+
+        # ====================================================
+        # Delete exact File if Frappe did not already remove it
+        # ====================================================
+
+        if (
+            file_row
+            and
+            frappe.db.exists(
+                "File",
+                file_row.name,
+            )
+        ):
+
+            frappe.delete_doc(
+                "File",
+                file_row.name,
+                ignore_permissions=True,
+            )
+
+
+    return deleted_documents
+
+# def delete_shared_operation_document(
+#     *,
+#     operation,
+#     document_name,
+# ):
+#     """
+#     حذف مستند مشترك محفوظ على مستوى الـGroup.
+
+#     الحذف مقيد بمجموعة العملية المفتوحة،
+#     ولا يعتمد على file_url كهوية للمستند.
+#     """
+
+#     operation_group = cstr(
+#         operation.operation_group
+#     ).strip()
+
+#     document_name = cstr(
+#         document_name
+#     ).strip()
+
+
+#     if not operation_group:
+#         frappe.throw(
+#             _(
+#                 "العملية غير مرتبطة بمجموعة عملية."
+#             )
+#         )
+
+
+#     if not document_name:
+#         frappe.throw(
+#             _(
+#                 "معرف المستند المشترك مطلوب."
+#             )
+#         )
+
+
+#     # ========================================================
+#     # Lock group
+#     # ========================================================
+
+#     _lock_operation_group(
+#         operation_group
+#     )
+
+
+#     # ========================================================
+#     # Exact AOD
+#     # ========================================================
+
+#     document = frappe.get_doc(
+#         "Archive Operation Document",
+#         document_name,
+#     )
+
+
+#     if (
+#         cstr(
+#             document.operation_group
+#         ).strip()
+#         !=
+#         operation_group
+#     ):
+#         frappe.throw(
+#             _(
+#                 "المستند المشترك لا يتبع "
+#                 "مجموعة هذه العملية."
+#             ),
+#             frappe.PermissionError,
+#         )
+
+
+#     # ========================================================
+#     # Exact File identity
+#     #
+#     # لا نبحث عن الملف عالمياً بواسطة URL.
+#     # يجب أن يكون File مربوطاً بهذا AOD تحديداً.
+#     # ========================================================
+
+#     file_rows = frappe.get_all(
+#         "File",
+#         filters={
+#             "attached_to_doctype":
+#                 "Archive Operation Document",
+
+#             "attached_to_name":
+#                 document.name,
+
+#             "attached_to_field":
+#                 "file",
+
+#             "file_url":
+#                 document.file,
+#         },
+#         fields=[
+#             "name",
+#             "file_name",
+#             "file_url",
+#         ],
+#         limit_page_length=0,
+#     )
+
+
+#     if len(file_rows) > 1:
+#         frappe.throw(
+#             _(
+#                 "وجد أكثر من سجل File للمستند المشترك، "
+#                 "ولن يتم الحذف لحماية البيانات."
+#             )
+#         )
+
+
+#     file_row = (
+#         file_rows[0]
+#         if file_rows
+#         else None
+#     )
+
+
+#     result = {
+#         "document_name":
+#             document.name,
+
+#         "file_name":
+#             document.file_name
+#             or (
+#                 file_row.file_name
+#                 if file_row
+#                 else ""
+#             ),
+
+#         "file_url":
+#             document.file,
+
+#         "document_role":
+#             document.document_role,
+
+#         "operation_group":
+#             document.operation_group,
+#     }
+
+
+#     # ========================================================
+#     # Delete AOD first
+#     # ========================================================
+
+#     frappe.delete_doc(
+#         "Archive Operation Document",
+#         document.name,
+#         ignore_permissions=True,
+#     )
+
+
+#     # ========================================================
+#     # Delete exact File if it still exists
+#     #
+#     # Frappe قد يحذفه مع المستند،
+#     # لذلك نفحص أولاً.
+#     # ========================================================
+
+#     if (
+#         file_row
+#         and
+#         frappe.db.exists(
+#             "File",
+#             file_row.name,
+#         )
+#     ):
+#         frappe.delete_doc(
+#             "File",
+#             file_row.name,
+#             ignore_permissions=True,
+#         )
+
+
+#     return result
