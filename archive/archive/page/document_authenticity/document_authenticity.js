@@ -8,6 +8,16 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
     const state = {
         file: null,
         checking: false,
+
+        history: {
+            search: "",
+            status: "",
+            page: 1,
+            page_length: 20,
+
+            search_timer: null,
+            request_id: 0,
+        },
     };
 
     const $main = $(wrapper).find(".layout-main-section");
@@ -117,7 +127,11 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
     $check_button.on("click", function () {
         run_check();
     });
-    load_history();
+    render_history_shell();
+
+    load_history_results({
+        show_loading: true,
+    });
 
 
     function open_uploader() {
@@ -230,7 +244,10 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                 render_result(
                     r.message
                 );
-                load_history();
+
+                state.history.page = 1;
+
+                load_history_results();
             },
 
             always() {
@@ -244,133 +261,519 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             },
         });
     }
-
-
-    
-    function load_history() {
+    function render_history_shell() {
         $history.html(`
+            <style>
+                .archive-auth-history-card {
+                    overflow: hidden;
+                    border:
+                        1px solid
+                        #cfe8f7 !important;
+                    border-radius:
+                        16px !important;
+                    background:
+                        #ffffff !important;
+                    box-shadow:
+                        0 6px 24px
+                        rgba(
+                            14,
+                            116,
+                            144,
+                            0.07
+                        );
+                }
+
+
+                .archive-auth-history-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 16px;
+                    flex-wrap: wrap;
+
+                    margin-bottom: 20px;
+                }
+
+
+                .archive-auth-history-title-wrap {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+
+
+                .archive-auth-history-title-icon {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+
+                    width: 42px;
+                    height: 42px;
+
+                    flex: 0 0 42px;
+
+                    border-radius: 12px;
+
+                    background:
+                        linear-gradient(
+                            135deg,
+                            #e0f2fe,
+                            #ccfbf1
+                        );
+
+                    color:
+                        #0369a1;
+                }
+
+
+                .archive-auth-history-title {
+                    margin: 0;
+
+                    color:
+                        #0f4c5c;
+
+                    font-size: 17px;
+                    font-weight: 700;
+                }
+
+
+                .archive-auth-history-subtitle {
+                    margin-top: 4px;
+
+                    color:
+                        #4b7b88;
+
+                    font-size: 12px;
+                }
+
+
+                .archive-auth-refresh-history {
+                    min-width: 78px;
+
+                    border:
+                        1px solid
+                        #bae6fd !important;
+
+                    border-radius:
+                        9px !important;
+
+                    background:
+                        #f0f9ff !important;
+
+                    color:
+                        #0369a1 !important;
+
+                    font-weight: 600;
+                }
+
+
+                .archive-auth-refresh-history:hover {
+                    border-color:
+                        #7dd3fc !important;
+
+                    background:
+                        #e0f2fe !important;
+
+                    color:
+                        #075985 !important;
+                }
+
+
+                .archive-auth-history-filter-panel {
+                    position: relative;
+
+                    display: grid;
+
+                    grid-template-columns:
+                        minmax(320px, 1fr)
+                        minmax(180px, 230px);
+
+                    gap: 16px;
+
+                    padding: 18px;
+
+                    border:
+                        1px solid
+                        #bae6fd;
+
+                    border-radius: 14px;
+
+                    background:
+                        linear-gradient(
+                            135deg,
+                            #f0f9ff 0%,
+                            #ecfeff 100%
+                        );
+                }
+
+
+                .archive-auth-filter-group {
+                    min-width: 0;
+                }
+
+
+                .archive-auth-filter-label {
+                    display: block;
+
+                    margin:
+                        0 0 7px 0;
+
+                    color:
+                        #155e75;
+
+                    font-size: 12px;
+                    font-weight: 700;
+                }
+
+
+                .archive-auth-search-wrap {
+                    position: relative;
+                }
+
+
+                .archive-auth-search-icon {
+                    position: absolute;
+
+                    top: 50%;
+                    right: 14px;
+
+                    transform:
+                        translateY(-50%);
+
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+
+                    width: 18px;
+                    height: 18px;
+
+                    color:
+                        #0891b2;
+
+                    pointer-events: none;
+
+                    z-index: 2;
+                }
+
+
+                .archive-auth-history-search,
+                .archive-auth-history-status {
+                    width: 100%;
+
+                    height: 42px;
+
+                    border:
+                        1px solid
+                        #a5d8ef !important;
+
+                    border-radius:
+                        10px !important;
+
+                    background:
+                        #ffffff !important;
+
+                    color:
+                        #164e63 !important;
+
+                    font-size: 13px;
+
+                    box-shadow:
+                        0 1px 2px
+                        rgba(
+                            14,
+                            116,
+                            144,
+                            0.04
+                        );
+
+                    transition:
+                        border-color 0.16s ease,
+                        box-shadow 0.16s ease,
+                        background-color 0.16s ease;
+                }
+
+
+                .archive-auth-history-search {
+                    padding-right:
+                        42px !important;
+
+                    padding-left:
+                        13px !important;
+                }
+
+
+                .archive-auth-history-search::placeholder {
+                    color:
+                        #77a5b4;
+                }
+
+
+                .archive-auth-history-search:focus,
+                .archive-auth-history-status:focus {
+                    border-color:
+                        #06b6d4 !important;
+
+                    background:
+                        #ffffff !important;
+
+                    box-shadow:
+                        0 0 0 3px
+                        rgba(
+                            6,
+                            182,
+                            212,
+                            0.12
+                        ) !important;
+
+                    outline:
+                        none !important;
+                }
+
+
+                .archive-auth-history-status {
+                    cursor: pointer;
+
+                    padding-right:
+                        12px !important;
+                }
+
+
+                .archive-auth-history-meta {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+
+                    gap: 12px;
+
+                    flex-wrap: wrap;
+
+                    margin-top: 18px;
+
+                    padding:
+                        11px 14px;
+
+                    border:
+                        1px solid
+                        #cffafe;
+
+                    border-radius:
+                        10px;
+
+                    background:
+                        #f0fdfa;
+                }
+
+
+                .archive-auth-history-count-wrap {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+
+                    color:
+                        #115e59;
+
+                    font-size: 12px;
+                }
+
+
+                .archive-auth-history-count {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+
+                    min-width: 30px;
+                    height: 26px;
+
+                    padding:
+                        0 9px;
+
+                    border:
+                        1px solid
+                        #99f6e4;
+
+                    border-radius:
+                        20px;
+
+                    background:
+                        #ccfbf1;
+
+                    color:
+                        #0f766e;
+
+                    font-size: 12px;
+                    font-weight: 700;
+                }
+
+
+                .archive-auth-history-loading {
+                    display: none;
+
+                    margin-right: 6px;
+
+                    color:
+                        #0891b2;
+
+                    font-size: 11px;
+                }
+
+
+                .archive-auth-history-page-label {
+                    color:
+                        #0e7490;
+
+                    font-size: 12px;
+                    font-weight: 600;
+                }
+
+
+                .archive-auth-history-results {
+                    margin-top:
+                        10px;
+                }
+
+
+                .archive-auth-history-empty-loading {
+                    padding:
+                        38px 0;
+
+                    text-align:
+                        center;
+
+                    color:
+                        #4b8797;
+
+                    font-size:
+                        13px;
+                }
+
+
+                @media (
+                    max-width: 768px
+                ) {
+                    .archive-auth-history-filter-panel {
+                        grid-template-columns:
+                            1fr;
+                    }
+
+
+                    .archive-auth-history-header {
+                        align-items:
+                            flex-start;
+                    }
+
+
+                    .archive-auth-refresh-history {
+                        min-width:
+                            auto;
+                    }
+                }
+            </style>
+
+
             <div
-                class="card"
+                class="
+                    card
+                    archive-auth-history-card
+                "
                 style="
                     padding: 24px;
-                    border-radius: 12px;
                 "
             >
-                <div class="text-muted">
-                    ${__("جاري تحميل سجل الفحوصات...")}
-                </div>
-            </div>
-        `);
-
-        frappe.call({
-            method:
-                "archive.api.document_authenticity.get_recent_checks",
-
-            args: {
-                limit: 20,
-            },
-
-            callback(r) {
-                render_history(
-                    Array.isArray(r.message)
-                        ? r.message
-                        : []
-                );
-            },
-
-            error() {
-                $history.html(`
+                <!-- =========================
+                    Header
+                ========================== -->
+                <div
+                    class="
+                        archive-auth-history-header
+                    "
+                >
                     <div
-                        class="card"
-                        style="
-                            padding: 24px;
-                            border-radius: 12px;
+                        class="
+                            archive-auth-history-title-wrap
                         "
                     >
-                        <div class="text-muted">
-                            ${__(
-                                "تعذر تحميل سجل الفحوصات."
-                            )}
-                        </div>
-                    </div>
-                `);
-            },
-        });
-    }
-
-
-    function render_history(rows) {
-        if (!rows.length) {
-            $history.html(`
-                <div
-                    class="card"
-                    style="
-                        padding: 24px;
-                        border-radius: 12px;
-                    "
-                >
-                    <h4 style="margin-bottom: 8px;">
-                        ${__("سجل الفحوصات السابقة")}
-                    </h4>
-
-                    <div class="text-muted">
-                        ${__("لا توجد فحوصات سابقة.")}
-                    </div>
-                </div>
-            `);
-
-            return;
-        }
-
-        const items = rows
-            .map(
-                (row) =>
-                    render_history_row(
-                        row
-                    )
-            )
-            .join("");
-
-        $history.html(`
-            <div
-                class="card"
-                style="
-                    padding: 24px;
-                    border-radius: 12px;
-                "
-            >
-                <div
-                    style="
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        gap: 12px;
-                        margin-bottom: 18px;
-                    "
-                >
-                    <div>
-                        <h4 style="margin: 0;">
-                            ${__("سجل الفحوصات السابقة")}
-                        </h4>
-
                         <div
-                            class="text-muted"
-                            style="
-                                margin-top: 4px;
-                                font-size: 12px;
+                            class="
+                                archive-auth-history-title-icon
                             "
                         >
-                            ${__(
-                                "أحدث الفحوصات التي أجريتها."
-                            )}
+                            <svg
+                                width="21"
+                                height="21"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    d="
+                                        M4 6
+                                        C4 4.9 4.9 4 6 4
+                                        H18
+                                        C19.1 4 20 4.9 20 6
+                                        V18
+                                        C20 19.1 19.1 20 18 20
+                                        H6
+                                        C4.9 20 4 19.1 4 18
+                                        V6
+                                        Z
+                                    "
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                />
+
+                                <path
+                                    d="M8 9H16"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                    stroke-linecap="round"
+                                />
+
+                                <path
+                                    d="M8 13H14"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                    stroke-linecap="round"
+                                />
+
+                                <path
+                                    d="M8 17H12"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                    stroke-linecap="round"
+                                />
+                            </svg>
+                        </div>
+
+
+                        <div>
+                            <h4
+                                class="
+                                    archive-auth-history-title
+                                "
+                            >
+                                ${__(
+                                    "سجل الفحوصات السابقة"
+                                )}
+                            </h4>
+
+                            <div
+                                class="
+                                    archive-auth-history-subtitle
+                                "
+                            >
+                                ${__(
+                                    "البحث والوصول السريع إلى نتائج فحوصات المستندات."
+                                )}
+                            </div>
                         </div>
                     </div>
+
 
                     <button
                         type="button"
                         class="
                             btn
-                            btn-default
                             btn-sm
                             archive-auth-refresh-history
                         "
@@ -379,24 +782,1024 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                     </button>
                 </div>
 
-                <div>
-                    ${items}
+
+                <!-- =========================
+                    Search / Status
+                ========================== -->
+                <div
+                    class="
+                        archive-auth-history-filter-panel
+                    "
+                >
+                    <!-- Search -->
+                    <div
+                        class="
+                            archive-auth-filter-group
+                        "
+                    >
+                        <label
+                            class="
+                                archive-auth-filter-label
+                            "
+                        >
+                            ${__("البحث")}
+                        </label>
+
+
+                        <div
+                            class="
+                                archive-auth-search-wrap
+                            "
+                        >
+                            <span
+                                class="
+                                    archive-auth-search-icon
+                                "
+                            >
+                                <svg
+                                    width="17"
+                                    height="17"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    aria-hidden="true"
+                                >
+                                    <circle
+                                        cx="11"
+                                        cy="11"
+                                        r="7"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    />
+
+                                    <path
+                                        d="M16.5 16.5L21 21"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                    />
+                                </svg>
+                            </span>
+
+
+                            <input
+                                type="text"
+                                class="
+                                    form-control
+                                    archive-auth-history-search
+                                "
+                                value="${frappe.utils.escape_html(
+                                    state.history.search || ""
+                                )}"
+                                placeholder="${__(
+                                    "رقم الفحص، اسم الملف، اسم المستخدم أو البريد"
+                                )}"
+                                autocomplete="off"
+                                dir="auto"
+                            >
+                        </div>
+                    </div>
+
+
+                    <!-- Status -->
+                    <div
+                        class="
+                            archive-auth-filter-group
+                        "
+                    >
+                        <label
+                            class="
+                                archive-auth-filter-label
+                            "
+                        >
+                            ${__("الحالة")}
+                        </label>
+
+
+                        <select
+                            class="
+                                form-control
+                                archive-auth-history-status
+                            "
+                        >
+                            ${render_history_status_options()}
+                        </select>
+                    </div>
                 </div>
+
+
+                <!-- =========================
+                    Result meta
+                ========================== -->
+                <div
+                    class="
+                        archive-auth-history-meta
+                    "
+                >
+                    <div
+                        class="
+                            archive-auth-history-count-wrap
+                        "
+                    >
+                        <span>
+                            ${__("عدد النتائج")}
+                        </span>
+
+                        <span
+                            class="
+                                archive-auth-history-count
+                            "
+                        >
+                            0
+                        </span>
+
+                        <span
+                            class="
+                                archive-auth-history-loading
+                            "
+                        >
+                            ${__("جاري التحديث...")}
+                        </span>
+                    </div>
+
+
+                    <div
+                        class="
+                            archive-auth-history-page-label
+                        "
+                    >
+                        ${__("الصفحة")}
+                        1
+                        ${__("من")}
+                        1
+                    </div>
+                </div>
+
+
+                <!-- =========================
+                    Results
+                ========================== -->
+                <div
+                    class="
+                        archive-auth-history-results
+                    "
+                >
+                    <div
+                        class="
+                            archive-auth-history-empty-loading
+                        "
+                    >
+                        ${__(
+                            "جاري تحميل سجل الفحوصات..."
+                        )}
+                    </div>
+                </div>
+
+
+                <!-- =========================
+                    Pagination
+                ========================== -->
+                <div
+                    class="
+                        archive-auth-history-pagination
+                    "
+                ></div>
             </div>
         `);
 
-        $history
-            .find(
-                ".archive-auth-refresh-history"
-            )
-            .on(
-                "click",
-                function () {
-                    load_history();
+
+        bind_history_controls();
+    }
+    // function render_history_shell() {
+    //     $history.html(`
+    //         <div
+    //             class="card archive-auth-history-card"
+    //             style="
+    //                 padding: 24px;
+    //                 border-radius: 12px;
+    //             "
+    //         >
+    //             <div
+    //                 style="
+    //                     display: flex;
+    //                     justify-content: space-between;
+    //                     align-items: center;
+    //                     gap: 12px;
+    //                     margin-bottom: 18px;
+    //                 "
+    //             >
+    //                 <div>
+    //                     <h4 style="margin: 0;">
+    //                         ${__(
+    //                             "سجل الفحوصات السابقة"
+    //                         )}
+    //                     </h4>
+
+    //                     <div
+    //                         class="text-muted"
+    //                         style="
+    //                             margin-top: 4px;
+    //                             font-size: 12px;
+    //                         "
+    //                     >
+    //                         ${__(
+    //                             "جميع فحوصات المستندات."
+    //                         )}
+    //                     </div>
+    //                 </div>
+
+    //                 <button
+    //                     type="button"
+    //                     class="
+    //                         btn
+    //                         btn-default
+    //                         btn-sm
+    //                         archive-auth-refresh-history
+    //                     "
+    //                 >
+    //                     ${__("تحديث")}
+    //                 </button>
+    //             </div>
+
+
+    //             <div
+    //                 style="
+    //                     display: grid;
+    //                     grid-template-columns:
+    //                         minmax(280px, 1fr)
+    //                         minmax(180px, 240px);
+    //                     gap: 12px;
+    //                     align-items: end;
+    //                     padding: 16px;
+    //                     border:
+    //                         1px solid var(--border-color);
+    //                     border-radius: 8px;
+    //                     background:
+    //                         var(--subtle-fg);
+    //                 "
+    //                 >
+    //                 <div>
+    //                     <label
+    //                         style="
+    //                             display: block;
+    //                             font-size: 12px;
+    //                             margin-bottom: 5px;
+    //                         "
+    //                     >
+    //                         ${__("البحث")}
+    //                     </label>
+
+    //                     <input
+    //                         type="text"
+    //                         class="
+    //                             form-control
+    //                             archive-auth-history-search
+    //                         "
+    //                         value="${frappe.utils.escape_html(
+    //                             state.history.search || ""
+    //                         )}"
+    //                         placeholder="${__(
+    //                             "رقم الفحص، اسم الملف، اسم المستخدم أو البريد"
+    //                         )}"
+    //                         autocomplete="off"
+    //                     >
+    //                 </div>
+
+
+    //                 <div>
+    //                     <label
+    //                         style="
+    //                             display: block;
+    //                             font-size: 12px;
+    //                             margin-bottom: 5px;
+    //                         "
+    //                     >
+    //                         ${__("الحالة")}
+    //                     </label>
+
+    //                     <select
+    //                         class="
+    //                             form-control
+    //                             archive-auth-history-status
+    //                         "
+    //                     >
+    //                         ${render_history_status_options()}
+    //                     </select>
+    //                 </div>
+    //             </div>
+
+
+    //             <div
+    //                 style="
+    //                     display: flex;
+    //                     justify-content: space-between;
+    //                     align-items: center;
+    //                     gap: 12px;
+    //                     flex-wrap: wrap;
+    //                     margin-top: 18px;
+    //                     margin-bottom: 8px;
+    //                 "
+    //             >
+    //                 <div>
+    //                     <span
+    //                         class="text-muted"
+    //                         style="
+    //                             font-size: 12px;
+    //                         "
+    //                     >
+    //                         ${__("عدد النتائج")}:
+    //                     </span>
+
+    //                     <strong
+    //                         class="archive-auth-history-count"
+    //                     >
+    //                         0
+    //                     </strong>
+
+    //                     <span
+    //                         class="
+    //                             text-muted
+    //                             archive-auth-history-loading
+    //                         "
+    //                         style="
+    //                             display: none;
+    //                             margin-right: 10px;
+    //                             font-size: 12px;
+    //                         "
+    //                     >
+    //                         ${__("جاري التحديث...")}
+    //                     </span>
+    //                 </div>
+
+
+    //                 <div
+    //                     class="
+    //                         text-muted
+    //                         archive-auth-history-page-label
+    //                     "
+    //                     style="
+    //                         font-size: 12px;
+    //                     "
+    //                 >
+    //                     ${__("الصفحة")} 1 ${__("من")} 1
+    //                 </div>
+    //             </div>
+
+
+    //             <div
+    //                 class="archive-auth-history-results"
+    //             >
+    //                 <div
+    //                     class="text-muted"
+    //                     style="
+    //                         padding: 32px 0;
+    //                         text-align: center;
+    //                     "
+    //                 >
+    //                     ${__(
+    //                         "جاري تحميل سجل الفحوصات..."
+    //                     )}
+    //                 </div>
+    //             </div>
+
+
+    //             <div
+    //                 class="archive-auth-history-pagination"
+    //             ></div>
+    //         </div>
+    //     `);
+
+    //     bind_history_controls();
+    // }
+
+
+    function bind_history_controls() {
+        /*
+        * جميع أحداث السجل Delegated Events.
+        *
+        * حقل البحث نفسه ثابت ولا يعاد إنشاؤه
+        * عند وصول نتائج جديدة.
+        */
+        $history.off(
+            ".archiveAuthHistory"
+        );
+
+
+        /*
+        * البحث اللحظي.
+        */
+        $history.on(
+            "input.archiveAuthHistory",
+            ".archive-auth-history-search",
+            function () {
+                state.history.search =
+                    (
+                        $(this).val()
+                        || ""
+                    ).trim();
+
+                state.history.page = 1;
+
+                cancel_history_search_timer();
+
+                state.history.search_timer =
+                    setTimeout(
+                        function () {
+                            state.history.search_timer =
+                                null;
+
+                            load_history_results();
+                        },
+                        150
+                    );
+            }
+        );
+
+
+        /*
+        * تغيير الحالة لحظي.
+        */
+        $history.on(
+            "change.archiveAuthHistory",
+            ".archive-auth-history-status",
+            function () {
+                state.history.status =
+                    (
+                        $(this).val()
+                        || ""
+                    ).trim();
+
+                state.history.page = 1;
+
+                cancel_history_search_timer();
+
+                load_history_results();
+            }
+        );
+
+
+        /*
+        * تحديث يدوي للسجل.
+        * ليس زر بحث.
+        */
+        $history.on(
+            "click.archiveAuthHistory",
+            ".archive-auth-refresh-history",
+            function () {
+                cancel_history_search_timer();
+
+                load_history_results();
+            }
+        );
+
+
+        /*
+        * التنقل بين الصفحات.
+        */
+        $history.on(
+            "click.archiveAuthHistory",
+            ".archive-auth-history-page",
+            function () {
+                if (
+                    $(this).prop(
+                        "disabled"
+                    )
+                ) {
+                    return;
                 }
-            );
+
+                const target_page =
+                    Number(
+                        $(this).attr(
+                            "data-page"
+                        )
+                    );
+
+                if (
+                    !target_page
+                    || target_page < 1
+                    || target_page === state.history.page
+                ) {
+                    return;
+                }
+
+                state.history.page =
+                    target_page;
+
+                cancel_history_search_timer();
+
+                load_history_results();
+            }
+        );
+
+
+        /*
+        * عرض السجل المحفوظ.
+        */
+        $history.on(
+            "click.archiveAuthHistory",
+            ".archive-auth-show-check",
+            function () {
+                toggle_history_check(
+                    $(this)
+                );
+            }
+        );
     }
 
+
+    function cancel_history_search_timer() {
+        if (
+            !state.history.search_timer
+        ) {
+            return;
+        }
+
+        clearTimeout(
+            state.history.search_timer
+        );
+
+        state.history.search_timer =
+            null;
+    }
+
+
+    function load_history_results(
+        {
+            show_loading = false,
+        } = {}
+    ) {
+        const request_id =
+            ++state.history.request_id;
+
+        const $results =
+            $history.find(
+                ".archive-auth-history-results"
+            );
+
+        const $loading =
+            $history.find(
+                ".archive-auth-history-loading"
+            );
+
+
+        /*
+        * شاشة التحميل الكبيرة تظهر فقط
+        * في أول تحميل للصفحة.
+        *
+        * أثناء البحث نبقي النتائج القديمة
+        * حتى تصل النتائج الجديدة.
+        */
+        if (
+            show_loading
+        ) {
+            $results.html(`
+                <div
+                    class="text-muted"
+                    style="
+                        padding: 32px 0;
+                        text-align: center;
+                    "
+                >
+                    ${__(
+                        "جاري تحميل سجل الفحوصات..."
+                    )}
+                </div>
+            `);
+        }
+
+
+        $loading.show();
+
+
+        frappe.call({
+            method:
+                "archive.api.document_authenticity.get_check_history",
+
+            args: {
+                search:
+                    state.history.search,
+
+                status:
+                    state.history.status,
+
+                page:
+                    state.history.page,
+
+                page_length:
+                    state.history.page_length,
+            },
+
+            callback(r) {
+                /*
+                * إذا وصل رد قديم بعد رد أحدث
+                * يتم تجاهله بالكامل.
+                */
+                if (
+                    request_id
+                    !== state.history.request_id
+                ) {
+                    return;
+                }
+
+                render_history_results(
+                    r.message || {
+                        rows: [],
+                        total: 0,
+                        page: 1,
+                        page_length:
+                            state.history.page_length,
+                        total_pages: 1,
+                    }
+                );
+            },
+
+            error() {
+                if (
+                    request_id
+                    !== state.history.request_id
+                ) {
+                    return;
+                }
+
+                $results.html(`
+                    <div
+                        class="text-muted"
+                        style="
+                            padding: 32px 0;
+                            text-align: center;
+                        "
+                    >
+                        ${__(
+                            "تعذر تحميل سجل الفحوصات."
+                        )}
+                    </div>
+                `);
+            },
+
+            always() {
+                if (
+                    request_id
+                    !== state.history.request_id
+                ) {
+                    return;
+                }
+
+                $loading.hide();
+            },
+        });
+    }
+
+
+    function render_history_results(
+        result
+    ) {
+        const rows =
+            Array.isArray(
+                result.rows
+            )
+                ? result.rows
+                : [];
+
+        const total =
+            Number(
+                result.total || 0
+            );
+
+        const page =
+            Math.max(
+                1,
+                Number(
+                    result.page || 1
+                )
+            );
+
+        const total_pages =
+            Math.max(
+                1,
+                Number(
+                    result.total_pages || 1
+                )
+            );
+
+
+        state.history.page =
+            page;
+
+
+        const $results =
+            $history.find(
+                ".archive-auth-history-results"
+            );
+
+        const $count =
+            $history.find(
+                ".archive-auth-history-count"
+            );
+
+        const $page_label =
+            $history.find(
+                ".archive-auth-history-page-label"
+            );
+
+        const $pagination =
+            $history.find(
+                ".archive-auth-history-pagination"
+            );
+
+
+        /*
+        * هذه العناصر فقط هي التي تتغير.
+        *
+        * حقل البحث لا يتم لمسه أبدًا.
+        */
+        $count.text(
+            total
+        );
+
+
+        $page_label.text(
+            `${__("الصفحة")} ${page} ${__("من")} ${total_pages}`
+        );
+
+
+        if (
+            rows.length
+        ) {
+            $results.html(
+                rows
+                    .map(
+                        (row) =>
+                            render_history_row(
+                                row
+                            )
+                    )
+                    .join("")
+            );
+        } else {
+            $results.html(`
+                <div
+                    class="text-muted"
+                    style="
+                        padding: 32px 0;
+                        text-align: center;
+                    "
+                >
+                    ${__(
+                        "لا توجد نتائج مطابقة."
+                    )}
+                </div>
+            `);
+        }
+
+
+        $pagination.html(
+            render_history_pagination(
+                page,
+                total_pages
+            )
+        );
+    }
+
+
+    function render_history_status_options() {
+        const options = [
+            {
+                value: "",
+                label: __("كل الحالات"),
+            },
+            {
+                value: "صحيح",
+                label: __("صحيح"),
+            },
+            {
+                value: "مزور",
+                label: __("مزور"),
+            },
+            {
+                value: "مشتبه به",
+                label: __("مشتبه به"),
+            },
+            {
+                value: "قالب غير معروف",
+                label: __("قالب غير معروف"),
+            },
+        ];
+
+        return options
+            .map(
+                (option) => {
+                    const selected =
+                        (
+                            state.history.status
+                            === option.value
+                        )
+                            ? "selected"
+                            : "";
+
+                    return `
+                        <option
+                            value="${frappe.utils.escape_html(
+                                option.value
+                            )}"
+                            ${selected}
+                        >
+                            ${frappe.utils.escape_html(
+                                option.label
+                            )}
+                        </option>
+                    `;
+                }
+            )
+            .join("");
+    }
+
+
+    function render_history_pagination(
+        page,
+        total_pages
+    ) {
+        if (
+            total_pages <= 1
+        ) {
+            return "";
+        }
+
+        return `
+            <div
+                style="
+                    margin-top: 20px;
+                    padding-top: 16px;
+                    border-top:
+                        1px solid var(--border-color);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 12px;
+                "
+            >
+                <button
+                    type="button"
+                    class="
+                        btn
+                        btn-default
+                        btn-sm
+                        archive-auth-history-page
+                    "
+                    data-page="${page - 1}"
+                    ${page <= 1
+                        ? "disabled"
+                        : ""}
+                >
+                    ${__("السابق")}
+                </button>
+
+
+                <span
+                    class="text-muted"
+                    style="
+                        font-size: 12px;
+                    "
+                >
+                    ${__("الصفحة")}
+                    ${page}
+                    ${__("من")}
+                    ${total_pages}
+                </span>
+
+
+                <button
+                    type="button"
+                    class="
+                        btn
+                        btn-default
+                        btn-sm
+                        archive-auth-history-page
+                    "
+                    data-page="${page + 1}"
+                    ${page >= total_pages
+                        ? "disabled"
+                        : ""}
+                >
+                    ${__("التالي")}
+                </button>
+            </div>
+        `;
+    }
+
+
+    function toggle_history_check(
+        $button
+    ) {
+        const $row =
+            $button.closest(
+                ".archive-auth-history-row"
+            );
+
+        const $details =
+            $row.find(
+                ".archive-auth-history-details"
+            );
+
+        const check_name =
+            $button.attr(
+                "data-check-name"
+            );
+
+
+        if (
+            $details.is(
+                ":visible"
+            )
+        ) {
+            $details.hide();
+
+            $button.text(
+                __("عرض السجل")
+            );
+
+            return;
+        }
+
+
+        if (
+            $details.data(
+                "loaded"
+            )
+        ) {
+            $details.show();
+
+            $button.text(
+                __("إخفاء السجل")
+            );
+
+            return;
+        }
+
+
+        $button
+            .prop(
+                "disabled",
+                true
+            )
+            .text(
+                __("جاري التحميل...")
+            );
+
+
+        frappe.call({
+            method:
+                "archive.api.document_authenticity.get_check_details",
+
+            args: {
+                check_name:
+                    check_name,
+            },
+
+            callback(r) {
+                if (
+                    !r.message
+                ) {
+                    return;
+                }
+
+                render_result(
+                    r.message,
+                    $details,
+                    false
+                );
+
+                $details.data(
+                    "loaded",
+                    true
+                );
+
+                $button.text(
+                    __("إخفاء السجل")
+                );
+            },
+
+            always() {
+                $button.prop(
+                    "disabled",
+                    false
+                );
+
+                if (
+                    !$details.is(
+                        ":visible"
+                    )
+                ) {
+                    $button.text(
+                        __("عرض السجل")
+                    );
+                }
+            },
+        });
+    }
+
+
+    
 
     function render_history_row(row) {
         const status =
@@ -448,12 +1851,13 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
         return `
             <div
+                class="archive-auth-history-row"
                 style="
                     padding: 16px 0;
                     border-bottom:
                         1px solid var(--border-color);
                 "
-            >
+                >
                 <div
                     style="
                         display: flex;
@@ -589,6 +1993,32 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                         </div>
                     </div>
                 </div>
+                <div
+                    style="
+                        margin-top: 14px;
+                    "
+                >
+                    <button
+                        type="button"
+                        class="
+                            btn
+                            btn-default
+                            btn-sm
+                            archive-auth-show-check
+                        "
+                        data-check-name="${check_name}"
+                    >
+                        ${__("عرض السجل")}
+                    </button>
+                </div>
+
+                <div
+                    class="archive-auth-history-details"
+                    style="
+                        display: none;
+                        margin-top: 16px;
+                    "
+                ></div>
             </div>
         `;
     }
@@ -614,7 +2044,11 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
         }
     }
 
-    function render_result(result) {
+    function render_result(
+        result,
+        $target = $result,
+        scroll_to_result = true
+    ) {
         const status =
             result.status || "";
 
@@ -629,6 +2063,83 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                     result.risk_score ?? 0
                 )
             );
+        /*
+        * هذا التصميم يطبق فقط على نتيجة الفحص المباشرة.
+        *
+        * عند عرض سجل سابق، render_result() تستقبل $details
+        * بدل $result، وبالتالي لن تطبق هذه الألوان.
+        */
+        const is_live_result =
+            (
+                $target
+                && $result
+                && $target[0]
+                === $result[0]
+            );
+
+
+        let live_card_style = "";
+        let live_summary_style = "";
+
+
+        if (
+            is_live_result
+            && status === "صحيح"
+        ) {
+            /*
+            * المستند الصحيح:
+            * - إطار البطاقة الرئيسية أخضر.
+            * - خلفية رسالة الملخص خضراء.
+            */
+            live_card_style = `
+                border:
+                    2px solid
+                    var(--green-500, #22c55e);
+                box-shadow:
+                    0 0 0 1px
+                    rgba(34, 197, 94, 0.08);
+            `;
+
+            live_summary_style = `
+                background:
+                    rgba(34, 197, 94, 0.12);
+                border:
+                    1px solid
+                    var(--green-500, #22c55e);
+                color:
+                    var(--green-700, #15803d);
+            `;
+        }
+
+
+        if (
+            is_live_result
+            && status === "مزور"
+        ) {
+            /*
+            * المستند المزور:
+            * - إطار البطاقة الرئيسية أحمر.
+            * - خلفية رسالة الملخص حمراء.
+            */
+            live_card_style = `
+                border:
+                    2px solid
+                    var(--red-500, #ef4444);
+                box-shadow:
+                    0 0 0 1px
+                    rgba(239, 68, 68, 0.08);
+            `;
+
+            live_summary_style = `
+                background:
+                    rgba(239, 68, 68, 0.12);
+                border:
+                    1px solid
+                    var(--red-500, #ef4444);
+                color:
+                    var(--red-700, #b91c1c);
+            `;
+        }
 
         const summary =
             frappe.utils.escape_html(
@@ -669,14 +2180,20 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                 ? result.findings
                 : [];
 
-        $result.html(`
+        $target.html(`
             <div
-                class="card"
-                style="
-                    padding: 24px;
-                    border-radius: 12px;
-                "
-            >
+                    class="card"
+                    style="
+                        padding: 24px;
+                        border-radius: 12px;
+
+                        ${live_card_style}
+
+                        transition:
+                            border-color 0.18s ease,
+                            box-shadow 0.18s ease;
+                    "
+                >
                 <div
                     style="
                         display: flex;
@@ -729,7 +2246,16 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                         margin-top: 20px;
                         padding: 16px;
                         border-radius: 8px;
-                        background: var(--subtle-fg);
+
+                        background:
+                            var(--subtle-fg);
+
+                        ${live_summary_style}
+
+                        transition:
+                            background-color 0.18s ease,
+                            border-color 0.18s ease,
+                            color 0.18s ease;
                     "
                 >
                     ${summary}
@@ -809,12 +2335,12 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
         `);
 
         const $toggle =
-            $result.find(
+            $target.find(
                 ".archive-auth-toggle-findings"
             );
 
         const $findings =
-            $result.find(
+            $target.find(
                 ".archive-auth-findings"
             );
 
@@ -848,12 +2374,17 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             }
         );
 
-        $result.show();
+        $target.show();
 
-        $result[0].scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-        });
+        if (
+            scroll_to_result
+            && $target[0]
+        ) {
+            $target[0].scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+            });
+        }
     }
 
     function render_findings(
