@@ -1,0 +1,10 @@
+{
+ "creation": "2026-09-23 17:15:14.065115",
+ "doc_type": "Archive Document Authenticity Check",
+ "doctype": "Permission Type",
+ "modified": "2026-09-23 17:15:14.065115",
+ "modified_by": "Administrator",
+ "name": "archive_document_authenticity_check_use_authenticity_checker",
+ "owner": "Administrator",
+ "perm_type": "use_authenticity_checker"
+}

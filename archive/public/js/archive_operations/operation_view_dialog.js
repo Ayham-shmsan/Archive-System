@@ -1491,8 +1491,8 @@ class OperationViewDialog {
 					fieldtype:
 						"Data",
 
-					force_read_only:
-						true,
+					reqd:
+						1,
 				},
 			]
 		);
@@ -1944,10 +1944,29 @@ class OperationViewDialog {
 		df
 	) {
 		
+		const operation_number_editable =
+			df.fieldname === "operation_no"
+			&&
+			Boolean(
+				this.permissions
+					?.can_edit
+			)
+			&&
+			!Boolean(
+				this.operation
+					?.is_blocked_operation
+			);
+
+
 		const editable =
-			!df.force_read_only &&
-			this.editable_fields.has(
-				df.fieldname
+			!df.force_read_only
+			&&
+			(
+				this.editable_fields.has(
+					df.fieldname
+				)
+				||
+				operation_number_editable
 			);
 
 		const control_df = {
@@ -6082,8 +6101,35 @@ $list
 	}
 
 
+	// get_values() {
+	// 	const values = {};
+
+	// 	this.editable_fields
+	// 		.forEach(
+	// 			(fieldname) => {
+
+	// 				const control =
+	// 					this.controls[
+	// 						fieldname
+	// 					];
+
+	// 				if (!control) {
+	// 					return;
+	// 				}
+
+	// 				values[
+	// 					fieldname
+	// 				] =
+	// 					control.get_value();
+	// 			}
+	// 		);
+
+	// 	return values;
+	// }\
 	get_values() {
+
 		const values = {};
+
 
 		this.editable_fields
 			.forEach(
@@ -6094,9 +6140,11 @@ $list
 							fieldname
 						];
 
+
 					if (!control) {
 						return;
 					}
+
 
 					values[
 						fieldname
@@ -6104,6 +6152,35 @@ $list
 						control.get_value();
 				}
 			);
+
+
+		// ========================================================
+		// Operation Number
+		//
+		// له مسار Backend خاص ولا يدخل في
+		// MANUAL_EDITABLE_FIELDS العادية.
+		// ========================================================
+
+		if (
+			Boolean(
+				this.permissions
+					?.can_edit
+			)
+			&&
+			!Boolean(
+				this.operation
+					?.is_blocked_operation
+			)
+			&&
+			this.controls.operation_no
+		) {
+
+			values.operation_no =
+				this.controls
+					.operation_no
+					.get_value();
+		}
+
 
 		return values;
 	}
@@ -6143,6 +6220,511 @@ $list
 
 		this.pending_extraction_original_values =
 			{};
+	}
+
+	async confirm_operation_number_change(
+		values
+	) {
+
+		const old_operation_no =
+			String(
+				this.operation
+					?.operation_no
+				|| ""
+			).trim();
+
+
+		const new_operation_no =
+			String(
+				values
+					?.operation_no
+				|| ""
+			).trim();
+
+
+		// ========================================================
+		// No value
+		// ========================================================
+
+		if (!new_operation_no) {
+
+			frappe.msgprint({
+				title:
+					__("رقم العملية مطلوب"),
+
+				message:
+					__(
+						"يجب إدخال رقم العملية قبل الحفظ."
+					),
+
+				indicator:
+					"red",
+			});
+
+
+			return false;
+		}
+
+
+		// ========================================================
+		// Raw value unchanged
+		// ========================================================
+
+		if (
+			new_operation_no
+			===
+			old_operation_no
+		) {
+			return true;
+		}
+
+
+		// ========================================================
+		// Lookup normalized number + Target Group
+		// ========================================================
+
+		const response =
+			await frappe.call({
+				method:
+					"archive.api.operation_documents.lookup_operation_numbers",
+
+				type:
+					"GET",
+
+				args: {
+					query:
+						new_operation_no,
+
+					limit:
+						8,
+				},
+			});
+
+
+		const lookup =
+			response.message
+			|| {};
+
+
+		const current_normalized =
+			String(
+				this.operation
+					?.operation_no_normalized
+				|| ""
+			).trim();
+
+
+		const new_normalized =
+			String(
+				lookup.normalized_query
+				|| ""
+			).trim();
+
+
+		// ========================================================
+		// Invalid number
+		// ========================================================
+
+		if (!new_normalized) {
+
+			frappe.msgprint({
+				title:
+					__("رقم العملية غير صالح"),
+
+				message:
+					__(
+						"رقم العملية الجديد غير صالح."
+					),
+
+				indicator:
+					"red",
+			});
+
+
+			return false;
+		}
+
+
+		// ========================================================
+		// Same normalized identity
+		//
+		// مثال:
+		// ١٢٣ == 123
+		// لا يوجد تغيير حقيقي.
+		// ========================================================
+
+		if (
+			current_normalized
+			&&
+			current_normalized
+			===
+			new_normalized
+		) {
+			return true;
+		}
+
+
+		// ========================================================
+		// Do not combine number change with Re-extraction.
+		// ========================================================
+
+		if (
+			this.pending_extraction_file
+		) {
+
+			frappe.msgprint({
+				title:
+					__("احفظ كل تعديل بشكل مستقل"),
+
+				message:
+					__(
+						"لا يمكن تغيير رقم العملية وإعادة استخراج البيانات في نفس الحفظ. احفظ أحد التعديلين أولاً ثم نفّذ الآخر."
+					),
+
+				indicator:
+					"orange",
+			});
+
+
+			return false;
+		}
+
+
+		// ========================================================
+		// Do not combine number change with Shared Documents edits.
+		//
+		// Backend يحمي نفس القاعدة أيضاً.
+		// ========================================================
+
+		const has_shared_changes =
+			Boolean(
+				this.pending_shared_files
+					?.length
+			)
+			||
+			Boolean(
+				this.deleted_shared_document_names
+					?.size
+			);
+
+
+		if (has_shared_changes) {
+
+			frappe.msgprint({
+				title:
+					__("احفظ كل تعديل بشكل مستقل"),
+
+				message:
+					__(
+						"لا يمكن تغيير رقم العملية وإضافة أو حذف مستندات مشتركة في نفس الحفظ. احفظ تغيير رقم العملية أولاً ثم عدّل المستندات المشتركة."
+					),
+
+				indicator:
+					"orange",
+			});
+
+
+			return false;
+		}
+
+
+		const exact =
+			lookup.exact
+			|| null;
+
+
+		const target_exists =
+			Boolean(
+				exact
+			);
+
+
+		const source_parts_count =
+			Number(
+				this.group
+					?.parts_count
+				|| 0
+			);
+
+
+		const source_documents_count =
+			Number(
+				this.group
+					?.shared_documents_count
+				??
+				this.shared_documents
+					?.length
+				??
+				0
+			);
+
+
+		const target_documents_count =
+			Number(
+				exact
+					?.documents_count
+				|| 0
+			);
+
+
+		const max_documents =
+			Number(
+				lookup.max_documents
+				|| 10
+			);
+
+
+		// ========================================================
+		// Source واحدة + Target موجود:
+		// Shared Documents ستندمج.
+		// تحقق مبكر من الحد 10.
+		// ========================================================
+
+		if (
+			source_parts_count === 1
+			&&
+			target_exists
+			&&
+			(
+				source_documents_count
+				+
+				target_documents_count
+			)
+			>
+			max_documents
+		) {
+
+			frappe.msgprint({
+				title:
+					__("لا يمكن تغيير رقم العملية"),
+
+				message:
+					__(
+						"لا يمكن ضم العملية إلى الرقم الجديد لأن عدد المستندات المشتركة بعد الدمج سيصبح {0}، بينما الحد الأقصى هو {1}."
+					).format(
+						source_documents_count
+						+
+						target_documents_count,
+
+						max_documents
+					),
+
+				indicator:
+					"red",
+			});
+
+
+			return false;
+		}
+
+
+		const escape =
+			(value) =>
+				frappe.utils.escape_html(
+					String(
+						value
+						|| ""
+					)
+				);
+
+
+		const old_number =
+			escape(
+				old_operation_no
+			);
+
+
+		const target_number =
+			escape(
+				exact
+					?.operation_no
+				||
+				new_operation_no
+			);
+
+
+		let message = "";
+
+
+		// ========================================================
+		// CASE 1
+		// Source فيها عدة Parts + Target موجود
+		// ========================================================
+
+		if (
+			source_parts_count > 1
+			&&
+			target_exists
+		) {
+
+			message = `
+				<p>
+					سيتم تغيير رقم هذه العملية من
+					<b>${old_number}</b>
+					إلى
+					<b>${target_number}</b>
+					وضمها كجزء إضافي للرقم الموجود.
+				</p>
+
+				<p>
+					سيتم اعتماد <b>تاريخ الطلب</b>
+					من العملية الأصلية للرقم الجديد.
+				</p>
+
+				<p>
+					ملف الاستخراج والسويفت النهائي
+					سيبقيان مع هذه العملية.
+				</p>
+
+				<p>
+					<b>المستندات المشتركة لن تنتقل</b>
+					وستبقى مرتبطة بالرقم
+					<b>${old_number}</b>.
+				</p>
+
+				<p>
+					هل تريد المتابعة وحفظ التغييرات؟
+				</p>
+			`;
+		}
+
+
+		// ========================================================
+		// CASE 2
+		// Source فيها عدة Parts + Target جديد
+		// ========================================================
+
+		else if (
+			source_parts_count > 1
+			&&
+			!target_exists
+		) {
+
+			message = `
+				<p>
+					سيتم تغيير رقم هذه العملية من
+					<b>${old_number}</b>
+					إلى رقم جديد
+					<b>${target_number}</b>.
+				</p>
+
+				<p>
+					سيتم فصل هذه العملية عن الأجزاء
+					الأخرى المرتبطة بالرقم القديم.
+				</p>
+
+				<p>
+					ملف الاستخراج والسويفت النهائي
+					سيبقيان مع هذه العملية.
+				</p>
+
+				<p>
+					<b>المستندات المشتركة لن تنتقل</b>
+					وستبقى مع الأجزاء المرتبطة بالرقم
+					<b>${old_number}</b>.
+				</p>
+
+				<p>
+					هل تريد المتابعة وحفظ التغييرات؟
+				</p>
+			`;
+		}
+
+
+		// ========================================================
+		// CASE 3
+		// Source فيها Part واحدة + Target موجود
+		// ========================================================
+
+		else if (
+			source_parts_count === 1
+			&&
+			target_exists
+		) {
+
+			message = `
+				<p>
+					رقم العملية
+					<b>${target_number}</b>
+					موجود مسبقاً.
+				</p>
+
+				<p>
+					سيتم ضم هذه العملية إليه واعتماد
+					<b>تاريخ الطلب من العملية الأصلية</b>
+					للرقم الجديد.
+				</p>
+
+				<p>
+					ملف الاستخراج والسويفت النهائي
+					سيبقيان مع هذه العملية.
+				</p>
+
+				<p>
+					سيتم أيضاً نقل
+					<b>${source_documents_count}</b>
+					من المستندات المشتركة من الرقم
+					<b>${old_number}</b>
+					إلى الرقم
+					<b>${target_number}</b>.
+				</p>
+
+				<p>
+					هل تريد المتابعة وحفظ التغييرات؟
+				</p>
+			`;
+		}
+
+
+		// ========================================================
+		// CASE 4
+		// Source فيها Part واحدة + Target جديد
+		// ========================================================
+
+		else {
+
+			message = `
+				<p>
+					سيتم تغيير رقم العملية من
+					<b>${old_number}</b>
+					إلى
+					<b>${target_number}</b>.
+				</p>
+
+				<p>
+					هذه هي العملية الوحيدة المرتبطة
+					بالرقم الحالي، لذلك ستبقى ملفات
+					الاستخراج والسويفت النهائي
+					والمستندات المشتركة مرتبطة بها.
+				</p>
+
+				<p>
+					هل تريد المتابعة وحفظ التغييرات؟
+				</p>
+			`;
+		}
+
+
+		return await new Promise(
+			(resolve) => {
+
+				frappe.confirm(
+					message,
+
+					() => {
+						resolve(
+							true
+						);
+					},
+
+					() => {
+						resolve(
+							false
+						);
+					}
+				);
+			}
+		);
 	}
 
 
@@ -6318,6 +6900,28 @@ $list
 			can_edit
 				? this.get_values()
 				: {};
+
+		
+		// ========================================================
+		// Operation Number confirmation
+		//
+		// لا نرفع أي ملفات ولا نغيّر أي شيء
+		// قبل أن يؤكد المستخدم.
+		// ========================================================
+
+		if (can_edit) {
+
+			const confirmed =
+				await this
+					.confirm_operation_number_change(
+						values
+					);
+
+
+			if (!confirmed) {
+				return;
+			}
+		}
 
 
 		const button =

@@ -710,6 +710,37 @@ archive.ui.OperationTimelineDialog = class {
                 event.event_type
             );
 
+        const file_event_types =
+            new Set([
+                "attachment_added",
+                "attachment_deleted",
+                "final_swift_added",
+                "final_swift_deleted",
+                "attachment_downloaded",
+            ]);
+
+
+        const event_details_html =
+            this.render_event_details(
+                event
+            );
+
+
+        const details_before_meta =
+            file_event_types.has(
+                event.event_type
+            )
+                ? event_details_html
+                : "";
+
+
+        const details_after_meta =
+            file_event_types.has(
+                event.event_type
+            )
+                ? ""
+                : event_details_html;
+
 
         return `
             <div
@@ -768,7 +799,7 @@ archive.ui.OperationTimelineDialog = class {
                         class="
                             archive-timeline-event-head
                         "
-                    >
+                        >
 
                         <div
                             class="
@@ -824,6 +855,8 @@ archive.ui.OperationTimelineDialog = class {
                         </div>
 
                     </div>
+
+                        ${details_before_meta}
 
 
                     <div
@@ -935,9 +968,8 @@ archive.ui.OperationTimelineDialog = class {
                     }
 
 
-                    ${this.render_event_details(
-                        event
-                    )}
+                   
+                                ${details_after_meta}
 
                 </div>
 
@@ -1127,10 +1159,11 @@ archive.ui.OperationTimelineDialog = class {
             case "final_swift_deleted":
                 return (
                     this.render_files(
-                        event,
                         details
                     )
                 );
+
+            
 
 
             case "data_extracted":
@@ -1385,9 +1418,103 @@ archive.ui.OperationTimelineDialog = class {
     // Files
     // ========================================================
 
-    render_files(details = {}) {
+    // render_files(details = {}) {
 
-        details = details || {};
+    //     details = details || {};
+
+
+    //     const files =
+    //         Array.isArray(
+    //             details.files
+    //         )
+    //             ? [
+    //                 ...details.files
+    //             ]
+    //             : [];
+
+
+    //     /*
+    //     * بعض الأحداث مثل attachment_downloaded
+    //     * تحتوي ملفاً واحداً مباشرة:
+    //     *
+    //     * file_name
+    //     * file_url
+    //     *
+    //     * وليس details.files
+    //     */
+    //     if (
+    //         !files.length
+    //         &&
+    //         details.file_url
+    //     ) {
+    //         files.push({
+    //             file_name:
+    //                 details.file_name
+    //                 || "مرفق",
+
+    //             file_url:
+    //                 details.file_url,
+    //         });
+    //     }
+
+
+    //     if (!files.length) {
+    //         return "";
+    //     }
+
+
+    //     return `
+    //         <div class="archive-timeline-files">
+
+    //             ${files
+    //                 .map(
+    //                     (file) => {
+
+    //                         const file_name =
+    //                             file.file_name
+    //                             || file.file_url
+    //                             || "مرفق";
+
+
+    //                         /*
+    //                         * للعرض فقط داخل مسار العملية.
+    //                         * لا يوجد href ولا فتح للملف.
+    //                         */
+    //                         return `
+    //                             <div
+    //                                 class="
+    //                                     archive-timeline-file
+    //                                 "
+    //                             >
+    //                                 <i
+    //                                     class="
+    //                                         fa
+    //                                         fa-file-pdf-o
+    //                                     "
+    //                                     aria-hidden="true"
+    //                                 ></i>
+
+    //                                 <span>
+    //                                     ${this.escape_value(
+    //                                         file_name
+    //                                     )}
+    //                                 </span>
+    //                             </div>
+    //                         `;
+    //                     }
+    //                 )
+    //                 .join("")
+    //             }
+
+    //         </div>
+    //     `;
+    // }
+    render_files(
+        details = {}
+    ) {
+
+        details =
+            details || {};
 
 
         const files =
@@ -1400,20 +1527,13 @@ archive.ui.OperationTimelineDialog = class {
                 : [];
 
 
-        /*
-        * بعض الأحداث مثل attachment_downloaded
-        * تحتوي ملفاً واحداً مباشرة:
-        *
-        * file_name
-        * file_url
-        *
-        * وليس details.files
-        */
+        // بعض الأحداث تحتوي ملفاً واحداً مباشرة.
         if (
             !files.length
             &&
             details.file_url
         ) {
+
             files.push({
                 file_name:
                     details.file_name
@@ -1431,47 +1551,42 @@ archive.ui.OperationTimelineDialog = class {
 
 
         return `
-            <div class="archive-timeline-files">
+            <div
+                class="
+                    archive-timeline-details
+                "
+            >
 
-                ${files
-                    .map(
-                        (file) => {
+                <div
+                    class="
+                        archive-timeline-details-title
+                    "
+                >
+                    ${__(
+                        files.length === 1
+                            ? "الملف"
+                            : "الملفات"
+                    )}
+                </div>
 
-                            const file_name =
-                                file.file_name
-                                || file.file_url
-                                || "مرفق";
 
+                <div
+                    class="
+                        archive-timeline-files
+                    "
+                >
 
-                            /*
-                            * للعرض فقط داخل مسار العملية.
-                            * لا يوجد href ولا فتح للملف.
-                            */
-                            return `
-                                <div
-                                    class="
-                                        archive-timeline-file
-                                    "
-                                >
-                                    <i
-                                        class="
-                                            fa
-                                            fa-file-pdf-o
-                                        "
-                                        aria-hidden="true"
-                                    ></i>
+                    ${files
+                        .map(
+                            (file) =>
+                                this.render_file(
+                                    file
+                                )
+                        )
+                        .join("")
+                    }
 
-                                    <span>
-                                        ${this.escape_value(
-                                            file_name
-                                        )}
-                                    </span>
-                                </div>
-                            `;
-                        }
-                    )
-                    .join("")
-                }
+                </div>
 
             </div>
         `;

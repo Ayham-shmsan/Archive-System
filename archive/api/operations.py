@@ -29,6 +29,10 @@ from archive.api.pdf_parser import (
     extract_operation_data
     as extract_pdf_operation_data,
 )
+from archive.archive.doctype.archive_operation.archive_operation import (
+    make_operation_no_hash,
+    normalize_operation_no,
+)
 
 
 MANUAL_FIELD_LABELS = {
@@ -224,85 +228,226 @@ def get_allowed_status_transitions(
         (),
     )
 
+# def build_file_event_title(
+#     *,
+#     single_title: str,
+#     multi_title: str,
+#     files,
+# ) -> str:
+#     """
+#     يبني عنوان Timeline يحتوي أسماء الملفات.
+
+#     أمثلة:
+#         تم حذف مستند مشترك: الاشعار السابق.pdf
+#         تم إرفاق 3 مستندات مشتركة: a.pdf، b.pdf، و1 أخرى
+#     """
+
+#     rows = list(files or [])
+
+#     count = len(rows)
+
+#     base_title = (
+#         single_title
+#         if count == 1
+#         else multi_title
+#     )
+
+#     if not rows:
+#         return base_title
+
+#     file_names = []
+
+#     for row in rows:
+#         file_name = ""
+
+#         if isinstance(row, dict):
+#             file_name = cstr(
+#                 row.get("file_name")
+#             ).strip()
+#         else:
+#             file_name = cstr(
+#                 getattr(
+#                     row,
+#                     "file_name",
+#                     "",
+#                 )
+#             ).strip()
+
+#         if file_name:
+#             file_names.append(
+#                 file_name
+#             )
+
+#     if not file_names:
+#         return base_title
+
+#     if len(file_names) == 1:
+#         return (
+#             f"{base_title}: "
+#             f"{file_names[0]}"
+#         )
+
+#     preview_names = file_names[:3]
+
+#     suffix = ""
+
+#     remaining = (
+#         len(file_names)
+#         - len(preview_names)
+#     )
+
+#     if remaining > 0:
+#         suffix = (
+#             f"، و{remaining} أخرى"
+#         )
+
+#     return (
+#         f"{base_title}: "
+#         f"{'، '.join(preview_names)}"
+#         f"{suffix}"
+#     )
+# def build_file_event_title(
+#     *,
+#     single_title: str,
+#     multi_title: str,
+#     files,
+# ) -> str:
+
+#     rows = list(
+#         files or []
+#     )
+
+#     count = len(
+#         rows
+#     )
+
+#     base_title = (
+#         single_title
+#         if count == 1
+#         else multi_title
+#     )
+
+
+#     if not rows:
+#         title = base_title
+
+#     else:
+
+#         file_names = []
+
+#         for row in rows:
+
+#             if isinstance(
+#                 row,
+#                 dict,
+#             ):
+#                 file_name = cstr(
+#                     row.get(
+#                         "file_name"
+#                     )
+#                 ).strip()
+
+#             else:
+#                 file_name = cstr(
+#                     getattr(
+#                         row,
+#                         "file_name",
+#                         "",
+#                     )
+#                 ).strip()
+
+
+#             if file_name:
+#                 file_names.append(
+#                     file_name
+#                 )
+
+
+#         if not file_names:
+
+#             title = base_title
+
+#         elif len(
+#             file_names
+#         ) == 1:
+
+#             title = (
+#                 f"{base_title}: "
+#                 f"{file_names[0]}"
+#             )
+
+#         else:
+
+#             preview_names = (
+#                 file_names[:3]
+#             )
+
+#             remaining = (
+#                 len(file_names)
+#                 -
+#                 len(preview_names)
+#             )
+
+#             suffix = (
+#                 f"، و{remaining} أخرى"
+#                 if remaining > 0
+#                 else ""
+#             )
+
+#             title = (
+#                 f"{base_title}: "
+#                 f"{'، '.join(preview_names)}"
+#                 f"{suffix}"
+#             )
+
+
+#     # ========================================================
+#     # Archive Operation Log.title
+#     # الحد الأقصى 140 حرفاً.
+#     #
+#     # أسماء الملفات الكاملة تبقى داخل details،
+#     # لذلك الاختصار هنا لا يفقد أي معلومة.
+#     # ========================================================
+
+#     MAX_TITLE_LENGTH = 140
+
+
+#     if len(
+#         title
+#     ) > MAX_TITLE_LENGTH:
+
+#         title = (
+#             title[
+#                 : MAX_TITLE_LENGTH - 1
+#             ].rstrip()
+#             +
+#             "…"
+#         )
+
+
+#     return title
+
 def build_file_event_title(
     *,
     single_title: str,
     multi_title: str,
     files,
 ) -> str:
-    """
-    يبني عنوان Timeline يحتوي أسماء الملفات.
 
-    أمثلة:
-        تم حذف مستند مشترك: الاشعار السابق.pdf
-        تم إرفاق 3 مستندات مشتركة: a.pdf، b.pdf، و1 أخرى
-    """
+    rows = list(
+        files or []
+    )
 
-    rows = list(files or [])
+    count = len(
+        rows
+    )
 
-    count = len(rows)
 
-    base_title = (
+    return (
         single_title
         if count == 1
         else multi_title
     )
-
-    if not rows:
-        return base_title
-
-    file_names = []
-
-    for row in rows:
-        file_name = ""
-
-        if isinstance(row, dict):
-            file_name = cstr(
-                row.get("file_name")
-            ).strip()
-        else:
-            file_name = cstr(
-                getattr(
-                    row,
-                    "file_name",
-                    "",
-                )
-            ).strip()
-
-        if file_name:
-            file_names.append(
-                file_name
-            )
-
-    if not file_names:
-        return base_title
-
-    if len(file_names) == 1:
-        return (
-            f"{base_title}: "
-            f"{file_names[0]}"
-        )
-
-    preview_names = file_names[:3]
-
-    suffix = ""
-
-    remaining = (
-        len(file_names)
-        - len(preview_names)
-    )
-
-    if remaining > 0:
-        suffix = (
-            f"، و{remaining} أخرى"
-        )
-
-    return (
-        f"{base_title}: "
-        f"{'، '.join(preview_names)}"
-        f"{suffix}"
-    )
-
 MANUAL_EDITABLE_FIELDS = {
     "customer",
 
@@ -6091,6 +6236,1016 @@ def save_operation_re_extraction(
 @frappe.whitelist(
     methods=["POST"]
 )
+def change_operation_number(
+    operation_name: str,
+    new_operation_no: str,
+) -> dict[str, Any]:
+    """
+    تغيير رقم Archive Operation / Part بطريقة آمنة.
+
+    القواعد:
+
+    - لا يتم التغيير من save_operation_view_changes.
+    - إذا كان الرقم الهدف موجوداً:
+        تنضم الـPart إلى Group الهدف.
+    - إذا كان الرقم الهدف جديداً:
+        ينشئ منطق Archive Operation المجموعة المناسبة.
+    - Final Swift وExtraction يبقيان مع الـPart.
+    - Shared Documents تتحرك فقط إذا أصبحت
+      المجموعة القديمة فارغة.
+    """
+
+    operation_name = cstr(
+        operation_name
+    ).strip()
+
+    new_operation_no = cstr(
+        new_operation_no
+    ).strip()
+
+
+    # ========================================================
+    # Basic validation
+    # ========================================================
+
+    if not operation_name:
+        frappe.throw(
+            _("اسم العملية مطلوب.")
+        )
+
+
+    if not new_operation_no:
+        frappe.throw(
+            _("رقم العملية الجديد مطلوب.")
+        )
+
+
+    operation = frappe.get_doc(
+        "Archive Operation",
+        operation_name,
+    )
+
+
+    operation.check_permission(
+        "read"
+    )
+
+
+    # تغيير رقم العملية يعتبر تعديل بيانات.
+    operation.check_permission(
+        "write"
+    )
+
+
+    # ========================================================
+    # Blocked operations
+    # ========================================================
+
+    if cint(
+        operation.is_blocked_operation
+    ):
+
+        frappe.throw(
+            _(
+                "لا يمكن تغيير رقم العملية "
+                "للعملية المحضورة."
+            )
+        )
+
+
+    # ========================================================
+    # Current identity
+    # ========================================================
+
+    old_operation_no = cstr(
+        operation.operation_no
+    ).strip()
+
+    old_normalized = cstr(
+        operation.operation_no_normalized
+    ).strip()
+
+    old_group = cstr(
+        operation.operation_group
+    ).strip()
+
+
+    if not old_group:
+
+        frappe.throw(
+            _(
+                "العملية الحالية غير مرتبطة "
+                "بمجموعة عملية."
+            )
+        )
+
+
+    # ========================================================
+    # New normalized number
+    # ========================================================
+
+    new_normalized = (
+        normalize_operation_no(
+            new_operation_no
+        )
+    )
+
+
+    if not new_normalized:
+
+        frappe.throw(
+            _("رقم العملية الجديد غير صالح.")
+        )
+
+
+    if (
+        old_normalized
+        ==
+        new_normalized
+    ):
+
+        frappe.throw(
+            _(
+                "رقم العملية الجديد مطابق "
+                "لرقم العملية الحالي."
+            )
+        )
+
+
+    # ========================================================
+    # Lock current Group
+    # ========================================================
+
+    frappe.db.sql(
+        """
+        SELECT name
+        FROM `tabArchive Operation Group`
+        WHERE name = %s
+        FOR UPDATE
+        """,
+        (
+            old_group,
+        ),
+    )
+
+
+    # ========================================================
+    # Current source state
+    # ========================================================
+
+    source_parts_count = frappe.db.count(
+        "Archive Operation",
+        {
+            "operation_group":
+                old_group,
+        },
+    )
+
+
+    if source_parts_count <= 0:
+
+        frappe.throw(
+            _(
+                "مجموعة العملية الحالية "
+                "لا تحتوي على أجزاء."
+            )
+        )
+
+
+    source_shared_documents = frappe.get_all(
+        "Archive Operation Document",
+
+        filters={
+            "operation_group":
+                old_group,
+        },
+
+        fields=[
+            "name",
+            "file_name",
+            "file",
+        ],
+
+        order_by=
+            "creation asc",
+
+        limit_page_length=
+            0,
+    )
+
+
+    # ========================================================
+    # Target Group
+    # ========================================================
+
+    target_group = frappe.db.get_value(
+        "Archive Operation Group",
+
+        {
+            "operation_no_normalized":
+                new_normalized,
+        },
+
+        [
+            "name",
+            "operation_no",
+        ],
+
+        as_dict=True,
+    )
+
+
+    target_group_name = (
+        target_group.name
+        if target_group
+        else None
+    )
+
+
+    # ========================================================
+    # If target already exists:
+    # inherit request_date from its original Part.
+    # ========================================================
+
+    target_request_date = None
+
+
+    if target_group_name:
+
+        frappe.db.sql(
+            """
+            SELECT name
+            FROM `tabArchive Operation Group`
+            WHERE name = %s
+            FOR UPDATE
+            """,
+            (
+                target_group_name,
+            ),
+        )
+
+
+        target_parts = frappe.get_all(
+            "Archive Operation",
+
+            filters={
+                "operation_group":
+                    target_group_name,
+            },
+
+            fields=[
+                "name",
+                "request_date",
+            ],
+
+            order_by=
+                "creation asc, name asc",
+
+            limit_page_length=
+                1,
+        )
+
+
+        if not target_parts:
+
+            frappe.throw(
+                _(
+                    "مجموعة رقم العملية الهدف "
+                    "لا تحتوي على عملية أصلية."
+                )
+            )
+
+
+        target_request_date = (
+            target_parts[0]
+                .request_date
+        )
+
+
+        if not target_request_date:
+
+            frappe.throw(
+                _(
+                    "العملية الأصلية للرقم الهدف "
+                    "لا تحتوي على تاريخ طلب."
+                )
+            )
+
+
+    # ========================================================
+    # Shared Documents capacity
+    #
+    # المستندات تتحرك فقط إذا كانت هذه الـPart
+    # هي الجزء الوحيد في Source Group.
+    # ========================================================
+
+    move_source_documents = bool(
+        source_parts_count == 1
+        and source_shared_documents
+    )
+
+
+    if (
+        move_source_documents
+        and
+        target_group_name
+    ):
+
+        target_documents_count = (
+            frappe.db.count(
+                "Archive Operation Document",
+                {
+                    "operation_group":
+                        target_group_name,
+                },
+            )
+        )
+
+
+        projected_count = (
+            target_documents_count
+            +
+            len(
+                source_shared_documents
+            )
+        )
+
+
+        if (
+            projected_count
+            >
+            MAX_SHARED_DOCUMENTS
+        ):
+
+            frappe.throw(
+                _(
+                    "لا يمكن نقل العملية إلى الرقم "
+                    "{0} لأن عدد المستندات المشتركة "
+                    "بعد الدمج سيصبح {1}، "
+                    "والحد الأقصى هو {2}."
+                ).format(
+                    frappe.bold(
+                        new_operation_no
+                    ),
+                    projected_count,
+                    MAX_SHARED_DOCUMENTS,
+                )
+            )
+
+
+    # ========================================================
+    # Change operation identity
+    #
+    # نترك Controller ينفذ:
+    # - normalization
+    # - uniqueness key
+    # - group assignment
+    # ========================================================
+
+    operation.operation_no = (
+        new_operation_no
+    )
+
+
+    # إذا كان الرقم موجوداً فهذا Part إضافي.
+    operation.allow_duplicate_operation_no = (
+        1
+        if target_group_name
+        else 0
+    )
+
+
+    # رقم موجود:
+    # تاريخ الطلب موحد مع المجموعة الهدف.
+    if target_request_date:
+
+        operation.request_date = (
+            target_request_date
+        )
+
+
+    operation.save(
+        ignore_permissions=True
+    )
+
+
+    operation.reload()
+
+
+    new_group = cstr(
+        operation.operation_group
+    ).strip()
+
+
+    if not new_group:
+
+        frappe.throw(
+            _(
+                "تعذر تحديد مجموعة العملية "
+                "بعد تغيير الرقم."
+            )
+        )
+
+
+    # ========================================================
+    # Safety assertions
+    # ========================================================
+
+    if (
+        target_group_name
+        and
+        new_group
+        !=
+        target_group_name
+    ):
+
+        frappe.throw(
+            _(
+                "تم إيقاف تغيير رقم العملية لأن "
+                "المجموعة الناتجة لا تطابق "
+                "المجموعة الهدف."
+            )
+        )
+
+
+    if (
+        source_parts_count > 1
+        and
+        new_group == old_group
+    ):
+
+        frappe.throw(
+            _(
+                "تم إيقاف تغيير رقم العملية لأن "
+                "الجزء لم ينفصل عن مجموعته القديمة."
+            )
+        )
+
+
+    # ========================================================
+    # Source Group after move
+    # ========================================================
+
+    remaining_source_parts = (
+        frappe.db.count(
+            "Archive Operation",
+            {
+                "operation_group":
+                    old_group,
+            },
+        )
+        if old_group != new_group
+        else source_parts_count
+    )
+
+
+    moved_shared_documents = []
+
+
+    # ========================================================
+    # Old Group became empty
+    #
+    # Shared Documents follow the Part.
+    # ========================================================
+
+    if (
+        old_group != new_group
+        and
+        remaining_source_parts == 0
+    ):
+
+        for document in (
+            source_shared_documents
+        ):
+
+            frappe.db.set_value(
+                "Archive Operation Document",
+                document.name,
+
+                "operation_group",
+                new_group,
+
+                update_modified=False,
+            )
+
+
+            moved_shared_documents.append(
+                {
+                    "document":
+                        document.name,
+
+                    "file_name":
+                        document.file_name,
+
+                    "file_url":
+                        document.file,
+                }
+            )
+
+
+        # ====================================================
+        # Delete empty old Group
+        # ====================================================
+
+        if (
+            not frappe.db.exists(
+                "Archive Operation",
+                {
+                    "operation_group":
+                        old_group,
+                },
+            )
+            and
+            not frappe.db.exists(
+                "Archive Operation Document",
+                {
+                    "operation_group":
+                        old_group,
+                },
+            )
+        ):
+
+            frappe.delete_doc(
+                "Archive Operation Group",
+                old_group,
+                ignore_permissions=True,
+                force=True,
+            )
+
+
+    # ========================================================
+    # Timeline
+    # ========================================================
+
+    log_operation_event(
+        operation.name,
+        "manual_edit",
+
+        "تم تغيير رقم العملية من {0} إلى {1}".format(
+            old_operation_no,
+            new_operation_no,
+        ),
+
+        details={
+            "change_type":
+                "operation_number",
+
+            "old_operation_no":
+                old_operation_no,
+
+            "new_operation_no":
+                operation.operation_no,
+
+            "old_operation_group":
+                old_group,
+
+            "new_operation_group":
+                new_group,
+
+            "request_date":
+                operation.request_date,
+
+            "shared_documents_moved":
+                moved_shared_documents,
+        },
+
+        event_source=
+            "User",
+    )
+
+
+    # ========================================================
+    # Response
+    # ========================================================
+
+    return {
+        "operation":
+            serialize_operation_for_view(
+                operation
+            ),
+
+        "group":
+            get_operation_group_view_context(
+                operation
+            ),
+
+        "old_operation_no":
+            old_operation_no,
+
+        "new_operation_no":
+            operation.operation_no,
+
+        "old_operation_group":
+            old_group,
+
+        "new_operation_group":
+            new_group,
+
+        "joined_existing_group":
+            bool(
+                target_group_name
+            ),
+
+        "shared_documents_moved":
+            len(
+                moved_shared_documents
+            ),
+    }
+
+def _build_operation_number_change_plan(
+    operation,
+    new_operation_no,
+) -> dict[str, Any]:
+    """
+    يبني خطة آمنة لتغيير رقم العملية بدون تعديل قاعدة البيانات.
+
+    الحالات:
+
+    1) Source فيها عدة Parts:
+       - الـPart فقط تنتقل.
+       - Extraction + Final Swift يبقيان معها.
+       - Shared Documents تبقى مع Source Group.
+
+    2) Source فيها Part واحدة:
+       - إذا الرقم الجديد غير موجود:
+         نعيد استخدام نفس Group.
+       - إذا الرقم الجديد موجود:
+         تنضم العملية إلى Target Group،
+         وتنتقل Shared Documents معها.
+
+    إذا Target Group موجودة:
+    request_date يؤخذ من العملية الأصلية للهدف.
+    """
+
+    new_operation_no = cstr(
+        new_operation_no
+    ).strip()
+
+
+    if not new_operation_no:
+
+        frappe.throw(
+            _("رقم العملية الجديد مطلوب.")
+        )
+
+
+    if cint(
+        operation.is_blocked_operation
+    ):
+
+        frappe.throw(
+            _(
+                "لا يمكن تغيير رقم العملية "
+                "للعملية المحضورة."
+            )
+        )
+
+
+    # ========================================================
+    # Current number
+    # ========================================================
+
+    old_operation_no = cstr(
+        operation.operation_no
+    ).strip()
+
+
+    old_normalized = cstr(
+        operation.operation_no_normalized
+    ).strip()
+
+
+    if not old_normalized:
+
+        old_normalized = (
+            normalize_operation_no(
+                old_operation_no
+            )
+        )
+
+
+    # ========================================================
+    # New number
+    # ========================================================
+
+    new_normalized = (
+        normalize_operation_no(
+            new_operation_no
+        )
+    )
+
+
+    if not new_normalized:
+
+        frappe.throw(
+            _("رقم العملية الجديد غير صالح.")
+        )
+
+
+    # ========================================================
+    # Same effective number
+    # ========================================================
+
+    if (
+        old_normalized
+        ==
+        new_normalized
+    ):
+
+        return {
+            "changed":
+                False,
+
+            "old_operation_no":
+                old_operation_no,
+
+            "new_operation_no":
+                old_operation_no,
+        }
+
+
+    # ========================================================
+    # Source Group
+    # ========================================================
+
+    source_group = cstr(
+        operation.operation_group
+    ).strip()
+
+
+    if not source_group:
+
+        frappe.throw(
+            _(
+                "العملية الحالية غير مرتبطة "
+                "بمجموعة عملية."
+            )
+        )
+
+
+    source_parts_count = frappe.db.count(
+        "Archive Operation",
+        {
+            "operation_group":
+                source_group,
+        },
+    )
+
+
+    if source_parts_count < 1:
+
+        frappe.throw(
+            _(
+                "تعذر تحديد أجزاء "
+                "مجموعة العملية الحالية."
+            )
+        )
+
+
+    source_shared_documents_count = (
+        frappe.db.count(
+            "Archive Operation Document",
+            {
+                "operation_group":
+                    source_group,
+            },
+        )
+    )
+
+
+    # ========================================================
+    # Target Group
+    # ========================================================
+
+    target_group = frappe.db.get_value(
+        "Archive Operation Group",
+
+        {
+            "operation_no_normalized":
+                new_normalized,
+        },
+
+        [
+            "name",
+            "operation_no",
+            "operation_no_normalized",
+        ],
+
+        as_dict=True,
+    )
+
+
+    target_exists = bool(
+        target_group
+    )
+
+
+    target_request_date = None
+
+    target_shared_documents_count = 0
+
+
+    if target_group:
+
+        # ====================================================
+        # Original Part of Target Group
+        # تاريخ الطلب يؤخذ منها.
+        # ====================================================
+
+        target_original_parts = (
+            frappe.get_all(
+                "Archive Operation",
+
+                filters={
+                    "operation_group":
+                        target_group.name,
+                },
+
+                fields=[
+                    "name",
+                    "request_date",
+                ],
+
+                order_by=
+                    "creation asc, name asc",
+
+                limit_page_length=
+                    1,
+            )
+        )
+
+
+        if not target_original_parts:
+
+            frappe.throw(
+                _(
+                    "رقم العملية الجديد موجود، "
+                    "لكن تعذر العثور على "
+                    "العملية الأصلية المرتبطة به."
+                )
+            )
+
+
+        target_request_date = (
+            target_original_parts[0]
+                .request_date
+        )
+
+
+        if not target_request_date:
+
+            frappe.throw(
+                _(
+                    "العملية الأصلية للرقم الجديد "
+                    "لا تحتوي على تاريخ طلب."
+                )
+            )
+
+
+        target_shared_documents_count = (
+            frappe.db.count(
+                "Archive Operation Document",
+                {
+                    "operation_group":
+                        target_group.name,
+                },
+            )
+        )
+
+
+    # ========================================================
+    # Shared Documents rule
+    #
+    # Source فيها أكثر من Part:
+    # المستندات المشتركة تبقى مع الرقم القديم.
+    #
+    # Source فيها Part واحدة:
+    # المستندات المشتركة تتبع العملية.
+    # ========================================================
+
+    move_shared_documents = bool(
+        source_parts_count == 1
+        and
+        target_exists
+        and
+        source_shared_documents_count
+    )
+
+
+    # ========================================================
+    # Shared Documents limit
+    # عند الدمج مع رقم موجود فقط.
+    # ========================================================
+
+    if move_shared_documents:
+
+        projected_shared_documents_count = (
+            source_shared_documents_count
+            +
+            target_shared_documents_count
+        )
+
+
+        if (
+            projected_shared_documents_count
+            >
+            MAX_SHARED_DOCUMENTS
+        ):
+
+            frappe.throw(
+                _(
+                    "لا يمكن تغيير رقم العملية إلى {0}. "
+                    "بعد دمج المستندات المشتركة سيصبح "
+                    "العدد {1} بينما الحد الأقصى هو {2}."
+                ).format(
+                    frappe.bold(
+                        target_group.operation_no
+                        or new_operation_no
+                    ),
+                    projected_shared_documents_count,
+                    MAX_SHARED_DOCUMENTS,
+                )
+            )
+
+
+    # ========================================================
+    # Effective target number
+    #
+    # إذا Target موجودة نستخدم الرقم المحفوظ فيها
+    # حتى تكون جميع Parts متطابقة.
+    # ========================================================
+
+    effective_new_operation_no = (
+        cstr(
+            target_group.operation_no
+        ).strip()
+        if target_group
+        else
+        new_operation_no
+    )
+
+
+    return {
+        "changed":
+            True,
+
+        "old_operation_no":
+            old_operation_no,
+
+        "old_normalized":
+            old_normalized,
+
+        "new_operation_no":
+            effective_new_operation_no,
+
+        "new_normalized":
+            new_normalized,
+
+        "source_group":
+            source_group,
+
+        "source_parts_count":
+            source_parts_count,
+
+        "source_shared_documents_count":
+            source_shared_documents_count,
+
+        "target_exists":
+            target_exists,
+
+        "target_group":
+            (
+                target_group.name
+                if target_group
+                else None
+            ),
+
+        "target_request_date":
+            target_request_date,
+
+        "target_shared_documents_count":
+            target_shared_documents_count,
+
+        "move_shared_documents":
+            move_shared_documents,
+
+        # إذا كانت Source فيها Part واحدة
+        # والرقم الجديد غير موجود، سنستخدم
+        # نفس Group بدل إنشاء Group ثم حذف القديمة.
+        "reuse_source_group":
+            bool(
+                source_parts_count == 1
+                and
+                not target_exists
+            ),
+    }
+
+
+
+
+@frappe.whitelist(
+    methods=["POST"]
+)
 def save_operation_view_changes(
     operation_name: str,
     values: dict[str, Any] | str | None = None,
@@ -6308,20 +7463,162 @@ def save_operation_view_changes(
     # حتى لو أرسلته الواجهة أو تم استدعاء API يدوياً.
     # ========================================================
 
-    if "operation_no" in received_fields:
+    # if "operation_no" in received_fields:
 
-        frappe.throw(
-            _(
-                "لا يمكن تغيير رقم العملية "
-                "من مسار التعديل العام."
-            ),
-            frappe.PermissionError,
+    #     frappe.throw(
+    #         _(
+    #             "لا يمكن تغيير رقم العملية "
+    #             "من مسار التعديل العام."
+    #         ),
+    #         frappe.PermissionError,
+    #     )
+
+
+    # forbidden_fields = (
+    #     received_fields
+    #     - MANUAL_EDITABLE_FIELDS
+    # )
+        # ========================================================
+    # Operation number change plan
+    #
+    # operation_no لا يدخل في التعديل اليدوي العادي.
+    # نبني له خطة مستقلة وآمنة.
+    # ========================================================
+
+    operation_number_change_plan = None
+
+
+    if (
+        "operation_no"
+        in received_fields
+    ):
+
+        operation_number_change_plan = (
+            _build_operation_number_change_plan(
+                operation,
+                values.get(
+                    "operation_no"
+                ),
+            )
         )
+
+
+        # ====================================================
+        # operation_no يتم تطبيقه لاحقاً بشكل مستقل.
+        # لا ندخله في manual fields loop.
+        # ====================================================
+
+        values = dict(
+            values
+        )
+
+        values.pop(
+            "operation_no",
+            None,
+        )
+
+
+        # ====================================================
+        # إذا الرقم الجديد موجود:
+        # تاريخ الطلب يجب أن يأتي من Target Group.
+        #
+        # لذلك نتجاهل أي request_date أرسلته الواجهة.
+        # ====================================================
+
+        if (
+            operation_number_change_plan.get(
+                "changed"
+            )
+            and
+            operation_number_change_plan.get(
+                "target_exists"
+            )
+        ):
+
+            values.pop(
+                "request_date",
+                None,
+            )
+
+
+        # ====================================================
+        # Shared Documents + تغيير رقم في نفس الحفظ
+        #
+        # نمنع الدمج بين العمليتين حتى لا يصبح غير واضح:
+        # هل إضافة/حذف Shared Docs تخص Source أم Target.
+        #
+        # المستخدم يحفظ تغيير الرقم أولاً ثم يعدل
+        # Shared Documents بعد ذلك.
+        # ====================================================
+
+        if (
+            operation_number_change_plan.get(
+                "changed"
+            )
+            and
+            (
+                shared_documents
+                or
+                delete_shared_document_names
+            )
+        ):
+
+            frappe.throw(
+                _(
+                    "لا يمكن تعديل المستندات المشتركة "
+                    "وتغيير رقم العملية في نفس الحفظ. "
+                    "احفظ تغيير رقم العملية أولاً، "
+                    "ثم عدّل المستندات المشتركة."
+                )
+            )
+
+
+        # ====================================================
+        # Lock Source / Target Groups
+        # ====================================================
+
+        if (
+            operation_number_change_plan.get(
+                "changed"
+            )
+        ):
+
+            groups_to_lock = {
+                operation_number_change_plan.get(
+                    "source_group"
+                ),
+                operation_number_change_plan.get(
+                    "target_group"
+                ),
+            }
+
+
+            for group_name in sorted(
+                group_name
+                for group_name
+                in groups_to_lock
+                if group_name
+            ):
+
+                frappe.db.sql(
+                    """
+                    SELECT name
+                    FROM `tabArchive Operation Group`
+                    WHERE name = %s
+                    FOR UPDATE
+                    """,
+                    (
+                        group_name,
+                    ),
+                )
 
 
     forbidden_fields = (
         received_fields
         - MANUAL_EDITABLE_FIELDS
+        - {
+            "operation_no",
+        }
     )
 
     if forbidden_fields:
@@ -6670,6 +7967,101 @@ def save_operation_view_changes(
         )
 
 
+
+        # ========================================================
+    # Apply Operation Number Change
+    # ========================================================
+
+    operation_number_changed = bool(
+        operation_number_change_plan
+        and
+        operation_number_change_plan.get(
+            "changed"
+        )
+    )
+
+
+    if operation_number_changed:
+
+        # ====================================================
+        # Case:
+        # Source Group فيها Part واحدة
+        # والرقم الجديد غير موجود.
+        #
+        # لا ننشئ Group جديدة بلا داعٍ.
+        # نعيد استخدام نفس Group ونغيّر هويتها فقط.
+        # ====================================================
+
+        if operation_number_change_plan.get(
+            "reuse_source_group"
+        ):
+
+            frappe.db.set_value(
+                "Archive Operation Group",
+
+                operation_number_change_plan[
+                    "source_group"
+                ],
+
+                {
+                    "operation_no":
+                        operation_number_change_plan[
+                            "new_operation_no"
+                        ],
+
+                    "operation_no_normalized":
+                        operation_number_change_plan[
+                            "new_normalized"
+                        ],
+                },
+
+                update_modified=False,
+            )
+
+
+        # ====================================================
+        # Part identity
+        # ====================================================
+
+        operation.operation_no = (
+            operation_number_change_plan[
+                "new_operation_no"
+            ]
+        )
+
+
+        # ====================================================
+        # Target موجود:
+        # هذا Part إضافي تحت الرقم الموجود.
+        #
+        # Target غير موجود:
+        # هذه أول Part للرقم الجديد.
+        # ====================================================
+
+        operation.allow_duplicate_operation_no = (
+            1
+            if operation_number_change_plan.get(
+                "target_exists"
+            )
+            else
+            0
+        )
+
+
+        # ====================================================
+        # Existing Target Group:
+        # request_date يأتي من العملية الأصلية.
+        # ====================================================
+
+        if operation_number_change_plan.get(
+            "target_exists"
+        ):
+
+            operation.request_date = (
+                operation_number_change_plan[
+                    "target_request_date"
+                ]
+            )
     # ========================================================
     # One document save
     # ========================================================
@@ -6679,6 +8071,354 @@ def save_operation_view_changes(
     )
 
 
+
+    # ========================================================
+    # Finalize Operation Number Change
+    # ========================================================
+
+    if operation_number_changed:
+
+        operation.reload()
+
+
+        source_group = (
+            operation_number_change_plan[
+                "source_group"
+            ]
+        )
+
+
+        current_group = cstr(
+            operation.operation_group
+        ).strip()
+
+
+        target_group = (
+            operation_number_change_plan.get(
+                "target_group"
+            )
+        )
+
+
+        # ====================================================
+        # Safety: Existing Target
+        # يجب أن تصبح العملية فعلاً ضمن Target Group.
+        # ====================================================
+
+        if (
+            target_group
+            and
+            current_group
+            !=
+            target_group
+        ):
+
+            frappe.throw(
+                _(
+                    "تم إيقاف تغيير رقم العملية لأن "
+                    "المجموعة الناتجة لا تطابق "
+                    "مجموعة الرقم الجديد."
+                )
+            )
+
+
+        # ====================================================
+        # Safety: Reused Source Group
+        # ====================================================
+
+        if (
+            operation_number_change_plan.get(
+                "reuse_source_group"
+            )
+            and
+            current_group
+            !=
+            source_group
+        ):
+
+            frappe.throw(
+                _(
+                    "تم إيقاف تغيير رقم العملية لأن "
+                    "مجموعة العملية تغيرت بشكل غير متوقع."
+                )
+            )
+
+
+        # ====================================================
+        # إذا خرجت الـPart من Source Group
+        # ====================================================
+
+        if (
+            current_group
+            !=
+            source_group
+        ):
+
+            # =================================================
+            # Source كانت تحتوي Part واحدة:
+            #
+            # Shared Documents تتبع العملية إلى Target Group.
+            # =================================================
+
+            if operation_number_change_plan.get(
+                "move_shared_documents"
+            ):
+
+                source_document_names = (
+                    frappe.get_all(
+                        "Archive Operation Document",
+
+                        filters={
+                            "operation_group":
+                                source_group,
+                        },
+
+                        pluck=
+                            "name",
+
+                        order_by=
+                            "creation asc",
+
+                        limit_page_length=
+                            0,
+                    )
+                )
+
+
+                # =============================================
+                # Recheck limit after locks.
+                # =============================================
+
+                current_target_documents_count = (
+                    frappe.db.count(
+                        "Archive Operation Document",
+                        {
+                            "operation_group":
+                                current_group,
+                        },
+                    )
+                )
+
+
+                if (
+                    current_target_documents_count
+                    +
+                    len(
+                        source_document_names
+                    )
+                    >
+                    MAX_SHARED_DOCUMENTS
+                ):
+
+                    frappe.throw(
+                        _(
+                            "لا يمكن إكمال تغيير رقم العملية "
+                            "لأن عدد المستندات المشتركة "
+                            "بعد الدمج سيتجاوز الحد الأقصى "
+                            "وهو {0}."
+                        ).format(
+                            MAX_SHARED_DOCUMENTS
+                        )
+                    )
+
+
+                for document_name in (
+                    source_document_names
+                ):
+
+                    frappe.db.set_value(
+                        "Archive Operation Document",
+
+                        document_name,
+
+                        "operation_group",
+
+                        current_group,
+
+                        update_modified=False,
+                    )
+
+
+            # =================================================
+            # Source Group ما زالت تحتوي Parts أخرى.
+            #
+            # إذا خرجت منها الـPrimary Part،
+            # نرقّي أقدم Part متبقية لتصبح Primary.
+            # =================================================
+
+            remaining_source_parts_count = (
+                frappe.db.count(
+                    "Archive Operation",
+                    {
+                        "operation_group":
+                            source_group,
+                    },
+                )
+            )
+
+
+            if remaining_source_parts_count:
+
+                source_primary_exists = (
+                    frappe.db.exists(
+                        "Archive Operation",
+                        {
+                            "operation_group":
+                                source_group,
+
+                            "allow_duplicate_operation_no":
+                                0,
+                        },
+                    )
+                )
+
+
+                if not source_primary_exists:
+
+                    remaining_primary = (
+                        frappe.get_all(
+                            "Archive Operation",
+
+                            filters={
+                                "operation_group":
+                                    source_group,
+                            },
+
+                            fields=[
+                                "name",
+                            ],
+
+                            order_by=
+                                "creation asc, name asc",
+
+                            limit_page_length=
+                                1,
+                        )
+                    )
+
+
+                    if remaining_primary:
+
+                        frappe.db.set_value(
+                            "Archive Operation",
+
+                            remaining_primary[0].name,
+
+                            {
+                                "allow_duplicate_operation_no":
+                                    0,
+
+                                "operation_no_uniqueness_key":
+                                    "N:"
+                                    +
+                                    make_operation_no_hash(
+                                        operation_number_change_plan[
+                                            "old_normalized"
+                                        ]
+                                    ),
+                            },
+
+                            update_modified=False,
+                        )
+
+
+            # =================================================
+            # Source Group أصبحت فارغة.
+            # بعد نقل Shared Documents لا يجب أن يبقى
+            # أي شيء مرتبطاً بها.
+            # =================================================
+
+            else:
+
+                if frappe.db.exists(
+                    "Archive Operation Document",
+                    {
+                        "operation_group":
+                            source_group,
+                    },
+                ):
+
+                    frappe.throw(
+                        _(
+                            "تم إيقاف تغيير رقم العملية لأن "
+                            "هناك مستندات مشتركة ما زالت "
+                            "مرتبطة بالمجموعة القديمة."
+                        )
+                    )
+
+
+                if frappe.db.exists(
+                    "Archive Operation Group",
+                    source_group,
+                ):
+
+                    frappe.delete_doc(
+                        "Archive Operation Group",
+                        source_group,
+                        ignore_permissions=True,
+                    )
+
+
+        # ====================================================
+        # Timeline
+        # ====================================================
+
+        log_operation_event(
+            operation.name,
+
+            "manual_edit",
+
+            "تم تغيير رقم العملية من {0} إلى {1}".format(
+                operation_number_change_plan[
+                    "old_operation_no"
+                ],
+                operation.operation_no,
+            ),
+
+            details={
+                "change_type":
+                    "operation_number",
+
+                "old_operation_no":
+                    operation_number_change_plan[
+                        "old_operation_no"
+                    ],
+
+                "new_operation_no":
+                    operation.operation_no,
+
+                "old_operation_group":
+                    source_group,
+
+                "new_operation_group":
+                    operation.operation_group,
+
+                "source_parts_count":
+                    operation_number_change_plan[
+                        "source_parts_count"
+                    ],
+
+                "joined_existing_group":
+                    bool(
+                        operation_number_change_plan.get(
+                            "target_exists"
+                        )
+                    ),
+
+                "shared_documents_moved":
+                    bool(
+                        operation_number_change_plan.get(
+                            "move_shared_documents"
+                        )
+                    ),
+
+                "request_date":
+                    operation.request_date,
+            },
+
+            event_source=
+                "User",
+        )
     # ========================================================
     # Delete persisted Shared Documents
     #
