@@ -17,6 +17,9 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
             search_timer: null,
             request_id: 0,
+
+            is_open: false,
+            initialized: false,
         },
     };
 
@@ -32,58 +35,723 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                 padding: 20px 0;
             "
         >
+            <style>
+            /*
+            * ==========================================
+            * PDF Upload / Check Card
+            * ==========================================
+            */
+
+            .archive-auth-upload-card {
+                position: relative;
+
+                overflow: hidden;
+
+                padding: 24px;
+
+                border:
+                    1px solid
+                    #cfe8f7 !important;
+
+                border-radius:
+                    16px !important;
+
+                background:
+                    #ffffff !important;
+
+                box-shadow:
+                    0 6px 24px
+                    rgba(
+                        14,
+                        116,
+                        144,
+                        0.07
+                    );
+            }
+
+
+            /*
+            * شريط زخرفي خفيف أعلى البطاقة.
+            */
+            .archive-auth-upload-card::before {
+                content: "";
+
+                position: absolute;
+
+                top: 0;
+                right: 0;
+                left: 0;
+
+                height: 3px;
+
+                background:
+                    linear-gradient(
+                        90deg,
+                        #06b6d4,
+                        #14b8a6,
+                        #0ea5e9
+                    );
+            }
+
+
+            /*
+            * رأس البطاقة.
+            */
+            .archive-auth-upload-header {
+                display: flex;
+
+                align-items: center;
+
+                gap: 13px;
+
+                margin-bottom: 22px;
+            }
+
+
+            .archive-auth-upload-icon {
+                display: flex;
+
+                align-items: center;
+
+                justify-content: center;
+
+                width: 46px;
+
+                height: 46px;
+
+                flex:
+                    0 0 46px;
+
+                border-radius:
+                    13px;
+
+                background:
+                    linear-gradient(
+                        135deg,
+                        #e0f2fe,
+                        #ccfbf1
+                    );
+
+                color:
+                    #0369a1;
+            }
+
+
+            .archive-auth-upload-title {
+                margin: 0;
+
+                color:
+                    #0f4c5c;
+
+                font-size:
+                    17px;
+
+                font-weight:
+                    700;
+            }
+
+
+            .archive-auth-upload-description {
+                margin-top:
+                    5px;
+
+                color:
+                    #4b7b88;
+
+                font-size:
+                    12px;
+
+                line-height:
+                    1.7;
+            }
+
+
+            /*
+            * منطقة اختيار الملف والأزرار.
+            */
+            .archive-auth-upload-controls {
+                display: flex;
+
+                align-items: center;
+
+                gap: 10px;
+
+                flex-wrap: wrap;
+
+                margin-bottom:
+                    16px;
+            }
+
+
+            /*
+            * زر اختيار الملف.
+            */
+            .archive-auth-upload {
+                display: inline-flex;
+
+                align-items: center;
+
+                justify-content: center;
+
+                gap: 7px;
+
+                min-height:
+                    40px;
+
+                padding:
+                    0 16px !important;
+
+                border:
+                    1px solid
+                    #7dd3fc !important;
+
+                border-radius:
+                    9px !important;
+
+                background:
+                    #f0f9ff !important;
+
+                color:
+                    #0369a1 !important;
+
+                font-weight:
+                    600 !important;
+
+                box-shadow:
+                    none !important;
+
+                transition:
+                    background-color 0.16s ease,
+                    border-color 0.16s ease,
+                    transform 0.16s ease;
+            }
+
+
+            .archive-auth-upload:hover {
+                border-color:
+                    #38bdf8 !important;
+
+                background:
+                    #e0f2fe !important;
+
+                color:
+                    #075985 !important;
+            }
+
+
+            /*
+            * زر الفحص.
+            */
+            .archive-auth-check {
+                display: inline-flex;
+
+                align-items: center;
+
+                justify-content: center;
+
+                gap: 7px;
+
+                min-height:
+                    40px;
+
+                padding:
+                    0 18px !important;
+
+                margin-right:
+                    0 !important;
+
+                border:
+                    1px solid
+                    #0d9488 !important;
+
+                border-radius:
+                    9px !important;
+
+                background:
+                    linear-gradient(
+                        135deg,
+                        #0891b2,
+                        #0d9488
+                    ) !important;
+
+                color:
+                    #ffffff !important;
+
+                font-weight:
+                    600 !important;
+
+                box-shadow:
+                    0 3px 10px
+                    rgba(
+                        13,
+                        148,
+                        136,
+                        0.16
+                    ) !important;
+
+                transition:
+                    opacity 0.16s ease,
+                    transform 0.16s ease,
+                    box-shadow 0.16s ease;
+            }
+
+
+            .archive-auth-check:not(:disabled):hover {
+                transform:
+                    translateY(-1px);
+
+                box-shadow:
+                    0 5px 14px
+                    rgba(
+                        13,
+                        148,
+                        136,
+                        0.22
+                    ) !important;
+            }
+
+
+            .archive-auth-check:disabled {
+                opacity:
+                    0.45 !important;
+
+                cursor:
+                    not-allowed !important;
+
+                box-shadow:
+                    none !important;
+            }
+
+
+            /*
+            * صندوق الملف المحدد.
+            */
+            .archive-auth-selected-file {
+                position: relative;
+
+                display: flex;
+
+                align-items: center;
+
+                gap: 12px;
+
+                min-height:
+                    54px;
+
+                padding:
+                    12px 14px !important;
+
+                border:
+                    1px solid
+                    #bae6fd !important;
+
+                border-radius:
+                    11px !important;
+
+                background:
+                    linear-gradient(
+                        135deg,
+                        #f0f9ff 0%,
+                        #ecfeff 100%
+                    ) !important;
+
+                color:
+                    #155e75;
+
+                transition:
+                    border-color 0.16s ease,
+                    background-color 0.16s ease;
+            }
+
+
+            .archive-auth-selected-file-icon {
+                display: flex;
+
+                align-items: center;
+
+                justify-content: center;
+
+                width: 34px;
+
+                height: 34px;
+
+                flex:
+                    0 0 34px;
+
+                border-radius:
+                    9px;
+
+                background:
+                    #cffafe;
+
+                color:
+                    #0891b2;
+            }
+
+
+            .archive-auth-selected-file-content {
+                min-width: 0;
+
+                flex: 1;
+            }
+
+
+            .archive-auth-selected-file-label {
+                color:
+                    #0e7490;
+
+                font-size:
+                    11px;
+
+                font-weight:
+                    600;
+            }
+
+
+            .archive-auth-selected-file-value {
+                margin-top:
+                    2px;
+
+                color:
+                    #164e63;
+
+                font-size:
+                    13px;
+
+                word-break:
+                    break-word;
+            }
+
+
+            /*
+            * Responsive.
+            */
+            @media (
+                max-width: 600px
+            ) {
+                .archive-auth-upload-card {
+                    padding:
+                        18px;
+                }
+
+
+                .archive-auth-upload-controls {
+                    display:
+                        grid;
+
+                    grid-template-columns:
+                        1fr 1fr;
+                }
+
+
+                .archive-auth-upload,
+                .archive-auth-check {
+                    width:
+                        100%;
+                }
+            }
+        </style>
+
+
+        <div
+            class="
+                card
+                archive-auth-upload-card
+            "
+        >
+            <!-- =========================
+                Header
+            ========================== -->
             <div
-                class="card"
-                style="
-                    padding: 24px;
-                    border-radius: 12px;
+                class="
+                    archive-auth-upload-header
                 "
             >
-                <h4 style="margin-bottom: 8px;">
-                    ${__("فحص مستند PDF")}
-                </h4>
-
-                <p
-                    class="text-muted"
-                    style="margin-bottom: 24px;"
-                >
-                    ${__(
-                        "ارفع مستند PDF لفحص بنيته الفنية ومقارنتها بالقوالب الأصلية المعروفة."
-                    )}
-                </p>
-
-                <div style="margin-bottom: 16px;">
-                    <button
-                        type="button"
-                        class="btn btn-default archive-auth-upload"
-                    >
-                        ${__("اختيار ملف PDF")}
-                    </button>
-
-                    <button
-                        type="button"
-                        class="btn btn-primary archive-auth-check"
-                        disabled
-                        style="margin-right: 8px;"
-                    >
-                        ${__("فحص المستند")}
-                    </button>
-                </div>
-
                 <div
-                    class="archive-auth-selected-file"
-                    style="
-                        padding: 14px;
-                        border: 1px solid var(--border-color);
-                        border-radius: 8px;
-                        background: var(--subtle-fg);
+                    class="
+                        archive-auth-upload-icon
                     "
                 >
-                    <span class="text-muted">
-                        ${__("لم يتم اختيار ملف بعد.")}
-                    </span>
+                    <svg
+                        width="23"
+                        height="23"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true"
+                    >
+                        <path
+                            d="
+                                M7 3
+                                H14
+                                L19 8
+                                V20
+                                C19 20.55
+                                18.55 21
+                                18 21
+                                H7
+                                C6.45 21
+                                6 20.55
+                                6 20
+                                V4
+                                C6 3.45
+                                6.45 3
+                                7 3
+                                Z
+                            "
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linejoin="round"
+                        />
+
+                        <path
+                            d="
+                                M14 3
+                                V8
+                                H19
+                            "
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linejoin="round"
+                        />
+
+                        <path
+                            d="
+                                M9 13
+                                H16
+                            "
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                        />
+
+                        <path
+                            d="
+                                M9 17
+                                H14
+                            "
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                        />
+                    </svg>
+                </div>
+
+
+                <div>
+                    <h4
+                        class="
+                            archive-auth-upload-title
+                        "
+                    >
+                        ${__(
+                            "فحص مستند PDF"
+                        )}
+                    </h4>
+
+                    <div
+                        class="
+                            archive-auth-upload-description
+                        "
+                    >
+                        ${__(
+                            "ارفع مستند PDF لفحص بنيته الفنية ومقارنتها بالقوالب الأصلية المعروفة."
+                        )}
+                    </div>
                 </div>
             </div>
+
+
+            <!-- =========================
+                Actions
+            ========================== -->
+            <div
+                class="
+                    archive-auth-upload-controls
+                "
+            >
+                <button
+                    type="button"
+                    class="
+                        btn
+                        archive-auth-upload
+                    "
+                >
+                    <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true"
+                    >
+                        <path
+                            d="
+                                M12 16
+                                V5
+                            "
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                        />
+
+                        <path
+                            d="
+                                M8 9
+                                L12 5
+                                L16 9
+                            "
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        />
+
+                        <path
+                            d="
+                                M5 15
+                                V19
+                                H19
+                                V15
+                            "
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        />
+                    </svg>
+
+                    <span>
+                        ${__(
+                            "اختيار ملف PDF"
+                        )}
+                    </span>
+                </button>
+
+
+                <button
+                    type="button"
+                    class="
+                        btn
+                        archive-auth-check
+                    "
+                    disabled
+                >
+                    <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true"
+                    >
+                        <path
+                            d="
+                                M9 12
+                                L11 14
+                                L15 10
+                            "
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        />
+
+                        <circle
+                            cx="12"
+                            cy="12"
+                            r="8"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        />
+                    </svg>
+
+                    <span>
+                        ${__(
+                            "فحص المستند"
+                        )}
+                    </span>
+                </button>
+            </div>
+
+
+            <!-- =========================
+                Selected file
+            ========================== -->
+            <div
+                class="
+                    archive-auth-selected-file
+                "
+            >
+                <div
+                    class="
+                        archive-auth-selected-file-icon
+                    "
+                >
+                    <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true"
+                    >
+                        <path
+                            d="
+                                M7 3
+                                H14
+                                L19 8
+                                V20
+                                H7
+                                V3
+                                Z
+                            "
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linejoin="round"
+                        />
+
+                        <path
+                            d="
+                                M14 3
+                                V8
+                                H19
+                            "
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linejoin="round"
+                        />
+                    </svg>
+                </div>
+
+
+                <div
+                    class="
+                        archive-auth-selected-file-content
+                    "
+                >
+                    <div
+                        class="
+                            archive-auth-selected-file-label
+                        "
+                    >
+                        ${__(
+                            "الملف"
+                        )}
+                    </div>
+
+                    <div
+                        class="
+                            archive-auth-selected-file-value
+                        "
+                    >
+                        ${__(
+                            "لم يتم اختيار ملف بعد."
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>  
 
             <div
                 class="archive-auth-result"
@@ -127,11 +795,8 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
     $check_button.on("click", function () {
         run_check();
     });
-    render_history_shell();
 
-    load_history_results({
-        show_loading: true,
-    });
+    render_history_collapsible();
 
 
     function open_uploader() {
@@ -168,25 +833,91 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                 state.file = file_doc;
 
                 $selected_file.html(`
-                    <div>
-                        <strong>
-                            ${__("الملف المحدد")}
-                        </strong>
+                <div
+                    class="
+                        archive-auth-selected-file-icon
+                    "
+                >
+                    <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true"
+                    >
+                        <path
+                            d="
+                                M7 3
+                                H14
+                                L19 8
+                                V20
+                                H7
+                                V3
+                                Z
+                            "
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linejoin="round"
+                        />
+
+                        <path
+                            d="
+                                M14 3
+                                V8
+                                H19
+                            "
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linejoin="round"
+                        />
+
+                        <path
+                            d="
+                                M9 14
+                                L11 16
+                                L15 12
+                            "
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        />
+                    </svg>
+                </div>
+
+
+                <div
+                    class="
+                        archive-auth-selected-file-content
+                    "
+                >
+                    <div
+                        class="
+                            archive-auth-selected-file-label
+                        "
+                    >
+                        ${__(
+                            "الملف المحدد"
+                        )}
                     </div>
 
                     <div
+                        class="
+                            archive-auth-selected-file-value
+                        "
                         style="
                             direction: ltr;
                             text-align: right;
-                            margin-top: 6px;
-                            word-break: break-word;
                         "
                     >
                         ${frappe.utils.escape_html(
-                            file_doc.file_name || file_doc.name
+                            file_doc.file_name
+                            || file_doc.name
                         )}
                     </div>
-                `);
+                </div>
+            `);
 
                 $check_button.prop(
                     "disabled",
@@ -247,7 +978,17 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
                 state.history.page = 1;
 
-                load_history_results();
+                /*
+                * إذا كان المستخدم قد فتح سجل الفحوصات سابقًا،
+                * نحدّثه بعد الفحص الجديد.
+                *
+                * أما إذا لم يفتحه بعد، فلا نجلب السجل في الخلفية.
+                */
+                if (
+                    state.history.initialized
+                ) {
+                    load_history_results();
+                }
             },
 
             always() {
@@ -261,8 +1002,486 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             },
         });
     }
-    function render_history_shell() {
+
+    function render_history_collapsible() {
         $history.html(`
+            <style>
+                .archive-auth-history-collapsible {
+                    overflow: hidden;
+
+                    border:
+                        1px solid
+                        #cfe8f7;
+
+                    border-radius:
+                        16px;
+
+                    background:
+                        #ffffff;
+
+                    box-shadow:
+                        0 5px 20px
+                        rgba(
+                            14,
+                            116,
+                            144,
+                            0.06
+                        );
+                }
+
+
+                .archive-auth-history-toggle {
+                    width: 100%;
+
+                    display: flex;
+
+                    justify-content:
+                        space-between;
+
+                    align-items: center;
+
+                    gap: 16px;
+
+                    padding:
+                        17px 20px;
+
+                    border: 0;
+
+                    background:
+                        linear-gradient(
+                            135deg,
+                            #f0f9ff 0%,
+                            #ecfeff 100%
+                        );
+
+                    color:
+                        #164e63;
+
+                    text-align: right;
+
+                    cursor: pointer;
+
+                    transition:
+                        background-color
+                        0.16s ease;
+                }
+
+
+                .archive-auth-history-toggle:hover {
+                    background:
+                        linear-gradient(
+                            135deg,
+                            #e0f2fe 0%,
+                            #cffafe 100%
+                        );
+                }
+
+
+                .archive-auth-history-toggle-main {
+                    display: flex;
+
+                    align-items: center;
+
+                    gap: 11px;
+
+                    min-width: 0;
+                }
+
+
+                .archive-auth-history-toggle-icon {
+                    width: 38px;
+                    height: 38px;
+
+                    flex:
+                        0 0 38px;
+
+                    display: flex;
+
+                    align-items: center;
+
+                    justify-content: center;
+
+                    border-radius:
+                        11px;
+
+                    background:
+                        #ffffff;
+
+                    border:
+                        1px solid
+                        #bae6fd;
+
+                    color:
+                        #0284c7;
+                }
+
+
+                .archive-auth-history-toggle-title {
+                    color:
+                        #0f4c5c;
+
+                    font-size:
+                        14px;
+
+                    font-weight:
+                        700;
+                }
+
+
+                .archive-auth-history-toggle-subtitle {
+                    margin-top:
+                        3px;
+
+                    color:
+                        #4b7b88;
+
+                    font-size:
+                        11px;
+
+                    font-weight:
+                        400;
+                }
+
+
+                .archive-auth-history-toggle-action {
+                    display: flex;
+
+                    align-items: center;
+
+                    gap: 8px;
+
+                    flex:
+                        0 0 auto;
+
+                    color:
+                        #0369a1;
+
+                    font-size:
+                        12px;
+
+                    font-weight:
+                        700;
+                }
+
+
+                .archive-auth-history-chevron {
+                    display: flex;
+
+                    align-items: center;
+
+                    justify-content: center;
+
+                    transition:
+                        transform
+                        0.2s ease;
+                }
+
+
+                .archive-auth-history-collapsible.is-open
+                .archive-auth-history-chevron {
+                    transform:
+                        rotate(180deg);
+                }
+
+
+                .archive-auth-history-body {
+                    display: none;
+
+                    padding:
+                        18px;
+                }
+
+
+                @media (
+                    max-width: 600px
+                ) {
+                    .archive-auth-history-toggle {
+                        padding:
+                            15px;
+                    }
+
+
+                    .archive-auth-history-toggle-subtitle {
+                        display:
+                            none;
+                    }
+
+
+                    .archive-auth-history-toggle-action-text {
+                        display:
+                            none;
+                    }
+
+
+                    .archive-auth-history-body {
+                        padding:
+                            12px;
+                    }
+                }
+            </style>
+
+
+            <div
+                class="
+                    archive-auth-history-collapsible
+                "
+            >
+                <button
+                    type="button"
+                    class="
+                        archive-auth-history-toggle
+                    "
+                    aria-expanded="false"
+                >
+                    <div
+                        class="
+                            archive-auth-history-toggle-main
+                        "
+                    >
+                        <div
+                            class="
+                                archive-auth-history-toggle-icon
+                            "
+                        >
+                            <svg
+                                width="19"
+                                height="19"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    d="
+                                        M5 4
+                                        H19
+                                        V20
+                                        H5
+                                        V4
+                                        Z
+                                    "
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                    stroke-linejoin="round"
+                                />
+
+                                <path
+                                    d="M8 8H16"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                    stroke-linecap="round"
+                                />
+
+                                <path
+                                    d="M8 12H16"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                    stroke-linecap="round"
+                                />
+
+                                <path
+                                    d="M8 16H13"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                    stroke-linecap="round"
+                                />
+                            </svg>
+                        </div>
+
+
+                        <div>
+                            <div
+                                class="
+                                    archive-auth-history-toggle-title
+                                "
+                            >
+                                ${__(
+                                    "سجل الفحوصات السابقة"
+                                )}
+                            </div>
+
+                            <div
+                                class="
+                                    archive-auth-history-toggle-subtitle
+                                "
+                            >
+                                ${__(
+                                    "البحث والوصول إلى نتائج الفحوصات المحفوظة."
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div
+                        class="
+                            archive-auth-history-toggle-action
+                        "
+                    >
+                        <span
+                            class="
+                                archive-auth-history-toggle-action-text
+                            "
+                        >
+                            ${__(
+                                "عرض السجل"
+                            )}
+                        </span>
+
+                        <span
+                            class="
+                                archive-auth-history-chevron
+                            "
+                        >
+                            <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    d="
+                                        M6 9
+                                        L12 15
+                                        L18 9
+                                    "
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                />
+                            </svg>
+                        </span>
+                    </div>
+                </button>
+
+
+                <div
+                    class="
+                        archive-auth-history-body
+                    "
+                ></div>
+            </div>
+        `);
+
+
+        const $collapsible =
+            $history.find(
+                ".archive-auth-history-collapsible"
+            );
+
+        const $toggle =
+            $history.find(
+                ".archive-auth-history-toggle"
+            );
+
+        const $body =
+            $history.find(
+                ".archive-auth-history-body"
+            );
+
+        const $action_text =
+            $history.find(
+                ".archive-auth-history-toggle-action-text"
+            );
+
+
+        $toggle.on(
+            "click",
+            function () {
+                /*
+                * إغلاق السجل.
+                */
+                if (
+                    state.history.is_open
+                ) {
+                    state.history.is_open =
+                        false;
+
+                    $collapsible.removeClass(
+                        "is-open"
+                    );
+
+                    $toggle.attr(
+                        "aria-expanded",
+                        "false"
+                    );
+
+                    $action_text.text(
+                        __("عرض السجل")
+                    );
+
+                    $body
+                        .stop(
+                            true,
+                            true
+                        )
+                        .slideUp(
+                            180
+                        );
+
+                    return;
+                }
+
+
+                /*
+                * فتح السجل.
+                */
+                state.history.is_open =
+                    true;
+
+                $collapsible.addClass(
+                    "is-open"
+                );
+
+                $toggle.attr(
+                    "aria-expanded",
+                    "true"
+                );
+
+                $action_text.text(
+                    __("إخفاء السجل")
+                );
+
+
+                /*
+                * أول مرة فقط:
+                * نبني المحرك ونطلب البيانات.
+                */
+                if (
+                    !state.history.initialized
+                ) {
+                    state.history.initialized =
+                        true;
+
+                    render_history_shell();
+
+                    load_history_results({
+                        show_loading: true,
+                    });
+                }
+
+
+                $body
+                    .stop(
+                        true,
+                        true
+                    )
+                    .slideDown(
+                        200
+                    );
+            }
+        );
+    }
+
+    function render_history_shell() {
+        $history
+            .find(
+                ".archive-auth-history-body"
+            )
+            .html(`
             <style>
                 .archive-auth-history-card {
                     overflow: hidden;
@@ -672,11 +1891,13 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
             <div
                 class="
-                    card
                     archive-auth-history-card
                 "
                 style="
-                    padding: 24px;
+                    padding: 4px;
+                    border: 0 !important;
+                    box-shadow: none !important;
+                    background: transparent !important;
                 "
             >
                 <!-- =========================
@@ -970,207 +2191,6 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
         bind_history_controls();
     }
-    // function render_history_shell() {
-    //     $history.html(`
-    //         <div
-    //             class="card archive-auth-history-card"
-    //             style="
-    //                 padding: 24px;
-    //                 border-radius: 12px;
-    //             "
-    //         >
-    //             <div
-    //                 style="
-    //                     display: flex;
-    //                     justify-content: space-between;
-    //                     align-items: center;
-    //                     gap: 12px;
-    //                     margin-bottom: 18px;
-    //                 "
-    //             >
-    //                 <div>
-    //                     <h4 style="margin: 0;">
-    //                         ${__(
-    //                             "سجل الفحوصات السابقة"
-    //                         )}
-    //                     </h4>
-
-    //                     <div
-    //                         class="text-muted"
-    //                         style="
-    //                             margin-top: 4px;
-    //                             font-size: 12px;
-    //                         "
-    //                     >
-    //                         ${__(
-    //                             "جميع فحوصات المستندات."
-    //                         )}
-    //                     </div>
-    //                 </div>
-
-    //                 <button
-    //                     type="button"
-    //                     class="
-    //                         btn
-    //                         btn-default
-    //                         btn-sm
-    //                         archive-auth-refresh-history
-    //                     "
-    //                 >
-    //                     ${__("تحديث")}
-    //                 </button>
-    //             </div>
-
-
-    //             <div
-    //                 style="
-    //                     display: grid;
-    //                     grid-template-columns:
-    //                         minmax(280px, 1fr)
-    //                         minmax(180px, 240px);
-    //                     gap: 12px;
-    //                     align-items: end;
-    //                     padding: 16px;
-    //                     border:
-    //                         1px solid var(--border-color);
-    //                     border-radius: 8px;
-    //                     background:
-    //                         var(--subtle-fg);
-    //                 "
-    //                 >
-    //                 <div>
-    //                     <label
-    //                         style="
-    //                             display: block;
-    //                             font-size: 12px;
-    //                             margin-bottom: 5px;
-    //                         "
-    //                     >
-    //                         ${__("البحث")}
-    //                     </label>
-
-    //                     <input
-    //                         type="text"
-    //                         class="
-    //                             form-control
-    //                             archive-auth-history-search
-    //                         "
-    //                         value="${frappe.utils.escape_html(
-    //                             state.history.search || ""
-    //                         )}"
-    //                         placeholder="${__(
-    //                             "رقم الفحص، اسم الملف، اسم المستخدم أو البريد"
-    //                         )}"
-    //                         autocomplete="off"
-    //                     >
-    //                 </div>
-
-
-    //                 <div>
-    //                     <label
-    //                         style="
-    //                             display: block;
-    //                             font-size: 12px;
-    //                             margin-bottom: 5px;
-    //                         "
-    //                     >
-    //                         ${__("الحالة")}
-    //                     </label>
-
-    //                     <select
-    //                         class="
-    //                             form-control
-    //                             archive-auth-history-status
-    //                         "
-    //                     >
-    //                         ${render_history_status_options()}
-    //                     </select>
-    //                 </div>
-    //             </div>
-
-
-    //             <div
-    //                 style="
-    //                     display: flex;
-    //                     justify-content: space-between;
-    //                     align-items: center;
-    //                     gap: 12px;
-    //                     flex-wrap: wrap;
-    //                     margin-top: 18px;
-    //                     margin-bottom: 8px;
-    //                 "
-    //             >
-    //                 <div>
-    //                     <span
-    //                         class="text-muted"
-    //                         style="
-    //                             font-size: 12px;
-    //                         "
-    //                     >
-    //                         ${__("عدد النتائج")}:
-    //                     </span>
-
-    //                     <strong
-    //                         class="archive-auth-history-count"
-    //                     >
-    //                         0
-    //                     </strong>
-
-    //                     <span
-    //                         class="
-    //                             text-muted
-    //                             archive-auth-history-loading
-    //                         "
-    //                         style="
-    //                             display: none;
-    //                             margin-right: 10px;
-    //                             font-size: 12px;
-    //                         "
-    //                     >
-    //                         ${__("جاري التحديث...")}
-    //                     </span>
-    //                 </div>
-
-
-    //                 <div
-    //                     class="
-    //                         text-muted
-    //                         archive-auth-history-page-label
-    //                     "
-    //                     style="
-    //                         font-size: 12px;
-    //                     "
-    //                 >
-    //                     ${__("الصفحة")} 1 ${__("من")} 1
-    //                 </div>
-    //             </div>
-
-
-    //             <div
-    //                 class="archive-auth-history-results"
-    //             >
-    //                 <div
-    //                     class="text-muted"
-    //                     style="
-    //                         padding: 32px 0;
-    //                         text-align: center;
-    //                     "
-    //                 >
-    //                     ${__(
-    //                         "جاري تحميل سجل الفحوصات..."
-    //                     )}
-    //                 </div>
-    //             </div>
-
-
-    //             <div
-    //                 class="archive-auth-history-pagination"
-    //             ></div>
-    //         </div>
-    //     `);
-
-    //     bind_history_controls();
-    // }
 
 
     function bind_history_controls() {
