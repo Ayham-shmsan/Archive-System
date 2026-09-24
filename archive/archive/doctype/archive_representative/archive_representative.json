@@ -1,0 +1,68 @@
+{
+  "actions": [],
+  "allow_import": 1,
+  "allow_rename": 1,
+  "autoname": "format:REP-{#####}",
+  "creation": "2026-09-24 23:17:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "representative_name",
+    "disabled",
+    "notes"
+  ],
+  "fields": [
+    {
+      "fieldname": "representative_name",
+      "fieldtype": "Data",
+      "in_global_search": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "اسم المندوب",
+      "reqd": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "معطل"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "ملاحظات"
+    }
+  ],
+  "links": [],
+  "modified": "2026-09-24 23:17:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Representative",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "Desk User"
+    }
+  ],
+  "quick_entry": 1,
+  "search_fields": "representative_name",
+  "sort_field": "representative_name",
+  "sort_order": "ASC",
+  "states": [],
+  "title_field": "representative_name",
+  "track_changes": 1
+}
