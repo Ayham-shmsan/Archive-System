@@ -4,7 +4,7 @@
  "docstatus": 0,
  "doctype": "Page",
  "idx": 0,
- "modified": "2026-09-23 17:33:53.960116",
+ "modified": "2026-09-24 17:52:34.276914",
  "modified_by": "Administrator",
  "module": "Archive",
  "name": "document-authenticity",
@@ -13,6 +13,15 @@
  "roles": [
   {
    "role": "archive document authenticity check"
+  },
+  {
+   "role": "archive document authenticity history"
+  },
+  {
+   "role": "archive document authenticity manager"
+  },
+  {
+   "role": "archive document authenticity all history"
   }
  ],
  "script": null,

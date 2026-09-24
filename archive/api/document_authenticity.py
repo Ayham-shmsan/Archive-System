@@ -26,6 +26,199 @@ def _require_authenticity_checker_permission() -> None:
         throw=True,
     )
 
+# ============================================================
+# Document Authenticity - Granular Permission Types
+# ============================================================
+# فحص الملفات 
+AUTHENTICITY_CHECK_PERMISSION = (
+    "check_document_authenticity"
+)
+# استعراض المستخدم للفحوصات الخاصة به 
+AUTHENTICITY_VIEW_OWN_PERMISSION = (
+    "view_own_authenticity_checks"
+)
+# عرض كل السجلات لكل المستخدمين 
+AUTHENTICITY_VIEW_ALL_PERMISSION = (
+    "view_all_authenticity_checks"
+)
+# زر عرض التفاصيل الفنية 
+AUTHENTICITY_TECHNICAL_DETAILS_PERMISSION = (
+    "view_authenticity_technical_details"
+)
+
+
+def _has_authenticity_permission(
+    permission_type: str,
+) -> bool:
+    """
+    يتحقق من امتلاك المستخدم الحالي
+    Permission Type محددة على DocType الفحص.
+    """
+
+    return bool(
+        frappe.has_permission(
+            CHECK_DOCTYPE,
+            ptype=permission_type,
+            user=frappe.session.user,
+        )
+    )
+
+
+def _require_authenticity_check_permission() -> None:
+    """
+    يسمح بإجراء فحص مستند جديد.
+    """
+
+    frappe.has_permission(
+        CHECK_DOCTYPE,
+        ptype=AUTHENTICITY_CHECK_PERMISSION,
+        user=frappe.session.user,
+        throw=True,
+    )
+
+
+def _get_authenticity_history_scope() -> str:
+    """
+    يحدد نطاق السجل المسموح للمستخدم الحالي.
+
+    all:
+        يستطيع رؤية جميع الفحوصات.
+
+    own:
+        يستطيع رؤية فحوصاته فقط.
+
+    بدون أي منهما:
+        يمنع الوصول إلى سجل الفحوصات.
+    """
+
+    if _has_authenticity_permission(
+        AUTHENTICITY_VIEW_ALL_PERMISSION
+    ):
+        return "all"
+
+    if _has_authenticity_permission(
+        AUTHENTICITY_VIEW_OWN_PERMISSION
+    ):
+        return "own"
+
+    frappe.throw(
+        _(
+            "ليس لديك صلاحية لعرض سجل الفحوصات."
+        ),
+        frappe.PermissionError,
+    )
+
+
+def _can_view_authenticity_technical_details() -> bool:
+    """
+    هل يستطيع المستخدم الحالي رؤية
+    التفاصيل الفنية للفحص؟
+    """
+
+    return _has_authenticity_permission(
+        AUTHENTICITY_TECHNICAL_DETAILS_PERMISSION
+    )
+
+
+def _require_authenticity_history_record_access(
+    checked_by: str,
+) -> None:
+    """
+    يمنع المستخدم صاحب صلاحية own
+    من فتح سجل يخص مستخدمًا آخر.
+
+    مدير الفحص صاحب view_all يستطيع
+    فتح أي سجل.
+    """
+
+    scope = (
+        _get_authenticity_history_scope()
+    )
+
+    if scope == "all":
+        return
+
+    if (
+        checked_by
+        == frappe.session.user
+    ):
+        return
+
+    frappe.throw(
+        _(
+            "ليس لديك صلاحية لعرض هذا الفحص."
+        ),
+        frappe.PermissionError,
+    )
+
+@frappe.whitelist()
+def get_authenticity_capabilities() -> dict:
+    """
+    يعيد قدرات المستخدم الحالي الخاصة
+    بشاشة فحص المستندات.
+
+    هذه الدالة لا ترمي PermissionError بسبب
+    عدم وجود صلاحية السجل؛ لأن الواجهة تحتاج
+    معرفة ما الذي يجب إظهاره أو إخفاؤه.
+    """
+
+    if frappe.session.user == "Guest":
+        frappe.throw(
+            _("يجب تسجيل الدخول."),
+            frappe.PermissionError,
+        )
+
+    can_check = (
+        _has_authenticity_permission(
+            AUTHENTICITY_CHECK_PERMISSION
+        )
+    )
+
+    can_view_all = (
+        _has_authenticity_permission(
+            AUTHENTICITY_VIEW_ALL_PERMISSION
+        )
+    )
+
+    can_view_own = (
+        _has_authenticity_permission(
+            AUTHENTICITY_VIEW_OWN_PERMISSION
+        )
+    )
+
+    can_view_technical_details = (
+        _can_view_authenticity_technical_details()
+    )
+
+    history_scope = None
+
+    if can_view_all:
+        history_scope = "all"
+    elif can_view_own:
+        history_scope = "own"
+
+    return {
+        "can_check":
+            can_check,
+
+        "can_view_history":
+            bool(
+                can_view_all
+                or can_view_own
+            ),
+
+        "history_scope":
+            history_scope,
+
+        "can_view_own_checks":
+            can_view_own,
+
+        "can_view_all_checks":
+            can_view_all,
+
+        "can_view_technical_details":
+            can_view_technical_details,
+    }
 
 @frappe.whitelist()
 def check_pdf(file_id: str) -> dict:
@@ -41,8 +234,15 @@ def check_pdf(file_id: str) -> dict:
             _("يجب تسجيل الدخول لإجراء فحص المستند."),
             frappe.PermissionError,
         )
-    _require_authenticity_checker_permission()
-    file_id = (file_id or "").strip()
+
+    _require_authenticity_check_permission()
+
+    file_id = (
+        file_id
+        or ""
+    ).strip()
+
+
 
     if not file_id:
         frappe.throw(
@@ -187,6 +387,9 @@ def check_pdf(file_id: str) -> dict:
         file_doc=file_doc,
         check_name=check_doc.name,
     )
+    can_view_technical_details = (
+        _can_view_authenticity_technical_details()
+    )
 
     return {
         "name":
@@ -230,23 +433,146 @@ def check_pdf(file_id: str) -> dict:
                 or 0
             ),
 
+        "can_view_technical_details":
+            can_view_technical_details,
+
         "findings":
-            result.get(
-                "findings"
-            )
-            or [],
+            (
+                (
+                    result.get(
+                        "findings"
+                    )
+                    or []
+                )
+                if can_view_technical_details
+                else []
+            ),
     }
 
 
 
+# @frappe.whitelist()
+# def get_recent_checks(
+#     limit: int = 20,
+# ) -> list[dict]:
+#     """
+#     يعيد أحدث فحوصات المستندات لجميع المستخدمين.
+#     الوصول إلى هذه الدالة محمي بصلاحية:
+#     use_authenticity_checker
+#     """
+
+#     if frappe.session.user == "Guest":
+#         frappe.throw(
+#             _("يجب تسجيل الدخول لعرض سجل الفحوصات."),
+#             frappe.PermissionError,
+#         )
+
+#     _require_authenticity_checker_permission()
+
+#     try:
+#         limit = int(
+#             limit
+#             or 20
+#         )
+#     except (
+#         TypeError,
+#         ValueError,
+#     ):
+#         limit = 20
+
+#     limit = max(
+#         1,
+#         min(
+#             limit,
+#             50,
+#         ),
+#     )
+
+#     rows = frappe.get_all(
+#         CHECK_DOCTYPE,
+#         fields=[
+#             "name",
+#             "file_name",
+#             "source_file",
+#             "status",
+#             "risk_score",
+#             "language",
+#             "profile",
+#             "summary",
+#             "checked_by",
+#             "checked_at",
+#             "engine_version",
+#         ],
+#         order_by=(
+#             "checked_at desc, "
+#             "creation desc"
+#         ),
+#         limit=limit,
+#     )
+
+#     user_names = list(
+#         {
+#             row.get("checked_by")
+#             for row in rows
+#             if row.get("checked_by")
+#         }
+#     )
+
+#     full_names = {}
+
+#     if user_names:
+#         users = frappe.get_all(
+#             "User",
+#             filters={
+#                 "name": [
+#                     "in",
+#                     user_names,
+#                 ],
+#             },
+#             fields=[
+#                 "name",
+#                 "full_name",
+#             ],
+#         )
+
+#         full_names = {
+#             user.name:
+#                 (
+#                     user.full_name
+#                     or user.name
+#                 )
+#             for user in users
+#         }
+
+#     for row in rows:
+#         checked_by = (
+#             row.get("checked_by")
+#             or ""
+#         )
+
+#         row["checked_by_full_name"] = (
+#             full_names.get(
+#                 checked_by
+#             )
+#             or checked_by
+#         )
+
+#     return rows
 @frappe.whitelist()
 def get_recent_checks(
     limit: int = 20,
 ) -> list[dict]:
     """
-    يعيد أحدث فحوصات المستندات لجميع المستخدمين.
-    الوصول إلى هذه الدالة محمي بصلاحية:
-    use_authenticity_checker
+    Compatibility endpoint.
+
+    يعيد أحدث السجلات وفق نفس نطاق الصلاحية
+    المستخدم في get_check_history.
+
+    own:
+        فحوصات المستخدم الحالي فقط.
+
+    all:
+        جميع الفحوصات.
     """
 
     if frappe.session.user == "Guest":
@@ -254,8 +580,6 @@ def get_recent_checks(
             _("يجب تسجيل الدخول لعرض سجل الفحوصات."),
             frappe.PermissionError,
         )
-
-    _require_authenticity_checker_permission()
 
     try:
         limit = int(
@@ -276,76 +600,18 @@ def get_recent_checks(
         ),
     )
 
-    rows = frappe.get_all(
-        CHECK_DOCTYPE,
-        fields=[
-            "name",
-            "file_name",
-            "source_file",
-            "status",
-            "risk_score",
-            "language",
-            "profile",
-            "summary",
-            "checked_by",
-            "checked_at",
-            "engine_version",
-        ],
-        order_by=(
-            "checked_at desc, "
-            "creation desc"
-        ),
-        limit=limit,
+    result = get_check_history(
+        page=1,
+        page_length=limit,
     )
 
-    user_names = list(
-        {
-            row.get("checked_by")
-            for row in rows
-            if row.get("checked_by")
-        }
+    return (
+        result.get(
+            "rows"
+        )
+        or []
     )
 
-    full_names = {}
-
-    if user_names:
-        users = frappe.get_all(
-            "User",
-            filters={
-                "name": [
-                    "in",
-                    user_names,
-                ],
-            },
-            fields=[
-                "name",
-                "full_name",
-            ],
-        )
-
-        full_names = {
-            user.name:
-                (
-                    user.full_name
-                    or user.name
-                )
-            for user in users
-        }
-
-    for row in rows:
-        checked_by = (
-            row.get("checked_by")
-            or ""
-        )
-
-        row["checked_by_full_name"] = (
-            full_names.get(
-                checked_by
-            )
-            or checked_by
-        )
-
-    return rows
 
 @frappe.whitelist()
 def get_check_history(
@@ -370,7 +636,9 @@ def get_check_history(
             frappe.PermissionError,
         )
 
-    _require_authenticity_checker_permission()
+    history_scope = (
+        _get_authenticity_history_scope()
+    )
 
     search = (
         search
@@ -432,6 +700,13 @@ def get_check_history(
 
 
     conditions = []
+    if (
+        history_scope == "own"
+    ):
+        conditions.append(
+            check.checked_by
+            == frappe.session.user
+        )
 
 
     if status:
@@ -630,6 +905,152 @@ def get_check_history(
     }
 
 
+# @frappe.whitelist()
+# def get_check_details(
+#     check_name: str,
+# ) -> dict:
+#     """
+#     يعيد نتيجة فحص محفوظة كما كانت وقت إجراء الفحص.
+#     لا يعيد تشغيل محرك الفحص.
+#     """
+
+#     if frappe.session.user == "Guest":
+#         frappe.throw(
+#             _("يجب تسجيل الدخول لعرض تفاصيل الفحص."),
+#             frappe.PermissionError,
+#         )
+
+    
+
+#     check_name = (
+#         check_name
+#         or ""
+#     ).strip()
+
+#     if not check_name:
+#         frappe.throw(
+#             _("رقم سجل الفحص مطلوب.")
+#         )
+
+#     if not frappe.db.exists(
+#         CHECK_DOCTYPE,
+#         check_name,
+#     ):
+#         frappe.throw(
+#             _("سجل الفحص غير موجود.")
+#         )
+
+#     check_doc = frappe.get_doc(
+#         CHECK_DOCTYPE,
+#         check_name,
+#     )
+
+#     _require_authenticity_history_record_access(
+#         check_doc.checked_by
+#     )
+
+#     findings = frappe.parse_json(
+#         check_doc.findings_json
+#         or "[]"
+#     )
+
+#     fingerprint = frappe.parse_json(
+#         check_doc.fingerprint_json
+#         or "{}"
+#     )
+
+#     tamper_signals = sum(
+#         1
+#         for finding in findings
+#         if (
+#             finding.get("status")
+#             in (
+#                 "warning",
+#                 "fail",
+#             )
+#             and finding.get(
+#                 "tamper_signal"
+#             )
+#         )
+#     )
+
+#     checked_by_full_name = (
+#         frappe.db.get_value(
+#             "User",
+#             check_doc.checked_by,
+#             "full_name",
+#         )
+#         or check_doc.checked_by
+#     )
+#     can_view_technical_details = (
+#         _can_view_authenticity_technical_details()
+#     )
+
+#     return {
+#         "name":
+#             check_doc.name,
+
+#         "file_name":
+#             check_doc.file_name,
+
+#         "source_file":
+#             check_doc.source_file,
+
+#         "file_sha256":
+#             check_doc.file_sha256,
+
+#         "file_size":
+#             check_doc.file_size,
+
+#         "document_type":
+#             check_doc.document_type,
+
+#         "language":
+#             check_doc.language,
+
+#         "profile":
+#             check_doc.profile,
+
+#         "status":
+#             check_doc.status,
+
+#         "risk_score":
+#             check_doc.risk_score,
+
+#         "summary":
+#             check_doc.summary,
+
+#         "checked_by":
+#             check_doc.checked_by,
+
+#         "checked_by_full_name":
+#             checked_by_full_name,
+
+#         "checked_at":
+#             check_doc.checked_at,
+
+#         "engine_version":
+#             check_doc.engine_version,
+
+#         "tamper_signals":
+#             tamper_signals,
+
+#         "findings_json":
+#             (
+#                 check_doc.findings_json
+#                 if can_view_technical_details
+#                 else None
+#             ),
+
+#         "fingerprint_json":
+#             (
+#                 check_doc.fingerprint_json
+#                 if can_view_technical_details
+#                 else None
+#             ),
+#         "can_view_technical_details":
+#             can_view_technical_details,
+#     }
 @frappe.whitelist()
 def get_check_details(
     check_name: str,
@@ -637,15 +1058,25 @@ def get_check_details(
     """
     يعيد نتيجة فحص محفوظة كما كانت وقت إجراء الفحص.
     لا يعيد تشغيل محرك الفحص.
+
+    صلاحية own:
+        تسمح فقط بسجلات المستخدم الحالي.
+
+    صلاحية all:
+        تسمح بجميع السجلات.
+
+    التفاصيل الفنية:
+        لا تعاد إلا لمن يملك
+        view_authenticity_technical_details.
     """
 
     if frappe.session.user == "Guest":
         frappe.throw(
-            _("يجب تسجيل الدخول لعرض تفاصيل الفحص."),
+            _(
+                "يجب تسجيل الدخول لعرض تفاصيل الفحص."
+            ),
             frappe.PermissionError,
         )
-
-    _require_authenticity_checker_permission()
 
     check_name = (
         check_name
@@ -670,19 +1101,27 @@ def get_check_details(
         check_name,
     )
 
-    findings = frappe.parse_json(
+    _require_authenticity_history_record_access(
+        check_doc.checked_by
+    )
+
+    can_view_technical_details = (
+        _can_view_authenticity_technical_details()
+    )
+
+    stored_findings = frappe.parse_json(
         check_doc.findings_json
         or "[]"
     )
 
-    fingerprint = frappe.parse_json(
+    stored_fingerprint = frappe.parse_json(
         check_doc.fingerprint_json
         or "{}"
     )
 
     tamper_signals = sum(
         1
-        for finding in findings
+        for finding in stored_findings
         if (
             finding.get("status")
             in (
@@ -753,13 +1192,23 @@ def get_check_details(
         "tamper_signals":
             tamper_signals,
 
+        "can_view_technical_details":
+            can_view_technical_details,
+
         "findings":
-            findings,
+            (
+                stored_findings
+                if can_view_technical_details
+                else []
+            ),
 
         "fingerprint":
-            fingerprint,
+            (
+                stored_fingerprint
+                if can_view_technical_details
+                else {}
+            ),
     }
-
 def _validate_pdf_file(
     file_doc,
 ) -> None:

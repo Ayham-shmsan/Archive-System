@@ -8,6 +8,15 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
     const state = {
         file: null,
         checking: false,
+        capabilities: {
+            loaded: false,
+            can_check: false,
+            can_view_history: false,
+            history_scope: null,
+            can_view_own_checks: false,
+            can_view_all_checks: false,
+            can_view_technical_details: false,
+        },
 
         history: {
             search: "",
@@ -457,8 +466,9 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             class="
                 card
                 archive-auth-upload-card
+                archive-auth-check-section
             "
-        >
+            >
             <!-- =========================
                 Header
             ========================== -->
@@ -466,7 +476,7 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                 class="
                     archive-auth-upload-header
                 "
-            >
+                >
                 <div
                     class="
                         archive-auth-upload-icon
@@ -796,7 +806,7 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
         run_check();
     });
 
-    render_history_collapsible();
+    load_authenticity_capabilities();
 
 
     function open_uploader() {
@@ -999,6 +1009,75 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                     .text(
                         __("فحص المستند")
                     );
+            },
+        });
+    }
+
+    function load_authenticity_capabilities() {
+        frappe.call({
+            method:
+                "archive.api.document_authenticity.get_authenticity_capabilities",
+
+            callback(r) {
+                const capabilities =
+                    r.message || {};
+
+                state.capabilities.loaded = true;
+
+                state.capabilities.can_check =
+                    !!capabilities.can_check;
+
+                state.capabilities.can_view_history =
+                    !!capabilities.can_view_history;
+
+                state.capabilities.history_scope =
+                    capabilities.history_scope
+                    || null;
+
+                state.capabilities.can_view_own_checks =
+                    !!capabilities.can_view_own_checks;
+
+                state.capabilities.can_view_all_checks =
+                    !!capabilities.can_view_all_checks;
+
+                state.capabilities.can_view_technical_details =
+                    !!capabilities.can_view_technical_details;
+                const $check_section =
+                    $(".archive-auth-check-section");
+
+                if (
+                    state.capabilities.can_check
+                ) {
+                    $check_section.show();
+                } else {
+                    $check_section.hide();
+
+                    state.file = null;
+
+                    $(".archive-auth-selected-file")
+                        .empty();
+                }
+
+                if (
+                    state.capabilities.can_view_history
+                ) {
+                    render_history_collapsible();
+                    return;
+                }
+
+                state.history.is_open = false;
+                state.history.initialized = false;
+
+                $history.empty();
+            },
+
+            error() {
+                state.capabilities.loaded = true;
+
+                state.history.is_open = false;
+                state.history.initialized = false;
+
+                $history.empty();
             },
         });
     }

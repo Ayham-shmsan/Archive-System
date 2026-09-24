@@ -140,7 +140,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-23 17:22:53.165871",
+ "modified": "2026-09-24 17:49:52.074074",
  "modified_by": "Administrator",
  "module": "Archive",
  "name": "Archive Document Authenticity Check",
@@ -152,9 +152,30 @@
    "role": "System Manager"
   },
   {
+   "check_document_authenticity": 1,
    "read": 1,
-   "role": "archive document authenticity check",
-   "use_authenticity_checker": 1
+   "role": "archive document authenticity check"
+  },
+  {
+   "read": 1,
+   "role": "archive document authenticity history",
+   "view_own_authenticity_checks": 1
+  },
+  {
+   "check_document_authenticity": 1,
+   "read": 1,
+   "role": "archive document authenticity manager",
+   "view_all_authenticity_checks": 1
+  },
+  {
+   "read": 1,
+   "role": "archive document authenticity technical details",
+   "view_authenticity_technical_details": 1
+  },
+  {
+   "read": 1,
+   "role": "archive document authenticity all history",
+   "view_all_authenticity_checks": 1
   }
  ],
  "row_format": "Dynamic",

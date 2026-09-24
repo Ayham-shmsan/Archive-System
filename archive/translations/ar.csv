@@ -486,10 +486,14 @@ Zimbabwe,زيمبابوي
 Åland Islands,جزر آلاند
 Archive Advanced Status,تغيير الحالة المتقدمة
 Archive Creator,إنشاء العمليات
-archive document authenticity check,فحص المستندات  
+archive document authenticity check,فحص المستندات فقط
 Archive Editor,تعديل العمليات
 Archive Final Swift,إرفاق السويفت النهائي
 Archive Initial Status,تغيير الحالة الأولية
 Archive Viewer,عرض الأرشيف
 Archive Timeline Viewer,عرض الخط الزمني للعمليات
 Archive Operation Viewer,عرض العمليات
+archive document authenticity all history,عرض كل سجلات الفحص لكل المستخدمين
+archive document authenticity history,عرض سجلات الفحص للمستخدم فقط 
+archive document authenticity manager,مدير شاشة الفحص 
+archive document authenticity technical details,إمكانية عرض التفاصيل الفنية للفحص
