@@ -11,6 +11,8 @@ from frappe.utils import (
 )
 
 from archive.services.pending_ledger import (
+    PENDING_CURRENCY,
+    enforce_pending_currency,
     financial_summary_snapshot,
     validate_and_recalculate_ledger,
     validate_financial_mutation,
@@ -39,18 +41,34 @@ PENDING_OPERATION_SERIAL_SERIES_KEY = (
 PENDING_OPERATION_SERIAL_DIGITS = 10
 
 _METADATA_AUDIT_FIELDS = (
+    "bank",
     "card_name",
+    "account_number",
     "card_number",
     "operation_datetime",
-    "card_owner",
-    "bank",
+    "suspended_note",
     "region",
     "machine_location",
-    "machine_no",
     "branch_no",
+    "machine_no",
     "representative",
+    "card_owner",
     "notes",
 )
+
+_FAILURE_MUTATION_TOKEN = (
+    object()
+)
+
+
+def authorize_pending_failure_transition(
+    doc,
+) -> None:
+    doc.flags._pending_failure_mutation_token = (
+        _FAILURE_MUTATION_TOKEN
+    )
+
+
 def get_next_pending_operation_serial() -> int:
     return int(
         getseries(
@@ -271,15 +289,34 @@ class ArchivePendingOperation(Document):
                     changes,
             },
         )
-    def before_insert(self) -> None:
+    def before_insert(
+        self,
+    ) -> None:
         _require_create_pending_operation()
 
-        if not cint(self.serial_no):
+        enforce_pending_currency(
+            self
+        )
+
+        self.is_failed = 0
+        self.failed_at = None
+        self.failed_by = None
+        self.failed_note = None
+
+        if not cint(
+            self.serial_no
+        ):
             self.serial_no = (
                 get_next_pending_operation_serial()
             )
 
-    def before_validate(self) -> None:
+    def before_validate(
+        self,
+    ) -> None:
+        enforce_pending_currency(
+            self
+        )
+
         self._prepare_ledger_rows()
 
         self._canonicalize_attachments()
@@ -288,15 +325,93 @@ class ArchivePendingOperation(Document):
             self
         )
 
-        # بعد الحساب المالي، لأن status
-        # جزء من Search Context.
         set_pending_search_text(
             self
         )
 
-    def validate(self) -> None:
+    def validate(
+        self,
+    ) -> None:
+        if (
+            cstr(
+                self.currency
+            )
+            != PENDING_CURRENCY
+        ):
+            frappe.throw(
+                _(
+                    "عملة المعلقات ثابتة على الريال السعودي."
+                ),
+                frappe.ValidationError,
+            )
+
+        self._validate_failure_mutation()
+
         validate_financial_mutation(
             self
+        )
+    def _validate_failure_mutation(
+        self,
+    ) -> None:
+        if self.is_new():
+            return
+
+        previous = (
+            self.get_doc_before_save()
+        )
+
+        if not previous:
+            previous = (
+                self.get_latest()
+            )
+
+        failure_fields = (
+            "is_failed",
+            "failed_at",
+            "failed_by",
+            "failed_note",
+        )
+
+        changed = any(
+            cstr(
+                getattr(
+                    previous,
+                    fieldname,
+                    None,
+                )
+                or ""
+            )
+            !=
+            cstr(
+                getattr(
+                    self,
+                    fieldname,
+                    None,
+                )
+                or ""
+            )
+
+            for fieldname
+            in failure_fields
+        )
+
+        if not changed:
+            return
+
+        if (
+            self.flags.get(
+                "_pending_failure_mutation_token"
+            )
+            is _FAILURE_MUTATION_TOKEN
+        ):
+            return
+
+        frappe.throw(
+            _(
+                "لا يمكن تغيير حالة المعلقة الفاشلة مباشرة. "
+                "استخدم الإجراء المخصص لهذه الحالة."
+            ),
+            frappe.PermissionError,
         )
 
     def after_insert(self) -> None:
@@ -334,7 +449,7 @@ class ArchivePendingOperation(Document):
             or []
         ):
             row.currency = (
-                self.currency
+                PENDING_CURRENCY
             )
 
             if (

@@ -550,3 +550,126 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ============================================================
+   Failed status / return details
+   ============================================================ */
+
+.pending-timeline-dot.dot-failed {
+    background:
+        #dc2626;
+
+    box-shadow:
+        0 0 0 4px
+        rgba(
+            220,
+            38,
+            38,
+            0.10
+        );
+}
+
+.pending-timeline-status.status-failed {
+    color:
+        #b91c1c;
+
+    background:
+        rgba(
+            220,
+            38,
+            38,
+            0.10
+        );
+
+    border-color:
+        rgba(
+            220,
+            38,
+            38,
+            0.24
+        );
+}
+
+.pending-timeline-failed-event {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 10px;
+}
+
+.pending-timeline-failed-meta {
+    padding: 8px 10px;
+
+    border:
+        1px solid
+        rgba(
+            220,
+            38,
+            38,
+            0.16
+        );
+
+    border-radius: 8px;
+
+    color:
+        var(--text-muted);
+
+    background:
+        rgba(
+            220,
+            38,
+            38,
+            0.035
+        );
+
+    font-size: 11px;
+}
+
+.pending-timeline-failed-meta
+strong {
+    color:
+        var(--text-color);
+}
+
+.pending-timeline-return-details {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 10px;
+}
+
+.pending-timeline-return-date {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 12px;
+
+    padding: 8px 10px;
+
+    border:
+        1px solid
+        var(--border-color);
+
+    border-radius: 8px;
+
+    background:
+        var(--subtle-fg);
+}
+
+.pending-timeline-return-date
+span {
+    color:
+        var(--text-muted);
+
+    font-size: 11px;
+}
+
+.pending-timeline-return-date
+strong {
+    font-size: 12px;
+}

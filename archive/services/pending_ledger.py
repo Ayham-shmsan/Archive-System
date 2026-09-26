@@ -5,15 +5,21 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import cstr, get_datetime
-
+from frappe.utils import (
+    cint,
+    cstr,
+    getdate,
+    get_datetime,
+)
 
 PENDING_DOCTYPE = "Archive Pending Operation"
+
+PENDING_CURRENCY = "SAR"
 
 STATUS_UNDER_ACTION = "تحت الإجراء"
 STATUS_PARTIALLY_RETURNED = "مرتجعة غير مكتملة"
 STATUS_FULLY_RETURNED = "مرتجعة مكتملة"
-
+STATUS_FAILED = "معلقة فاشلة"
 FINANCIAL_MODE_APPEND_RETURN = "append_return"
 FINANCIAL_MODE_CORRECTION = "correct_ledger"
 
@@ -24,6 +30,13 @@ _ALLOWED_FINANCIAL_MODES = {
 
 # Token داخلي لا يمكن للـClient إعادة إنشائه من JSON.
 _INTERNAL_FINANCIAL_MUTATION_TOKEN = object()
+
+def enforce_pending_currency(
+    doc,
+) -> None:
+    doc.currency = (
+        PENDING_CURRENCY
+    )
 
 
 def authorize_financial_mutation(doc, mode: str) -> None:
@@ -57,24 +70,44 @@ def get_financial_mutation_mode(doc) -> str | None:
     return mode
 
 
-def get_money_precision(doc) -> int:
-    if not doc.currency:
-        frappe.throw(
-            _("العملة مطلوبة قبل احتساب الحركة المالية."),
-            frappe.ValidationError,
-        )
+# def get_money_precision(doc) -> int:
+#     if not doc.currency:
+#         frappe.throw(
+#             _("العملة مطلوبة قبل احتساب الحركة المالية."),
+#             frappe.ValidationError,
+#         )
+
+#     precision = frappe.get_precision(
+#         PENDING_DOCTYPE,
+#         "total_suspended",
+#         currency=doc.currency,
+#         doc=doc,
+#     )
+
+#     if precision is None:
+#         precision = 2
+
+#     return int(precision)
+def get_money_precision(
+    doc,
+) -> int:
+    enforce_pending_currency(
+        doc
+    )
 
     precision = frappe.get_precision(
         PENDING_DOCTYPE,
         "total_suspended",
-        currency=doc.currency,
+        currency=PENDING_CURRENCY,
         doc=doc,
     )
 
     if precision is None:
         precision = 2
 
-    return int(precision)
+    return int(
+        precision
+    )
 
 
 def money_decimal(
@@ -95,53 +128,299 @@ def money_decimal(
     )
 
 
-def validate_and_recalculate_ledger(doc):
-    """
-    الـLedger هو مصدر الحقيقة المالي.
+# def validate_and_recalculate_ledger(doc):
+#     """
+#     الـLedger هو مصدر الحقيقة المالي.
 
-    كل remaining_amount داخل Child، وجميع Parent totals،
-    والحالة يتم حسابها بالكامل من السيرفر.
-    """
+#     كل remaining_amount داخل Child، وجميع Parent totals،
+#     والحالة يتم حسابها بالكامل من السيرفر.
+#     """
 
-    if not doc.currency:
-        frappe.throw(
-            _("العملة مطلوبة."),
-            frappe.ValidationError,
-        )
+#     if not doc.currency:
+#         frappe.throw(
+#             _("العملة مطلوبة."),
+#             frappe.ValidationError,
+#         )
 
-    rows = list(doc.ledger_entries or [])
+#     rows = list(doc.ledger_entries or [])
+
+#     if not rows:
+#         frappe.throw(
+#             _("يجب إضافة حركة مالية واحدة على الأقل."),
+#             frappe.ValidationError,
+#         )
+
+#     precision = get_money_precision(doc)
+#     zero = _zero_for_precision(precision)
+
+#     total_suspended = zero
+#     total_returned = zero
+#     balance = zero
+
+#     for position, row in enumerate(
+#         rows,
+#         start=1,
+#     ):
+#         suspended = _to_money_decimal(
+#             row.suspended_amount,
+#             precision=precision,
+#             label=_("المبلغ المعلق"),
+#             row_number=position,
+#             strict_precision=True,
+#         )
+
+#         returned = _to_money_decimal(
+#             row.returned_amount,
+#             precision=precision,
+#             label=_("المبلغ المرتجع"),
+#             row_number=position,
+#             strict_precision=True,
+#         )
+
+#         if suspended < zero:
+#             frappe.throw(
+#                 _(
+#                     "المبلغ المعلق لا يمكن أن يكون سالبًا "
+#                     "في الحركة رقم {0}."
+#                 ).format(position),
+#                 frappe.ValidationError,
+#             )
+
+#         if returned < zero:
+#             frappe.throw(
+#                 _(
+#                     "المبلغ المرتجع لا يمكن أن يكون سالبًا "
+#                     "في الحركة رقم {0}."
+#                 ).format(position),
+#                 frappe.ValidationError,
+#             )
+
+#         if suspended == zero and returned == zero:
+#             frappe.throw(
+#                 _(
+#                     "الحركة رقم {0} فارغة. يجب أن تحتوي على "
+#                     "مبلغ معلق أو مبلغ مرتجع."
+#                 ).format(position),
+#                 frappe.ValidationError,
+#             )
+
+#         if returned > zero:
+#             if not row.return_datetime:
+#                 frappe.throw(
+#                     _(
+#                         "تاريخ ووقت الإرجاع مطلوب للحركة رقم {0}."
+#                     ).format(position),
+#                     frappe.ValidationError,
+#                 )
+
+#             try:
+#                 row.return_datetime = get_datetime(
+#                     row.return_datetime
+#                 )
+#             except Exception:
+#                 frappe.throw(
+#                     _(
+#                         "تاريخ ووقت الإرجاع غير صالح "
+#                         "في الحركة رقم {0}."
+#                     ).format(position),
+#                     frappe.ValidationError,
+#                 )
+
+#         elif row.return_datetime:
+#             frappe.throw(
+#                 _(
+#                     "لا يمكن تحديد تاريخ إرجاع للحركة رقم {0} "
+#                     "بدون مبلغ مرتجع."
+#                 ).format(position),
+#                 frappe.ValidationError,
+#             )
+
+#         available_before_return = (
+#             balance + suspended
+#         )
+
+#         next_balance = (
+#             available_before_return
+#             - returned
+#         )
+
+#         if next_balance < zero:
+#             frappe.throw(
+#                 _(
+#                     "المبلغ المرتجع في الحركة رقم {0} يتجاوز "
+#                     "الرصيد المتاح. الرصيد المتاح قبل الإرجاع "
+#                     "هو {1}."
+#                 ).format(
+#                     position,
+#                     format_money_decimal(
+#                         available_before_return,
+#                         precision,
+#                     ),
+#                 ),
+#                 frappe.ValidationError,
+#             )
+
+#         total_suspended += suspended
+#         total_returned += returned
+#         balance = next_balance
+
+#         row.currency = doc.currency
+
+#         row.suspended_amount = (
+#             _decimal_for_storage(
+#                 suspended
+#             )
+#         )
+
+#         row.returned_amount = (
+#             _decimal_for_storage(
+#                 returned
+#             )
+#         )
+
+#         row.remaining_amount = (
+#             _decimal_for_storage(
+#                 balance
+#             )
+#         )
+
+#     if total_suspended <= zero:
+#         frappe.throw(
+#             _(
+#                 "يجب أن تحتوي العملية على مبلغ معلق موجب."
+#             ),
+#             frappe.ValidationError,
+#         )
+
+#     remaining_amount = (
+#         total_suspended
+#         - total_returned
+#     )
+
+#     if remaining_amount != balance:
+#         frappe.throw(
+#             _(
+#                 "تعذر التحقق من اتساق الرصيد المالي للعملية."
+#             ),
+#             frappe.ValidationError,
+#         )
+
+#     status = _derive_status(
+#         total_suspended=total_suspended,
+#         total_returned=total_returned,
+#         remaining_amount=remaining_amount,
+#         zero=zero,
+#     )
+
+#     doc.total_suspended = (
+#         _decimal_for_storage(
+#             total_suspended
+#         )
+#     )
+
+#     doc.total_returned = (
+#         _decimal_for_storage(
+#             total_returned
+#         )
+#     )
+
+#     doc.remaining_amount = (
+#         _decimal_for_storage(
+#             remaining_amount
+#         )
+#     )
+
+#     doc.status = status
+
+#     return frappe._dict(
+#         precision=precision,
+#         total_suspended=total_suspended,
+#         total_returned=total_returned,
+#         remaining_amount=remaining_amount,
+#         status=status,
+#     )
+
+def validate_and_recalculate_ledger(
+    doc,
+):
+    enforce_pending_currency(
+        doc
+    )
+
+    rows = list(
+        doc.ledger_entries
+        or []
+    )
 
     if not rows:
         frappe.throw(
-            _("يجب إضافة حركة مالية واحدة على الأقل."),
+            _(
+                "يجب إضافة حركة مالية واحدة على الأقل."
+            ),
             frappe.ValidationError,
         )
 
-    precision = get_money_precision(doc)
-    zero = _zero_for_precision(precision)
+    precision = (
+        get_money_precision(
+            doc
+        )
+    )
+
+    zero = (
+        _zero_for_precision(
+            precision
+        )
+    )
+
+    operation_date = None
+
+    if doc.operation_datetime:
+        try:
+            operation_date = getdate(
+                doc.operation_datetime
+            )
+
+        except Exception:
+            frappe.throw(
+                _(
+                    "التاريخ والوقت المعلق غير صالح."
+                ),
+                frappe.ValidationError,
+            )
 
     total_suspended = zero
     total_returned = zero
     balance = zero
 
-    for position, row in enumerate(
+    for (
+        position,
+        row,
+    ) in enumerate(
         rows,
         start=1,
     ):
-        suspended = _to_money_decimal(
-            row.suspended_amount,
-            precision=precision,
-            label=_("المبلغ المعلق"),
-            row_number=position,
-            strict_precision=True,
+        suspended = (
+            _to_money_decimal(
+                row.suspended_amount,
+                precision=precision,
+                label=_(
+                    "المبلغ المعلق"
+                ),
+                row_number=position,
+                strict_precision=True,
+            )
         )
 
-        returned = _to_money_decimal(
-            row.returned_amount,
-            precision=precision,
-            label=_("المبلغ المرتجع"),
-            row_number=position,
-            strict_precision=True,
+        returned = (
+            _to_money_decimal(
+                row.returned_amount,
+                precision=precision,
+                label=_(
+                    "المبلغ المرتجع"
+                ),
+                row_number=position,
+                strict_precision=True,
+            )
         )
 
         if suspended < zero:
@@ -149,7 +428,9 @@ def validate_and_recalculate_ledger(doc):
                 _(
                     "المبلغ المعلق لا يمكن أن يكون سالبًا "
                     "في الحركة رقم {0}."
-                ).format(position),
+                ).format(
+                    position
+                ),
                 frappe.ValidationError,
             )
 
@@ -158,65 +439,133 @@ def validate_and_recalculate_ledger(doc):
                 _(
                     "المبلغ المرتجع لا يمكن أن يكون سالبًا "
                     "في الحركة رقم {0}."
-                ).format(position),
+                ).format(
+                    position
+                ),
                 frappe.ValidationError,
             )
 
-        if suspended == zero and returned == zero:
+        if (
+            suspended == zero
+            and
+            returned == zero
+        ):
             frappe.throw(
                 _(
                     "الحركة رقم {0} فارغة. يجب أن تحتوي على "
                     "مبلغ معلق أو مبلغ مرتجع."
-                ).format(position),
+                ).format(
+                    position
+                ),
+                frappe.ValidationError,
+            )
+
+        return_note = cstr(
+            row.return_note
+            or ""
+        ).strip()
+
+        if len(
+            return_note
+        ) > 2000:
+            frappe.throw(
+                _(
+                    "ملاحظة الإرجاع في الحركة رقم {0} طويلة جدًا. "
+                    "الحد الأقصى 2000 حرف."
+                ).format(
+                    position
+                ),
                 frappe.ValidationError,
             )
 
         if returned > zero:
-            if not row.return_datetime:
+            if not row.return_date:
                 frappe.throw(
                     _(
-                        "تاريخ ووقت الإرجاع مطلوب للحركة رقم {0}."
-                    ).format(position),
+                        "تاريخ الإرجاع مطلوب للحركة رقم {0}."
+                    ).format(
+                        position
+                    ),
                     frappe.ValidationError,
                 )
 
             try:
-                row.return_datetime = get_datetime(
-                    row.return_datetime
+                row.return_date = (
+                    getdate(
+                        row.return_date
+                    )
                 )
+
             except Exception:
                 frappe.throw(
                     _(
-                        "تاريخ ووقت الإرجاع غير صالح "
+                        "تاريخ الإرجاع غير صالح "
                         "في الحركة رقم {0}."
-                    ).format(position),
+                    ).format(
+                        position
+                    ),
                     frappe.ValidationError,
                 )
 
-        elif row.return_datetime:
-            frappe.throw(
-                _(
-                    "لا يمكن تحديد تاريخ إرجاع للحركة رقم {0} "
-                    "بدون مبلغ مرتجع."
-                ).format(position),
-                frappe.ValidationError,
-            )
+            if (
+                operation_date
+                and
+                row.return_date
+                < operation_date
+            ):
+                frappe.throw(
+                    _(
+                        "تاريخ الإرجاع في الحركة رقم {0} "
+                        "لا يمكن أن يكون أقدم من تاريخ "
+                        "المعلقة ({1})."
+                    ).format(
+                        position,
+                        operation_date,
+                    ),
+                    frappe.ValidationError,
+                )
+
+        else:
+            if row.return_date:
+                frappe.throw(
+                    _(
+                        "لا يمكن تحديد تاريخ إرجاع "
+                        "للحركة رقم {0} بدون مبلغ مرتجع."
+                    ).format(
+                        position
+                    ),
+                    frappe.ValidationError,
+                )
+
+            if return_note:
+                frappe.throw(
+                    _(
+                        "لا يمكن إضافة ملاحظة إرجاع "
+                        "للحركة رقم {0} بدون مبلغ مرتجع."
+                    ).format(
+                        position
+                    ),
+                    frappe.ValidationError,
+                )
 
         available_before_return = (
-            balance + suspended
+            balance
+            +
+            suspended
         )
 
         next_balance = (
             available_before_return
-            - returned
+            -
+            returned
         )
 
         if next_balance < zero:
             frappe.throw(
                 _(
-                    "المبلغ المرتجع في الحركة رقم {0} يتجاوز "
-                    "الرصيد المتاح. الرصيد المتاح قبل الإرجاع "
-                    "هو {1}."
+                    "المبلغ المرتجع في الحركة رقم {0} "
+                    "يتجاوز الرصيد المتاح. "
+                    "الرصيد المتاح قبل الإرجاع هو {1}."
                 ).format(
                     position,
                     format_money_decimal(
@@ -227,11 +576,25 @@ def validate_and_recalculate_ledger(doc):
                 frappe.ValidationError,
             )
 
-        total_suspended += suspended
-        total_returned += returned
-        balance = next_balance
+        total_suspended += (
+            suspended
+        )
 
-        row.currency = doc.currency
+        total_returned += (
+            returned
+        )
+
+        balance = (
+            next_balance
+        )
+
+        row.currency = (
+            PENDING_CURRENCY
+        )
+
+        row.return_note = (
+            return_note
+        )
 
         row.suspended_amount = (
             _decimal_for_storage(
@@ -261,10 +624,14 @@ def validate_and_recalculate_ledger(doc):
 
     remaining_amount = (
         total_suspended
-        - total_returned
+        -
+        total_returned
     )
 
-    if remaining_amount != balance:
+    if (
+        remaining_amount
+        != balance
+    ):
         frappe.throw(
             _(
                 "تعذر التحقق من اتساق الرصيد المالي للعملية."
@@ -272,12 +639,29 @@ def validate_and_recalculate_ledger(doc):
             frappe.ValidationError,
         )
 
-    status = _derive_status(
-        total_suspended=total_suspended,
-        total_returned=total_returned,
-        remaining_amount=remaining_amount,
-        zero=zero,
-    )
+    if cint(
+        doc.is_failed
+    ):
+        status = (
+            STATUS_FAILED
+        )
+
+    else:
+        status = (
+            _derive_status(
+                total_suspended=
+                    total_suspended,
+
+                total_returned=
+                    total_returned,
+
+                remaining_amount=
+                    remaining_amount,
+
+                zero=
+                    zero,
+            )
+        )
 
     doc.total_suspended = (
         _decimal_for_storage(
@@ -297,14 +681,25 @@ def validate_and_recalculate_ledger(doc):
         )
     )
 
-    doc.status = status
+    doc.status = (
+        status
+    )
 
     return frappe._dict(
-        precision=precision,
-        total_suspended=total_suspended,
-        total_returned=total_returned,
-        remaining_amount=remaining_amount,
-        status=status,
+        precision=
+            precision,
+
+        total_suspended=
+            total_suspended,
+
+        total_returned=
+            total_returned,
+
+        remaining_amount=
+            remaining_amount,
+
+        status=
+            status,
     )
 
 
@@ -407,10 +802,16 @@ def financial_snapshot(doc) -> dict[str, Any]:
                         precision,
                     ),
 
-                "return_datetime":
-                    _datetime_snapshot(
-                        row.return_datetime
+                "return_date":
+                    _date_snapshot(
+                        row.return_date
                     ),
+
+                "return_note":
+                    cstr(
+                        row.return_note
+                        or ""
+                    ).strip(),
 
                 "entered_by": cstr(
                     row.entered_by or ""
@@ -594,6 +995,10 @@ def operation_financial_state(
 
         "modified":
             doc.modified,
+        "is_failed":
+            cint(
+                doc.is_failed
+            ),
 
         "ledger_entries": [
             {
@@ -612,8 +1017,12 @@ def operation_financial_state(
                 "remaining_amount":
                     row.remaining_amount,
 
-                "return_datetime":
-                    row.return_datetime,
+                "return_date":
+                    row.return_date,
+
+                "return_note":
+                    row.return_note
+                    or "",
 
                 "entered_by":
                     row.entered_by,
@@ -867,6 +1276,16 @@ def _zero_for_precision(
             precision
         )
     )
+
+def _date_snapshot(
+    value: Any,
+) -> str:
+    if not value:
+        return ""
+
+    return getdate(
+        value
+    ).isoformat()
 
 
 def _datetime_snapshot(

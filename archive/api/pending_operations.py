@@ -5,6 +5,7 @@ from typing import Any
 import frappe
 from frappe import _
 from frappe.utils import (
+    cint,
     cstr,
     now_datetime,
 )
@@ -14,7 +15,9 @@ from archive.services.pending_operation_attachments import (
 from archive.api.pending_operation_search import (
     get_pending_context_rows,
 )
-
+from archive.archive.doctype.archive_pending_operation.archive_pending_operation import (
+    authorize_pending_failure_transition,
+)
 from archive.services.pending_ledger import (
     FINANCIAL_MODE_APPEND_RETURN,
     FINANCIAL_MODE_CORRECTION,
@@ -25,6 +28,7 @@ from archive.services.pending_ledger import (
     money_decimal,
     operation_financial_state,
     validate_and_recalculate_ledger,
+    PENDING_CURRENCY,
 )
 
 from archive.services.pending_operation_audit import (
@@ -107,7 +111,7 @@ def get_pending_operations_context():
         operations = []
 
     return {
-        "context_version": 1,
+        "context_version": 2,
 
         "generated_at":
             now_datetime(),
@@ -129,17 +133,18 @@ def get_pending_operations_context():
 
 
 _CREATE_ALLOWED_FIELDS = {
+    "bank",
     "card_name",
+    "account_number",
     "card_number",
     "operation_datetime",
-    "card_owner",
-    "currency",
-    "bank",
+    "suspended_note",
     "region",
     "machine_location",
-    "machine_no",
     "branch_no",
+    "machine_no",
     "representative",
+    "card_owner",
     "ledger_entries",
     "notes",
     "attachments",
@@ -149,21 +154,24 @@ _CREATE_ALLOWED_FIELDS = {
 _LEDGER_INPUT_FIELDS = {
     "suspended_amount",
     "returned_amount",
-    "return_datetime",
+    "return_date",
+    "return_note",
 }
+
 
 
 _CORRECTION_LEDGER_INPUT_FIELDS = {
     "name",
     "suspended_amount",
     "returned_amount",
-    "return_datetime",
+    "return_date",
+    "return_note",
 }
-
 
 _ADD_RETURN_FIELDS = {
     "returned_amount",
-    "return_datetime",
+    "return_date",
+    "return_note",
 }
 
 
@@ -173,19 +181,6 @@ _CORRECTION_FIELDS = {
     "ledger_entries",
 }
 
-_UPDATE_ALLOWED_FIELDS = {
-    "card_name",
-    "card_number",
-    "operation_datetime",
-    "card_owner",
-    "bank",
-    "region",
-    "machine_location",
-    "machine_no",
-    "branch_no",
-    "representative",
-    "notes",
-}
 
 
 _UPDATE_TEXT_FIELDS = {
@@ -201,7 +196,26 @@ _UPDATE_TEXT_FIELDS = {
     "notes",
 }
 
+_UPDATE_METADATA_FIELDS = {
+    "bank",
+    "card_name",
+    "account_number",
+    "card_number",
+    "operation_datetime",
+    "suspended_note",
+    "region",
+    "machine_location",
+    "branch_no",
+    "machine_no",
+    "representative",
+    "card_owner",
+    "notes",
+}
 
+_UPDATE_ALLOWED_FIELDS = {
+    *_UPDATE_METADATA_FIELDS,
+    "ledger_entries",
+}
 @frappe.whitelist(
     methods=["GET"]
 )
@@ -232,6 +246,104 @@ def get_pending_operation_details(
     )
 
 
+# @frappe.whitelist(
+#     methods=["POST"]
+# )
+# def update_pending_operation(
+#     name: str,
+#     payload: str | dict[str, Any],
+#     expected_modified: Any = None,
+# ) -> dict[str, Any]:
+#     name = cstr(
+#         name
+#     ).strip()
+
+#     if not name:
+#         frappe.throw(
+#             _("اسم العملية المعلقة مطلوب."),
+#             frappe.ValidationError,
+#         )
+
+#     data = _parse_dict_payload(
+#         payload,
+#         context=_(
+#             "بيانات تعديل العملية"
+#         ),
+#     )
+
+#     _reject_unknown_keys(
+#         data,
+#         _UPDATE_ALLOWED_FIELDS,
+#         context=_(
+#             "بيانات تعديل العملية"
+#         ),
+#     )
+
+#     if not expected_modified:
+#         frappe.throw(
+#             _(
+#                 "تعذر التحقق من نسخة العملية الحالية. "
+#                 "أعد فتح العملية وحاول مرة أخرى."
+#             ),
+#             frappe.ValidationError,
+#         )
+
+#     # Lock حتى لا يتزامن Metadata edit
+#     # مع Return/Correction بشكل غير منضبط.
+#     doc = frappe.get_doc(
+#         PENDING_DOCTYPE,
+#         name,
+#         for_update=True,
+#     )
+
+#     _require_edit_pending_operation(
+#         doc
+#     )
+
+#     if (
+#         cstr(doc.modified)
+#         != cstr(expected_modified)
+#     ):
+#         frappe.throw(
+#             _(
+#                 "تم تعديل العملية من جلسة أخرى بعد فتحها. "
+#                 "أعد تحميل العملية قبل حفظ تغييراتك."
+#             ),
+#             frappe.ValidationError,
+#         )
+
+#     for (
+#         fieldname,
+#         value,
+#     ) in data.items():
+
+#         if (
+#             fieldname
+#             in _UPDATE_TEXT_FIELDS
+#         ):
+#             value = cstr(
+#                 value
+#             ).strip()
+
+#         doc.set(
+#             fieldname,
+#             value,
+#         )
+
+#     # نتجاوز Generic write لأن Business Permission
+#     # تم فحصها أعلاه عبر edit_own/edit_all.
+#     #
+#     # Ledger نفسه لم يتغير، وبالتالي Controller
+#     # سيمنع أي محاولة لتهريبه ضمن هذا المسار.
+#     doc.save(
+#         ignore_permissions=True
+#     )
+
+#     return _build_pending_operation_details(
+#         doc
+#     )
+
+
 @frappe.whitelist(
     methods=["POST"]
 )
@@ -246,7 +358,9 @@ def update_pending_operation(
 
     if not name:
         frappe.throw(
-            _("اسم العملية المعلقة مطلوب."),
+            _(
+                "اسم العملية المعلقة مطلوب."
+            ),
             frappe.ValidationError,
         )
 
@@ -274,21 +388,24 @@ def update_pending_operation(
             frappe.ValidationError,
         )
 
-    # Lock حتى لا يتزامن Metadata edit
-    # مع Return/Correction بشكل غير منضبط.
     doc = frappe.get_doc(
         PENDING_DOCTYPE,
         name,
         for_update=True,
     )
 
-    _require_edit_pending_operation(
+    _require_view_pending_operation(
         doc
     )
 
     if (
-        cstr(doc.modified)
-        != cstr(expected_modified)
+        cstr(
+            doc.modified
+        )
+        !=
+        cstr(
+            expected_modified
+        )
     ):
         frappe.throw(
             _(
@@ -298,10 +415,148 @@ def update_pending_operation(
             frappe.ValidationError,
         )
 
+    permissions = (
+        get_pending_record_permissions(
+            doc,
+            user=frappe.session.user,
+        )
+    )
+
+    metadata_payload = {
+        fieldname:
+            value
+
+        for (
+            fieldname,
+            value,
+        ) in data.items()
+
+        if fieldname
+        in _UPDATE_METADATA_FIELDS
+    }
+
+    has_ledger_payload = (
+        "ledger_entries"
+        in data
+    )
+
+    if (
+        metadata_payload
+        and
+        not permissions.get(
+            "can_edit"
+        )
+    ):
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية لتعديل "
+                "بيانات هذه العملية المعلقة."
+            ),
+            frappe.PermissionError,
+        )
+
+    if (
+        has_ledger_payload
+        and
+        not permissions.get(
+            "can_correct_ledger"
+        )
+    ):
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية لتعديل "
+                "الحركة المالية لهذه العملية."
+            ),
+            frappe.PermissionError,
+        )
+
+    if (
+        not metadata_payload
+        and
+        not has_ledger_payload
+    ):
+        frappe.throw(
+            _(
+                "لا توجد بيانات لتعديلها."
+            ),
+            frappe.ValidationError,
+        )
+
+    before_status = (
+        doc.status
+    )
+
+    before_summary = None
+    before_ledger = None
+    ledger_changed = False
+
+    if has_ledger_payload:
+        validate_and_recalculate_ledger(
+            doc
+        )
+
+        before_summary = (
+            financial_summary_snapshot(
+                doc
+            )
+        )
+
+        before_ledger = (
+            financial_snapshot(
+                doc
+            )
+        )
+
+        rows = _parse_ledger_list(
+            data.get(
+                "ledger_entries"
+            ),
+            context=_(
+                "حركات تعديل العملية"
+            ),
+        )
+
+        if not rows:
+            frappe.throw(
+                _(
+                    "يجب أن يحتوي جدول الحركة "
+                    "على حركة مالية واحدة على الأقل."
+                ),
+                frappe.ValidationError,
+            )
+
+        _rebuild_ledger_for_edit(
+            doc,
+            rows,
+        )
+
+        doc._prepare_ledger_rows()
+
+        validate_and_recalculate_ledger(
+            doc
+        )
+
+        after_candidate = (
+            financial_snapshot(
+                doc
+            )
+        )
+
+        ledger_changed = (
+            after_candidate
+            != before_ledger
+        )
+
+        if ledger_changed:
+            authorize_financial_mutation(
+                doc,
+                FINANCIAL_MODE_CORRECTION,
+            )
+
     for (
         fieldname,
         value,
-    ) in data.items():
+    ) in metadata_payload.items():
 
         if (
             fieldname
@@ -316,19 +571,70 @@ def update_pending_operation(
             value,
         )
 
-    # نتجاوز Generic write لأن Business Permission
-    # تم فحصها أعلاه عبر edit_own/edit_all.
-    #
-    # Ledger نفسه لم يتغير، وبالتالي Controller
-    # سيمنع أي محاولة لتهريبه ضمن هذا المسار.
     doc.save(
         ignore_permissions=True
     )
 
-    return _build_pending_operation_details(
-        doc
-    )
+    if ledger_changed:
+        after_summary = (
+            financial_summary_snapshot(
+                doc
+            )
+        )
 
+        after_ledger = (
+            financial_snapshot(
+                doc
+            )
+        )
+
+        create_pending_operation_log(
+            operation_name=
+                doc.name,
+
+            event_type=
+                "ledger_corrected",
+
+            event_title=
+                "تعديل الحركة المالية",
+
+            event_source=
+                "User",
+
+            details={
+                "before":
+                    before_summary,
+
+                "after":
+                    after_summary,
+
+                "ledger_diff":
+                    build_ledger_diff(
+                        before_ledger,
+                        after_ledger,
+                    ),
+            },
+        )
+
+        log_status_change(
+            operation_name=
+                doc.name,
+
+            before_status=
+                before_status,
+
+            after_status=
+                doc.status,
+
+            financial_summary=
+                after_summary,
+        )
+
+    return (
+        _build_pending_operation_details(
+            doc
+        )
+    )
 
 @frappe.whitelist(
     methods=["POST"]
@@ -365,16 +671,20 @@ def create_pending_operation(
         "doctype":
             PENDING_DOCTYPE,
 
+        "currency":
+            PENDING_CURRENCY,
+
         **{
-            key: value
+            key:
+                value
+
             for (
                 key,
                 value,
             ) in data.items()
-            if (
-                key
-                != "ledger_entries"
-            )
+
+            if key
+            != "ledger_entries"
         },
 
         "ledger_entries":
@@ -395,6 +705,212 @@ def create_pending_operation(
         doc
     )
 
+
+# @frappe.whitelist(
+#     methods=["POST"]
+# )
+# def add_pending_return(
+#     name: str,
+#     payload: str | dict[str, Any],
+# ) -> dict[str, Any]:
+#     name = cstr(
+#         name
+#     ).strip()
+
+#     if not name:
+#         frappe.throw(
+#             _(
+#                 "اسم العملية المعلقة مطلوب."
+#             ),
+#             frappe.ValidationError,
+#         )
+
+#     data = _parse_dict_payload(
+#         payload,
+#         context=_(
+#             "بيانات الإرجاع"
+#         ),
+#     )
+
+#     _reject_unknown_keys(
+#         data,
+#         _ADD_RETURN_FIELDS,
+#         context=_(
+#             "بيانات الإرجاع"
+#         ),
+#     )
+
+#     if (
+#         "returned_amount"
+#         not in data
+#     ):
+#         frappe.throw(
+#             _(
+#                 "المبلغ المرتجع مطلوب."
+#             ),
+#             frappe.ValidationError,
+#         )
+
+#     # هذه أهم نقطة في Concurrency.
+#     #
+#     # Parent + Child Ledger يُحمّلان FOR UPDATE
+#     # داخل Transaction الحالية.
+#     doc = frappe.get_doc(
+#         PENDING_DOCTYPE,
+#         name,
+#         for_update=True,
+#     )
+
+#     _require_add_pending_return(
+#         doc
+#     )
+
+#     # لا نثق حتى Parent totals الموجودة في DB.
+#     # نعيد الحساب من Ledger الحقيقي بعد القفل.
+#     validate_and_recalculate_ledger(
+#         doc
+#     )
+
+#     before_status = (
+#         doc.status
+#     )
+
+#     before_summary = (
+#         financial_summary_snapshot(
+#             doc
+#         )
+#     )
+
+#     returned_amount = (
+#         money_decimal(
+#             doc,
+#             data.get(
+#                 "returned_amount"
+#             ),
+#             label=_(
+#                 "المبلغ المرتجع"
+#             ),
+#         )
+#     )
+
+#     remaining_amount = (
+#         money_decimal(
+#             doc,
+#             doc.remaining_amount,
+#             label=_(
+#                 "المبلغ المتبقي"
+#             ),
+#         )
+#     )
+
+#     if returned_amount <= 0:
+#         frappe.throw(
+#             _(
+#                 "يجب أن يكون المبلغ المرتجع موجبًا."
+#             ),
+#             frappe.ValidationError,
+#         )
+
+#     if remaining_amount <= 0:
+#         frappe.throw(
+#             _(
+#                 "العملية مرتجعة بالكامل "
+#                 "ولا يوجد رصيد متبقٍ للإرجاع."
+#             ),
+#             frappe.ValidationError,
+#         )
+
+#     if (
+#         returned_amount
+#         > remaining_amount
+#     ):
+#         frappe.throw(
+#             _(
+#                 "المبلغ المرتجع يتجاوز الرصيد المتبقي. "
+#                 "الرصيد المتبقي الحالي هو {0}."
+#             ).format(
+#                 doc.remaining_amount
+#             ),
+#             frappe.ValidationError,
+#         )
+
+#     return_datetime = (
+#         data.get(
+#             "return_datetime"
+#         )
+#         or now_datetime()
+#     )
+
+#     new_row = doc.append(
+#         "ledger_entries",
+#         {
+#             "suspended_amount":
+#                 0,
+
+#             "returned_amount":
+#                 returned_amount,
+
+#             "return_datetime":
+#                 return_datetime,
+#         },
+#     )
+
+#     authorize_financial_mutation(
+#         doc,
+#         FINANCIAL_MODE_APPEND_RETURN,
+#     )
+
+#     # ignore_permissions هنا لا يعني تجاوز Security.
+#     # الـBusiness permission تحققناه فوق، بينما
+#     # write permission العام مستقل عن add_pending_return.
+#     doc.save(
+#         ignore_permissions=True
+#     )
+
+#     after_summary = (
+#         financial_summary_snapshot(
+#             doc
+#         )
+#     )
+
+#     create_pending_operation_log(
+#         operation_name=doc.name,
+#         event_type="return_added",
+#         event_title="تسجيل مبلغ مرتجع",
+#         event_source="User",
+#         effective_datetime=(
+#             new_row.return_datetime
+#         ),
+#         details={
+#             "ledger_row":
+#                 new_row.name,
+
+#             "returned_amount":
+#                 new_row.returned_amount,
+
+#             "return_datetime":
+#                 new_row.return_datetime,
+
+#             "before":
+#                 before_summary,
+
+#             "after":
+#                 after_summary,
+#         },
+#     )
+
+#     log_status_change(
+#         operation_name=doc.name,
+#         before_status=before_status,
+#         after_status=doc.status,
+#         financial_summary=(
+#             after_summary
+#         ),
+#     )
+
+#     return operation_financial_state(
+#         doc
+#     )
 
 @frappe.whitelist(
     methods=["POST"]
@@ -441,10 +957,16 @@ def add_pending_return(
             frappe.ValidationError,
         )
 
-    # هذه أهم نقطة في Concurrency.
-    #
-    # Parent + Child Ledger يُحمّلان FOR UPDATE
-    # داخل Transaction الحالية.
+    if not data.get(
+        "return_date"
+    ):
+        frappe.throw(
+            _(
+                "تاريخ الإرجاع مطلوب."
+            ),
+            frappe.ValidationError,
+        )
+
     doc = frappe.get_doc(
         PENDING_DOCTYPE,
         name,
@@ -455,8 +977,17 @@ def add_pending_return(
         doc
     )
 
-    # لا نثق حتى Parent totals الموجودة في DB.
-    # نعيد الحساب من Ledger الحقيقي بعد القفل.
+    if cint(
+        doc.is_failed
+    ):
+        frappe.throw(
+            _(
+                "لا يمكن إضافة إرجاع "
+                "لعملية معلقة فاشلة."
+            ),
+            frappe.ValidationError,
+        )
+
     validate_and_recalculate_ledger(
         doc
     )
@@ -524,12 +1055,23 @@ def add_pending_return(
             frappe.ValidationError,
         )
 
-    return_datetime = (
+    return_note = cstr(
         data.get(
-            "return_datetime"
+            "return_note"
         )
-        or now_datetime()
-    )
+        or ""
+    ).strip()
+
+    if len(
+        return_note
+    ) > 2000:
+        frappe.throw(
+            _(
+                "ملاحظة الإرجاع طويلة جدًا. "
+                "الحد الأقصى 2000 حرف."
+            ),
+            frappe.ValidationError,
+        )
 
     new_row = doc.append(
         "ledger_entries",
@@ -540,8 +1082,13 @@ def add_pending_return(
             "returned_amount":
                 returned_amount,
 
-            "return_datetime":
-                return_datetime,
+            "return_date":
+                data.get(
+                    "return_date"
+                ),
+
+            "return_note":
+                return_note,
         },
     )
 
@@ -550,9 +1097,6 @@ def add_pending_return(
         FINANCIAL_MODE_APPEND_RETURN,
     )
 
-    # ignore_permissions هنا لا يعني تجاوز Security.
-    # الـBusiness permission تحققناه فوق، بينما
-    # write permission العام مستقل عن add_pending_return.
     doc.save(
         ignore_permissions=True
     )
@@ -564,13 +1108,25 @@ def add_pending_return(
     )
 
     create_pending_operation_log(
-        operation_name=doc.name,
-        event_type="return_added",
-        event_title="تسجيل مبلغ مرتجع",
-        event_source="User",
-        effective_datetime=(
-            new_row.return_datetime
-        ),
+        operation_name=
+            doc.name,
+
+        event_type=
+            "return_added",
+
+        event_title=
+            "تسجيل مبلغ مرتجع",
+
+        event_source=
+            "User",
+
+        
+        remarks=
+            (
+                return_note
+                or None
+            ),
+
         details={
             "ledger_row":
                 new_row.name,
@@ -578,8 +1134,14 @@ def add_pending_return(
             "returned_amount":
                 new_row.returned_amount,
 
-            "return_datetime":
-                new_row.return_datetime,
+            "return_date":
+                new_row.return_date,
+
+            "return_note":
+                (
+                    new_row.return_note
+                    or ""
+                ),
 
             "before":
                 before_summary,
@@ -590,12 +1152,17 @@ def add_pending_return(
     )
 
     log_status_change(
-        operation_name=doc.name,
-        before_status=before_status,
-        after_status=doc.status,
-        financial_summary=(
-            after_summary
-        ),
+        operation_name=
+            doc.name,
+
+        before_status=
+            before_status,
+
+        after_status=
+            doc.status,
+
+        financial_summary=
+            after_summary,
     )
 
     return operation_financial_state(
@@ -606,7 +1173,7 @@ def add_pending_return(
 @frappe.whitelist(
     methods=["POST"]
 )
-def correct_pending_ledger(
+def mark_pending_operation_failed(
     name: str,
     payload: str | dict[str, Any],
 ) -> dict[str, Any]:
@@ -625,91 +1192,62 @@ def correct_pending_ledger(
     data = _parse_dict_payload(
         payload,
         context=_(
-            "بيانات تصحيح الحركة المالية"
+            "بيانات المعلقة الفاشلة"
         ),
     )
 
     _reject_unknown_keys(
         data,
-        _CORRECTION_FIELDS,
+        {
+            "note",
+        },
         context=_(
-            "بيانات تصحيح الحركة المالية"
+            "بيانات المعلقة الفاشلة"
         ),
     )
 
-    reason = cstr(
+    note = cstr(
         data.get(
-            "reason"
+            "note"
         )
     ).strip()
 
-    if not reason:
+    if not note:
         frappe.throw(
             _(
-                "سبب التصحيح المالي مطلوب."
+                "ملاحظة تحويل العملية "
+                "إلى معلقة فاشلة مطلوبة."
             ),
             frappe.ValidationError,
         )
 
-    if len(reason) > 2000:
+    if len(
+        note
+    ) > 2000:
         frappe.throw(
             _(
-                "سبب التصحيح المالي طويل جدًا. "
+                "ملاحظة المعلقة الفاشلة طويلة جدًا. "
                 "الحد الأقصى 2000 حرف."
             ),
             frappe.ValidationError,
         )
 
-    correction_rows = (
-        _parse_ledger_list(
-            data.get(
-                "ledger_entries"
-            ),
-            context=_(
-                "حركات التصحيح المالي"
-            ),
-        )
-    )
-
-    if not correction_rows:
-        frappe.throw(
-            _(
-                "يجب أن يحتوي التصحيح على "
-                "حركة مالية واحدة على الأقل."
-            ),
-            frappe.ValidationError,
-        )
-
-    # نفس Lock المستخدم في add return.
-    # أي Return متزامن سينتظر انتهاء Correction والعكس.
     doc = frappe.get_doc(
         PENDING_DOCTYPE,
         name,
         for_update=True,
     )
 
-    _require_correct_pending_ledger(
+    _require_edit_pending_operation(
         doc
     )
-    expected_modified = cstr(
-        data.get(
-            "expected_modified"
-        )
-    ).strip()
 
-    if (
-        expected_modified
-        and
-        cstr(
-            doc.modified
-        )
-        != expected_modified
+    if cint(
+        doc.is_failed
     ):
         frappe.throw(
             _(
-                "تم تعديل العملية بعد فتح شاشة التصحيح. "
-                "أغلق شاشة التصحيح وافتحها من جديد "
-                "للحصول على أحدث الحركات المالية."
+                "العملية مصنفة كمعلقة فاشلة بالفعل."
             ),
             frappe.ValidationError,
         )
@@ -722,25 +1260,164 @@ def correct_pending_ledger(
         doc.status
     )
 
-    before_summary = (
+    changed_at = (
+        now_datetime()
+    )
+
+    authorize_pending_failure_transition(
+        doc
+    )
+
+    doc.is_failed = 1
+
+    doc.failed_at = (
+        changed_at
+    )
+
+    doc.failed_by = (
+        frappe.session.user
+    )
+
+    doc.failed_note = (
+        note
+    )
+
+    doc.save(
+        ignore_permissions=True
+    )
+
+    after_summary = (
         financial_summary_snapshot(
             doc
         )
     )
 
-    before_ledger = (
-        financial_snapshot(
+    create_pending_operation_log(
+        operation_name=
+            doc.name,
+
+        event_type=
+            "marked_failed",
+
+        event_title=
+            "تغيير الحالة إلى معلقة فاشلة",
+
+        event_source=
+            "User",
+
+        effective_datetime=
+            changed_at,
+
+        remarks=
+            note,
+
+        details={
+            "failed_at":
+                doc.failed_at,
+
+            "failed_by":
+                doc.failed_by,
+
+            "failed_note":
+                doc.failed_note,
+
+            "before_status":
+                before_status,
+
+            "after_status":
+                doc.status,
+
+            "financial_summary":
+                after_summary,
+        },
+    )
+
+    log_status_change(
+        operation_name=
+            doc.name,
+
+        before_status=
+            before_status,
+
+        after_status=
+            doc.status,
+
+        financial_summary=
+            after_summary,
+    )
+
+    return (
+        _build_pending_operation_details(
             doc
         )
     )
+@frappe.whitelist(
+    methods=["POST"]
+)
+def correct_pending_ledger(
+    name: str,
+    payload: str | dict[str, Any],
+) -> dict[str, Any]:
+    data = _parse_dict_payload(
+        payload,
+        context=_(
+            "بيانات تعديل الحركة المالية"
+        ),
+    )
 
+    _reject_unknown_keys(
+        data,
+        {
+            "reason",
+            "expected_modified",
+            "ledger_entries",
+        },
+        context=_(
+            "بيانات تعديل الحركة المالية"
+        ),
+    )
+
+    if (
+        "ledger_entries"
+        not in data
+    ):
+        frappe.throw(
+            _(
+                "جدول الحركة المالية مطلوب."
+            ),
+            frappe.ValidationError,
+        )
+
+    return update_pending_operation(
+        name,
+        {
+            "ledger_entries":
+                data.get(
+                    "ledger_entries"
+                ),
+        },
+        expected_modified=
+            data.get(
+                "expected_modified"
+            ),
+    )
+
+def _rebuild_ledger_for_edit(
+    doc,
+    rows,
+) -> None:
     existing_rows = {
-        row.name: row
+        row.name:
+            row
+
         for row
-        in doc.ledger_entries or []
+        in (
+            doc.ledger_entries
+            or []
+        )
     }
 
-    seen_names: set[str] = set()
+    seen_names = set()
 
     rebuilt_rows = []
 
@@ -748,15 +1425,14 @@ def correct_pending_ledger(
         position,
         raw_row,
     ) in enumerate(
-        correction_rows,
+        rows,
         start=1,
     ):
         row_data = (
             _parse_dict_payload(
                 raw_row,
                 context=_(
-                    "الحركة رقم {0} "
-                    "في التصحيح"
+                    "الحركة رقم {0} في التعديل"
                 ).format(
                     position
                 ),
@@ -767,8 +1443,7 @@ def correct_pending_ledger(
             row_data,
             _CORRECTION_LEDGER_INPUT_FIELDS,
             context=_(
-                "الحركة رقم {0} "
-                "في التصحيح"
+                "الحركة رقم {0} في التعديل"
             ).format(
                 position
             ),
@@ -781,8 +1456,7 @@ def correct_pending_ledger(
             frappe.throw(
                 _(
                     "المبلغ المعلق مطلوب "
-                    "في الحركة رقم {0} "
-                    "ضمن التصحيح."
+                    "في الحركة رقم {0}."
                 ).format(
                     position
                 ),
@@ -796,8 +1470,7 @@ def correct_pending_ledger(
             frappe.throw(
                 _(
                     "المبلغ المرتجع مطلوب "
-                    "في الحركة رقم {0} "
-                    "ضمن التصحيح."
+                    "في الحركة رقم {0}."
                 ).format(
                     position
                 ),
@@ -818,7 +1491,7 @@ def correct_pending_ledger(
                 frappe.throw(
                     _(
                         "الحركة {0} مكررة "
-                        "داخل طلب التصحيح."
+                        "داخل طلب التعديل."
                     ).format(
                         row_name
                     ),
@@ -861,36 +1534,50 @@ def correct_pending_ledger(
                             "returned_amount"
                         ),
 
-                    "return_datetime":
+                    "return_date":
                         (
                             row_data.get(
-                                "return_datetime"
+                                "return_date"
                             )
                             if (
-                                "return_datetime"
+                                "return_date"
                                 in row_data
                             )
                             else (
                                 source_row
-                                .return_datetime
+                                    .return_date
                             )
                         ),
 
-                    # من سجل الحركة أصلًا لا يتغير.
-                    # من قام بالتصحيح سيظهر في Audit Log.
+                    "return_note":
+                        (
+                            row_data.get(
+                                "return_note"
+                            )
+                            if (
+                                "return_note"
+                                in row_data
+                            )
+                            else (
+                                source_row
+                                    .return_note
+                            )
+                        ),
+
                     "entered_by":
-                        source_row.entered_by,
+                        source_row
+                            .entered_by,
 
                     "entered_at":
-                        source_row.entered_at,
+                        source_row
+                            .entered_at,
 
                     "currency":
-                        doc.currency,
+                        PENDING_CURRENCY,
                 }
             )
 
         else:
-            # صف مالي جديد أثناء Correction.
             rebuilt_rows.append(
                 {
                     "suspended_amount":
@@ -903,13 +1590,18 @@ def correct_pending_ledger(
                             "returned_amount"
                         ),
 
-                    "return_datetime":
+                    "return_date":
                         row_data.get(
-                            "return_datetime"
+                            "return_date"
+                        ),
+
+                    "return_note":
+                        row_data.get(
+                            "return_note"
                         ),
 
                     "currency":
-                        doc.currency,
+                        PENDING_CURRENCY,
                 }
             )
 
@@ -918,97 +1610,13 @@ def correct_pending_ledger(
         [],
     )
 
-    for row_data in rebuilt_rows:
+    for row_data in (
+        rebuilt_rows
+    ):
         doc.append(
             "ledger_entries",
             row_data,
         )
-
-    # Validation قبل أي DB write.
-    doc._prepare_ledger_rows()
-
-    validate_and_recalculate_ledger(
-        doc
-    )
-
-    candidate_ledger = (
-        financial_snapshot(
-            doc
-        )
-    )
-
-    if (
-        candidate_ledger
-        == before_ledger
-    ):
-        frappe.throw(
-            _(
-                "لا توجد تغييرات مالية فعلية لتصحيحها."
-            ),
-            frappe.ValidationError,
-        )
-
-    authorize_financial_mutation(
-        doc,
-        FINANCIAL_MODE_CORRECTION,
-    )
-
-    doc.save(
-        ignore_permissions=True
-    )
-
-    after_summary = (
-        financial_summary_snapshot(
-            doc
-        )
-    )
-
-    after_ledger = (
-        financial_snapshot(
-            doc
-        )
-    )
-
-    ledger_diff = (
-        build_ledger_diff(
-            before_ledger,
-            after_ledger,
-        )
-    )
-
-    create_pending_operation_log(
-        operation_name=doc.name,
-        event_type="ledger_corrected",
-        event_title="تصحيح الحركة المالية",
-        event_source="User",
-        remarks=reason,
-        details={
-            "reason":
-                reason,
-
-            "before":
-                before_summary,
-
-            "after":
-                after_summary,
-
-            "ledger_diff":
-                ledger_diff,
-        },
-    )
-
-    log_status_change(
-        operation_name=doc.name,
-        before_status=before_status,
-        after_status=doc.status,
-        financial_summary=(
-            after_summary
-        ),
-    )
-
-    return operation_financial_state(
-        doc
-    )
 
 
 def _sanitize_create_ledger_entries(
@@ -1065,10 +1673,18 @@ def _sanitize_create_ledger_entries(
                         0,
                     ),
 
-                "return_datetime":
+                "return_date":
                     row.get(
-                        "return_datetime"
+                        "return_date"
                     ),
+
+                "return_note":
+                    cstr(
+                        row.get(
+                            "return_note"
+                        )
+                        or ""
+                    ).strip(),
             }
         )
 
@@ -1181,6 +1797,13 @@ def _build_pending_operation_details(
         or 0
     )
 
+    is_failed = bool(
+            cint(
+                doc.is_failed
+            )
+        )
+
+
     permissions = dict(
         permissions
     )
@@ -1193,11 +1816,38 @@ def _build_pending_operation_details(
     )
     # Capability فعلي لهذه اللحظة،
     # وليس Permission Type فقط.
-    permissions["can_add_return"] = bool(
-        permissions.get(
+    permissions[
             "can_add_return"
+        ] = bool(
+            permissions.get(
+                "can_add_return"
+            )
+            and
+            remaining > 0
+            and
+            not is_failed
         )
-        and remaining > 0
+
+    permissions[
+        "can_mark_failed"
+    ] = bool(
+        permissions.get(
+            "can_edit"
+        )
+        and
+        not is_failed
+    )
+
+    permissions[
+        "can_enter_edit_mode"
+    ] = bool(
+        permissions.get(
+            "can_edit"
+        )
+        or
+        permissions.get(
+            "can_correct_ledger"
+        )
     )
 
     operation = {
@@ -1218,6 +1868,34 @@ def _build_pending_operation_details(
 
         "card_owner":
             doc.card_owner,
+        "account_number":
+            doc.account_number,
+
+        "suspended_note":
+            doc.suspended_note
+            or "",
+
+        "is_failed":
+            cint(
+                doc.is_failed
+            ),
+
+        "failed_at":
+            doc.failed_at,
+
+        "failed_by":
+            doc.failed_by,
+
+        "failed_by_full_name":
+            _get_pending_link_label(
+                "User",
+                doc.failed_by,
+                "full_name",
+            ),
+
+        "failed_note":
+            doc.failed_note
+            or "",
 
         "card_owner_name":
             _get_pending_link_label(
@@ -1317,8 +1995,12 @@ def _build_pending_operation_details(
             "remaining_amount":
                 row.remaining_amount,
 
-            "return_datetime":
-                row.return_datetime,
+            "return_date":
+                row.return_date,
+
+            "return_note":
+                row.return_note
+                or "",
 
             "currency":
                 row.currency,

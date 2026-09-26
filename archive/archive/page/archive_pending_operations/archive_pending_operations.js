@@ -16,6 +16,9 @@ class ArchivePendingOperationsPage {
                 field: "operation_datetime",
                 direction: "desc",
             },
+
+            selected_operation_name:
+                null,
         };
 
         this.operations = [];
@@ -152,6 +155,12 @@ class ArchivePendingOperationsPage {
                         "0"
                     )}
 
+                    ${this.summary_card(
+                        "failed",
+                        "معلقة فاشلة",
+                        "0"
+                    )}
+
                 </div>
 
                 <div class="archive-pending-toolbar">
@@ -203,6 +212,45 @@ class ArchivePendingOperationsPage {
                     </div>
 
                     <div class="archive-pending-toolbar-actions">
+                        
+
+
+                        <button
+                            type="button"
+                            class="
+                                btn
+                                btn-default
+                                archive-pending-selected-view
+                            "
+                            disabled
+                        >
+                            عرض
+                        </button>
+
+                        <button
+                            type="button"
+                            class="
+                                btn
+                                btn-default
+                                archive-pending-timeline-button
+                            "
+                            disabled
+                        >
+                            <i class="fa fa-history"></i>
+                            مسار العملية
+                        </button>
+
+                        <button
+                            type="button"
+                            class="
+                                btn
+                                btn-default
+                                archive-pending-selected-actions
+                            "
+                            disabled
+                        >
+                            إجراء
+                        </button>
 
                         <button
                             type="button"
@@ -284,8 +332,10 @@ class ArchivePendingOperationsPage {
                             <colgroup>
                                 <col class="col-serial">
                                 <col class="col-card-name">
+                                <col class="col-account-number">
                                 <col class="col-card-number">
                                 <col class="col-operation-datetime">
+                                col class="col-suspended-note">
                                 <col class="col-card-owner">
                                 <col class="col-bank">
                                 <col class="col-region">
@@ -296,7 +346,7 @@ class ArchivePendingOperationsPage {
                                 <col class="col-total-suspended">
                                 <col class="col-total-returned">
                                 <col class="col-remaining-amount">
-                                <col class="col-currency">
+                                
                                 <col class="col-owner">
                                 <col class="col-status">
                             </colgroup>
@@ -313,6 +363,10 @@ class ArchivePendingOperationsPage {
                                         "card_name",
                                         "اسم البطاقة"
                                     )}
+                                    ${this.sortable_header(
+                                        "account_number",
+                                        "رقم الحساب"
+                                    )}
 
                                     ${this.sortable_header(
                                         "card_number",
@@ -321,7 +375,11 @@ class ArchivePendingOperationsPage {
 
                                     ${this.sortable_header(
                                         "operation_datetime",
-                                        "تاريخ العملية"
+                                        "تاريخ المعلق"
+                                    )}
+                                    ${this.sortable_header(
+                                        "suspended_note",
+                                        "ملاحظات المعلق"
                                     )}
 
                                     ${this.sortable_header(
@@ -341,7 +399,7 @@ class ArchivePendingOperationsPage {
 
                                     ${this.sortable_header(
                                         "machine_location",
-                                        "موقع المكينة"
+                                        "العنوان"
                                     )}
 
                                     ${this.sortable_header(
@@ -367,11 +425,6 @@ class ArchivePendingOperationsPage {
                                     ${this.sortable_header(
                                         "total_returned",
                                         "إجمالي المرتجع"
-                                    )}
-
-                                    ${this.sortable_header(
-                                        "remaining_amount",
-                                        "المتبقي"
                                     )}
 
                                     ${this.sortable_header(
@@ -536,8 +589,6 @@ class ArchivePendingOperationsPage {
                         "/assets/archive/js/archive_pending_operations/pending_operation_dialog.js",
                         "/assets/archive/css/archive_pending_operations/pending_operation_dialog.css",
                         
-                        "/assets/archive/css/archive_pending_operations/pending_ledger_correction_dialog.css",
-                        "/assets/archive/js/archive_pending_operations/pending_ledger_correction_dialog.js",
                         
                         "/assets/archive/js/archive_pending_operations/pending_smart_autocomplete.js",
                         "/assets/archive/css/archive_pending_operations/pending_smart_autocomplete.css",
@@ -587,11 +638,13 @@ class ArchivePendingOperationsPage {
                         card_name: {
                             type: "text",
                         },
+                        account_number: {
+                            type: "text",
+                        },
 
                         card_number: {
                             type: "text",
                         },
-
                         /*
                          * نحافظ على الترتيب الافتراضي:
                          *
@@ -610,6 +663,9 @@ class ArchivePendingOperationsPage {
                                         .get_operation_datetime_sort_key(
                                             record
                                         ),
+                        },
+                        suspended_note: {
+                            type: "text",
                         },
 
                         card_owner_name: {
@@ -652,9 +708,6 @@ class ArchivePendingOperationsPage {
                             type: "number",
                         },
 
-                        currency: {
-                            type: "text",
-                        },
 
                         owner_full_name: {
                             type: "text",
@@ -751,6 +804,7 @@ class ArchivePendingOperationsPage {
                             fields: [
                                 "operation_datetime",
                                 "card_name",
+                                "account_number",
                                 "card_number",
                                 "machine_location",
                                 "machine_no",
@@ -763,14 +817,14 @@ class ArchivePendingOperationsPage {
                                 "الجهات والتصنيف",
 
                             subtitle:
-                                "مالك البطاقة والبنك والمنطقة والمندوب والعملة",
+                                "مالك البطاقة والبنك والمنطقة والمندوب",
 
                             fields: [
                                 "card_owner",
                                 "bank",
                                 "region",
                                 "representative",
-                                "currency",
+                                
                             ],
                         },
 
@@ -812,6 +866,16 @@ class ArchivePendingOperationsPage {
                             type:
                                 "text",
                         },
+                        {
+                            field:
+                                "account_number",
+
+                            label:
+                                "رقم الحساب",
+
+                            type:
+                                "text",
+                        },
 
                         {
                             field:
@@ -829,7 +893,7 @@ class ArchivePendingOperationsPage {
                                 "machine_location",
 
                             label:
-                                "موقع المكينة",
+                                "العنوان",
 
                             type:
                                 "text",
@@ -919,17 +983,6 @@ class ArchivePendingOperationsPage {
                                 link_label(
                                     "representative"
                                 ),
-                        },
-
-                        {
-                            field:
-                                "currency",
-
-                            label:
-                                "العملة",
-
-                            type:
-                                "multi_select",
                         },
 
                         {
@@ -1115,6 +1168,7 @@ class ArchivePendingOperationsPage {
             );
 
         this.update_access_ui();
+        this.update_selected_actions();
     }
 
     update_access_ui() {
@@ -1352,26 +1406,52 @@ class ArchivePendingOperationsPage {
         ].join("|");
     }
 
+    // get_status_value(
+    //     status
+    // ) {
+    //     const statuses = {
+
+    //         under_action:
+    //             "تحت الإجراء",
+
+    //         partial:
+    //             "مرتجعة غير مكتملة",
+
+    //         complete:
+    //             "مرتجعة مكتملة",
+    //     };
+
+    //     return (
+    //         statuses[status]
+    //         || ""
+    //     );
+    // }
+
     get_status_value(
-        status
-    ) {
-        const statuses = {
+            status
+        ) {
+            const statuses = {
 
-            under_action:
-                "تحت الإجراء",
+                under_action:
+                    "تحت الإجراء",
 
-            partial:
-                "مرتجعة غير مكتملة",
+                partial:
+                    "مرتجعة غير مكتملة",
 
-            complete:
-                "مرتجعة مكتملة",
-        };
+                complete:
+                    "مرتجعة مكتملة",
 
-        return (
-            statuses[status]
-            || ""
-        );
-    }
+                failed:
+                    "معلقة فاشلة",
+            };
+
+            return (
+                statuses[
+                    status
+                ]
+                || ""
+            );
+        }
 
     get_active_filters() {
         const filters = {
@@ -1400,18 +1480,21 @@ class ArchivePendingOperationsPage {
     ) {
         const counts = {
 
-            all:
-                0,
+                all:
+                    0,
 
-            "تحت الإجراء":
-                0,
+                "تحت الإجراء":
+                    0,
 
-            "مرتجعة غير مكتملة":
-                0,
+                "مرتجعة غير مكتملة":
+                    0,
 
-            "مرتجعة مكتملة":
-                0,
-        };
+                "مرتجعة مكتملة":
+                    0,
+
+                "معلقة فاشلة":
+                    0,
+            };
 
         for (
             const id
@@ -1484,10 +1567,33 @@ class ArchivePendingOperationsPage {
 
         this.operations =
             result.records;
+        
+        if (
+            this.state
+                .selected_operation_name
+            &&
+            !this.operations
+                .some(
+                    (
+                        operation
+                    ) =>
+                        operation.name
+                        ===
+                        this.state
+                            .selected_operation_name
+                )
+        ) {
+            this.state
+                .selected_operation_name =
+                    null;
+        }
+
 
         this.render_operations(
             this.operations
         );
+
+        this.update_selected_actions();
 
         /*
          * Counts:
@@ -1576,6 +1682,12 @@ class ArchivePendingOperationsPage {
             complete:
                 counts[
                     "مرتجعة مكتملة"
+                ]
+                || 0,
+
+            failed:
+                counts[
+                    "معلقة فاشلة"
                 ]
                 || 0,
         };
@@ -1762,19 +1874,26 @@ class ArchivePendingOperationsPage {
             this.get_status_class(
                 operation.status
             );
+        const selected_class =
+            this.state
+                .selected_operation_name
+            === operation.name
+                ? "is-selected"
+                : "";
 
         return `
             <tr
                 class="
-                    archive-pending-row
-                    ${status_class}
-                "
+                        archive-pending-row
+                        ${status_class}
+                        ${selected_class}
+                    "
                 data-name="${this.escape_value_attribute(
                     operation.name
                 )}"
                 tabindex="0"
                 role="button"
-                title="فتح العملية"
+                title="تحديد العملية"
             >
 
                 <td class="archive-pending-serial">
@@ -1789,6 +1908,17 @@ class ArchivePendingOperationsPage {
                     )}
                 </td>
 
+                <td
+                    class="
+                        archive-pending-code-cell
+                        archive-pending-account-number
+                    "
+                >
+                    ${this.escape_value(
+                        operation.account_number
+                    )}
+                </td>
+
                 <td class="archive-pending-card-number">
                     ${this.escape_value(
                         operation.card_number
@@ -1799,6 +1929,26 @@ class ArchivePendingOperationsPage {
                     ${this.format_datetime(
                         operation.operation_datetime
                     )}
+                </td>
+
+                <td
+                    class="
+                        archive-pending-suspended-note-cell
+                    "
+                    title="${this.escape_value_attribute(
+                        operation.suspended_note
+                        || ""
+                    )}"
+                >
+                    <span
+                        class="
+                            archive-pending-suspended-note
+                        "
+                    >
+                        ${this.escape_value(
+                            operation.suspended_note
+                        )}
+                    </span>
                 </td>
 
                 <td>
@@ -1850,26 +2000,22 @@ class ArchivePendingOperationsPage {
                 <td class="archive-pending-money-cell">
                     ${this.format_amount(
                         operation.total_suspended
-                    )}
+                    )}ر.س
                 </td>
 
                 <td class="archive-pending-money-cell">
                     ${this.format_amount(
                         operation.total_returned
-                    )}
+                    )}ر.س
                 </td>
 
                 <td class="archive-pending-money-cell">
                     ${this.format_amount(
                         operation.remaining_amount
-                    )}
+                    )}ر.س
                 </td>
 
-                <td class="archive-pending-currency-cell">
-                    ${this.escape_value(
-                        operation.currency
-                    )}
-                </td>
+                
 
                 <td>
                     ${this.escape_value(
@@ -1896,24 +2042,402 @@ class ArchivePendingOperationsPage {
     }
 
     get_status_class(
-        status
+            status
+        ) {
+            const classes = {
+
+                "تحت الإجراء":
+                    "status-under-action",
+
+                "مرتجعة غير مكتملة":
+                    "status-partial",
+
+                "مرتجعة مكتملة":
+                    "status-complete",
+
+                "معلقة فاشلة":
+                    "status-failed",
+            };
+
+            return (
+                classes[
+                    status
+                ]
+                || "status-under-action"
+            );
+        }
+    
+    select_operation(
+        operation_name
     ) {
-        const classes = {
+        operation_name =
+            String(
+                operation_name
+                || ""
+            ).trim();
 
-            "تحت الإجراء":
-                "status-under-action",
+        if (
+            !operation_name
+        ) {
+            return;
+        }
 
-            "مرتجعة غير مكتملة":
-                "status-partial",
+        this.state
+            .selected_operation_name =
+                operation_name;
 
-            "مرتجعة مكتملة":
-                "status-complete",
-        };
+        const $wrapper =
+            $(this.wrapper);
+
+        $wrapper
+            .find(
+                ".archive-pending-row"
+            )
+            .removeClass(
+                "is-selected"
+            );
+
+        $wrapper
+            .find(
+                ".archive-pending-row"
+            )
+            .filter(
+                (
+                    index,
+                    element
+                ) => (
+                    String(
+                        $(element)
+                            .data(
+                                "name"
+                            )
+                    )
+                    ===
+                    operation_name
+                )
+            )
+            .addClass(
+                "is-selected"
+            );
+
+        this.update_selected_actions();
+    }
+
+
+    get_selected_operation() {
+        const name =
+            this.state
+                .selected_operation_name;
+
+        if (
+            !name
+        ) {
+            return null;
+        }
 
         return (
-            classes[status]
-            || "status-under-action"
+            this.operations
+                .find(
+                    (
+                        operation
+                    ) =>
+                        operation.name
+                        === name
+                )
+            || null
         );
+    }
+
+
+    can_mark_operation_failed(
+        operation
+    ) {
+        if (
+            !operation
+            ||
+            operation.is_failed
+        ) {
+            return false;
+        }
+
+        if (
+            this.capabilities
+                ?.can_edit_all
+        ) {
+            return true;
+        }
+
+        return Boolean(
+            this.capabilities
+                ?.can_edit_own
+            &&
+            operation.owner
+                === frappe.session.user
+        );
+    }
+
+
+    update_selected_actions() {
+        const selected =
+            this.get_selected_operation();
+
+        const has_selected =
+            Boolean(
+                selected
+                &&
+                !this.is_loading
+            );
+
+        $(this.wrapper)
+            .find(
+                ".archive-pending-selected-view"
+            )
+            .prop(
+                "disabled",
+                !has_selected
+            );
+
+        $(this.wrapper)
+            .find(
+                ".archive-pending-timeline-button"
+            )
+            .prop(
+                "disabled",
+                !has_selected
+            );
+
+        $(this.wrapper)
+            .find(
+                ".archive-pending-selected-actions"
+            )
+            .prop(
+                "disabled",
+                (
+                    this.is_loading
+                    ||
+                    !this
+                        .can_mark_operation_failed(
+                            selected
+                        )
+                )
+            );
+    }
+
+
+    async open_selected_operation() {
+        const operation =
+            this.get_selected_operation();
+
+        if (
+            !operation
+        ) {
+            return;
+        }
+
+        await this.open_operation(
+            operation.name
+        );
+    }
+
+
+    open_selected_operation_timeline() {
+        const operation =
+            this.get_selected_operation();
+
+        if (
+            !operation
+        ) {
+            return;
+        }
+
+        if (
+            !window
+                .ArchivePendingOperationTimelineDialog
+        ) {
+            frappe.msgprint({
+                title:
+                    "تعذر فتح مسار العملية",
+
+                message:
+                    "لم يتم تحميل مكوّن مسار العملية.",
+
+                indicator:
+                    "red",
+            });
+
+            return;
+        }
+
+        this.timeline_dialog
+            ?.destroy
+            ?.();
+
+        this.timeline_dialog =
+            new window
+                .ArchivePendingOperationTimelineDialog({
+                    name:
+                        operation.name,
+                });
+
+        this.timeline_dialog
+            .show();
+    }
+
+
+    open_selected_actions() {
+        const operation =
+            this.get_selected_operation();
+
+        if (
+            !operation
+        ) {
+            frappe.show_alert({
+                message:
+                    "اختر عملية أولاً",
+
+                indicator:
+                    "orange",
+            });
+
+            return;
+        }
+
+        if (
+            !this
+                .can_mark_operation_failed(
+                    operation
+                )
+        ) {
+            return;
+        }
+
+        const dialog =
+            new frappe.ui.Dialog({
+                title:
+                    `إجراء — ${operation.name}`,
+
+                fields: [
+
+                    {
+                        fieldname:
+                            "action_label",
+
+                        fieldtype:
+                            "HTML",
+
+                        options:
+                            `
+                                <div
+                                    class="
+                                        archive-pending-failed-action-note
+                                    "
+                                >
+                                    سيتم تغيير حالة العملية إلى
+                                    <strong>
+                                        معلقة فاشلة
+                                    </strong>.
+                                </div>
+                            `,
+                    },
+
+                    {
+                        fieldname:
+                            "note",
+
+                        fieldtype:
+                            "Small Text",
+
+                        label:
+                            "ملاحظة",
+
+                        reqd:
+                            1,
+                    },
+                ],
+
+                primary_action_label:
+                    "تغيير إلى معلقة فاشلة",
+
+                primary_action:
+                    async () => {
+
+                        const values =
+                            dialog.get_values();
+
+                        if (
+                            !values
+                        ) {
+                            return;
+                        }
+
+                        const note =
+                            String(
+                                values.note
+                                || ""
+                            ).trim();
+
+                        if (
+                            !note
+                        ) {
+                            return;
+                        }
+
+                        dialog
+                            .get_primary_btn()
+                            .prop(
+                                "disabled",
+                                true
+                            )
+                            .text(
+                                "جارٍ التغيير..."
+                            );
+
+                        try {
+                            await frappe.call({
+                                method:
+                                    "archive.api.pending_operations.mark_pending_operation_failed",
+
+                                type:
+                                    "POST",
+
+                                args: {
+                                    name:
+                                        operation.name,
+
+                                    payload: {
+                                        note,
+                                    },
+                                },
+                            });
+
+                            dialog.hide();
+
+                            frappe.show_alert({
+                                message:
+                                    "تم تغيير العملية إلى معلقة فاشلة",
+
+                                indicator:
+                                    "red",
+                            });
+
+                            await this
+                                .load_context();
+
+                        } finally {
+                            dialog
+                                .get_primary_btn()
+                                .prop(
+                                    "disabled",
+                                    false
+                                )
+                                .text(
+                                    "تغيير إلى معلقة فاشلة"
+                                );
+                        }
+                    },
+            });
+
+        dialog.show();
     }
 
     change_sort(
@@ -2031,8 +2555,43 @@ class ArchivePendingOperationsPage {
     }
 
     bind_events() {
+
         const $wrapper =
             $(this.wrapper);
+        
+
+        $wrapper
+            .find(
+                ".archive-pending-selected-view"
+            )
+            .on(
+                "click",
+                () => {
+                    this.open_selected_operation();
+                }
+            );
+
+        $wrapper
+            .find(
+                ".archive-pending-timeline-button"
+            )
+            .on(
+                "click",
+                () => {
+                    this.open_selected_operation_timeline();
+                }
+            );
+
+        $wrapper
+            .find(
+                ".archive-pending-selected-actions"
+            )
+            .on(
+                "click",
+                () => {
+                    this.open_selected_actions();
+                }
+            );
 
         $wrapper
             .find(
@@ -2196,7 +2755,7 @@ class ArchivePendingOperationsPage {
                         return;
                     }
 
-                    this.open_operation(
+                    this.select_operation(
                         $(event.currentTarget)
                             .data(
                                 "name"
@@ -2223,7 +2782,7 @@ class ArchivePendingOperationsPage {
 
                     event.preventDefault();
 
-                    this.open_operation(
+                    this.select_operation(
                         $(event.currentTarget)
                             .data(
                                 "name"

@@ -6,42 +6,56 @@
   "doctype": "DocType",
   "engine": "InnoDB",
   "field_order": [
-    "operation_section",
-    "serial_no",
-    "card_name",
-    "card_number",
-    "column_break_operation_1",
-    "operation_datetime",
-    "card_owner",
-    "currency",
-    "location_section",
-    "bank",
-    "region",
-    "machine_location",
-    "column_break_location_1",
-    "machine_no",
-    "branch_no",
-    "representative",
-    "ledger_section",
-    "ledger_entries",
-    "summary_section",
-    "total_suspended",
-    "total_returned",
-    "column_break_summary_1",
-    "remaining_amount",
-    "status",
-    "attachments_section",
-    "attachments",
-    "notes_section",
-    "notes",
-    "system_section",
-    "search_text"
-  ],
+  "operation_section",
+  "serial_no",
+  "bank",
+  "card_name",
+  "account_number",
+  "card_number",
+  "column_break_operation_1",
+  "operation_datetime",
+  "suspended_note",
+  "currency",
+
+  "location_section",
+  "region",
+  "machine_location",
+  "column_break_location_1",
+  "branch_no",
+  "machine_no",
+
+  "depositor_section",
+  "representative",
+  "card_owner",
+
+  "attachments_section",
+  "attachments",
+
+  "ledger_section",
+  "ledger_entries",
+
+  "summary_section",
+  "total_suspended",
+  "total_returned",
+  "column_break_summary_1",
+  "remaining_amount",
+  "status",
+
+  "notes_section",
+  "notes",
+
+  "system_section",
+  "is_failed",
+  "failed_at",
+  "failed_by",
+  "failed_note",
+  "search_text"
+],
   "fields": [
     {
       "fieldname": "operation_section",
       "fieldtype": "Section Break",
-      "label": "بيانات البطاقة والعملية"
+      "label": "بيانات البطاقة والمعلق"
     },
     {
       "fieldname": "serial_no",
@@ -75,7 +89,7 @@
       "fieldtype": "Datetime",
       "in_list_view": 1,
       "in_standard_filter": 1,
-      "label": "تاريخ ووقت العملية",
+      "label": "التاريخ والوقت المعلق",
       "reqd": 1
     },
     {
@@ -87,19 +101,20 @@
       "reqd": 1
     },
     {
-      "fieldname": "currency",
-      "fieldtype": "Link",
-      "in_list_view": 1,
-      "in_standard_filter": 1,
-      "label": "العملة",
-      "options": "Currency",
-      "reqd": 1,
-      "set_only_once": 1
-    },
+        "default": "SAR",
+        "fieldname": "currency",
+        "fieldtype": "Link",
+        "hidden": 1,
+        "label": "العملة",
+        "options": "Currency",
+        "read_only": 1,
+        "reqd": 1,
+        "set_only_once": 1
+        },
     {
       "fieldname": "location_section",
       "fieldtype": "Section Break",
-      "label": "بيانات البنك والمنطقة والمكينة والفرع والمندوب"
+      "label": "موقع البنك وبيانات المكينة"
     },
     {
       "fieldname": "bank",
@@ -121,7 +136,7 @@
       "fieldname": "machine_location",
       "fieldtype": "Data",
       "in_standard_filter": 1,
-      "label": "موقع المكينة",
+      "label": "العنوان",
       "reqd": 1
     },
     {
@@ -208,7 +223,7 @@
       "in_list_view": 1,
       "in_standard_filter": 1,
       "label": "الحالة",
-      "options": "تحت الإجراء\nمرتجعة غير مكتملة\nمرتجعة مكتملة",
+      "options": "تحت الإجراء\nمرتجعة غير مكتملة\nمرتجعة مكتملة\nمعلقة فاشلة",
       "read_only": 1
     },
     {
@@ -244,7 +259,57 @@
       "hidden": 1,
       "label": "Search Text",
       "read_only": 1
-    }
+    },
+    {
+  "fieldname": "account_number",
+  "fieldtype": "Data",
+  "in_standard_filter": 1,
+  "label": "رقم الحساب",
+  "reqd": 1
+},
+{
+  "fieldname": "suspended_note",
+  "fieldtype": "Small Text",
+  "label": "ملاحظات المعلق"
+},
+{
+  "fieldname": "depositor_section",
+  "fieldtype": "Section Break",
+  "label": "بيانات المودع ومالك البطاقة"
+},
+{
+  "default": "0",
+  "fieldname": "is_failed",
+  "fieldtype": "Check",
+  "hidden": 1,
+  "label": "معلقة فاشلة",
+  "read_only": 1
+},
+{
+  "fieldname": "failed_at",
+  "fieldtype": "Datetime",
+  "hidden": 1,
+  "label": "تاريخ تحويلها إلى معلقة فاشلة",
+  "no_copy": 1,
+  "read_only": 1
+},
+{
+  "fieldname": "failed_by",
+  "fieldtype": "Link",
+  "hidden": 1,
+  "label": "تم تحويلها إلى معلقة فاشلة بواسطة",
+  "no_copy": 1,
+  "options": "User",
+  "read_only": 1
+},
+{
+  "fieldname": "failed_note",
+  "fieldtype": "Small Text",
+  "hidden": 1,
+  "label": "ملاحظة المعلقة الفاشلة",
+  "no_copy": 1,
+  "read_only": 1
+}
   ],
   "index_web_pages_for_search": 0,
   "links": [],
@@ -273,7 +338,7 @@
     }
   ],
   "row_format": "Dynamic",
-  "search_fields": "card_name,card_number,machine_no",
+  "search_fields": "card_name,card_number,account_number,machine_no",
   "sort_field": "operation_datetime",
   "sort_order": "DESC",
   "states": [],

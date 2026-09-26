@@ -1289,3 +1289,297 @@
             100%;
     }
 }
+
+/* ============================================================
+   Selection / Failed / Colored cards / Wider Search
+   ============================================================ */
+
+.archive-pending-summary-grid {
+    grid-template-columns:
+        repeat(
+            5,
+            minmax(
+                140px,
+                1fr
+            )
+        );
+}
+
+.archive-pending-summary-card[
+    data-status="all"
+] {
+    border-color:
+        rgba(
+            37,
+            99,
+            235,
+            0.30
+        );
+
+    background:
+        rgba(
+            37,
+            99,
+            235,
+            0.045
+        );
+}
+
+.archive-pending-summary-card[
+    data-status="all"
+]
+.archive-pending-summary-value {
+    color:
+        #2563eb;
+}
+
+.archive-pending-summary-card[
+    data-status="under_action"
+] {
+    background:
+        rgba(
+            100,
+            116,
+            139,
+            0.055
+        );
+}
+
+.archive-pending-summary-card[
+    data-status="partial"
+] {
+    background:
+        rgba(
+            245,
+            158,
+            11,
+            0.055
+        );
+}
+
+.archive-pending-summary-card[
+    data-status="complete"
+] {
+    background:
+        rgba(
+            22,
+            163,
+            74,
+            0.050
+        );
+}
+
+.archive-pending-summary-card[
+    data-status="failed"
+] {
+    border-color:
+        rgba(
+            220,
+            38,
+            38,
+            0.34
+        );
+
+    background:
+        rgba(
+            220,
+            38,
+            38,
+            0.055
+        );
+}
+
+.archive-pending-summary-card[
+    data-status="failed"
+]
+.archive-pending-summary-value {
+    color:
+        #b91c1c;
+}
+
+.archive-pending-search-box {
+    max-width:
+        760px;
+}
+
+.archive-pending-row.status-failed
+> td {
+    background:
+        rgba(
+            220,
+            38,
+            38,
+            0.045
+        );
+}
+
+.archive-pending-row.is-selected
+> td {
+    background:
+        rgba(
+            37,
+            99,
+            235,
+            0.095
+        )
+        !important;
+
+    box-shadow:
+        inset 0 1px 0
+        rgba(
+            37,
+            99,
+            235,
+            0.16
+        ),
+        inset 0 -1px 0
+        rgba(
+            37,
+            99,
+            235,
+            0.16
+        );
+}
+
+.archive-pending-row.is-selected
+> td:first-child {
+    box-shadow:
+        inset -3px 0 0
+        #2563eb,
+        inset 0 1px 0
+        rgba(
+            37,
+            99,
+            235,
+            0.16
+        ),
+        inset 0 -1px 0
+        rgba(
+            37,
+            99,
+            235,
+            0.16
+        );
+}
+
+.archive-pending-status.status-failed {
+    background:
+        rgba(
+            220,
+            38,
+            38,
+            0.11
+        );
+
+    border-color:
+        rgba(
+            220,
+            38,
+            38,
+            0.24
+        );
+
+    color:
+        #b91c1c;
+}
+
+.archive-pending-failed-action-note {
+    margin-bottom:
+        10px;
+
+    padding:
+        10px
+        12px;
+
+    border:
+        1px solid
+        rgba(
+            220,
+            38,
+            38,
+            0.22
+        );
+
+    border-radius:
+        8px;
+
+    background:
+        rgba(
+            220,
+            38,
+            38,
+            0.055
+        );
+
+    line-height:
+        1.7;
+}
+
+@media (
+    max-width: 1100px
+) {
+    .archive-pending-summary-grid {
+        grid-template-columns:
+            repeat(
+                3,
+                minmax(
+                    140px,
+                    1fr
+                )
+            );
+    }
+}
+
+@media (
+    max-width: 720px
+) {
+    .archive-pending-summary-grid {
+        grid-template-columns:
+            repeat(
+                2,
+                minmax(
+                    130px,
+                    1fr
+                )
+            );
+    }
+}
+
+/* ============================================================
+   New pending operation grid fields
+   ============================================================ */
+
+.archive-pending-table
+.col-account-number {
+    width: 145px;
+}
+
+.archive-pending-table
+.col-suspended-note {
+    width: 220px;
+}
+
+.archive-pending-account-number {
+    direction: ltr;
+
+    text-align: right;
+
+    font-variant-numeric:
+        tabular-nums;
+}
+
+.archive-pending-suspended-note-cell {
+    max-width: 220px;
+}
+
+.archive-pending-suspended-note {
+    display: block;
+
+    max-width: 210px;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+}

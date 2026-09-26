@@ -1,4 +1,4 @@
-.archive-pending-operation-view-dialog .modal-dialog {
+/* .archive-pending-operation-view-dialog .modal-dialog {
     width: min(1180px, calc(100vw - 32px)) !important;
     max-width: 1180px !important;
 }
@@ -184,6 +184,429 @@ input[data-fieldname="branch_no"] {
 
     .pending-view-actions {
         align-items: stretch;
+        flex-direction: column;
+    }
+} */
+
+.archive-pending-operation-view-dialog .modal-dialog {
+    width: min(1180px, calc(100vw - 32px)) !important;
+    max-width: 1180px !important;
+}
+
+.archive-pending-operation-view-dialog .modal-body {
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+}
+
+.pending-view-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+
+    padding: 12px 14px;
+
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+
+    background: var(--subtle-fg);
+}
+
+.pending-view-operation-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pending-view-operation-identity > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pending-view-operation-identity span {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.pending-view-action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+
+/* Status */
+
+.pending-view-status,
+.pending-view-summary-status {
+    display: inline-flex;
+    align-items: center;
+
+    width: fit-content;
+
+    padding: 4px 9px;
+
+    border: 1px solid transparent;
+    border-radius: 999px;
+
+    font-size: 11px !important;
+    font-weight: 650;
+}
+
+.pending-view-status.status-under-action,
+.pending-view-summary-status.status-under-action {
+    color: #475569;
+
+    background:
+        rgba(
+            100,
+            116,
+            139,
+            0.12
+        );
+
+    border-color:
+        rgba(
+            100,
+            116,
+            139,
+            0.24
+        );
+}
+
+.pending-view-status.status-partial,
+.pending-view-summary-status.status-partial {
+    color: #b45309;
+
+    background:
+        rgba(
+            245,
+            158,
+            11,
+            0.12
+        );
+
+    border-color:
+        rgba(
+            245,
+            158,
+            11,
+            0.25
+        );
+}
+
+.pending-view-status.status-complete,
+.pending-view-summary-status.status-complete {
+    color: #15803d;
+
+    background:
+        rgba(
+            22,
+            163,
+            74,
+            0.11
+        );
+
+    border-color:
+        rgba(
+            22,
+            163,
+            74,
+            0.24
+        );
+}
+
+.pending-view-status.status-failed,
+.pending-view-summary-status.status-failed,
+.pending-view-summary-status.status-invalid {
+    color: #b91c1c;
+
+    background:
+        rgba(
+            220,
+            38,
+            38,
+            0.09
+        );
+
+    border-color:
+        rgba(
+            220,
+            38,
+            38,
+            0.22
+        );
+}
+
+
+/* Datetime */
+
+.pending-view-combined-datetime-control {
+    width: 100%;
+}
+
+.pending-view-combined-datetime-control
+.control-label {
+    display: block;
+
+    margin-bottom: 6px;
+}
+
+.pending-view-combined-datetime-inputs {
+    display: grid;
+
+    grid-template-columns:
+        minmax(
+            145px,
+            1.35fr
+        )
+        minmax(
+            105px,
+            0.9fr
+        )
+        72px;
+
+    gap: 6px;
+
+    align-items: center;
+}
+
+.pending-view-combined-datetime-inputs
+.form-control {
+    min-width: 0;
+}
+
+.pending-view-operation-period {
+    text-align: center;
+    font-weight: 700;
+}
+
+
+/* Summary */
+
+.pending-view-summary-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(
+            4,
+            minmax(
+                0,
+                1fr
+            )
+        );
+
+    gap: 10px;
+
+    margin-top: 12px;
+}
+
+.pending-view-summary-card {
+    min-height: 86px;
+
+    padding: 13px 14px;
+
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+
+    background: var(--card-bg);
+}
+
+.pending-view-summary-card > span {
+    display: block;
+
+    margin-bottom: 8px;
+
+    color: var(--text-muted);
+
+    font-size: 11px;
+}
+
+.pending-view-summary-card > strong {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.pending-view-summary-card
+strong small {
+    margin-inline-start: 4px;
+
+    color: var(--text-muted);
+
+    font-size: 10px;
+    font-weight: 500;
+}
+
+
+/* Ledger */
+
+.pending-view-ledger-toolbar {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 12px;
+
+    margin-bottom: 8px;
+}
+
+.pending-view-ledger-toolbar > div {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 2px;
+}
+
+.pending-view-ledger-toolbar strong {
+    font-size: 12px;
+}
+
+.pending-view-ledger-toolbar span {
+    color: var(--text-muted);
+
+    font-size: 10px;
+}
+
+.pending-view-ledger-scroll {
+    width: 100%;
+
+    overflow-x: auto;
+
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+}
+
+.pending-view-ledger-table {
+    width: 100%;
+
+    min-width: 1020px;
+
+    margin: 0 !important;
+
+    border-collapse: collapse;
+}
+
+.pending-view-ledger-table th,
+.pending-view-ledger-table td {
+    padding: 9px 10px !important;
+
+    border-bottom:
+        1px solid
+        var(--border-color);
+
+    text-align: right;
+
+    white-space: nowrap;
+
+    font-size: 12px;
+
+    vertical-align: middle !important;
+}
+
+.pending-view-ledger-table th {
+    color: var(--text-muted);
+
+    background: var(--subtle-fg);
+
+    font-size: 11px;
+}
+
+.pending-view-ledger-table
+tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.pending-view-ledger-table
+.form-control {
+    min-width: 110px;
+}
+
+.pending-view-ledger-return-date {
+    min-width: 145px !important;
+}
+
+.pending-view-ledger-return-note {
+    min-width: 210px !important;
+}
+
+.pending-view-ledger-edit-row.has-error td {
+    background:
+        rgba(
+            220,
+            38,
+            38,
+            0.045
+        );
+}
+
+.pending-view-ledger-edit-row.has-error
+.form-control {
+    border-color:
+        rgba(
+            220,
+            38,
+            38,
+            0.5
+        );
+}
+
+
+/* Notes */
+
+.archive-pending-operation-view-dialog
+[data-fieldname="suspended_note"]
+textarea,
+.archive-pending-operation-view-dialog
+[data-fieldname="notes"]
+textarea {
+    min-height: 72px;
+}
+
+
+/* Responsive */
+
+@media (
+    max-width: 900px
+) {
+    .pending-view-summary-grid {
+        grid-template-columns:
+            repeat(
+                2,
+                minmax(
+                    0,
+                    1fr
+                )
+            );
+    }
+}
+
+@media (
+    max-width: 680px
+) {
+    .pending-view-combined-datetime-inputs {
+        grid-template-columns:
+            1fr
+            1fr
+            64px;
+    }
+}
+
+@media (
+    max-width: 600px
+) {
+    .pending-view-summary-grid {
+        grid-template-columns:
+            1fr;
+    }
+
+    .pending-view-actions {
+        align-items: stretch;
+
         flex-direction: column;
     }
 }

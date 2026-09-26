@@ -146,14 +146,27 @@ def get_pending_operation_timeline(
             "card_name":
                 operation.card_name,
 
+            "account_number":
+                operation.account_number,
+
             "card_number":
                 operation.card_number,
 
-            "currency":
-                operation.currency,
-
             "status":
                 operation.status,
+
+            "is_failed":
+                operation.is_failed,
+
+            "failed_at":
+                operation.failed_at,
+
+            "failed_by":
+                operation.failed_by,
+
+            "failed_note":
+                operation.failed_note
+                or "",
 
             "total_suspended":
                 operation.total_suspended,

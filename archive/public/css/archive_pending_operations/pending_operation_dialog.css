@@ -587,3 +587,85 @@ input[data-fieldname="branch_no"] {
             1fr;
     }
 }
+
+/* ============================================================
+   Pending operation create layout - SAR / combined datetime
+   ============================================================ */
+
+.pending-combined-datetime-control {
+    width: 100%;
+}
+
+.pending-combined-datetime-control
+.control-label {
+    display: block;
+
+    margin-bottom: 6px;
+}
+
+.pending-combined-datetime-inputs {
+    display: grid;
+
+    grid-template-columns:
+        minmax(
+            145px,
+            1.35fr
+        )
+        minmax(
+            105px,
+            0.9fr
+        )
+        72px;
+
+    gap: 6px;
+
+    align-items: center;
+}
+
+.pending-combined-datetime-inputs
+.form-control {
+    min-width: 0;
+}
+
+.pending-operation-period {
+    text-align: center;
+
+    font-weight: 700;
+}
+
+.pending-ledger-table {
+    min-width: 1040px;
+}
+
+.pending-ledger-table
+.pending-col-note {
+    width: 220px;
+}
+
+.pending-ledger-return-date {
+    min-width: 145px !important;
+}
+
+.pending-ledger-return-note {
+    min-width: 190px !important;
+}
+
+.archive-pending-operation-dialog
+[data-fieldname="suspended_note"]
+textarea,
+.archive-pending-operation-dialog
+[data-fieldname="notes"]
+textarea {
+    min-height: 72px;
+}
+
+@media (
+    max-width: 680px
+) {
+    .pending-combined-datetime-inputs {
+        grid-template-columns:
+            1fr
+            1fr
+            64px;
+    }
+}

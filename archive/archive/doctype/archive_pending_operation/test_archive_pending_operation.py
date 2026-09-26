@@ -4,50 +4,56 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import frappe
+
 from frappe.tests import (
     IntegrationTestCase,
     UnitTestCase,
 )
+
 from frappe.utils import (
+    add_days,
     get_datetime,
     now_datetime,
+    today,
 )
 
 import archive.api.pending_lookups as pending_lookups
+import archive.api.pending_operations as pending_operations_api
 import archive.services.pending_operation_permissions as pending_permissions
 
 from archive.api.operation_search import (
     normalize_search_text,
 )
+
 from archive.api.pending_lookups import (
     get_pending_related_fields,
     get_pending_suggestions,
 )
+
 from archive.api.pending_operation_search import (
     build_pending_search_text,
     get_pending_context_rows,
 )
+
 from archive.api.pending_operation_timeline import (
     get_pending_operation_timeline,
 )
+
 from archive.api.pending_operations import (
     add_pending_return,
-    correct_pending_ledger,
     create_pending_operation,
     get_pending_operation_details,
+    mark_pending_operation_failed,
     update_pending_operation,
 )
+
 from archive.services.pending_operation_attachments import (
     add_uploaded_pending_attachment,
     delete_pending_attachment as delete_pending_attachment_service,
     stage_pending_attachment_file,
 )
 
-# هذه الـSuite تنشئ كل بياناتها المطلوبة بنفسها داخل setUp().
-#
-# لا نريد من Frappe إنشاء dependency test records تلقائيًا؛
-# لأن ذلك يسحب شجرة ERPNext كاملة عبر User -> Email Account
-# -> Company ويؤدي إلى Bootstrap غير مطلوب لهذا الاختبار.
+
 test_records = []
 
 
@@ -60,15 +66,21 @@ IGNORE_TEST_RECORD_DEPENDENCIES = [
     "User",
     "File",
 ]
+
+
 PENDING_DOCTYPE = (
     "Archive Pending Operation"
+)
+
+PENDING_CURRENCY = (
+    "SAR"
 )
 
 
 class TestArchivePendingOperation(
     IntegrationTestCase
 ):
-    
+
     def setUp(self):
         super().setUp()
 
@@ -83,7 +95,16 @@ class TestArchivePendingOperation(
         )
 
         self.operation_names = set()
+
         self.file_ids = set()
+
+        self.assertTrue(
+            frappe.db.exists(
+                "Currency",
+                PENDING_CURRENCY,
+            ),
+            "Currency SAR must exist.",
+        )
 
         self.card_owner = (
             self._make_master(
@@ -117,205 +138,7 @@ class TestArchivePendingOperation(
             )
         )
 
-        self.currency = (
-            self._get_test_currency()
-        )
 
-    def test_stale_ledger_correction_is_rejected(
-        self,
-    ):
-        created = self._create()
-
-        name = created[
-            "name"
-        ]
-
-        details = (
-            get_pending_operation_details(
-                name
-            )
-        )
-
-        old_modified = (
-            details[
-                "operation"
-            ][
-                "modified"
-            ]
-        )
-
-        update_pending_operation(
-            name,
-            {
-                "notes":
-                    (
-                        "MODIFIED AFTER "
-                        "CORRECTION DIALOG OPENED"
-                    ),
-            },
-            expected_modified=
-                old_modified,
-        )
-
-        current_doc = frappe.get_doc(
-            PENDING_DOCTYPE,
-            name,
-        )
-
-        correction_rows = [
-            {
-                "name":
-                    row.name,
-
-                "suspended_amount":
-                    (
-                        1100
-                        if row.idx == 1
-                        else
-                        row.suspended_amount
-                    ),
-
-                "returned_amount":
-                    row.returned_amount,
-
-                "return_datetime":
-                    row.return_datetime,
-            }
-
-            for row in (
-                current_doc
-                    .ledger_entries
-            )
-        ]
-
-        with self.assertRaisesRegex(
-            frappe.ValidationError,
-            "تم تعديل العملية بعد فتح شاشة التصحيح",
-        ):
-            correct_pending_ledger(
-                name,
-                {
-                    "reason":
-                        (
-                            "STALE CORRECTION "
-                            f"{self.suffix}"
-                        ),
-
-                    "expected_modified":
-                        old_modified,
-
-                    "ledger_entries":
-                        correction_rows,
-                },
-            )
-        current_doc.reload()
-
-        self.assertEqual(
-            current_doc
-                .total_suspended,
-            1000,
-        )
-
-        self.assertEqual(
-            current_doc
-                .ledger_entries[0]
-                .suspended_amount,
-            1000,
-        )
-
-    def test_ledger_correction_accepts_current_modified_token(
-        self,
-    ):
-        created = self._create()
-
-        name = created[
-            "name"
-        ]
-
-        details = (
-            get_pending_operation_details(
-                name
-            )
-        )
-
-        expected_modified = (
-            details[
-                "operation"
-            ][
-                "modified"
-            ]
-        )
-
-        doc = frappe.get_doc(
-            PENDING_DOCTYPE,
-            name,
-        )
-
-        correction_rows = [
-            {
-                "name":
-                    row.name,
-
-                "suspended_amount":
-                    (
-                        1100
-                        if row.idx == 1
-                        else
-                        row.suspended_amount
-                    ),
-
-                "returned_amount":
-                    row.returned_amount,
-
-                "return_datetime":
-                    row.return_datetime,
-            }
-
-            for row in (
-                doc.ledger_entries
-            )
-        ]
-
-        corrected = (
-            correct_pending_ledger(
-                name,
-                {
-                    "reason":
-                        (
-                            "CURRENT TOKEN CORRECTION "
-                            f"{self.suffix}"
-                        ),
-
-                    "expected_modified":
-                        expected_modified,
-
-                    "ledger_entries":
-                        correction_rows,
-                },
-            )
-        )
-
-        self.assertEqual(
-            corrected[
-                "total_suspended"
-            ],
-            1100,
-        )
-
-        self.assertEqual(
-            corrected[
-                "total_returned"
-            ],
-            0,
-        )
-
-        self.assertEqual(
-            corrected[
-                "remaining_amount"
-            ],
-            1100,
-        )
-        
     def tearDown(self):
         frappe.set_user(
             "Administrator"
@@ -326,6 +149,7 @@ class TestArchivePendingOperation(
         frappe.db.rollback()
 
         super().tearDown()
+
 
     def _make_master(
         self,
@@ -367,48 +191,6 @@ class TestArchivePendingOperation(
 
         return doc.name
 
-    def _get_test_currency(
-        self,
-    ):
-        if frappe.db.exists(
-            "Currency",
-            "USD",
-        ):
-            return "USD"
-
-        currencies = frappe.get_all(
-            "Currency",
-            pluck="name",
-            limit=1,
-        )
-
-        self.assertTrue(
-            currencies,
-            "No Currency records exist.",
-        )
-
-        return currencies[0]
-
-    def _get_other_currency(
-        self,
-    ):
-        currencies = frappe.get_all(
-            "Currency",
-            filters={
-                "name": [
-                    "!=",
-                    self.currency,
-                ],
-            },
-            pluck="name",
-            limit=1,
-        )
-
-        return (
-            currencies[0]
-            if currencies
-            else None
-        )
 
     def _payload(
         self,
@@ -418,9 +200,18 @@ class TestArchivePendingOperation(
         **overrides,
     ):
         payload = {
+            "bank":
+                self.bank,
+
             "card_name":
                 (
                     "AUTOMATED PENDING "
+                    f"{self.suffix}"
+                ),
+
+            "account_number":
+                (
+                    "ACC-"
                     f"{self.suffix}"
                 ),
 
@@ -434,14 +225,11 @@ class TestArchivePendingOperation(
             "operation_datetime":
                 now_datetime(),
 
-            "card_owner":
-                self.card_owner,
-
-            "currency":
-                self.currency,
-
-            "bank":
-                self.bank,
+            "suspended_note":
+                (
+                    "SUSPENDED NOTE "
+                    f"{self.suffix}"
+                ),
 
             "region":
                 self.region,
@@ -452,20 +240,23 @@ class TestArchivePendingOperation(
                     f"{self.suffix}"
                 ),
 
-            "machine_no":
-                (
-                    "ATM-"
-                    f"{self.suffix}"
-                ),
-
             "branch_no":
                 (
                     "BR-"
                     f"{self.suffix}"
                 ),
 
+            "machine_no":
+                (
+                    "ATM-"
+                    f"{self.suffix}"
+                ),
+
             "representative":
                 self.representative,
+
+            "card_owner":
+                self.card_owner,
 
             "ledger_entries":
                 (
@@ -477,6 +268,12 @@ class TestArchivePendingOperation(
 
                             "returned_amount":
                                 0,
+
+                            "return_date":
+                                None,
+
+                            "return_note":
+                                "",
                         }
                     ]
                 ),
@@ -494,6 +291,7 @@ class TestArchivePendingOperation(
 
         return payload
 
+
     def _create(
         self,
         **payload_overrides,
@@ -507,10 +305,64 @@ class TestArchivePendingOperation(
         )
 
         self.operation_names.add(
-            result["name"]
+            result[
+                "name"
+            ]
         )
 
         return result
+
+
+    def _current_ledger_payload(
+        self,
+        name,
+        *,
+        first_suspended=None,
+    ):
+        doc = frappe.get_doc(
+            PENDING_DOCTYPE,
+            name,
+        )
+
+        result = []
+
+        for row in (
+            doc.ledger_entries
+        ):
+            result.append(
+                {
+                    "name":
+                        row.name,
+
+                    "suspended_amount":
+                        (
+                            first_suspended
+                            if (
+                                row.idx == 1
+                                and
+                                first_suspended
+                                is not None
+                            )
+                            else
+                            row.suspended_amount
+                        ),
+
+                    "returned_amount":
+                        row.returned_amount,
+
+                    "return_date":
+                        row.return_date,
+
+                    "return_note":
+                        (
+                            row.return_note
+                            or ""
+                        ),
+                }
+            )
+
+        return result
+
 
     def _remember_file(
         self,
@@ -523,9 +375,8 @@ class TestArchivePendingOperation(
 
         return file_id
 
-    def _cleanup_test_files(
-        self,
-    ):
+
+    def _cleanup_test_files(self):
         for operation_name in list(
             self.operation_names
         ):
@@ -592,20 +443,215 @@ class TestArchivePendingOperation(
 
         self.file_ids.clear()
 
+
     # =========================================================
-    # Financial engine
+    # Optimistic concurrency / unified edit
     # =========================================================
 
-    def test_create_recalculates_financials_and_preserves_card_number(
+    def test_stale_ledger_edit_is_rejected(
+        self,
+    ):
+        created = self._create()
+
+        name = created[
+            "name"
+        ]
+
+        details = (
+            get_pending_operation_details(
+                name
+            )
+        )
+
+        old_modified = (
+            details[
+                "operation"
+            ][
+                "modified"
+            ]
+        )
+
+        update_pending_operation(
+            name,
+            {
+                "notes":
+                    (
+                        "MODIFIED AFTER "
+                        "EDIT DIALOG OPENED"
+                    ),
+            },
+            expected_modified=
+                old_modified,
+        )
+
+        correction_rows = (
+            self._current_ledger_payload(
+                name,
+                first_suspended=1100,
+            )
+        )
+
+        with self.assertRaisesRegex(
+            frappe.ValidationError,
+            "تم تعديل العملية من جلسة أخرى",
+        ):
+            update_pending_operation(
+                name,
+                {
+                    "ledger_entries":
+                        correction_rows,
+                },
+                expected_modified=
+                    old_modified,
+            )
+
+        current_doc = frappe.get_doc(
+            PENDING_DOCTYPE,
+            name,
+        )
+
+        self.assertEqual(
+            current_doc
+                .total_suspended,
+            1000,
+        )
+
+        self.assertEqual(
+            current_doc
+                .ledger_entries[0]
+                .suspended_amount,
+            1000,
+        )
+
+
+    def test_ledger_edit_accepts_current_modified_token_without_reason(
+        self,
+    ):
+        created = self._create()
+
+        name = created[
+            "name"
+        ]
+
+        details = (
+            get_pending_operation_details(
+                name
+            )
+        )
+
+        expected_modified = (
+            details[
+                "operation"
+            ][
+                "modified"
+            ]
+        )
+
+        rows = (
+            self._current_ledger_payload(
+                name,
+                first_suspended=1100,
+            )
+        )
+
+        updated = (
+            update_pending_operation(
+                name,
+                {
+                    "ledger_entries":
+                        rows,
+                },
+                expected_modified=
+                    expected_modified,
+            )
+        )
+
+        self.assertEqual(
+            updated[
+                "operation"
+            ][
+                "total_suspended"
+            ],
+            1100,
+        )
+
+        self.assertEqual(
+            updated[
+                "operation"
+            ][
+                "total_returned"
+            ],
+            0,
+        )
+
+        self.assertEqual(
+            updated[
+                "operation"
+            ][
+                "remaining_amount"
+            ],
+            1100,
+        )
+
+        logs = frappe.get_all(
+            "Archive Pending Operation Log",
+            filters={
+                "pending_operation":
+                    name,
+
+                "event_type":
+                    "ledger_corrected",
+            },
+            fields=[
+                "event_title",
+                "remarks",
+                "details_json",
+            ],
+            order_by=
+                "creation asc",
+        )
+
+        self.assertTrue(
+            logs
+        )
+
+        self.assertEqual(
+            logs[-1]
+                .event_title,
+            "تعديل الحركة المالية",
+        )
+
+        self.assertFalse(
+            logs[-1]
+                .remarks
+        )
+
+
+    # =========================================================
+    # Financial engine / SAR
+    # =========================================================
+
+    def test_create_recalculates_financials_preserves_identifiers_and_forces_sar(
         self,
     ):
         card_number = (
             "0000000000007001"
         )
 
+        account_number = (
+            "000012340000"
+            f"{self.suffix}"
+        )
+
         result = self._create(
             card_number=
                 card_number,
+
+            account_number=
+                account_number,
+
+            operation_datetime=
+                f"{today()} 10:30:00",
 
             ledger_entries=[
                 {
@@ -614,6 +660,12 @@ class TestArchivePendingOperation(
 
                     "returned_amount":
                         0,
+
+                    "return_date":
+                        None,
+
+                    "return_note":
+                        "",
                 },
                 {
                     "suspended_amount":
@@ -622,40 +674,73 @@ class TestArchivePendingOperation(
                     "returned_amount":
                         250,
 
-                    "return_datetime":
-                        now_datetime(),
+                    "return_date":
+                        today(),
+
+                    "return_note":
+                        (
+                            "INITIAL RETURN "
+                            f"{self.suffix}"
+                        ),
                 },
             ],
         )
 
         self.assertEqual(
-            result["total_suspended"],
+            result[
+                "total_suspended"
+            ],
             1000,
         )
 
         self.assertEqual(
-            result["total_returned"],
+            result[
+                "total_returned"
+            ],
             250,
         )
 
         self.assertEqual(
-            result["remaining_amount"],
+            result[
+                "remaining_amount"
+            ],
             750,
         )
 
         self.assertEqual(
-            result["status"],
+            result[
+                "status"
+            ],
             "مرتجعة غير مكتملة",
+        )
+
+        self.assertEqual(
+            result[
+                "currency"
+            ],
+            PENDING_CURRENCY,
         )
 
         doc = frappe.get_doc(
             PENDING_DOCTYPE,
-            result["name"],
+            result[
+                "name"
+            ],
         )
 
         self.assertEqual(
             doc.card_number,
             card_number,
+        )
+
+        self.assertEqual(
+            doc.account_number,
+            account_number,
+        )
+
+        self.assertEqual(
+            doc.currency,
+            PENDING_CURRENCY,
         )
 
         self.assertEqual(
@@ -677,6 +762,15 @@ class TestArchivePendingOperation(
             750,
         )
 
+        self.assertEqual(
+            doc.ledger_entries[1]
+                .return_note,
+            (
+                "INITIAL RETURN "
+                f"{self.suffix}"
+            ),
+        )
+
         for row in (
             doc.ledger_entries
         ):
@@ -690,7 +784,7 @@ class TestArchivePendingOperation(
 
             self.assertEqual(
                 row.currency,
-                self.currency,
+                PENDING_CURRENCY,
             )
 
         events = frappe.get_all(
@@ -699,7 +793,8 @@ class TestArchivePendingOperation(
                 "pending_operation":
                     doc.name,
             },
-            pluck="event_type",
+            pluck=
+                "event_type",
         )
 
         self.assertIn(
@@ -707,9 +802,21 @@ class TestArchivePendingOperation(
             events,
         )
 
+
     def test_invalid_ledger_rows_are_rejected(
         self,
     ):
+        operation_datetime = (
+            f"{today()} 12:00:00"
+        )
+
+        yesterday = (
+            add_days(
+                today(),
+                -1,
+            )
+        )
+
         invalid_ledgers = [
             [
                 {
@@ -737,8 +844,8 @@ class TestArchivePendingOperation(
                     "returned_amount":
                         200,
 
-                    "return_datetime":
-                        now_datetime(),
+                    "return_date":
+                        today(),
                 }
             ],
             [
@@ -748,6 +855,30 @@ class TestArchivePendingOperation(
 
                     "returned_amount":
                         50,
+                }
+            ],
+            [
+                {
+                    "suspended_amount":
+                        100,
+
+                    "returned_amount":
+                        50,
+
+                    "return_date":
+                        yesterday,
+                }
+            ],
+            [
+                {
+                    "suspended_amount":
+                        100,
+
+                    "returned_amount":
+                        0,
+
+                    "return_note":
+                        "NOTE WITHOUT RETURN",
                 }
             ],
         ]
@@ -771,6 +902,9 @@ class TestArchivePendingOperation(
                         f"{index}"
                     ),
 
+                    operation_datetime=
+                        operation_datetime,
+
                     ledger_entries=
                         ledger,
                 )
@@ -782,10 +916,14 @@ class TestArchivePendingOperation(
                         payload
                     )
 
+
     def test_returns_are_append_only_and_over_return_is_rejected(
         self,
     ):
-        created = self._create()
+        created = self._create(
+            operation_datetime=
+                f"{today()} 09:00:00"
+        )
 
         name = created[
             "name"
@@ -798,8 +936,8 @@ class TestArchivePendingOperation(
 
         original_row_name = (
             original
-            .ledger_entries[0]
-            .name
+                .ledger_entries[0]
+                .name
         )
 
         first_return = (
@@ -808,6 +946,15 @@ class TestArchivePendingOperation(
                 {
                     "returned_amount":
                         300,
+
+                    "return_date":
+                        today(),
+
+                    "return_note":
+                        (
+                            "FIRST RETURN "
+                            f"{self.suffix}"
+                        ),
                 },
             )
         )
@@ -820,7 +967,9 @@ class TestArchivePendingOperation(
         )
 
         self.assertEqual(
-            first_return["status"],
+            first_return[
+                "status"
+            ],
             "مرتجعة غير مكتملة",
         )
 
@@ -830,6 +979,15 @@ class TestArchivePendingOperation(
                 {
                     "returned_amount":
                         700,
+
+                    "return_date":
+                        today(),
+
+                    "return_note":
+                        (
+                            "FINAL RETURN "
+                            f"{self.suffix}"
+                        ),
                 },
             )
         )
@@ -849,7 +1007,9 @@ class TestArchivePendingOperation(
         )
 
         self.assertEqual(
-            completed["status"],
+            completed[
+                "status"
+            ],
             "مرتجعة مكتملة",
         )
 
@@ -861,6 +1021,9 @@ class TestArchivePendingOperation(
                 {
                     "returned_amount":
                         1,
+
+                    "return_date":
+                        today(),
                 },
             )
 
@@ -894,6 +1057,15 @@ class TestArchivePendingOperation(
             0,
         )
 
+        self.assertEqual(
+            doc.ledger_entries[1]
+                .return_note,
+            (
+                "FIRST RETURN "
+                f"{self.suffix}"
+            ),
+        )
+
         details = (
             get_pending_operation_details(
                 name
@@ -907,6 +1079,92 @@ class TestArchivePendingOperation(
                 "can_add_return"
             ]
         )
+
+
+    def test_return_date_cannot_precede_operation_date_and_note_is_stored(
+        self,
+    ):
+        operation_date = (
+            today()
+        )
+
+        created = self._create(
+            operation_datetime=
+                f"{operation_date} 18:45:00"
+        )
+
+        name = created[
+            "name"
+        ]
+
+        with self.assertRaises(
+            frappe.ValidationError
+        ):
+            add_pending_return(
+                name,
+                {
+                    "returned_amount":
+                        100,
+
+                    "return_date":
+                        add_days(
+                            operation_date,
+                            -1,
+                        ),
+
+                    "return_note":
+                        "TOO EARLY",
+                },
+            )
+
+        result = add_pending_return(
+            name,
+            {
+                "returned_amount":
+                    100,
+
+                "return_date":
+                    operation_date,
+
+                "return_note":
+                    (
+                        "SAME DAY RETURN "
+                        f"{self.suffix}"
+                    ),
+            },
+        )
+
+        self.assertEqual(
+            result[
+                "remaining_amount"
+            ],
+            900,
+        )
+
+        doc = frappe.get_doc(
+            PENDING_DOCTYPE,
+            name,
+        )
+
+        last_row = (
+            doc.ledger_entries[-1]
+        )
+
+        self.assertEqual(
+            str(
+                last_row.return_date
+            ),
+            operation_date,
+        )
+
+        self.assertEqual(
+            last_row.return_note,
+            (
+                "SAME DAY RETURN "
+                f"{self.suffix}"
+            ),
+        )
+
 
     def test_direct_historical_ledger_mutation_is_rejected(
         self,
@@ -945,47 +1203,83 @@ class TestArchivePendingOperation(
             1000,
         )
 
-    def test_operation_currency_is_immutable_after_creation(
+
+    def test_currency_is_server_owned_sar_and_client_currency_is_rejected(
         self,
     ):
-        other_currency = (
-            self._get_other_currency()
-        )
-
-        if not other_currency:
-            self.skipTest(
-                "Only one Currency exists."
-            )
-
         created = self._create()
 
         doc = frappe.get_doc(
             PENDING_DOCTYPE,
-            created["name"],
+            created[
+                "name"
+            ],
         )
 
-        doc.currency = (
-            other_currency
+        self.assertEqual(
+            doc.currency,
+            PENDING_CURRENCY,
+        )
+
+        self.assertTrue(
+            all(
+                row.currency
+                == PENDING_CURRENCY
+
+                for row
+                in doc.ledger_entries
+            )
         )
 
         with self.assertRaises(
             frappe.ValidationError
         ):
-            doc.save(
-                ignore_permissions=True
+            create_pending_operation(
+                self._payload(
+                    card_number=
+                        "8100000000000001",
+
+                    currency=
+                        "USD",
+                )
             )
 
-        doc.reload()
-
-        self.assertEqual(
-            doc.currency,
-            self.currency,
+        details = (
+            get_pending_operation_details(
+                created[
+                    "name"
+                ]
+            )
         )
 
-    def test_explicit_ledger_correction_recalculates_and_audits(
+        with self.assertRaises(
+            frappe.ValidationError
+        ):
+            update_pending_operation(
+                created[
+                    "name"
+                ],
+                {
+                    "currency":
+                        "USD",
+                },
+                expected_modified=(
+                    details[
+                        "operation"
+                    ][
+                        "modified"
+                    ]
+                ),
+            )
+
+
+    def test_ledger_edit_recalculates_and_audits_without_reason(
         self,
     ):
-        created = self._create()
+        created = self._create(
+            operation_datetime=
+                f"{today()} 11:00:00"
+        )
 
         name = created[
             "name"
@@ -996,58 +1290,52 @@ class TestArchivePendingOperation(
             {
                 "returned_amount":
                     300,
+
+                "return_date":
+                    today(),
+
+                "return_note":
+                    (
+                        "RETURN BEFORE EDIT "
+                        f"{self.suffix}"
+                    ),
             },
         )
 
-        doc = frappe.get_doc(
-            PENDING_DOCTYPE,
-            name,
+        details = (
+            get_pending_operation_details(
+                name
+            )
         )
 
-        corrected_rows = []
-
-        for row in (
-            doc.ledger_entries
-        ):
-            corrected_rows.append(
-                {
-                    "name":
-                        row.name,
-
-                    "suspended_amount":
-                        (
-                            1200
-                            if row.idx == 1
-                            else
-                            row.suspended_amount
-                        ),
-
-                    "returned_amount":
-                        row.returned_amount,
-
-                    "return_datetime":
-                        row.return_datetime,
-                }
+        corrected_rows = (
+            self._current_ledger_payload(
+                name,
+                first_suspended=1200,
             )
+        )
 
         corrected = (
-            correct_pending_ledger(
+            update_pending_operation(
                 name,
                 {
-                    "reason":
-                        (
-                            "AUTOMATED CORRECTION "
-                            f"{self.suffix}"
-                        ),
-
                     "ledger_entries":
                         corrected_rows,
                 },
+                expected_modified=(
+                    details[
+                        "operation"
+                    ][
+                        "modified"
+                    ]
+                ),
             )
         )
 
         self.assertEqual(
             corrected[
+                "operation"
+            ][
                 "total_suspended"
             ],
             1200,
@@ -1055,6 +1343,8 @@ class TestArchivePendingOperation(
 
         self.assertEqual(
             corrected[
+                "operation"
+            ][
                 "total_returned"
             ],
             300,
@@ -1062,6 +1352,8 @@ class TestArchivePendingOperation(
 
         self.assertEqual(
             corrected[
+                "operation"
+            ][
                 "remaining_amount"
             ],
             900,
@@ -1078,6 +1370,7 @@ class TestArchivePendingOperation(
             },
             fields=[
                 "remarks",
+                "details_json",
             ],
         )
 
@@ -1085,13 +1378,36 @@ class TestArchivePendingOperation(
             logs
         )
 
-        self.assertIn(
-            "AUTOMATED CORRECTION",
-            logs[-1].remarks,
+        self.assertFalse(
+            logs[-1]
+                .remarks
         )
 
+        details_json = (
+            frappe.parse_json(
+                logs[-1]
+                    .details_json
+            )
+        )
+
+        self.assertIn(
+            "ledger_diff",
+            details_json,
+        )
+
+        self.assertIn(
+            "before",
+            details_json,
+        )
+
+        self.assertIn(
+            "after",
+            details_json,
+        )
+
+
     # =========================================================
-    # Metadata / optimistic concurrency
+    # Metadata / atomic edit
     # =========================================================
 
     def test_metadata_edit_does_not_modify_financial_history(
@@ -1143,9 +1459,21 @@ class TestArchivePendingOperation(
             update_pending_operation(
                 name,
                 {
+                    "account_number":
+                        (
+                            "UPDATED-ACC-"
+                            f"{self.suffix}"
+                        ),
+
                     "machine_location":
                         (
                             "UPDATED LOCATION "
+                            f"{self.suffix}"
+                        ),
+
+                    "suspended_note":
+                        (
+                            "UPDATED SUSPENDED NOTE "
                             f"{self.suffix}"
                         ),
 
@@ -1158,6 +1486,18 @@ class TestArchivePendingOperation(
                 expected_modified=
                     old_modified,
             )
+        )
+
+        self.assertEqual(
+            updated[
+                "operation"
+            ][
+                "account_number"
+            ],
+            (
+                "UPDATED-ACC-"
+                f"{self.suffix}"
+            ),
         )
 
         self.assertEqual(
@@ -1233,7 +1573,8 @@ class TestArchivePendingOperation(
                 "pending_operation":
                     name,
             },
-            pluck="event_type",
+            pluck=
+                "event_type",
         )
 
         self.assertIn(
@@ -1241,8 +1582,401 @@ class TestArchivePendingOperation(
             events,
         )
 
+
+    def test_metadata_and_ledger_save_atomically_from_same_edit_request(
+        self,
+    ):
+        created = self._create()
+
+        name = created[
+            "name"
+        ]
+
+        details = (
+            get_pending_operation_details(
+                name
+            )
+        )
+
+        rows = (
+            self._current_ledger_payload(
+                name,
+                first_suspended=1500,
+            )
+        )
+
+        updated = (
+            update_pending_operation(
+                name,
+                {
+                    "account_number":
+                        (
+                            "ATOMIC-ACC-"
+                            f"{self.suffix}"
+                        ),
+
+                    "suspended_note":
+                        (
+                            "ATOMIC NOTE "
+                            f"{self.suffix}"
+                        ),
+
+                    "ledger_entries":
+                        rows,
+                },
+                expected_modified=(
+                    details[
+                        "operation"
+                    ][
+                        "modified"
+                    ]
+                ),
+            )
+        )
+
+        self.assertEqual(
+            updated[
+                "operation"
+            ][
+                "account_number"
+            ],
+            (
+                "ATOMIC-ACC-"
+                f"{self.suffix}"
+            ),
+        )
+
+        self.assertEqual(
+            updated[
+                "operation"
+            ][
+                "total_suspended"
+            ],
+            1500,
+        )
+
+        latest = (
+            get_pending_operation_details(
+                name
+            )
+        )
+
+        invalid_rows = (
+            self._current_ledger_payload(
+                name,
+                first_suspended=100,
+            )
+        )
+
+        invalid_rows.append(
+            {
+                "suspended_amount":
+                    0,
+
+                "returned_amount":
+                    200,
+
+                "return_date":
+                    today(),
+
+                "return_note":
+                    "INVALID OVER RETURN",
+            }
+        )
+
+        with self.assertRaises(
+            frappe.ValidationError
+        ):
+            update_pending_operation(
+                name,
+                {
+                    "account_number":
+                        "SHOULD-NOT-SAVE",
+
+                    "ledger_entries":
+                        invalid_rows,
+                },
+                expected_modified=(
+                    latest[
+                        "operation"
+                    ][
+                        "modified"
+                    ]
+                ),
+            )
+
+        doc = frappe.get_doc(
+            PENDING_DOCTYPE,
+            name,
+        )
+
+        self.assertEqual(
+            doc.account_number,
+            (
+                "ATOMIC-ACC-"
+                f"{self.suffix}"
+            ),
+        )
+
+        self.assertEqual(
+            doc.total_suspended,
+            1500,
+        )
+
+
+    def test_correct_only_capability_can_enter_edit_mode_without_metadata_edit(
+        self,
+    ):
+        created = self._create()
+
+        with patch.object(
+            pending_operations_api,
+            "get_pending_record_permissions",
+            return_value={
+                "can_edit":
+                    False,
+
+                "can_correct_ledger":
+                    True,
+
+                "can_add_return":
+                    False,
+            },
+        ):
+            details = (
+                get_pending_operation_details(
+                    created[
+                        "name"
+                    ]
+                )
+            )
+
+        capabilities = (
+            details[
+                "capabilities"
+            ]
+        )
+
+        self.assertFalse(
+            capabilities[
+                "can_edit"
+            ]
+        )
+
+        self.assertTrue(
+            capabilities[
+                "can_correct_ledger"
+            ]
+        )
+
+        self.assertTrue(
+            capabilities[
+                "can_enter_edit_mode"
+            ]
+        )
+
+        self.assertFalse(
+            capabilities[
+                "can_manage_attachments"
+            ]
+        )
+
+
     # =========================================================
-    # Search / context
+    # Failed state
+    # =========================================================
+
+    def test_mark_failed_records_audit_blocks_returns_and_preserves_failed_status(
+        self,
+    ):
+        created = self._create()
+
+        name = created[
+            "name"
+        ]
+
+        failed_note = (
+            "FAILED TEST "
+            f"{self.suffix}"
+        )
+
+        result = (
+            mark_pending_operation_failed(
+                name,
+                {
+                    "note":
+                        failed_note,
+                },
+            )
+        )
+
+        operation = (
+            result[
+                "operation"
+            ]
+        )
+
+        self.assertEqual(
+            operation[
+                "status"
+            ],
+            "معلقة فاشلة",
+        )
+
+        self.assertTrue(
+            operation[
+                "is_failed"
+            ]
+        )
+
+        self.assertEqual(
+            operation[
+                "failed_note"
+            ],
+            failed_note,
+        )
+
+        self.assertTrue(
+            operation[
+                "failed_at"
+            ]
+        )
+
+        self.assertTrue(
+            operation[
+                "failed_by"
+            ]
+        )
+
+        self.assertFalse(
+            result[
+                "capabilities"
+            ][
+                "can_add_return"
+            ]
+        )
+
+        with self.assertRaises(
+            frappe.ValidationError
+        ):
+            add_pending_return(
+                name,
+                {
+                    "returned_amount":
+                        100,
+
+                    "return_date":
+                        today(),
+                },
+            )
+
+        current = (
+            get_pending_operation_details(
+                name
+            )
+        )
+
+        rows = (
+            self._current_ledger_payload(
+                name,
+                first_suspended=1200,
+            )
+        )
+
+        after_ledger_edit = (
+            update_pending_operation(
+                name,
+                {
+                    "ledger_entries":
+                        rows,
+                },
+                expected_modified=(
+                    current[
+                        "operation"
+                    ][
+                        "modified"
+                    ]
+                ),
+            )
+        )
+
+        self.assertEqual(
+            after_ledger_edit[
+                "operation"
+            ][
+                "status"
+            ],
+            "معلقة فاشلة",
+        )
+
+        events = frappe.get_all(
+            "Archive Pending Operation Log",
+            filters={
+                "pending_operation":
+                    name,
+            },
+            pluck=
+                "event_type",
+        )
+
+        self.assertIn(
+            "marked_failed",
+            events,
+        )
+
+        self.assertIn(
+            "status_change",
+            events,
+        )
+
+
+    def test_failed_fields_cannot_be_mutated_directly(
+        self,
+    ):
+        created = self._create()
+
+        doc = frappe.get_doc(
+            PENDING_DOCTYPE,
+            created[
+                "name"
+            ],
+        )
+
+        doc.is_failed = 1
+
+        doc.failed_note = (
+            "DIRECT TAMPERING"
+        )
+
+        doc.failed_by = (
+            "Administrator"
+        )
+
+        doc.failed_at = (
+            now_datetime()
+        )
+
+        with self.assertRaises(
+            frappe.PermissionError
+        ):
+            doc.save(
+                ignore_permissions=True
+            )
+
+        doc.reload()
+
+        self.assertFalse(
+            doc.is_failed
+        )
+
+        self.assertNotEqual(
+            doc.status,
+            "معلقة فاشلة",
+        )
+
+
+    # =========================================================
+    # Search / Context
     # =========================================================
 
     def test_context_scope_is_server_side_and_rows_are_lightweight(
@@ -1251,6 +1985,18 @@ class TestArchivePendingOperation(
         first = self._create(
             card_number=
                 "0000000000009101",
+
+            account_number=
+                (
+                    "GRID-ACC-"
+                    f"{self.suffix}"
+                ),
+
+            suspended_note=
+                (
+                    "GRID NOTE "
+                    f"{self.suffix}"
+                ),
         )
 
         second = self._create(
@@ -1266,7 +2012,9 @@ class TestArchivePendingOperation(
 
         frappe.db.set_value(
             PENDING_DOCTYPE,
-            second["name"],
+            second[
+                "name"
+            ],
             "owner",
             "Guest",
             update_modified=False,
@@ -1305,22 +2053,30 @@ class TestArchivePendingOperation(
         }
 
         self.assertIn(
-            first["name"],
+            first[
+                "name"
+            ],
             own_names,
         )
 
         self.assertNotIn(
-            second["name"],
+            second[
+                "name"
+            ],
             own_names,
         )
 
         self.assertIn(
-            first["name"],
+            first[
+                "name"
+            ],
             all_names,
         )
 
         self.assertIn(
-            second["name"],
+            second[
+                "name"
+            ],
             all_names,
         )
 
@@ -1329,7 +2085,9 @@ class TestArchivePendingOperation(
             for row
             in own_rows
             if row.name
-            == first["name"]
+            == first[
+                "name"
+            ]
         )
 
         self.assertNotIn(
@@ -1348,9 +2106,142 @@ class TestArchivePendingOperation(
         )
 
         self.assertIn(
+            "account_number",
+            first_row,
+        )
+
+        self.assertIn(
+            "suspended_note",
+            first_row,
+        )
+
+        self.assertIn(
+            "is_failed",
+            first_row,
+        )
+
+        self.assertIn(
             "search_text",
             first_row,
         )
+
+        self.assertEqual(
+            first_row
+                .account_number,
+            (
+                "GRID-ACC-"
+                f"{self.suffix}"
+            ),
+        )
+
+        self.assertEqual(
+            first_row
+                .suspended_note,
+            (
+                "GRID NOTE "
+                f"{self.suffix}"
+            ),
+        )
+
+
+    def test_context_search_text_contains_new_fields_and_return_notes(
+        self,
+    ):
+        account_number = (
+            "SEARCH-ACC-"
+            f"{self.suffix}"
+        )
+
+        suspended_note = (
+            "SUSPENDED SEARCH NOTE "
+            f"{self.suffix}"
+        )
+
+        return_note = (
+            "RETURN SEARCH NOTE "
+            f"{self.suffix}"
+        )
+
+        created = self._create(
+            account_number=
+                account_number,
+
+            suspended_note=
+                suspended_note,
+
+            operation_datetime=
+                f"{today()} 08:00:00",
+        )
+
+        add_pending_return(
+            created[
+                "name"
+            ],
+            {
+                "returned_amount":
+                    100,
+
+                "return_date":
+                    today(),
+
+                "return_note":
+                    return_note,
+            },
+        )
+
+        rows = (
+            get_pending_context_rows(
+                user=
+                    "Administrator",
+
+                scope=
+                    "all",
+            )
+        )
+
+        row = next(
+            item
+            for item
+            in rows
+            if item.name
+            == created[
+                "name"
+            ]
+        )
+
+        normalized_account = (
+            normalize_search_text(
+                account_number
+            )
+        )
+
+        normalized_suspended_note = (
+            normalize_search_text(
+                suspended_note
+            )
+        )
+
+        normalized_return_note = (
+            normalize_search_text(
+                return_note
+            )
+        )
+
+        self.assertIn(
+            normalized_account,
+            row.search_text,
+        )
+
+        self.assertIn(
+            normalized_suspended_note,
+            row.search_text,
+        )
+
+        self.assertIn(
+            normalized_return_note,
+            row.search_text,
+        )
+
 
     def test_shared_arabic_search_normalizer_is_used(
         self,
@@ -1358,6 +2249,9 @@ class TestArchivePendingOperation(
         sample = (
             build_pending_search_text(
                 {
+                    "account_number":
+                        "ACC-١٢٣",
+
                     "bank_name":
                         "البنك الأهلي",
 
@@ -1365,14 +2259,28 @@ class TestArchivePendingOperation(
                         "صنعاء",
 
                     "machine_no":
-                        "١٢٣٤",
-                }
+                        "٤٥٦٧",
+
+                    "suspended_note":
+                        "ملاحظة معلقة",
+                },
+
+                ledger_return_notes=[
+                    "إرجاع الفرع الرئيسي",
+                ],
             )
         )
 
         expected = (
             normalize_search_text(
-                "البنك الأهلي صنعاء ١٢٣٤"
+                (
+                    "ACC-١٢٣ "
+                    "البنك الأهلي "
+                    "صنعاء "
+                    "٤٥٦٧ "
+                    "ملاحظة معلقة "
+                    "إرجاع الفرع الرئيسي"
+                )
             )
         )
 
@@ -1382,9 +2290,15 @@ class TestArchivePendingOperation(
         )
 
         self.assertIn(
-            "1234",
+            "123",
             sample,
         )
+
+        self.assertIn(
+            "4567",
+            sample,
+        )
+
 
     # =========================================================
     # Smart autocomplete
@@ -1416,6 +2330,12 @@ class TestArchivePendingOperation(
                 card_number=(
                     "920000000000"
                     f"{index:04d}"
+                ),
+
+                account_number=(
+                    "SMART-ACC-"
+                    f"{self.suffix}-"
+                    f"{index}"
                 ),
 
                 card_name=(
@@ -1535,6 +2455,12 @@ class TestArchivePendingOperation(
             card_number=
                 "9200000000009999",
 
+            account_number=
+                (
+                    "SMART-CONFLICT-ACC-"
+                    f"{self.suffix}"
+                ),
+
             card_name=
                 (
                     "SMART CONFLICT "
@@ -1579,6 +2505,7 @@ class TestArchivePendingOperation(
             ],
         )
 
+
     def test_create_only_user_gets_no_historical_suggestions(
         self,
     ):
@@ -1598,15 +2525,15 @@ class TestArchivePendingOperation(
         ):
             result = (
                 pending_lookups
-                .get_pending_suggestions(
-                    fieldname=
-                        "machine_no",
+                    .get_pending_suggestions(
+                        fieldname=
+                            "machine_no",
 
-                    query=
-                        "ATM",
+                        query=
+                            "ATM",
 
-                    context={},
-                )
+                        context={},
+                    )
             )
 
         self.assertEqual(
@@ -1617,17 +2544,23 @@ class TestArchivePendingOperation(
         )
 
         self.assertIsNone(
-            result["scope"]
+            result[
+                "scope"
+            ]
         )
+
 
     # =========================================================
     # Timeline
     # =========================================================
 
-    def test_business_timeline_contains_expected_events_in_descending_order(
+    def test_business_timeline_contains_new_events_and_return_note_in_descending_order(
         self,
     ):
-        created = self._create()
+        created = self._create(
+            operation_datetime=
+                f"{today()} 10:00:00"
+        )
 
         name = created[
             "name"
@@ -1657,11 +2590,33 @@ class TestArchivePendingOperation(
             ),
         )
 
+        return_note = (
+            "TIMELINE RETURN "
+            f"{self.suffix}"
+        )
+
         add_pending_return(
             name,
             {
                 "returned_amount":
                     250,
+
+                "return_date":
+                    today(),
+
+                "return_note":
+                    return_note,
+            },
+        )
+
+        mark_pending_operation_failed(
+            name,
+            {
+                "note":
+                    (
+                        "TIMELINE FAILED "
+                        f"{self.suffix}"
+                    ),
             },
         )
 
@@ -1701,6 +2656,93 @@ class TestArchivePendingOperation(
             event_types,
         )
 
+        self.assertIn(
+            "marked_failed",
+            event_types,
+        )
+
+        return_event = next(
+            event
+            for event
+            in timeline[
+                "events"
+            ]
+            if event[
+                "event_type"
+            ]
+            == "return_added"
+        )
+
+        self.assertEqual(
+            return_event[
+                "details"
+            ][
+                "return_date"
+            ],
+            today(),
+        )
+
+        self.assertEqual(
+            return_event[
+                "details"
+            ][
+                "return_note"
+            ],
+            return_note,
+        )
+
+        failed_event = next(
+            event
+            for event
+            in timeline[
+                "events"
+            ]
+            if event[
+                "event_type"
+            ]
+            == "marked_failed"
+        )
+
+        self.assertEqual(
+            failed_event[
+                "details"
+            ][
+                "failed_note"
+            ],
+            (
+                "TIMELINE FAILED "
+                f"{self.suffix}"
+            ),
+        )
+
+        self.assertEqual(
+            timeline[
+                "operation"
+            ][
+                "account_number"
+            ],
+            (
+                "ACC-"
+                f"{self.suffix}"
+            ),
+        )
+
+        self.assertEqual(
+            timeline[
+                "operation"
+            ][
+                "status"
+            ],
+            "معلقة فاشلة",
+        )
+
+        self.assertNotIn(
+            "currency",
+            timeline[
+                "operation"
+            ],
+        )
+
         times = [
             get_datetime(
                 event[
@@ -1718,8 +2760,11 @@ class TestArchivePendingOperation(
         ):
             self.assertGreaterEqual(
                 times[index],
-                times[index + 1],
+                times[
+                    index + 1
+                ],
             )
+
 
     # =========================================================
     # Attachments
@@ -1739,6 +2784,7 @@ class TestArchivePendingOperation(
                     "first-"
                     f"{self.suffix}.txt"
                 ),
+
                 content=
                     content,
             )
@@ -1820,7 +2866,6 @@ class TestArchivePendingOperation(
                     f"{self.suffix}.txt"
                 ),
 
-                # نفس المحتوى عمدًا.
                 content=
                     content,
             )
@@ -1886,7 +2931,8 @@ class TestArchivePendingOperation(
                 "pending_operation":
                     name,
             },
-            pluck="event_type",
+            pluck=
+                "event_type",
         )
 
         self.assertIn(
@@ -1917,6 +2963,7 @@ class TestArchivePendingOperation(
                 first_file_id,
             )
         )
+
 
     def test_file_attached_to_another_document_cannot_be_reused(
         self,
@@ -1975,6 +3022,7 @@ class TestArchivePendingOperation(
 class TestPendingOperationPermissions(
     UnitTestCase
 ):
+
     def test_own_scope_is_intersection_with_actions(
         self,
     ):
@@ -2004,8 +3052,6 @@ class TestPendingOperationPermissions(
             "view_own_pending_operations":
                 1,
 
-            # حتى لو Edit All موجود:
-            # View Scope يبقى own.
             "edit_all_pending_operations":
                 1,
 
@@ -2102,6 +3148,7 @@ class TestPendingOperationPermissions(
                     )
             )
 
+
     def test_action_permissions_without_view_never_grant_access(
         self,
     ):
@@ -2177,6 +3224,7 @@ class TestPendingOperationPermissions(
                     )
             )
 
+
     def test_create_only_capabilities_have_no_view_scope(
         self,
     ):
@@ -2197,9 +3245,9 @@ class TestPendingOperationPermissions(
         ):
             capabilities = (
                 pending_permissions
-                .get_pending_capabilities(
-                    user
-                )
+                    .get_pending_capabilities(
+                        user
+                    )
             )
 
         self.assertTrue(

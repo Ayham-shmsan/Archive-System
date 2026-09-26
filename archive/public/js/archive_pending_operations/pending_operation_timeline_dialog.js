@@ -24,7 +24,7 @@ class ArchivePendingOperationTimelineDialog {
                 "تسجيل مبلغ مرتجع",
 
             ledger_corrected:
-                "تصحيح الحركة المالية",
+                "تعديل الحركة المالية",
 
             status_change:
                 "تغيير حالة العملية",
@@ -34,38 +34,47 @@ class ArchivePendingOperationTimelineDialog {
 
             attachment_deleted:
                 "حذف مرفق",
+
+            marked_failed:
+                "تغيير الحالة إلى معلقة فاشلة",
         };
 
         this.field_labels = {
+            bank:
+                "اسم البنك",
+
             card_name:
                 "اسم البطاقة",
+
+            account_number:
+                "رقم الحساب",
 
             card_number:
                 "رقم البطاقة",
 
             operation_datetime:
-                "تاريخ ووقت العملية",
+                "التاريخ والوقت المعلق",
 
-            card_owner:
-                "مالك البطاقة",
-
-            bank:
-                "البنك",
+            suspended_note:
+                "ملاحظات المعلق",
 
             region:
                 "المنطقة",
 
             machine_location:
-                "موقع المكينة",
-
-            machine_no:
-                "رقم المكينة",
+                "العنوان",
 
             branch_no:
                 "رقم الفرع",
 
+            machine_no:
+                "رقم المكينة",
+
             representative:
-                "المندوب",
+                "اسم المندوب",
+
+            card_owner:
+                "مالك البطاقة",
 
             notes:
                 "الملاحظات",
@@ -361,19 +370,19 @@ class ArchivePendingOperationTimelineDialog {
                 ${this.summary_item(
                     "إجمالي المعلق",
                     operation.total_suspended,
-                    operation.currency
+                    
                 )}
 
                 ${this.summary_item(
                     "إجمالي المرتجع",
                     operation.total_returned,
-                    operation.currency
+                    
                 )}
 
                 ${this.summary_item(
                     "المتبقي",
                     operation.remaining_amount,
-                    operation.currency
+                    
                 )}
 
             </div>
@@ -383,7 +392,6 @@ class ArchivePendingOperationTimelineDialog {
     summary_item(
         label,
         value,
-        currency
     ) {
         return `
             <div>
@@ -398,11 +406,8 @@ class ArchivePendingOperationTimelineDialog {
                         value
                     )}
                 </strong>
-
                 <small>
-                    ${this.escape(
-                        currency
-                    )}
+                    ر.س
                 </small>
             </div>
         `;
@@ -568,6 +573,10 @@ class ArchivePendingOperationTimelineDialog {
                 return this.render_status_change(
                     event
                 );
+            case "marked_failed":
+                return this.render_marked_failed(
+                    event
+                );
 
             case "ledger_corrected":
                 return this.render_ledger_corrected(
@@ -710,6 +719,54 @@ class ArchivePendingOperationTimelineDialog {
         `;
     }
 
+    // render_return_added(
+    //     event
+    //     ) {
+    //     const details =
+    //         event.details
+    //         || {};
+
+    //     const currency =
+    //         details.after
+    //             ?.currency
+    //         ||
+    //         details.before
+    //             ?.currency
+    //         ||
+    //         this.data
+    //             ?.operation
+    //             ?.currency
+    //         ||
+    //         "";
+
+    //     return `
+    //         <div class="pending-timeline-highlight">
+
+    //             <span>
+    //                 المبلغ المرتجع
+    //             </span>
+
+    //             <strong>
+    //                 ${this.format_amount(
+    //                     details.returned_amount
+    //                 )}
+    //                 ${this.escape(
+    //                     currency
+    //                 )}
+    //             </strong>
+
+    //         </div>
+
+    //         ${this.render_financial_transition(
+    //             details.before,
+    //             details.after
+    //         )}
+
+    //         ${this.render_remarks(
+    //             event.remarks
+    //         )}
+    //     `;
+    // }
     render_return_added(
         event
     ) {
@@ -717,45 +774,145 @@ class ArchivePendingOperationTimelineDialog {
             event.details
             || {};
 
-        const currency =
-            details.after
-                ?.currency
-            ||
-            details.before
-                ?.currency
-            ||
-            this.data
-                ?.operation
-                ?.currency
-            ||
-            "";
-
         return `
-            <div class="pending-timeline-highlight">
+            <div
+                class="
+                    pending-timeline-return-details
+                "
+            >
+                <div
+                    class="
+                        pending-timeline-highlight
+                    "
+                >
+                    <span>
+                        المبلغ المرتجع
+                    </span>
 
-                <span>
-                    المبلغ المرتجع
-                </span>
+                    <strong>
+                        ${this.format_amount(
+                            details.returned_amount
+                        )}
+                        ر.س
+                    </strong>
+                </div>
 
-                <strong>
-                    ${this.format_amount(
-                        details.returned_amount
-                    )}
-                    ${this.escape(
-                        currency
-                    )}
-                </strong>
+                ${
+                    details.return_date
+                        ? `
+                            <div
+                                class="
+                                    pending-timeline-return-date
+                                "
+                            >
+                                <span>
+                                    تاريخ الإرجاع
+                                </span>
 
+                                <strong>
+                                    ${this.format_date(
+                                        details.return_date
+                                    )}
+                                </strong>
+                            </div>
+                        `
+                        : ""
+                }
+
+                ${
+                    details.return_note
+                        ? `
+                            <div
+                                class="
+                                    pending-timeline-remarks
+                                "
+                            >
+                                ${this.escape(
+                                    details.return_note
+                                )}
+                            </div>
+                        `
+                        : this.render_remarks(
+                            event.remarks
+                        )
+                }
             </div>
 
             ${this.render_financial_transition(
                 details.before,
                 details.after
             )}
+        `;
+    }
+    render_marked_failed(
+        event
+    ) {
+        const details =
+            event.details
+            || {};
 
-            ${this.render_remarks(
-                event.remarks
-            )}
+        const note =
+            details.failed_note
+            ||
+            event.remarks
+            ||
+            "";
+
+        return `
+            <div
+                class="
+                    pending-timeline-failed-event
+                "
+            >
+                <div
+                    class="
+                        pending-timeline-highlight
+                    "
+                >
+                    <span>
+                        الحالة الجديدة
+                    </span>
+
+                    <strong>
+                        معلقة فاشلة
+                    </strong>
+                </div>
+
+                ${
+                    details.failed_at
+                        ? `
+                            <div
+                                class="
+                                    pending-timeline-failed-meta
+                                "
+                            >
+                                وقت التغيير:
+                                <strong>
+                                    ${this.format_datetime(
+                                        details.failed_at
+                                    )}
+                                </strong>
+                            </div>
+                        `
+                        : ""
+                }
+
+                ${
+                    note
+                        ? `
+                            <div
+                                class="
+                                    pending-timeline-remarks
+                                "
+                            >
+                                ${this.escape(
+                                    note
+                                )}
+                            </div>
+                        `
+                        : ""
+                }
+            </div>
         `;
     }
 
@@ -841,14 +998,11 @@ class ArchivePendingOperationTimelineDialog {
                 : 0;
 
         return `
-            ${this.render_remarks(
-                event.remarks
-                ||
-                details.reason
-            )}
-
-            <div class="pending-timeline-diff-summary">
-
+            <div
+                class="
+                    pending-timeline-diff-summary
+                "
+            >
                 <span>
                     صفوف مضافة:
                     <strong>
@@ -869,7 +1023,6 @@ class ArchivePendingOperationTimelineDialog {
                         ${changed}
                     </strong>
                 </span>
-
             </div>
 
             ${this.render_financial_transition(
@@ -899,20 +1052,12 @@ class ArchivePendingOperationTimelineDialog {
             return "";
         }
 
-        const currency =
-            after?.currency
-            ||
-            before?.currency
-            ||
-            this.data
-                ?.operation
-                ?.currency
-            ||
-            "";
-
         return `
-            <div class="pending-timeline-financial-transition">
-
+            <div
+                class="
+                    pending-timeline-financial-transition
+                "
+            >
                 ${
                     before
                         ? `
@@ -922,8 +1067,7 @@ class ArchivePendingOperationTimelineDialog {
                                 </span>
 
                                 ${this.financial_values(
-                                    before,
-                                    currency
+                                    before
                                 )}
                             </div>
                         `
@@ -939,21 +1083,64 @@ class ArchivePendingOperationTimelineDialog {
                                 </span>
 
                                 ${this.financial_values(
-                                    after,
-                                    currency
+                                    after
                                 )}
                             </div>
                         `
                         : ""
                 }
-
             </div>
         `;
     }
 
+    // financial_values(
+    //     summary,
+    //     currency
+    //     ) {
+    //     return `
+    //         <small>
+    //             المعلق:
+    //             <strong>
+    //                 ${this.format_amount(
+    //                     summary.total_suspended
+    //                 )}
+    //             </strong>
+
+    //             ${this.escape(
+    //                 currency
+    //             )}
+    //         </small>
+
+    //         <small>
+    //             المرتجع:
+    //             <strong>
+    //                 ${this.format_amount(
+    //                     summary.total_returned
+    //                 )}
+    //             </strong>
+
+    //             ${this.escape(
+    //                 currency
+    //             )}
+    //         </small>
+
+    //         <small>
+    //             المتبقي:
+    //             <strong>
+    //                 ${this.format_amount(
+    //                     summary.remaining_amount
+    //                 )}
+    //             </strong>
+
+    //             ${this.escape(
+    //                 currency
+    //             )}
+    //         </small>
+    //     `;
+    // }
+
     financial_values(
-        summary,
-        currency
+        summary
     ) {
         return `
             <small>
@@ -963,10 +1150,7 @@ class ArchivePendingOperationTimelineDialog {
                         summary.total_suspended
                     )}
                 </strong>
-
-                ${this.escape(
-                    currency
-                )}
+                ر.س
             </small>
 
             <small>
@@ -976,10 +1160,7 @@ class ArchivePendingOperationTimelineDialog {
                         summary.total_returned
                     )}
                 </strong>
-
-                ${this.escape(
-                    currency
-                )}
+                ر.س
             </small>
 
             <small>
@@ -989,10 +1170,7 @@ class ArchivePendingOperationTimelineDialog {
                         summary.remaining_amount
                     )}
                 </strong>
-
-                ${this.escape(
-                    currency
-                )}
+                ر.س
             </small>
         `;
     }
@@ -1052,6 +1230,8 @@ class ArchivePendingOperationTimelineDialog {
 
             attachment_deleted:
                 "dot-attachment",
+            marked_failed:
+                "dot-failed",
         };
 
         return (
@@ -1060,9 +1240,35 @@ class ArchivePendingOperationTimelineDialog {
         );
     }
 
+    // status_class(
+    //     status
+    //     ) {
+    //     if (
+    //         status
+    //         === "مرتجعة مكتملة"
+    //     ) {
+    //         return "status-complete";
+    //     }
+
+    //     if (
+    //         status
+    //         === "مرتجعة غير مكتملة"
+    //     ) {
+    //         return "status-partial";
+    //     }
+
+    //     return "status-under-action";
+    // }
     status_class(
         status
     ) {
+        if (
+            status
+            === "معلقة فاشلة"
+        ) {
+            return "status-failed";
+        }
+
         if (
             status
             === "مرتجعة مكتملة"
@@ -1105,6 +1311,30 @@ class ArchivePendingOperationTimelineDialog {
             .format(
                 number
             );
+    }
+
+    format_date(
+        value
+    ) {
+        if (
+            !value
+        ) {
+            return "—";
+        }
+
+        try {
+            return frappe.datetime
+                .str_to_user(
+                    value
+                );
+
+        } catch (
+            error
+        ) {
+            return this.escape(
+                value
+            );
+        }
     }
 
     format_datetime(

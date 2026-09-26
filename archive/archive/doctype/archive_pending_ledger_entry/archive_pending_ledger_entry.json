@@ -7,7 +7,8 @@
     "suspended_amount",
     "returned_amount",
     "remaining_amount",
-    "return_datetime",
+    "return_date",
+    "return_note",
     "currency",
     "entered_by",
     "entered_at"
@@ -42,10 +43,15 @@
       "read_only": 1
     },
     {
-      "fieldname": "return_datetime",
-      "fieldtype": "Datetime",
-      "in_list_view": 1,
-      "label": "تاريخ الإرجاع"
+    "fieldname": "return_date",
+    "fieldtype": "Date",
+    "in_list_view": 1,
+    "label": "تاريخ الإرجاع"
+    },
+    {
+    "fieldname": "return_note",
+    "fieldtype": "Small Text",
+    "label": "ملاحظة الإرجاع"
     },
     {
       "fieldname": "currency",
@@ -63,7 +69,8 @@
       "no_copy": 1,
       "options": "User",
       "read_only": 1,
-      "reqd": 1
+      "reqd": 1,
+      "hidden": 1
     },
     {
       "fieldname": "entered_at",
@@ -71,7 +78,8 @@
       "label": "تاريخ تسجيل الحركة في النظام",
       "no_copy": 1,
       "read_only": 1,
-      "reqd": 1
+      "reqd": 1,
+      "hidden": 1
     }
   ],
   "index_web_pages_for_search": 0,

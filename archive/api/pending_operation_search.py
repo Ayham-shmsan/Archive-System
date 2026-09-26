@@ -20,27 +20,37 @@ BACKFILL_BATCH_SIZE = 500
 _CONTEXT_DB_FIELDS = [
     "name",
     "serial_no",
+
     "card_name",
+    "account_number",
     "card_number",
+
     "operation_datetime",
+
     "card_owner",
-    "currency",
     "bank",
     "region",
+
     "machine_location",
     "machine_no",
     "branch_no",
+
     "representative",
+
     "total_suspended",
     "total_returned",
     "remaining_amount",
+
     "status",
+    "is_failed",
+
     "owner",
     "creation",
     "modified",
 
-    # نحتاجها فقط لبناء search_text.
-    # لن نعيدها في Context النهائي.
+    # تدخل في Search Context فقط،
+    # ثم نحذفها من Snapshot النهائي.
+    "suspended_note",
     "notes",
 ]
 
@@ -62,25 +72,59 @@ def set_pending_search_text(doc) -> str:
 
     values = frappe._dict(
         {
-            "name": doc.name,
-            "serial_no": doc.serial_no,
-            "card_name": doc.card_name,
-            "card_number": doc.card_number,
+            "name":
+                doc.name,
+
+            "serial_no":
+                doc.serial_no,
+
+            "card_name":
+                doc.card_name,
+
+            "account_number":
+                doc.account_number,
+
+            "card_number":
+                doc.card_number,
+
             "operation_datetime":
                 doc.operation_datetime,
-            "card_owner": doc.card_owner,
-            "currency": doc.currency,
-            "bank": doc.bank,
-            "region": doc.region,
+
+            "card_owner":
+                doc.card_owner,
+
+            "bank":
+                doc.bank,
+
+            "region":
+                doc.region,
+
             "machine_location":
                 doc.machine_location,
-            "machine_no": doc.machine_no,
-            "branch_no": doc.branch_no,
+
+            "machine_no":
+                doc.machine_no,
+
+            "branch_no":
+                doc.branch_no,
+
             "representative":
                 doc.representative,
-            "status": doc.status,
-            "owner": owner,
-            "notes": doc.notes,
+
+            "status":
+                doc.status,
+
+            "is_failed":
+                doc.is_failed,
+
+            "owner":
+                owner,
+
+            "suspended_note":
+                doc.suspended_note,
+
+            "notes":
+                doc.notes,
 
             "card_owner_name":
                 _get_link_label(
@@ -129,12 +173,34 @@ def set_pending_search_text(doc) -> str:
             row.file_name
         ).strip()
     ]
+    ledger_return_notes = [
+        cstr(
+            row.return_note
+            or ""
+        ).strip()
+
+        for row
+        in (
+            doc.ledger_entries
+            or []
+        )
+
+        if cstr(
+            row.return_note
+            or ""
+        ).strip()
+    ]
 
     doc.search_text = (
         build_pending_search_text(
             values,
+
             attachment_filenames=(
                 attachment_filenames
+            ),
+
+            ledger_return_notes=(
+                ledger_return_notes
             ),
         )
     )
@@ -142,17 +208,101 @@ def set_pending_search_text(doc) -> str:
     return doc.search_text
 
 
+# def build_pending_search_text(
+#     values,
+#     *,
+#     attachment_filenames:
+#         Iterable[str] | None = None,
+# ) -> str:
+#     """
+#     Context البحث الموحد للعملية.
+
+#     الناتج يمر عبر نفس normalize_search_text المستخدم
+#     أصلًا في Archive Operations.
+#     """
+
+#     parts: list[str] = []
+
+#     search_fields = (
+#         "name",
+#         "serial_no",
+#         "card_name",
+#         "card_number",
+
+#         # نضع ID والاسم المقروء معًا.
+#         "card_owner",
+#         "card_owner_name",
+
+#         "currency",
+
+#         "bank",
+#         "bank_name",
+
+#         "region",
+#         "region_name",
+
+#         "machine_location",
+#         "machine_no",
+#         "branch_no",
+
+#         "representative",
+#         "representative_name",
+
+#         "operation_datetime",
+#         "status",
+
+#         "owner",
+#         "owner_full_name",
+
+#         "notes",
+#     )
+
+#     for fieldname in search_fields:
+#         _append_search_part(
+#             parts,
+#             _get_value(
+#                 values,
+#                 fieldname,
+#             ),
+#         )
+
+#     for filename in (
+#         attachment_filenames
+#         or []
+#     ):
+#         _append_search_part(
+#             parts,
+#             filename,
+#         )
+
+#     raw_text = " ".join(parts)
+
+#     return normalize_search_text(
+#         raw_text
+#     )
 def build_pending_search_text(
     values,
     *,
     attachment_filenames:
         Iterable[str] | None = None,
+    ledger_return_notes:
+        Iterable[str] | None = None,
 ) -> str:
     """
     Context البحث الموحد للعملية.
 
-    الناتج يمر عبر نفس normalize_search_text المستخدم
-    أصلًا في Archive Operations.
+    يشمل:
+    - بيانات البطاقة والمعلق.
+    - رقم الحساب.
+    - بيانات الموقع والمكينة.
+    - أسماء الـMasters.
+    - ملاحظات المعلق.
+    - الملاحظة العامة.
+    - ملاحظات الإرجاعات.
+    - أسماء المرفقات.
+
+    الناتج يمر عبر نفس normalize_search_text
+    المستخدم في Archive Operations.
     """
 
     parts: list[str] = []
@@ -160,14 +310,13 @@ def build_pending_search_text(
     search_fields = (
         "name",
         "serial_no",
+
         "card_name",
+        "account_number",
         "card_number",
 
-        # نضع ID والاسم المقروء معًا.
         "card_owner",
         "card_owner_name",
-
-        "currency",
 
         "bank",
         "bank_name",
@@ -188,10 +337,13 @@ def build_pending_search_text(
         "owner",
         "owner_full_name",
 
+        "suspended_note",
         "notes",
     )
 
-    for fieldname in search_fields:
+    for fieldname in (
+        search_fields
+    ):
         _append_search_part(
             parts,
             _get_value(
@@ -209,7 +361,18 @@ def build_pending_search_text(
             filename,
         )
 
-    raw_text = " ".join(parts)
+    for note in (
+        ledger_return_notes
+        or []
+    ):
+        _append_search_part(
+            parts,
+            note,
+        )
+
+    raw_text = " ".join(
+        parts
+    )
 
     return normalize_search_text(
         raw_text
@@ -371,6 +534,11 @@ def hydrate_pending_context_rows(
             operation_names
         )
     )
+    return_note_map = (
+        _load_ledger_return_note_map(
+            operation_names
+        )
+    )
 
     result: list[frappe._dict] = []
 
@@ -418,8 +586,16 @@ def hydrate_pending_context_rows(
         row.search_text = (
             build_pending_search_text(
                 row,
+
                 attachment_filenames=(
                     attachment_map.get(
+                        row.name,
+                        [],
+                    )
+                ),
+
+                ledger_return_notes=(
+                    return_note_map.get(
                         row.name,
                         [],
                     )
@@ -433,6 +609,11 @@ def hydrate_pending_context_rows(
             "notes",
             None,
         )
+
+        # row.pop(
+        #     "suspended_note",
+        #     None,
+        # )
 
         result.append(row)
 
@@ -534,6 +715,76 @@ def _persist_hydrated_search_text(
 
     return len(hydrated)
 
+def _load_ledger_return_note_map(
+    operation_names:
+        Iterable[str],
+) -> dict[str, list[str]]:
+    operation_names = list(
+        {
+            cstr(name).strip()
+
+            for name
+            in operation_names
+
+            if cstr(
+                name
+            ).strip()
+        }
+    )
+
+    if not operation_names:
+        return {}
+
+    rows = frappe.get_all(
+        "Archive Pending Ledger Entry",
+
+        filters={
+            "parent": [
+                "in",
+                operation_names,
+            ],
+
+            "parenttype":
+                PENDING_DOCTYPE,
+
+            "parentfield":
+                "ledger_entries",
+        },
+
+        fields=[
+            "parent",
+            "return_note",
+        ],
+
+        order_by=
+            "parent asc, idx asc",
+    )
+
+    result:dict[
+            str,
+            list[str],
+        ] = defaultdict(
+            list
+        )
+
+    for row in rows:
+        note = cstr(
+            row.return_note
+            or ""
+        ).strip()
+
+        if not note:
+            continue
+
+        result[
+            row.parent
+        ].append(
+            note
+        )
+
+    return dict(
+        result
+    )
 
 def _load_label_map(
     doctype: str,
