@@ -1,0 +1,589 @@
+.archive-pending-operation-dialog
+.modal-dialog {
+    width:
+        min(
+            1180px,
+            calc(
+                100vw - 32px
+            )
+        ) !important;
+
+    max-width:
+        1180px !important;
+}
+
+.archive-pending-operation-dialog
+.modal-content {
+    border-radius:
+        14px;
+
+    overflow:
+        hidden;
+}
+
+.archive-pending-operation-dialog
+.modal-body {
+    max-height:
+        calc(
+            100vh - 180px
+        );
+
+    overflow-y:
+        auto;
+}
+
+.archive-pending-operation-dialog
+.section-head {
+    margin-top:
+        10px;
+
+    margin-bottom:
+        12px;
+
+    font-weight:
+        700;
+}
+
+
+/* ============================================================
+   Ledger
+   ============================================================ */
+
+.pending-create-ledger-editor {
+    width:
+        100%;
+}
+
+.pending-ledger-toolbar {
+    display:
+        flex;
+
+    align-items:
+        center;
+
+    justify-content:
+        space-between;
+
+    gap:
+        16px;
+
+    margin-bottom:
+        12px;
+
+    padding:
+        11px
+        12px;
+
+    border:
+        1px solid
+        var(--border-color);
+
+    border-radius:
+        10px;
+
+    background:
+        var(--subtle-fg);
+}
+
+.pending-ledger-title {
+    margin-bottom:
+        2px;
+
+    font-size:
+        13px;
+
+    font-weight:
+        700;
+}
+
+.pending-ledger-subtitle {
+    color:
+        var(--text-muted);
+
+    font-size:
+        11px;
+
+    line-height:
+        1.6;
+}
+
+.pending-ledger-scroll {
+    width:
+        100%;
+
+    overflow-x:
+        auto;
+
+    border:
+        1px solid
+        var(--border-color);
+
+    border-radius:
+        10px;
+}
+
+.pending-ledger-table {
+    width:
+        100%;
+
+    min-width:
+        820px;
+
+    border-collapse:
+        separate;
+
+    border-spacing:
+        0;
+
+    table-layout:
+        fixed;
+
+    background:
+        var(--card-bg);
+}
+
+.pending-ledger-table th,
+.pending-ledger-table td {
+    padding:
+        9px
+        8px;
+
+    text-align:
+        right;
+
+    vertical-align:
+        middle;
+}
+
+.pending-ledger-table th {
+    height:
+        42px;
+
+    border-bottom:
+        1px solid
+        var(--border-color);
+
+    background:
+        var(--subtle-fg);
+
+    color:
+        var(--text-muted);
+
+    font-size:
+        11px;
+
+    font-weight:
+        700;
+
+    white-space:
+        nowrap;
+}
+
+.pending-ledger-table td {
+    border-bottom:
+        1px solid
+        var(--border-color);
+}
+
+.pending-ledger-table
+tr:last-child
+td {
+    border-bottom:
+        0;
+}
+
+.pending-ledger-table
+.pending-col-index {
+    width:
+        50px;
+
+    text-align:
+        center;
+}
+
+.pending-ledger-table
+.pending-col-action {
+    width:
+        48px;
+
+    text-align:
+        center;
+}
+
+.pending-ledger-index {
+    color:
+        var(--text-muted);
+
+    font-size:
+        12px;
+
+    font-weight:
+        700;
+}
+
+.pending-ledger-table
+.form-control {
+    min-width:
+        125px;
+
+    font-size:
+        12px;
+}
+
+.pending-ledger-return-datetime {
+    min-width:
+        185px !important;
+}
+
+.pending-ledger-remaining {
+    min-height:
+        34px;
+
+    display:
+        flex;
+
+    align-items:
+        center;
+
+    padding:
+        6px
+        10px;
+
+    border:
+        1px solid
+        var(--border-color);
+
+    border-radius:
+        6px;
+
+    background:
+        var(--subtle-fg);
+
+    direction:
+        ltr;
+
+    unicode-bidi:
+        isolate;
+
+    font-variant-numeric:
+        tabular-nums;
+
+    font-weight:
+        650;
+}
+
+.pending-ledger-row.has-error
+td {
+    background:
+        rgba(
+            220,
+            38,
+            38,
+            0.04
+        );
+}
+
+.pending-ledger-row.has-error
+.form-control {
+    border-color:
+        #dc2626;
+
+    box-shadow:
+        0 0 0 1px
+        rgba(
+            220,
+            38,
+            38,
+            0.12
+        );
+}
+
+.pending-ledger-validation-message {
+    margin:
+        4px
+        0;
+
+    line-height:
+        1.6;
+}
+
+
+/* ============================================================
+   Summary
+   ============================================================ */
+
+.pending-create-summary-grid {
+    display:
+        grid;
+
+    grid-template-columns:
+        repeat(
+            4,
+            minmax(
+                0,
+                1fr
+            )
+        );
+
+    gap:
+        10px;
+
+    width:
+        100%;
+}
+
+.pending-create-summary-card {
+    min-height:
+        88px;
+
+    padding:
+        13px
+        14px;
+
+    border:
+        1px solid
+        var(--border-color);
+
+    border-radius:
+        10px;
+
+    background:
+        var(--card-bg);
+}
+
+.pending-summary-label {
+    display:
+        block;
+
+    margin-bottom:
+        8px;
+
+    color:
+        var(--text-muted);
+
+    font-size:
+        11px;
+}
+
+.pending-create-summary-card
+strong {
+    display:
+        inline-block;
+
+    font-size:
+        20px;
+
+    font-weight:
+        700;
+
+    line-height:
+        1.2;
+
+    direction:
+        ltr;
+
+    unicode-bidi:
+        isolate;
+
+    font-variant-numeric:
+        tabular-nums;
+}
+
+.pending-summary-currency {
+    display:
+        inline-block;
+
+    margin-inline-start:
+        5px;
+
+    color:
+        var(--text-muted);
+
+    font-size:
+        11px;
+
+    font-weight:
+        600;
+}
+
+.pending-summary-status {
+    padding:
+        5px
+        9px;
+
+    border-radius:
+        999px;
+
+    border:
+        1px solid
+        transparent;
+
+    font-size:
+        12px !important;
+
+    direction:
+        rtl !important;
+
+    unicode-bidi:
+        normal !important;
+}
+
+.pending-summary-status.status-under-action {
+    color:
+        #475569;
+
+    background:
+        rgba(
+            100,
+            116,
+            139,
+            0.12
+        );
+
+    border-color:
+        rgba(
+            100,
+            116,
+            139,
+            0.24
+        );
+}
+
+.pending-summary-status.status-partial {
+    color:
+        #b45309;
+
+    background:
+        rgba(
+            245,
+            158,
+            11,
+            0.12
+        );
+
+    border-color:
+        rgba(
+            245,
+            158,
+            11,
+            0.25
+        );
+}
+
+.pending-summary-status.status-complete {
+    color:
+        #15803d;
+
+    background:
+        rgba(
+            22,
+            163,
+            74,
+            0.11
+        );
+
+    border-color:
+        rgba(
+            22,
+            163,
+            74,
+            0.24
+        );
+}
+
+.pending-summary-status.status-invalid {
+    color:
+        #b91c1c;
+
+    background:
+        rgba(
+            220,
+            38,
+            38,
+            0.09
+        );
+
+    border-color:
+        rgba(
+            220,
+            38,
+            38,
+            0.22
+        );
+}
+
+
+/* ============================================================
+   General fields
+   ============================================================ */
+
+.archive-pending-operation-dialog
+input[data-fieldname="card_number"],
+.archive-pending-operation-dialog
+input[data-fieldname="machine_no"],
+.archive-pending-operation-dialog
+input[data-fieldname="branch_no"] {
+    direction:
+        ltr;
+
+    unicode-bidi:
+        isolate;
+
+    text-align:
+        left;
+}
+
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (
+    max-width:
+    900px
+) {
+    .pending-create-summary-grid {
+        grid-template-columns:
+            repeat(
+                2,
+                minmax(
+                    0,
+                    1fr
+                )
+            );
+    }
+}
+
+@media (
+    max-width:
+    600px
+) {
+    .archive-pending-operation-dialog
+    .modal-dialog {
+        width:
+            calc(
+                100vw - 16px
+            ) !important;
+
+        margin:
+            8px auto;
+    }
+
+    .pending-ledger-toolbar {
+        align-items:
+            stretch;
+
+        flex-direction:
+            column;
+    }
+
+    .pending-ledger-add-row {
+        width:
+            100%;
+    }
+
+    .pending-create-summary-grid {
+        grid-template-columns:
+            1fr;
+    }
+}

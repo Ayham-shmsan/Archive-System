@@ -1,0 +1,49 @@
+{
+  "actions": [],
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "file_id",
+    "file",
+    "file_name"
+  ],
+  "fields": [
+    {
+      "fieldname": "file_id",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "معرف الملف",
+      "options": "File",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "file",
+      "fieldtype": "Attach",
+      "in_list_view": 1,
+      "label": "الملف",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "file_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "اسم الملف",
+      "read_only": 1,
+      "reqd": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "istable": 1,
+  "links": [],
+  "modified": "2026-09-24 23:30:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Pending Attachment",
+  "owner": "Administrator",
+  "permissions": [],
+  "row_format": "Dynamic",
+  "states": []
+}

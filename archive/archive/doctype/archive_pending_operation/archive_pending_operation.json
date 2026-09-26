@@ -1,0 +1,281 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "PEND-.#####",
+  "creation": "2026-09-24 23:30:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "operation_section",
+    "serial_no",
+    "card_name",
+    "card_number",
+    "column_break_operation_1",
+    "operation_datetime",
+    "card_owner",
+    "currency",
+    "location_section",
+    "bank",
+    "region",
+    "machine_location",
+    "column_break_location_1",
+    "machine_no",
+    "branch_no",
+    "representative",
+    "ledger_section",
+    "ledger_entries",
+    "summary_section",
+    "total_suspended",
+    "total_returned",
+    "column_break_summary_1",
+    "remaining_amount",
+    "status",
+    "attachments_section",
+    "attachments",
+    "notes_section",
+    "notes",
+    "system_section",
+    "search_text"
+  ],
+  "fields": [
+    {
+      "fieldname": "operation_section",
+      "fieldtype": "Section Break",
+      "label": "بيانات البطاقة والعملية"
+    },
+    {
+      "fieldname": "serial_no",
+      "fieldtype": "Int",
+      "in_list_view": 1,
+      "label": "الرقم التسلسلي",
+      "read_only": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "card_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "اسم البطاقة",
+      "reqd": 1
+    },
+    {
+      "fieldname": "card_number",
+      "fieldtype": "Data",
+      "in_standard_filter": 1,
+      "label": "رقم البطاقة",
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_operation_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "operation_datetime",
+      "fieldtype": "Datetime",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "تاريخ ووقت العملية",
+      "reqd": 1
+    },
+    {
+      "fieldname": "card_owner",
+      "fieldtype": "Link",
+      "in_standard_filter": 1,
+      "label": "مالك البطاقة",
+      "options": "Archive Card Owner",
+      "reqd": 1
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "العملة",
+      "options": "Currency",
+      "reqd": 1,
+      "set_only_once": 1
+    },
+    {
+      "fieldname": "location_section",
+      "fieldtype": "Section Break",
+      "label": "بيانات البنك والمنطقة والمكينة والفرع والمندوب"
+    },
+    {
+      "fieldname": "bank",
+      "fieldtype": "Link",
+      "in_standard_filter": 1,
+      "label": "البنك",
+      "options": "Archive Bank",
+      "reqd": 1
+    },
+    {
+      "fieldname": "region",
+      "fieldtype": "Link",
+      "in_standard_filter": 1,
+      "label": "المنطقة",
+      "options": "Archive Region",
+      "reqd": 1
+    },
+    {
+      "fieldname": "machine_location",
+      "fieldtype": "Data",
+      "in_standard_filter": 1,
+      "label": "موقع المكينة",
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_location_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "machine_no",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "رقم المكينة",
+      "reqd": 1
+    },
+    {
+      "fieldname": "branch_no",
+      "fieldtype": "Data",
+      "in_standard_filter": 1,
+      "label": "رقم الفرع",
+      "reqd": 1
+    },
+    {
+      "fieldname": "representative",
+      "fieldtype": "Link",
+      "in_standard_filter": 1,
+      "label": "اسم المندوب",
+      "options": "Archive Representative",
+      "reqd": 1
+    },
+    {
+      "fieldname": "ledger_section",
+      "fieldtype": "Section Break",
+      "label": "جدول حركة المبلغ"
+    },
+    {
+      "fieldname": "ledger_entries",
+      "fieldtype": "Table",
+      "label": "حركات المبلغ",
+      "options": "Archive Pending Ledger Entry",
+      "reqd": 1
+    },
+    {
+      "fieldname": "summary_section",
+      "fieldtype": "Section Break",
+      "label": "ملخص العملية"
+    },
+    {
+      "default": "0",
+      "fieldname": "total_suspended",
+      "fieldtype": "Currency",
+      "in_list_view": 1,
+      "label": "إجمالي المبلغ المعلق",
+      "non_negative": 1,
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "total_returned",
+      "fieldtype": "Currency",
+      "label": "إجمالي المرتجع",
+      "non_negative": 1,
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_summary_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "0",
+      "fieldname": "remaining_amount",
+      "fieldtype": "Currency",
+      "in_list_view": 1,
+      "label": "المبلغ المتبقي",
+      "non_negative": 1,
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "default": "تحت الإجراء",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "الحالة",
+      "options": "تحت الإجراء\nمرتجعة غير مكتملة\nمرتجعة مكتملة",
+      "read_only": 1
+    },
+    {
+      "fieldname": "attachments_section",
+      "fieldtype": "Section Break",
+      "label": "مرفقات العملية"
+    },
+    {
+      "fieldname": "attachments",
+      "fieldtype": "Table",
+      "label": "المرفقات",
+      "options": "Archive Pending Attachment"
+    },
+    {
+      "fieldname": "notes_section",
+      "fieldtype": "Section Break",
+      "label": "ملاحظات العملية"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "ملاحظات"
+    },
+    {
+      "fieldname": "system_section",
+      "fieldtype": "Section Break",
+      "hidden": 1,
+      "label": "بيانات النظام"
+    },
+    {
+      "fieldname": "search_text",
+      "fieldtype": "Long Text",
+      "hidden": 1,
+      "label": "Search Text",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-09-25 03:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Pending Operation",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "add_pending_return": 1,
+      "correct_pending_ledger": 1,
+      "create": 1,
+      "create_pending_operation": 1,
+      "edit_all_pending_operations": 1,
+      "edit_own_pending_operations": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "view_all_pending_operations": 1,
+      "view_own_pending_operations": 1,
+      "write": 1
+    }
+  ],
+  "row_format": "Dynamic",
+  "search_fields": "card_name,card_number,machine_no",
+  "sort_field": "operation_datetime",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
+}

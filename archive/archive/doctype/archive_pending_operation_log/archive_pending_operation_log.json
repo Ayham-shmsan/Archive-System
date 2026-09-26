@@ -1,0 +1,118 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "hash",
+  "creation": "2026-09-24 23:30:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "pending_operation",
+    "event_type",
+    "event_title",
+    "event_datetime",
+    "event_user",
+    "event_source",
+    "effective_datetime",
+    "remarks",
+    "details_json"
+  ],
+  "fields": [
+    {
+      "fieldname": "pending_operation",
+      "fieldtype": "Link",
+      "label": "العملية المعلقة",
+      "options": "Archive Pending Operation",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "event_type",
+      "fieldtype": "Select",
+      "label": "نوع الحدث",
+      "options": "created\nmanual_edit\nreturn_added\nledger_corrected\nstatus_change\nattachment_added\nattachment_deleted",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "event_title",
+      "fieldtype": "Data",
+      "label": "عنوان الحدث",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "event_datetime",
+      "fieldtype": "Datetime",
+      "label": "تاريخ ووقت الحدث في النظام",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "event_user",
+      "fieldtype": "Link",
+      "label": "المستخدم",
+      "options": "User",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "event_source",
+      "fieldtype": "Select",
+      "label": "مصدر الحدث",
+      "options": "User\nSystem",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "effective_datetime",
+      "fieldtype": "Datetime",
+      "label": "تاريخ ووقت الإجراء الفعلي",
+      "read_only": 1
+    },
+    {
+      "fieldname": "remarks",
+      "fieldtype": "Small Text",
+      "label": "الملاحظات",
+      "read_only": 1
+    },
+    {
+      "fieldname": "details_json",
+      "fieldtype": "Long Text",
+      "label": "تفاصيل الحدث",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-09-24 23:30:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Pending Operation Log",
+  "owner": "Administrator",
+  "permissions": [
+    {
+        "add_pending_return": 1,
+        "correct_pending_ledger": 1,
+        "create": 1,
+        "create_pending_operation": 1,
+        "edit_all_pending_operations": 1,
+        "edit_own_pending_operations": 1,
+        "email": 1,
+        "export": 1,
+        "print": 1,
+        "read": 1,
+        "report": 1,
+        "role": "System Manager",
+        "view_all_pending_operations": 1,
+        "view_own_pending_operations": 1,
+        "write": 1
+    }
+    ],
+  "sort_field": "event_datetime",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}

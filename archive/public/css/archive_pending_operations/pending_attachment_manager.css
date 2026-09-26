@@ -1,0 +1,201 @@
+.pending-attachment-manager {
+    width: 100%;
+}
+
+.pending-attachment-dropzone {
+    display: flex;
+
+    min-height: 118px;
+
+    align-items: center;
+    justify-content: center;
+
+    flex-direction: column;
+
+    gap: 5px;
+
+    padding: 18px;
+
+    border:
+        1.5px dashed
+        var(--border-color);
+
+    border-radius: 10px;
+
+    background:
+        var(--subtle-fg);
+
+    cursor: pointer;
+
+    text-align: center;
+
+    transition:
+        border-color 150ms ease,
+        background-color 150ms ease;
+}
+
+.pending-attachment-dropzone:hover,
+.pending-attachment-dropzone.is-dragging {
+    border-color:
+        var(--primary);
+
+    background:
+        rgba(
+            59,
+            130,
+            246,
+            0.055
+        );
+}
+
+.pending-attachment-dropzone.is-disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+.pending-attachment-drop-icon {
+    display: flex;
+
+    width: 34px;
+    height: 34px;
+
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 9px;
+
+    background:
+        var(--card-bg);
+
+    font-size: 19px;
+}
+
+.pending-attachment-dropzone strong {
+    font-size: 12px;
+}
+
+.pending-attachment-dropzone span {
+    color:
+        var(--text-muted);
+
+    font-size: 10.5px;
+}
+
+.pending-attachment-list {
+    margin-top: 10px;
+}
+
+.pending-attachment-item {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 12px;
+
+    min-height: 55px;
+
+    padding: 9px 11px;
+
+    margin-bottom: 7px;
+
+    border:
+        1px solid
+        var(--border-color);
+
+    border-radius: 8px;
+
+    background:
+        var(--card-bg);
+}
+
+.pending-attachment-item.is-local {
+    background:
+        var(--subtle-fg);
+}
+
+.pending-attachment-item.has-error {
+    border-color:
+        rgba(
+            220,
+            38,
+            38,
+            0.35
+        );
+}
+
+.pending-attachment-file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.pending-attachment-file-info strong {
+    display: block;
+
+    overflow: hidden;
+
+    margin-bottom: 3px;
+
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    font-size: 12px;
+}
+
+.pending-attachment-file-info span {
+    color:
+        var(--text-muted);
+
+    font-size: 10px;
+}
+
+.pending-attachment-actions {
+    display: flex;
+
+    gap: 6px;
+
+    flex: 0 0 auto;
+}
+
+.pending-attachment-progress {
+    overflow: hidden;
+
+    width: 100%;
+    height: 4px;
+
+    margin-top: 6px;
+
+    border-radius: 999px;
+
+    background:
+        var(--border-color);
+}
+
+.pending-attachment-progress > div {
+    height: 100%;
+
+    border-radius: inherit;
+
+    background:
+        var(--primary);
+
+    transition:
+        width 120ms linear;
+}
+
+.pending-attachment-empty {
+    padding: 18px;
+
+    border:
+        1px dashed
+        var(--border-color);
+
+    border-radius: 8px;
+
+    color:
+        var(--text-muted);
+
+    text-align: center;
+
+    font-size: 11px;
+}

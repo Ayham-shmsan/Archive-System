@@ -193,7 +193,19 @@ app_include_js = [
 # has_permission = {
 # 	"Event": "frappe.desk.doctype.event.event.has_permission",
 # }
+# Permissions
+# -----------
+# Permissions evaluated in scripted ways
 
+permission_query_conditions = {
+    "Archive Pending Operation":
+        "archive.services.pending_operation_permissions.get_permission_query_conditions",
+}
+
+has_permission = {
+    "Archive Pending Operation":
+        "archive.services.pending_operation_permissions.has_permission",
+}
 # Document Events
 # ---------------
 # Hook on document methods and events

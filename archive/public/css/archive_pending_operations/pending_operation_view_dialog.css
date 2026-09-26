@@ -1,0 +1,189 @@
+.archive-pending-operation-view-dialog .modal-dialog {
+    width: min(1180px, calc(100vw - 32px)) !important;
+    max-width: 1180px !important;
+}
+
+.archive-pending-operation-view-dialog .modal-body {
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+}
+
+.pending-view-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--subtle-fg);
+}
+
+.pending-view-operation-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pending-view-operation-identity > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pending-view-operation-identity span {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.pending-view-action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.pending-view-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.pending-view-summary-card {
+    min-height: 86px;
+    padding: 13px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--card-bg);
+}
+
+.pending-view-summary-card > span {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.pending-view-summary-card > strong {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.pending-view-summary-card > small {
+    margin-inline-start: 5px;
+    color: var(--text-muted);
+}
+
+.pending-view-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 9px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 11px !important;
+    font-weight: 650;
+}
+
+.pending-view-status.status-under-action {
+    color: #475569;
+    background: rgba(100, 116, 139, 0.12);
+    border-color: rgba(100, 116, 139, 0.24);
+}
+
+.pending-view-status.status-partial {
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.25);
+}
+
+.pending-view-status.status-complete {
+    color: #15803d;
+    background: rgba(22, 163, 74, 0.11);
+    border-color: rgba(22, 163, 74, 0.24);
+}
+
+.pending-view-ledger-scroll {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+}
+
+.pending-view-ledger-table {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+}
+
+.pending-view-ledger-table th,
+.pending-view-ledger-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: right;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.pending-view-ledger-table th {
+    color: var(--text-muted);
+    background: var(--subtle-fg);
+    font-size: 11px;
+}
+
+.pending-view-ledger-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.pending-view-empty {
+    padding: 20px;
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    color: var(--text-muted);
+    text-align: center;
+    font-size: 12px;
+}
+
+.pending-view-attachment {
+    padding: 9px 10px;
+    margin-bottom: 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    background: var(--subtle-fg);
+}
+
+.archive-pending-operation-view-dialog
+input[data-fieldname="card_number"],
+.archive-pending-operation-view-dialog
+input[data-fieldname="machine_no"],
+.archive-pending-operation-view-dialog
+input[data-fieldname="branch_no"] {
+    direction: ltr;
+    text-align: left;
+}
+
+.archive-pending-row {
+    cursor: pointer;
+}
+
+.archive-pending-row:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+@media (max-width: 900px) {
+    .pending-view-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .pending-view-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pending-view-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}

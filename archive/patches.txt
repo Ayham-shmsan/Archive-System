@@ -10,3 +10,5 @@
 # (Custom Field, Property Setter, etc) are synced
 #archive.patches.backfill_operation_number_identity
 #archive.patches.v1_0.fix_operation_serial_sequence
+archive.patches.v1_0.backfill_pending_operation_search_text
+archive.patches.v1_0.setup_pending_operation_roles

@@ -1,0 +1,50 @@
+.pending-smart-autocomplete-menu {
+    max-height: 260px;
+
+    overflow-y: auto;
+
+    padding: 5px;
+
+    border: 1px solid var(--border-color);
+
+    border-radius: 8px;
+
+    background: var(--card-bg);
+
+    box-shadow:
+        0 10px 28px
+        rgba(0, 0, 0, 0.16);
+}
+
+.pending-smart-autocomplete-item {
+    display: block;
+
+    width: 100%;
+
+    padding: 8px 10px;
+
+    border: 0;
+
+    border-radius: 6px;
+
+    background: transparent;
+
+    color: var(--text-color);
+
+    text-align: right;
+
+    font-size: 12px;
+
+    line-height: 1.5;
+
+    cursor: pointer;
+}
+
+.pending-smart-autocomplete-item:hover,
+.pending-smart-autocomplete-item.is-active {
+    background: var(--subtle-fg);
+}
+
+.pending-smart-autocomplete-item:focus {
+    outline: none;
+}
