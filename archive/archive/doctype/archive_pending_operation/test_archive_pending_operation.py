@@ -1012,6 +1012,39 @@ class TestArchivePendingOperation(
             ],
             "مرتجعة مكتملة",
         )
+        with self.assertRaises(
+            frappe.ValidationError
+        ):
+            mark_pending_operation_failed(
+                name,
+                {
+                    "note":
+                        "SHOULD NOT BE ALLOWED",
+                },
+            )
+
+        completed_doc = (
+            get_pending_operation_details(
+                name
+            )
+        )
+
+        self.assertEqual(
+            completed_doc[
+                "operation"
+            ][
+                "status"
+            ],
+            "مرتجعة مكتملة",
+        )
+
+        self.assertFalse(
+            completed_doc[
+                "operation"
+            ][
+                "is_failed"
+            ]
+        )
 
         with self.assertRaises(
             frappe.ValidationError

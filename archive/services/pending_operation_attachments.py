@@ -4,7 +4,10 @@ from typing import Any, Iterable
 
 import frappe
 from frappe import _
-from frappe.utils import cstr
+from frappe.utils import (
+    cint,
+    cstr,
+)
 
 from archive.services.pending_operation_permissions import (
     _require_edit_pending_operation,
@@ -19,7 +22,21 @@ PENDING_ATTACHMENT_DOCTYPE = (
     "Archive Pending Attachment"
 )
 
+def _require_pending_attachment_operation_open(
+    doc,
+) -> None:
+    if not cint(
+        doc.is_closed
+    ):
+        return
 
+    frappe.throw(
+        _(
+            "هذه العملية منتهية. "
+            "ألغِ الإنهاء أولًا قبل تعديل المرفقات."
+        ),
+        frappe.ValidationError,
+    )
 def stage_pending_attachment_file(
     *,
     filename: str,
@@ -117,6 +134,10 @@ def add_uploaded_pending_attachment(
         doc
     )
 
+    _require_pending_attachment_operation_open(
+        doc
+    )
+
     file_doc = frappe.get_doc(
         {
             "doctype":
@@ -204,6 +225,9 @@ def delete_pending_attachment(
     )
 
     _require_edit_pending_operation(
+        doc
+    )
+    _require_pending_attachment_operation_open(
         doc
     )
 

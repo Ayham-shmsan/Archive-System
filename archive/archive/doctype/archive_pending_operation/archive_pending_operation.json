@@ -49,6 +49,9 @@
   "failed_at",
   "failed_by",
   "failed_note",
+  "is_closed",
+"closed_at",
+"closed_by",
   "search_text"
 ],
   "fields": [
@@ -309,6 +312,29 @@
   "label": "ملاحظة المعلقة الفاشلة",
   "no_copy": 1,
   "read_only": 1
+},
+{
+    "default": "0",
+    "fieldname": "is_closed",
+    "fieldtype": "Check",
+    "hidden": 1,
+    "label": "منتهية",
+    "read_only": 1
+},
+{
+    "fieldname": "closed_at",
+    "fieldtype": "Datetime",
+    "hidden": 1,
+    "label": "وقت إنهاء العملية",
+    "read_only": 1
+},
+{
+    "fieldname": "closed_by",
+    "fieldtype": "Link",
+    "hidden": 1,
+    "label": "تم إنهاؤها بواسطة",
+    "options": "User",
+    "read_only": 1
 }
   ],
   "index_web_pages_for_search": 0,

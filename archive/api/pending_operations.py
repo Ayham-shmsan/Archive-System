@@ -9,6 +9,9 @@ from frappe.utils import (
     cstr,
     now_datetime,
 )
+from archive.archive.doctype.archive_pending_operation.archive_pending_operation import (
+    authorize_pending_closure_transition,
+)
 from archive.services.pending_operation_attachments import (
     serialize_pending_attachments,
 )
@@ -51,6 +54,468 @@ PENDING_DOCTYPE = (
     "Archive Pending Operation"
 )
 
+_CLOSURE_NOTE_LABEL = (
+    "ملاحظة إنهاء العملية:"
+)
+
+
+def _require_pending_operation_open(
+    doc,
+) -> None:
+    if not cint(
+        doc.is_closed
+    ):
+        return
+
+    frappe.throw(
+        _(
+            "هذه العملية منتهية. "
+            "ألغِ الإنهاء أولًا قبل تنفيذ أي تعديل عليها."
+        ),
+        frappe.ValidationError,
+    )
+
+
+def _validate_pending_transition_token(
+    doc,
+    expected_modified,
+) -> None:
+    expected_modified = cstr(
+        expected_modified
+    ).strip()
+
+    if not expected_modified:
+        frappe.throw(
+            _(
+                "تعذر التحقق من نسخة العملية الحالية. "
+                "حدّث الصفحة وحاول مرة أخرى."
+            ),
+            frappe.ValidationError,
+        )
+
+    if (
+        cstr(
+            doc.modified
+        )
+        != expected_modified
+    ):
+        frappe.throw(
+            _(
+                "تم تعديل العملية من جلسة أخرى. "
+                "حدّث الصفحة وحاول مرة أخرى."
+            ),
+            frappe.ValidationError,
+        )
+
+
+def _compose_closure_notes(
+    notes_before: str,
+    closure_note: str,
+) -> str:
+    notes_before = cstr(
+        notes_before
+    ).strip()
+
+    closure_note = cstr(
+        closure_note
+    ).strip()
+
+    closure_block = (
+        f"{_CLOSURE_NOTE_LABEL}\n"
+        f"{closure_note}"
+    )
+
+    if not notes_before:
+        return closure_block
+
+    return (
+        f"{notes_before}\n\n"
+        f"{closure_block}"
+    )
+
+
+def _get_latest_closure_log(
+    operation_name: str,
+) -> frappe._dict | None:
+    rows = frappe.get_all(
+        "Archive Pending Operation Log",
+
+        filters={
+            "pending_operation":
+                operation_name,
+
+            "event_type":
+                "operation_closed",
+        },
+
+        fields=[
+            "name",
+            "event_datetime",
+            "event_user",
+            "details_json",
+        ],
+
+        order_by=
+            "event_datetime desc, creation desc",
+
+        limit=1,
+    )
+
+    if not rows:
+        return None
+
+    return frappe._dict(
+        rows[0]
+    )
+
+@frappe.whitelist(
+    methods=["POST"]
+)
+def close_pending_operation(
+    name: str,
+    payload: str | dict[str, Any],
+    expected_modified: Any = None,
+) -> dict[str, Any]:
+    name = cstr(
+        name
+    ).strip()
+
+    if not name:
+        frappe.throw(
+            _("اسم العملية المعلقة مطلوب."),
+            frappe.ValidationError,
+        )
+
+    data = _parse_dict_payload(
+        payload,
+        context=_(
+            "بيانات إنهاء العملية"
+        ),
+    )
+
+    _reject_unknown_keys(
+        data,
+        {
+            "note",
+        },
+        context=_(
+            "بيانات إنهاء العملية"
+        ),
+    )
+
+    closure_note = cstr(
+        data.get(
+            "note"
+        )
+    ).strip()
+
+    if not closure_note:
+        frappe.throw(
+            _("ملاحظة إنهاء العملية مطلوبة."),
+            frappe.ValidationError,
+        )
+
+    if len(
+        closure_note
+    ) > 2000:
+        frappe.throw(
+            _(
+                "ملاحظة إنهاء العملية طويلة جدًا. "
+                "الحد الأقصى 2000 حرف."
+            ),
+            frappe.ValidationError,
+        )
+
+    doc = frappe.get_doc(
+        PENDING_DOCTYPE,
+        name,
+        for_update=True,
+    )
+
+    _require_edit_pending_operation(
+        doc
+    )
+
+    _validate_pending_transition_token(
+        doc,
+        expected_modified,
+    )
+
+    if cint(
+        doc.is_closed
+    ):
+        frappe.throw(
+            _("العملية منتهية بالفعل."),
+            frappe.ValidationError,
+        )
+
+    if (
+        cstr(
+            doc.status
+        ).strip()
+        == "مرتجعة مكتملة"
+    ):
+        frappe.throw(
+            _(
+                "العملية مرتجعة مكتملة، "
+                "ولا تحتاج إلى إنهاء يدوي."
+            ),
+            frappe.ValidationError,
+        )
+
+    notes_before = cstr(
+        doc.notes
+        or ""
+    )
+
+    notes_after = (
+        _compose_closure_notes(
+            notes_before,
+            closure_note,
+        )
+    )
+
+    closed_at = (
+        now_datetime()
+    )
+
+    closed_by = (
+        frappe.session.user
+    )
+
+    doc.notes = (
+        notes_after
+    )
+
+    doc.is_closed = 1
+
+    doc.closed_at = (
+        closed_at
+    )
+
+    doc.closed_by = (
+        closed_by
+    )
+
+    authorize_pending_closure_transition(
+        doc
+    )
+
+    doc.save(
+        ignore_permissions=True
+    )
+
+    create_pending_operation_log(
+        operation_name=
+            doc.name,
+
+        event_type=
+            "operation_closed",
+
+        event_title=
+            "إنهاء العملية",
+
+        event_source=
+            "User",
+
+        remarks=
+            closure_note,
+
+        details={
+            "closure_note":
+                closure_note,
+
+            "notes_before":
+                notes_before,
+
+            "notes_after":
+                notes_after,
+
+            "status":
+                doc.status,
+
+            "remaining_amount":
+                doc.remaining_amount,
+
+            "closed_at":
+                closed_at,
+
+            "closed_by":
+                closed_by,
+        },
+    )
+
+    return _build_pending_operation_details(
+        doc
+    )
+
+@frappe.whitelist(
+    methods=["POST"]
+)
+def reopen_pending_operation(
+    name: str,
+    expected_modified: Any = None,
+) -> dict[str, Any]:
+    name = cstr(
+        name
+    ).strip()
+
+    if not name:
+        frappe.throw(
+            _("اسم العملية المعلقة مطلوب."),
+            frappe.ValidationError,
+        )
+
+    doc = frappe.get_doc(
+        PENDING_DOCTYPE,
+        name,
+        for_update=True,
+    )
+
+    _require_edit_pending_operation(
+        doc
+    )
+
+    _validate_pending_transition_token(
+        doc,
+        expected_modified,
+    )
+
+    if not cint(
+        doc.is_closed
+    ):
+        frappe.throw(
+            _("العملية ليست منتهية."),
+            frappe.ValidationError,
+        )
+
+    closure_log = (
+        _get_latest_closure_log(
+            doc.name
+        )
+    )
+
+    if not closure_log:
+        frappe.throw(
+            _(
+                "تعذر العثور على سجل إنهاء العملية. "
+                "لن يتم إلغاء الإنهاء حتى لا تضيع الملاحظات."
+            ),
+            frappe.ValidationError,
+        )
+
+    details = (
+        frappe.parse_json(
+            closure_log.details_json
+            or "{}"
+        )
+        or {}
+    )
+
+    notes_before = cstr(
+        details.get(
+            "notes_before"
+        )
+        or ""
+    )
+
+    notes_after = cstr(
+        details.get(
+            "notes_after"
+        )
+        or ""
+    )
+
+    current_notes = cstr(
+        doc.notes
+        or ""
+    )
+
+    if (
+        current_notes
+        != notes_after
+    ):
+        frappe.throw(
+            _(
+                "تعذر إلغاء الإنهاء بأمان لأن "
+                "ملاحظات العملية تغيرت بعد الإنهاء."
+            ),
+            frappe.ValidationError,
+        )
+
+    previous_closed_at = (
+        doc.closed_at
+    )
+
+    previous_closed_by = (
+        doc.closed_by
+    )
+
+    closure_note = cstr(
+        details.get(
+            "closure_note"
+        )
+        or ""
+    )
+
+    doc.notes = (
+        notes_before
+    )
+
+    doc.is_closed = 0
+
+    doc.closed_at = None
+
+    doc.closed_by = None
+
+    authorize_pending_closure_transition(
+        doc
+    )
+
+    doc.save(
+        ignore_permissions=True
+    )
+
+    create_pending_operation_log(
+        operation_name=
+            doc.name,
+
+        event_type=
+            "operation_reopened",
+
+        event_title=
+            "إلغاء إنهاء العملية",
+
+        event_source=
+            "User",
+
+        details={
+            "closure_log":
+                closure_log.name,
+
+            "removed_closure_note":
+                closure_note,
+
+            "restored_notes":
+                notes_before,
+
+            "previous_closed_at":
+                previous_closed_at,
+
+            "previous_closed_by":
+                previous_closed_by,
+
+            "status":
+                doc.status,
+
+            "remaining_amount":
+                doc.remaining_amount,
+        },
+    )
+
+    return _build_pending_operation_details(
+        doc
+    )
 @frappe.whitelist(
     methods=["GET"]
 )
@@ -395,6 +860,9 @@ def update_pending_operation(
     )
 
     _require_view_pending_operation(
+        doc
+    )
+    _require_pending_operation_open(
         doc
     )
 
@@ -976,6 +1444,9 @@ def add_pending_return(
     _require_add_pending_return(
         doc
     )
+    _require_pending_operation_open(
+        doc
+    )
 
     if cint(
         doc.is_failed
@@ -1232,6 +1703,7 @@ def mark_pending_operation_failed(
             frappe.ValidationError,
         )
 
+
     doc = frappe.get_doc(
         PENDING_DOCTYPE,
         name,
@@ -1242,6 +1714,9 @@ def mark_pending_operation_failed(
         doc
     )
 
+    _require_pending_operation_open(
+        doc
+    )
     if cint(
         doc.is_failed
     ):
@@ -1268,6 +1743,14 @@ def mark_pending_operation_failed(
         doc
     )
 
+    if (
+        doc.status
+        == "مرتجعة مكتملة"
+    ):
+        frappe.throw(
+            "لا يمكن تنفيذ إجراء على عملية مرتجعة مكتملة.",
+            frappe.ValidationError,
+        )
     doc.is_failed = 1
 
     doc.failed_at = (
@@ -1785,11 +2268,79 @@ def _build_pending_operation_details(
 ) -> dict[str, Any]:
     user = frappe.session.user
 
+    # permissions = (
+    #     get_pending_record_permissions(
+    #         doc,
+    #         user=user,
+    #     )
+    # )
+
+    # remaining = float(
+    #     doc.remaining_amount
+    #     or 0
+    # )
+
+    # is_failed = bool(
+    #         cint(
+    #             doc.is_failed
+    #         )
+    #     )
+
+
+    # permissions = dict(
+    #     permissions
+    # )
+    # permissions[
+    #     "can_manage_attachments"
+    # ] = bool(
+    #     permissions.get(
+    #         "can_edit"
+    #     )
+    # )
+    # # Capability فعلي لهذه اللحظة،
+    # # وليس Permission Type فقط.
+    # permissions[
+    #         "can_add_return"
+    #     ] = bool(
+    #         permissions.get(
+    #             "can_add_return"
+    #         )
+    #         and
+    #         remaining > 0
+    #         and
+    #         not is_failed
+    #     )
+
+    # permissions[
+    #     "can_mark_failed"
+    # ] = bool(
+    #     permissions.get(
+    #         "can_edit"
+    #     )
+    #     and
+    #     not is_failed
+    # )
+
+    # permissions[
+    #     "can_enter_edit_mode"
+    # ] = bool(
+    #     permissions.get(
+    #         "can_edit"
+    #     )
+    #     or
+    #     permissions.get(
+    #         "can_correct_ledger"
+    #     )
+    # )
     permissions = (
         get_pending_record_permissions(
             doc,
             user=user,
         )
+    )
+
+    permissions = dict(
+        permissions
     )
 
     remaining = float(
@@ -1798,57 +2349,157 @@ def _build_pending_operation_details(
     )
 
     is_failed = bool(
-            cint(
-                doc.is_failed
-            )
+        cint(
+            doc.is_failed
         )
-
-
-    permissions = dict(
-        permissions
     )
-    permissions[
-        "can_manage_attachments"
-    ] = bool(
+
+    is_closed = bool(
+        cint(
+            doc.is_closed
+        )
+    )
+
+    is_complete = (
+        cstr(
+            doc.status
+        ).strip()
+        == "مرتجعة مكتملة"
+    )
+
+    # ---------------------------------------------------------
+    # نحفظ الصلاحيات الأصلية قبل تجميد العملية المنتهية.
+    #
+    # مهم جدًا:
+    # can_reopen يجب أن يعتمد على صلاحية التعديل الأصلية،
+    # وليس can_edit بعد أن نجعلها False.
+    # ---------------------------------------------------------
+
+    base_can_edit = bool(
         permissions.get(
             "can_edit"
         )
     )
-    # Capability فعلي لهذه اللحظة،
-    # وليس Permission Type فقط.
-    permissions[
-            "can_add_return"
-        ] = bool(
-            permissions.get(
-                "can_add_return"
-            )
-            and
-            remaining > 0
-            and
-            not is_failed
+
+    base_can_correct_ledger = bool(
+        permissions.get(
+            "can_correct_ledger"
         )
+    )
+
+    base_can_add_return = bool(
+        permissions.get(
+            "can_add_return"
+        )
+    )
+
+
+    # ---------------------------------------------------------
+    # Lifecycle capabilities
+    # ---------------------------------------------------------
+
+    permissions[
+        "can_close"
+    ] = bool(
+        base_can_edit
+        and
+        not is_closed
+        and
+        not is_complete
+    )
+
+    permissions[
+        "can_reopen"
+    ] = bool(
+        base_can_edit
+        and
+        is_closed
+    )
+
+
+    # ---------------------------------------------------------
+    # Normal operation capabilities
+    # ---------------------------------------------------------
+
+    permissions[
+        "can_manage_attachments"
+    ] = bool(
+        base_can_edit
+        and
+        not is_closed
+    )
+
+    permissions[
+        "can_add_return"
+    ] = bool(
+        base_can_add_return
+        and
+        remaining > 0
+        and
+        not is_failed
+        and
+        not is_closed
+    )
 
     permissions[
         "can_mark_failed"
     ] = bool(
-        permissions.get(
-            "can_edit"
-        )
+        base_can_edit
         and
         not is_failed
+        and
+        not is_complete
+        and
+        not is_closed
     )
 
     permissions[
         "can_enter_edit_mode"
     ] = bool(
-        permissions.get(
-            "can_edit"
+        (
+            base_can_edit
+            or
+            base_can_correct_ledger
         )
-        or
-        permissions.get(
-            "can_correct_ledger"
-        )
+        and
+        not is_closed
     )
+
+
+    # ---------------------------------------------------------
+    # العملية المنتهية تصبح Read Only تشغيليًا.
+    #
+    # نحتفظ فقط:
+    # - can_view
+    # - can_reopen
+    #
+    # أما صلاحيات العمل عليها فتتعطل.
+    # ---------------------------------------------------------
+
+    if is_closed:
+        permissions[
+            "can_edit"
+        ] = False
+
+        permissions[
+            "can_correct_ledger"
+        ] = False
+
+        permissions[
+            "can_add_return"
+        ] = False
+
+        permissions[
+            "can_manage_attachments"
+        ] = False
+
+        permissions[
+            "can_mark_failed"
+        ] = False
+
+        permissions[
+            "can_enter_edit_mode"
+        ] = False
 
     operation = {
         "name":
@@ -1976,6 +2627,16 @@ def _build_pending_operation_details(
 
         "modified":
             doc.modified,
+        "is_closed":
+            cint(
+                doc.is_closed
+            ),
+
+        "closed_at":
+            doc.closed_at,
+
+        "closed_by":
+            doc.closed_by,
     }
 
     ledger_entries = [

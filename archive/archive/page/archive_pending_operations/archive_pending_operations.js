@@ -251,6 +251,31 @@ class ArchivePendingOperationsPage {
                         >
                             إجراء
                         </button>
+                        <button
+                            type="button"
+                            class="
+                                btn
+                                btn-default
+                                archive-pending-close-toggle
+                            "
+                            style="display: none;"
+                            disabled
+                        >
+                            <i
+                                class="
+                                    fa
+                                    fa-check-circle
+                                "
+                            ></i>
+
+                            <span
+                                class="
+                                    archive-pending-close-toggle-label
+                                "
+                            >
+                                إنهاء العملية
+                            </span>
+                        </button>
 
                         <button
                             type="button"
@@ -1874,6 +1899,15 @@ class ArchivePendingOperationsPage {
             this.get_status_class(
                 operation.status
             );
+        const is_closed =
+            this.is_operation_closed(
+                operation
+            );
+
+        const closed_class =
+            is_closed
+                ? "is-closed"
+                : "";
         const selected_class =
             this.state
                 .selected_operation_name
@@ -1886,6 +1920,7 @@ class ArchivePendingOperationsPage {
                 class="
                         archive-pending-row
                         ${status_class}
+                        ${closed_class}
                         ${selected_class}
                     "
                 data-name="${this.escape_value_attribute(
@@ -2024,17 +2059,41 @@ class ArchivePendingOperationsPage {
                     )}
                 </td>
 
-                <td>
-                    <span
+                <td
+                    class="
+                        archive-pending-status-cell
+                    "
+                >
+                    <div
                         class="
-                            archive-pending-status
-                            ${status_class}
+                            archive-pending-status-stack
                         "
                     >
-                        ${this.escape_value(
-                            operation.status
-                        )}
-                    </span>
+                        <span
+                            class="
+                                archive-pending-status
+                                ${status_class}
+                            "
+                        >
+                            ${this.escape_value(
+                                operation.status
+                            )}
+                        </span>
+
+                        ${
+                            is_closed
+                                ? `
+                                    <span
+                                        class="
+                                            archive-pending-closed-badge
+                                        "
+                                    >
+                                        منتهية
+                                    </span>
+                                `
+                                : ""
+                        }
+                    </div>
                 </td>
 
             </tr>
@@ -2149,14 +2208,97 @@ class ArchivePendingOperationsPage {
     }
 
 
-    can_mark_operation_failed(
+    // can_mark_operation_failed(
+    //     operation
+    // ) {
+    //     if (
+    //         !operation
+    //         ||
+    //         operation.is_failed
+    //     ) {
+    //         return false;
+    //     }
+
+    //     if (
+    //         this.capabilities
+    //             ?.can_edit_all
+    //     ) {
+    //         return true;
+    //     }
+
+    //     return Boolean(
+    //         this.capabilities
+    //             ?.can_edit_own
+    //         &&
+    //         operation.owner
+    //             === frappe.session.user
+    //     );
+    // }
+    // can_mark_operation_failed(
+    //         operation
+    //     ) {
+    //         if (
+    //             !operation
+    //             ||
+    //             operation.is_failed
+    //             ||
+    //             operation.status
+    //                 === "مرتجعة مكتملة"
+    //         ) {
+    //             return false;
+    //         }
+
+    //         if (
+    //             this.capabilities
+    //                 ?.can_edit_all
+    //         ) {
+    //             return true;
+    //         }
+
+    //         return Boolean(
+    //             this.capabilities
+    //                 ?.can_edit_own
+    //             &&
+    //             operation.owner
+    //                 === frappe.session.user
+    //         );
+    //     }
+    is_operation_closed(
         operation
     ) {
-        if (
-            !operation
+        return (
+            Number(
+                operation
+                    ?.is_closed
+                || 0
+            )
+            === 1
+        );
+    }
+
+
+    is_operation_failed(
+        operation
+    ) {
+        return (
+            Number(
+                operation
+                    ?.is_failed
+                || 0
+            )
+            === 1
             ||
-            operation.is_failed
-        ) {
+            operation
+                ?.status
+            === "معلقة فاشلة"
+        );
+    }
+
+
+    can_edit_operation(
+        operation
+    ) {
+        if (!operation) {
             return false;
         }
 
@@ -2177,6 +2319,118 @@ class ArchivePendingOperationsPage {
     }
 
 
+    can_close_operation(
+        operation
+    ) {
+        if (
+            !operation
+            ||
+            this.is_operation_closed(
+                operation
+            )
+            ||
+            operation.status
+                === "مرتجعة مكتملة"
+        ) {
+            return false;
+        }
+
+        return this.can_edit_operation(
+            operation
+        );
+    }
+
+
+    can_reopen_operation(
+        operation
+    ) {
+        if (
+            !operation
+            ||
+            !this.is_operation_closed(
+                operation
+            )
+        ) {
+            return false;
+        }
+
+        return this.can_edit_operation(
+            operation
+        );
+    }
+
+
+    can_mark_operation_failed(
+        operation
+    ) {
+        if (
+            !operation
+            ||
+            this.is_operation_failed(
+                operation
+            )
+            ||
+            this.is_operation_closed(
+                operation
+            )
+            ||
+            operation.status
+                === "مرتجعة مكتملة"
+        ) {
+            return false;
+        }
+
+        return this.can_edit_operation(
+            operation
+        );
+    }
+
+
+    // update_selected_actions() {
+    //     const selected =
+    //         this.get_selected_operation();
+
+    //     const has_selected =
+    //         Boolean(
+    //             selected
+    //             &&
+    //             !this.is_loading
+    //         );
+
+    //     $(this.wrapper)
+    //         .find(
+    //             ".archive-pending-selected-view"
+    //         )
+    //         .prop(
+    //             "disabled",
+    //             !has_selected
+    //         );
+
+    //     $(this.wrapper)
+    //         .find(
+    //             ".archive-pending-timeline-button"
+    //         )
+    //         .prop(
+    //             "disabled",
+    //             !has_selected
+    //         );
+
+    //     $(this.wrapper)
+    //         .find(
+    //             ".archive-pending-selected-actions"
+    //         )
+    //         .prop(
+    //             "disabled",
+    //             (
+    //                 this.is_loading
+    //                 ||
+    //                 !this
+    //                     .can_mark_operation_failed(
+    //                         selected
+    //                     )
+    //             )
+    //         );
+    // }
     update_selected_actions() {
         const selected =
             this.get_selected_operation();
@@ -2188,6 +2442,32 @@ class ArchivePendingOperationsPage {
                 !this.is_loading
             );
 
+        const is_closed =
+            has_selected
+            &&
+            this.is_operation_closed(
+                selected
+            );
+
+        const can_close =
+            has_selected
+            &&
+            this.can_close_operation(
+                selected
+            );
+
+        const can_reopen =
+            has_selected
+            &&
+            this.can_reopen_operation(
+                selected
+            );
+
+
+        // ---------------------------------------------------------
+        // عرض
+        // ---------------------------------------------------------
+
         $(this.wrapper)
             .find(
                 ".archive-pending-selected-view"
@@ -2197,6 +2477,11 @@ class ArchivePendingOperationsPage {
                 !has_selected
             );
 
+
+        // ---------------------------------------------------------
+        // Timeline
+        // ---------------------------------------------------------
+
         $(this.wrapper)
             .find(
                 ".archive-pending-timeline-button"
@@ -2205,6 +2490,11 @@ class ArchivePendingOperationsPage {
                 "disabled",
                 !has_selected
             );
+
+
+        // ---------------------------------------------------------
+        // إجراء → معلقة فاشلة
+        // ---------------------------------------------------------
 
         $(this.wrapper)
             .find(
@@ -2220,6 +2510,64 @@ class ArchivePendingOperationsPage {
                             selected
                         )
                 )
+            );
+
+
+        // ---------------------------------------------------------
+        // إنهاء / إلغاء الإنهاء
+        // ---------------------------------------------------------
+
+        const $closure_button =
+            $(this.wrapper)
+                .find(
+                    ".archive-pending-close-toggle"
+                );
+
+        const show_closure_button =
+            Boolean(
+                can_close
+                ||
+                can_reopen
+            );
+
+        $closure_button
+            .toggle(
+                show_closure_button
+            )
+            .prop(
+                "disabled",
+                (
+                    this.is_loading
+                    ||
+                    !show_closure_button
+                )
+            )
+            .toggleClass(
+                "is-reopen",
+                Boolean(
+                    is_closed
+                )
+            );
+
+        $closure_button
+            .find(
+                ".archive-pending-close-toggle-label"
+            )
+            .text(
+                is_closed
+                    ? "إلغاء الإنهاء"
+                    : "إنهاء العملية"
+            );
+
+        $closure_button
+            .find(
+                "i"
+            )
+            .attr(
+                "class",
+                is_closed
+                    ? "fa fa-undo"
+                    : "fa fa-check-circle"
             );
     }
 
@@ -2282,6 +2630,7 @@ class ArchivePendingOperationsPage {
         this.timeline_dialog
             .show();
     }
+
 
 
     open_selected_actions() {
@@ -2440,6 +2789,314 @@ class ArchivePendingOperationsPage {
         dialog.show();
     }
 
+    async open_selected_closure_action() {
+        const operation =
+            this.get_selected_operation();
+
+        if (!operation) {
+            frappe.show_alert({
+                message:
+                    "اختر عملية أولاً",
+
+                indicator:
+                    "orange",
+            });
+
+            return;
+        }
+
+        if (
+            this.is_operation_closed(
+                operation
+            )
+        ) {
+            await this
+                .open_reopen_operation_dialog(
+                    operation
+                );
+
+            return;
+        }
+
+        await this
+            .open_close_operation_dialog(
+                operation
+            );
+    }
+
+
+    async open_close_operation_dialog(
+        operation
+    ) {
+        if (
+            !this.can_close_operation(
+                operation
+            )
+        ) {
+            return;
+        }
+
+        const dialog =
+            new frappe.ui.Dialog({
+                title:
+                    `إنهاء العملية — ${operation.name}`,
+
+                fields: [
+
+                    {
+                        fieldname:
+                            "closure_info",
+
+                        fieldtype:
+                            "HTML",
+
+                        options:
+                            `
+                                <div
+                                    class="
+                                        archive-pending-close-dialog-info
+                                    "
+                                >
+                                    <div>
+                                        <span>
+                                            الحالة الحالية
+                                        </span>
+
+                                        <strong>
+                                            ${this.escape_value(
+                                                operation.status
+                                            )}
+                                        </strong>
+                                    </div>
+
+                                    <div>
+                                        <span>
+                                            المبلغ المتبقي
+                                        </span>
+
+                                        <strong>
+                                            ${this.format_amount(
+                                                operation.remaining_amount
+                                            )}
+                                            ر.س
+                                        </strong>
+                                    </div>
+                                </div>
+                            `,
+                    },
+
+                    {
+                        fieldname:
+                            "note",
+
+                        fieldtype:
+                            "Small Text",
+
+                        label:
+                            "ملاحظة إنهاء العملية",
+
+                        reqd:
+                            1,
+                    },
+                ],
+
+                primary_action_label:
+                    "إنهاء العملية",
+
+                primary_action:
+                    async () => {
+
+                        const values =
+                            dialog.get_values();
+
+                        if (!values) {
+                            return;
+                        }
+
+                        const note =
+                            String(
+                                values.note
+                                || ""
+                            ).trim();
+
+                        if (!note) {
+                            return;
+                        }
+
+                        const $primary =
+                            dialog
+                                .get_primary_btn();
+
+                        $primary
+                            .prop(
+                                "disabled",
+                                true
+                            )
+                            .text(
+                                "جارٍ الإنهاء..."
+                            );
+
+                        try {
+                            await frappe.call({
+                                method:
+                                    "archive.api.pending_operations.close_pending_operation",
+
+                                type:
+                                    "POST",
+
+                                args: {
+                                    name:
+                                        operation.name,
+
+                                    payload: {
+                                        note,
+                                    },
+
+                                    expected_modified:
+                                        operation.modified,
+                                },
+                            });
+
+                            dialog.hide();
+
+                            frappe.show_alert({
+                                message:
+                                    "تم إنهاء العملية",
+
+                                indicator:
+                                    "purple",
+                            });
+
+                            await this
+                                .load_context();
+
+                        } finally {
+                            $primary
+                                .prop(
+                                    "disabled",
+                                    false
+                                )
+                                .text(
+                                    "إنهاء العملية"
+                                );
+                        }
+                    },
+            });
+
+        dialog.show();
+    }
+    async open_reopen_operation_dialog(
+        operation
+    ) {
+        if (
+            !this.can_reopen_operation(
+                operation
+            )
+        ) {
+            return;
+        }
+
+        const dialog =
+            new frappe.ui.Dialog({
+                title:
+                    `إلغاء إنهاء العملية — ${operation.name}`,
+
+                fields: [
+
+                    {
+                        fieldname:
+                            "reopen_info",
+
+                        fieldtype:
+                            "HTML",
+
+                        options:
+                            `
+                                <div
+                                    class="
+                                        archive-pending-reopen-dialog-info
+                                    "
+                                >
+                                    <strong>
+                                        سيتم إعادة فتح العملية للعمل عليها.
+                                    </strong>
+
+                                    <p>
+                                        سيتم حذف ملاحظة الإنهاء من
+                                        ملاحظات العملية، مع الاحتفاظ
+                                        بسجل الإنهاء والإلغاء في
+                                        مسار العملية.
+                                    </p>
+                                </div>
+                            `,
+                    },
+                ],
+
+                primary_action_label:
+                    "تأكيد إلغاء الإنهاء",
+
+                primary_action:
+                    async () => {
+
+                        const $primary =
+                            dialog
+                                .get_primary_btn();
+
+                        $primary
+                            .prop(
+                                "disabled",
+                                true
+                            )
+                            .text(
+                                "جارٍ إلغاء الإنهاء..."
+                            );
+
+                        try {
+                            await frappe.call({
+                                method:
+                                    "archive.api.pending_operations.reopen_pending_operation",
+
+                                type:
+                                    "POST",
+
+                                args: {
+                                    name:
+                                        operation.name,
+
+                                    expected_modified:
+                                        operation.modified,
+                                },
+                            });
+
+                            dialog.hide();
+
+                            frappe.show_alert({
+                                message:
+                                    "تم إلغاء إنهاء العملية",
+
+                                indicator:
+                                    "green",
+                            });
+
+                            await this
+                                .load_context();
+
+                        } finally {
+                            $primary
+                                .prop(
+                                    "disabled",
+                                    false
+                                )
+                                .text(
+                                    "تأكيد إلغاء الإنهاء"
+                                );
+                        }
+                    },
+            });
+
+        dialog.show();
+    }
+
     change_sort(
         field
     ) {
@@ -2590,6 +3247,18 @@ class ArchivePendingOperationsPage {
                 "click",
                 () => {
                     this.open_selected_actions();
+                }
+            );
+        
+        $wrapper
+            .find(
+                ".archive-pending-close-toggle"
+            )
+            .on(
+                "click",
+                () => {
+                    this
+                        .open_selected_closure_action();
                 }
             );
 

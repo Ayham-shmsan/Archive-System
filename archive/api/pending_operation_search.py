@@ -5,7 +5,10 @@ from typing import Any, Iterable
 
 import frappe
 from frappe import _
-from frappe.utils import cstr
+from frappe.utils import (
+    cint,
+    cstr,
+)
 
 from archive.api.operation_search import (
     normalize_search_text,
@@ -43,6 +46,7 @@ _CONTEXT_DB_FIELDS = [
 
     "status",
     "is_failed",
+    "is_closed",
 
     "owner",
     "creation",
@@ -160,6 +164,8 @@ def set_pending_search_text(doc) -> str:
                     owner,
                     "full_name",
                 ),
+            "is_closed":
+                doc.is_closed,
         }
     )
 
@@ -368,6 +374,17 @@ def build_pending_search_text(
         _append_search_part(
             parts,
             note,
+        )
+
+    if cint(
+        _get_value(
+            values,
+            "is_closed",
+        )
+    ):
+        _append_search_part(
+            parts,
+            "منتهية",
         )
 
     raw_text = " ".join(

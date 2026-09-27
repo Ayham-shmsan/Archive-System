@@ -837,41 +837,182 @@
         );
 }
 
+/* ============================================================
+   PENDING OPERATION ROW COLORS
+   نفس منظومة ألوان شاشة العمليات
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   تحت الإجراء
+   يقابل الحالة المحايدة في شاشة العمليات
+   ------------------------------------------------------------ */
+
 .archive-pending-row.status-under-action > td {
     background:
-        rgba(
-            100,
-            116,
-            139,
-            0.035
-        );
+        #ffffff;
 }
+
+
+/* ------------------------------------------------------------
+   مرتجعة غير مكتملة
+   نفس لون "محضورة" في شاشة العمليات
+   ------------------------------------------------------------ */
 
 .archive-pending-row.status-partial > td {
     background:
-        rgba(
-            245,
-            158,
-            11,
-            0.035
-        );
+        #fff7dc;
 }
+
+
+/* ------------------------------------------------------------
+   مرتجعة مكتملة
+   نفس اللون الأخضر في شاشة العمليات
+   ------------------------------------------------------------ */
 
 .archive-pending-row.status-complete > td {
     background:
-        rgba(
-            22,
-            163,
-            74,
-            0.035
-        );
+        #edf9f1;
 }
 
-.archive-pending-row:hover > td {
+
+/* ------------------------------------------------------------
+   معلقة فاشلة
+   نفس اللون الأحمر في شاشة العمليات
+   ------------------------------------------------------------ */
+
+.archive-pending-row.status-failed > td {
     background:
-        var(--subtle-fg);
+        #fdefef;
 }
 
+
+/* ============================================================
+   HOVER
+   نفس درجات شاشة العمليات
+   ============================================================ */
+
+.archive-pending-row.status-under-action:hover > td {
+    background:
+        #f8fafc;
+}
+
+
+.archive-pending-row.status-partial:hover > td {
+    background:
+        #fff1c5;
+}
+
+
+.archive-pending-row.status-complete:hover > td {
+    background:
+        #e5f6eb;
+}
+
+
+.archive-pending-row.status-failed:hover > td {
+    background:
+        #fbe3e3;
+}
+
+
+/* ============================================================
+   STATUS ACCENT
+   الخط الجانبي نفسه المستخدم في شاشة العمليات
+   ============================================================ */
+
+.archive-pending-row > td:first-child {
+    border-inline-start:
+        4px solid
+        #d7dce2;
+}
+
+
+.archive-pending-row.status-under-action
+> td:first-child {
+    border-inline-start-color:
+        #d7dce2;
+}
+
+
+.archive-pending-row.status-partial
+> td:first-child {
+    border-inline-start-color:
+        #d69e2e;
+}
+
+
+.archive-pending-row.status-complete
+> td:first-child {
+    border-inline-start-color:
+        #38a169;
+}
+
+
+.archive-pending-row.status-failed
+> td:first-child {
+    border-inline-start-color:
+        #dc4c4c;
+}
+
+
+/* ============================================================
+   SELECTED
+   نفس درجات التحديد في شاشة العمليات
+   ============================================================ */
+
+.archive-pending-row.status-under-action.is-selected
+> td {
+    background:
+        #eef4ff;
+}
+
+
+.archive-pending-row.status-partial.is-selected
+> td {
+    background:
+        #ffeaa8;
+}
+
+
+.archive-pending-row.status-complete.is-selected
+> td {
+    background:
+        #d7f1df;
+}
+
+
+.archive-pending-row.status-failed.is-selected
+> td {
+    background:
+        #f7d4d4;
+}
+
+
+/*
+ * حدود التحديد مثل شاشة العمليات.
+ */
+.archive-pending-row.is-selected
+> td {
+    box-shadow:
+        inset 0 2px 0
+        rgba(
+            37,
+            99,
+            235,
+            0.48
+        ),
+        inset 0 -2px 0
+        rgba(
+            37,
+            99,
+            235,
+            0.48
+        );
+
+    color:
+        var(--text-color);
+}
 
 /* ============================================================
    Status
@@ -1582,4 +1723,500 @@
     text-overflow: ellipsis;
 
     white-space: nowrap;
+}
+
+/* ============================================================
+   CLOSED OPERATION
+   العملية المنتهية
+   ============================================================ */
+
+.archive-pending-row.is-closed > td {
+    background:
+        linear-gradient(
+            90deg,
+            rgba(
+                109,
+                40,
+                217,
+                0.20
+            ),
+            rgba(
+                147,
+                51,
+                234,
+                0.10
+            )
+        ) !important;
+
+    border-block-color:
+        rgba(
+            124,
+            58,
+            237,
+            0.34
+        ) !important;
+}
+
+
+.archive-pending-row.is-closed
+> td:first-child {
+    border-inline-start:
+        5px solid
+        #7c3aed !important;
+}
+
+
+.archive-pending-row.is-closed:hover
+> td {
+    background:
+        linear-gradient(
+            90deg,
+            rgba(
+                109,
+                40,
+                217,
+                0.26
+            ),
+            rgba(
+                147,
+                51,
+                234,
+                0.14
+            )
+        ) !important;
+}
+
+
+/*
+ * Selected + Closed:
+ * يجب أن يبقى واضحًا جدًا أنه محدد ومنتهٍ معًا.
+ */
+.archive-pending-row.is-closed.is-selected
+> td {
+    background:
+        linear-gradient(
+            90deg,
+            rgba(
+                109,
+                40,
+                217,
+                0.34
+            ),
+            rgba(
+                124,
+                58,
+                237,
+                0.18
+            )
+        ) !important;
+
+    box-shadow:
+        inset 0 1px 0
+        rgba(
+            124,
+            58,
+            237,
+            0.40
+        ),
+        inset 0 -1px 0
+        rgba(
+            124,
+            58,
+            237,
+            0.40
+        );
+}
+
+
+/* ============================================================
+   CLOSED BADGE
+   ============================================================ */
+
+.archive-pending-status-stack {
+    display:
+        flex;
+
+    align-items:
+        center;
+
+    gap:
+        6px;
+
+    flex-wrap:
+        wrap;
+}
+
+
+.archive-pending-closed-badge {
+    display:
+        inline-flex;
+
+    align-items:
+        center;
+
+    justify-content:
+        center;
+
+    min-height:
+        22px;
+
+    padding:
+        3px 8px;
+
+    border:
+        1px solid
+        rgba(
+            124,
+            58,
+            237,
+            0.32
+        );
+
+    border-radius:
+        999px;
+
+    background:
+        #6d28d9;
+
+    color:
+        #ffffff;
+
+    font-size:
+        10px;
+
+    font-weight:
+        800;
+
+    white-space:
+        nowrap;
+
+    box-shadow:
+        0 2px 8px
+        rgba(
+            109,
+            40,
+            217,
+            0.22
+        );
+}
+
+
+/* ============================================================
+   CLOSURE BUTTON
+   ============================================================ */
+
+.archive-pending-close-toggle:not(
+    .is-reopen
+) {
+    border-color:
+        rgba(
+            124,
+            58,
+            237,
+            0.32
+        ) !important;
+
+    color:
+        #6d28d9 !important;
+
+    background:
+        rgba(
+            124,
+            58,
+            237,
+            0.07
+        ) !important;
+}
+
+
+.archive-pending-close-toggle:not(
+    .is-reopen
+):hover {
+    background:
+        rgba(
+            124,
+            58,
+            237,
+            0.13
+        ) !important;
+}
+
+
+.archive-pending-close-toggle.is-reopen {
+    border-color:
+        rgba(
+            217,
+            119,
+            6,
+            0.34
+        ) !important;
+
+    color:
+        #b45309 !important;
+
+    background:
+        rgba(
+            245,
+            158,
+            11,
+            0.08
+        ) !important;
+}
+
+
+/* ============================================================
+   DIALOGS
+   ============================================================ */
+
+.archive-pending-close-dialog-info {
+    display:
+        grid;
+
+    grid-template-columns:
+        repeat(
+            2,
+            minmax(
+                0,
+                1fr
+            )
+        );
+
+    gap:
+        10px;
+
+    margin-bottom:
+        8px;
+}
+
+
+.archive-pending-close-dialog-info
+> div {
+    padding:
+        11px 12px;
+
+    border:
+        1px solid
+        var(--border-color);
+
+    border-radius:
+        9px;
+
+    background:
+        var(--subtle-fg);
+}
+
+
+.archive-pending-close-dialog-info
+span {
+    display:
+        block;
+
+    margin-bottom:
+        4px;
+
+    color:
+        var(--text-muted);
+
+    font-size:
+        10px;
+}
+
+
+.archive-pending-close-dialog-info
+strong {
+    font-size:
+        13px;
+}
+
+
+.archive-pending-reopen-dialog-info {
+    padding:
+        13px 14px;
+
+    border:
+        1px solid
+        rgba(
+            217,
+            119,
+            6,
+            0.22
+        );
+
+    border-radius:
+        10px;
+
+    background:
+        rgba(
+            245,
+            158,
+            11,
+            0.06
+        );
+}
+
+
+.archive-pending-reopen-dialog-info
+p {
+    margin:
+        7px 0 0;
+
+    color:
+        var(--text-muted);
+
+    line-height:
+        1.7;
+}
+
+
+/* ============================================================
+   SUMMARY CARDS TYPOGRAPHY
+   تقوية لون وحجم أرقام وعناوين بطاقات الحالات
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   الرقم
+   ------------------------------------------------------------ */
+
+.archive-pending-summary-value {
+    font-size:
+        20px !important;
+
+    font-weight:
+        800 !important;
+
+    line-height:
+        1.1 !important;
+
+    letter-spacing:
+        -0.2px;
+}
+
+
+/* ------------------------------------------------------------
+   اسم الحالة
+   ------------------------------------------------------------ */
+
+.archive-pending-summary-label {
+    font-size:
+        12.5px !important;
+
+    font-weight:
+        650 !important;
+
+    line-height:
+        1.35 !important;
+
+    margin-top:
+        5px;
+}
+
+
+/* ============================================================
+   كل العمليات
+   ============================================================ */
+
+.archive-pending-summary-card[
+    data-status="all"
+]
+.archive-pending-summary-value {
+    color:
+        #2563eb !important;
+}
+
+
+.archive-pending-summary-card[
+    data-status="all"
+]
+.archive-pending-summary-label {
+    color:
+        #334155 !important;
+}
+
+
+/* ============================================================
+   تحت الإجراء
+   ============================================================ */
+
+.archive-pending-summary-card[
+    data-status="under_action"
+]
+.archive-pending-summary-value {
+    color:
+        #334155 !important;
+}
+
+
+.archive-pending-summary-card[
+    data-status="under_action"
+]
+.archive-pending-summary-label {
+    color:
+        #475569 !important;
+}
+
+
+/* ============================================================
+   مرتجعة غير مكتملة
+   ============================================================ */
+
+.archive-pending-summary-card[
+    data-status="partial"
+]
+.archive-pending-summary-value {
+    color:
+        #b45309 !important;
+}
+
+
+.archive-pending-summary-card[
+    data-status="partial"
+]
+.archive-pending-summary-label {
+    color:
+        #92400e !important;
+}
+
+
+/* ============================================================
+   مرتجعة مكتملة
+   ============================================================ */
+
+.archive-pending-summary-card[
+    data-status="complete"
+]
+.archive-pending-summary-value {
+    color:
+        #15803d !important;
+}
+
+
+.archive-pending-summary-card[
+    data-status="complete"
+]
+.archive-pending-summary-label {
+    color:
+        #166534 !important;
+}
+
+
+/* ============================================================
+   معلقة فاشلة
+   ============================================================ */
+
+.archive-pending-summary-card[
+    data-status="failed"
+]
+.archive-pending-summary-value {
+    color:
+        #dc2626 !important;
+}
+
+
+.archive-pending-summary-card[
+    data-status="failed"
+]
+.archive-pending-summary-label {
+    color:
+        #b91c1c !important;
 }

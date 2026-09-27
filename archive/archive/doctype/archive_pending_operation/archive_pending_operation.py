@@ -60,7 +60,39 @@ _FAILURE_MUTATION_TOKEN = (
     object()
 )
 
+_CLOSURE_STATE_FIELDS = (
+    "is_closed",
+    "closed_at",
+    "closed_by",
+)
 
+
+def authorize_pending_closure_transition(
+    doc,
+) -> None:
+    """
+    يسمح لمسارات الإنهاء الرسمية فقط بتغيير
+    حقول Lifecycle الخاصة بالإنهاء.
+
+    Private runtime flag:
+    لا يحفظ في قاعدة البيانات.
+    """
+
+    doc._pending_closure_transition_authorized = (
+        True
+    )
+
+
+def is_pending_closure_transition_authorized(
+    doc,
+) -> bool:
+    return bool(
+        getattr(
+            doc,
+            "_pending_closure_transition_authorized",
+            False,
+        )
+    )
 def authorize_pending_failure_transition(
     doc,
 ) -> None:
@@ -232,6 +264,12 @@ class ArchivePendingOperation(Document):
         previous = (
             self.get_doc_before_save()
         )
+        if (
+            is_pending_closure_transition_authorized(
+                self
+            )
+        ):
+            return
 
         # Insert جديد ليس Manual Edit.
         if not previous:
@@ -309,6 +347,9 @@ class ArchivePendingOperation(Document):
             self.serial_no = (
                 get_next_pending_operation_serial()
             )
+        self.is_closed = 0
+        self.closed_at = None
+        self.closed_by = None
 
     def before_validate(
         self,
@@ -350,6 +391,103 @@ class ArchivePendingOperation(Document):
         validate_financial_mutation(
             self
         )
+        self._validate_closure_mutation()
+
+        self._validate_closed_immutability()
+
+    def _validate_closure_mutation(
+        self,
+    ) -> None:
+        """
+        يمنع تعديل is_closed / closed_at / closed_by
+        من Save عادي أو REST أو Generic Form.
+
+        التغيير مسموح فقط عبر:
+        close_pending_operation
+        reopen_pending_operation
+        """
+
+        previous = (
+            self.get_doc_before_save()
+        )
+
+        if not previous:
+            return
+
+        changed = any(
+            cstr(
+                getattr(
+                    previous,
+                    fieldname,
+                    None,
+                )
+                or ""
+            )
+            !=
+            cstr(
+                getattr(
+                    self,
+                    fieldname,
+                    None,
+                )
+                or ""
+            )
+
+            for fieldname
+            in _CLOSURE_STATE_FIELDS
+        )
+
+        if (
+            changed
+            and
+            not is_pending_closure_transition_authorized(
+                self
+            )
+        ):
+            frappe.throw(
+                _(
+                    "لا يمكن تغيير حالة إنهاء العملية "
+                    "مباشرة. استخدم إجراء إنهاء العملية "
+                    "أو إلغاء الإنهاء."
+                ),
+                frappe.PermissionError,
+            )
+
+
+    def _validate_closed_immutability(
+        self,
+    ) -> None:
+        """
+        العملية المنتهية Frozen تشغيليًا.
+
+        أي تعديل عليها يتطلب أولًا إلغاء الإنهاء.
+        الاستثناء الوحيد هو Transition الرسمي الخاص
+        بإلغاء الإنهاء نفسه.
+        """
+
+        previous = (
+            self.get_doc_before_save()
+        )
+
+        if not previous:
+            return
+
+        if (
+            cint(
+                previous.is_closed
+            )
+            and
+            not is_pending_closure_transition_authorized(
+                self
+            )
+        ):
+            frappe.throw(
+                _(
+                    "هذه العملية منتهية. "
+                    "ألغِ الإنهاء أولًا قبل تعديلها."
+                ),
+                frappe.ValidationError,
+            )  
     def _validate_failure_mutation(
         self,
     ) -> None:
