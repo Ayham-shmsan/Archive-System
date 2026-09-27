@@ -1540,7 +1540,7 @@
 
 .archive-pending-search-box {
     max-width:
-        760px;
+        560px;
 }
 
 .archive-pending-row.status-failed
@@ -2219,4 +2219,93 @@ p {
 .archive-pending-summary-label {
     color:
         #b91c1c !important;
+}
+
+
+/* ============================================================
+   REVERT FAILED DIALOG
+   ============================================================ */
+
+.archive-pending-revert-failed-info {
+    padding:
+        13px 14px;
+
+    border:
+        1px solid
+        rgba(
+            59,
+            130,
+            246,
+            0.22
+        );
+
+    border-radius:
+        10px;
+
+    background:
+        rgba(
+            59,
+            130,
+            246,
+            0.06
+        );
+}
+
+
+.archive-pending-revert-failed-info
+p {
+    margin:
+        7px 0 0;
+
+    color:
+        var(--text-muted);
+
+    line-height:
+        1.7;
+}
+
+
+
+/* ============================================================
+   MAIN GRID RTL
+   ============================================================ */
+
+.archive-pending-operations-page
+.archive-pending-table th,
+
+.archive-pending-operations-page
+.archive-pending-table td {
+    direction:
+        rtl;
+
+    text-align:
+        right;
+}
+
+
+.archive-pending-operations-page
+.archive-pending-card-number,
+
+.archive-pending-operations-page
+.archive-pending-code-cell,
+
+.archive-pending-operations-page
+.archive-pending-money-cell {
+    direction:
+        rtl !important;
+
+    text-align:
+        right !important;
+}
+
+.archive-pending-operations-page
+.archive-pending-search,
+
+.archive-pending-operations-page
+.archive-pending-search-box input {
+    direction:
+        rtl !important;
+
+    text-align:
+        right !important;
 }

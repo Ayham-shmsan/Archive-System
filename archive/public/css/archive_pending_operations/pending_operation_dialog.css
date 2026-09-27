@@ -669,3 +669,91 @@ textarea {
             64px;
     }
 }
+
+
+/* ============================================================
+   UNIFIED RTL FIELDS
+   شاشة إنشاء العملية
+   ============================================================ */
+
+.archive-pending-operation-dialog {
+    direction:
+        rtl;
+}
+
+
+.archive-pending-operation-dialog
+.form-group,
+
+.archive-pending-operation-dialog
+.frappe-control,
+
+.archive-pending-operation-dialog
+.control-input-wrapper,
+
+.archive-pending-operation-dialog
+.control-input {
+    direction:
+        rtl;
+}
+
+
+.archive-pending-operation-dialog
+input,
+
+.archive-pending-operation-dialog
+textarea,
+
+.archive-pending-operation-dialog
+select,
+
+.archive-pending-operation-dialog
+.form-control {
+    direction:
+        rtl !important;
+
+    text-align:
+        right !important;
+}
+
+
+.archive-pending-operation-dialog
+.awesomplete,
+
+.archive-pending-operation-dialog
+.awesomplete input,
+
+.archive-pending-operation-dialog
+.input-with-feedback {
+    direction:
+        rtl !important;
+
+    text-align:
+        right !important;
+}
+
+
+.archive-pending-operation-dialog
+input::placeholder,
+
+.archive-pending-operation-dialog
+textarea::placeholder {
+    direction:
+        rtl;
+
+    text-align:
+        right;
+}
+
+
+.archive-pending-operation-dialog
+.control-label,
+
+.archive-pending-operation-dialog
+label {
+    direction:
+        rtl;
+
+    text-align:
+        right;
+}

@@ -135,6 +135,7 @@
 
 .archive-search-box:focus-within {
 	border-color: var(--primary);
+	
 }
 
 .archive-operation-search {
@@ -1227,4 +1228,63 @@
         var(--text-muted);
 
     font-size: 11px;
+}
+
+/* ============================================================
+   RESPONSIVE OPERATIONS SEARCH
+   مرن لكن بحد أدنى وأقصى
+   ============================================================ */
+
+.archive-search-filter-group {
+    flex:
+        1 1 520px;
+
+    min-width:
+        320px;
+
+    max-width:
+        560px;
+}
+
+
+.archive-search-filter-group
+.archive-search-box {
+    flex:
+        1 1 auto;
+
+    width:
+        100%;
+
+    min-width:
+        0;
+
+    max-width:
+        100%;
+}
+
+
+.archive-search-filter-group
+.archive-filter-button {
+    flex:
+        0 0 auto;
+
+    white-space:
+        nowrap;
+}
+@media (
+    max-width: 900px
+) {
+    .archive-search-filter-group {
+        flex:
+            1 1 100%;
+
+        width:
+            100%;
+
+        min-width:
+            0;
+
+        max-width:
+            100%;
+    }
 }

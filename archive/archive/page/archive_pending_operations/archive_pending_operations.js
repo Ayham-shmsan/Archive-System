@@ -318,7 +318,7 @@ class ArchivePendingOperationsPage {
                             </div>
 
                             <div class="archive-pending-list-subtitle">
-                                بحث وفلترة وترتيب محلي ضمن النطاق المسموح
+                               عرض وإدارة جميع المعلقات المسجلة
                             </div>
                         </div>
 
@@ -360,7 +360,7 @@ class ArchivePendingOperationsPage {
                                 <col class="col-account-number">
                                 <col class="col-card-number">
                                 <col class="col-operation-datetime">
-                                col class="col-suspended-note">
+                                <col class="col-suspended-note">
                                 <col class="col-card-owner">
                                 <col class="col-bank">
                                 <col class="col-region">
@@ -2385,7 +2385,30 @@ class ArchivePendingOperationsPage {
         );
     }
 
+    can_revert_operation_failed(
+        operation
+    ) {
+        if (
+            !operation
+            ||
+            !this.is_operation_failed(
+                operation
+            )
+            ||
+            this.is_operation_closed(
+                operation
+            )
+        ) {
+            return false;
+        }
 
+        return this.can_edit_operation(
+            operation
+        );
+    }
+
+
+    
     // update_selected_actions() {
     //     const selected =
     //         this.get_selected_operation();
@@ -2397,6 +2420,32 @@ class ArchivePendingOperationsPage {
     //             !this.is_loading
     //         );
 
+    //     const is_closed =
+    //         has_selected
+    //         &&
+    //         this.is_operation_closed(
+    //             selected
+    //         );
+
+    //     const can_close =
+    //         has_selected
+    //         &&
+    //         this.can_close_operation(
+    //             selected
+    //         );
+
+    //     const can_reopen =
+    //         has_selected
+    //         &&
+    //         this.can_reopen_operation(
+    //             selected
+    //         );
+
+
+    //     // ---------------------------------------------------------
+    //     // عرض
+    //     // ---------------------------------------------------------
+
     //     $(this.wrapper)
     //         .find(
     //             ".archive-pending-selected-view"
@@ -2406,6 +2455,11 @@ class ArchivePendingOperationsPage {
     //             !has_selected
     //         );
 
+
+    //     // ---------------------------------------------------------
+    //     // Timeline
+    //     // ---------------------------------------------------------
+
     //     $(this.wrapper)
     //         .find(
     //             ".archive-pending-timeline-button"
@@ -2414,6 +2468,11 @@ class ArchivePendingOperationsPage {
     //             "disabled",
     //             !has_selected
     //         );
+
+
+    //     // ---------------------------------------------------------
+    //     // إجراء → معلقة فاشلة
+    //     // ---------------------------------------------------------
 
     //     $(this.wrapper)
     //         .find(
@@ -2429,6 +2488,64 @@ class ArchivePendingOperationsPage {
     //                         selected
     //                     )
     //             )
+    //         );
+
+
+    //     // ---------------------------------------------------------
+    //     // إنهاء / إلغاء الإنهاء
+    //     // ---------------------------------------------------------
+
+    //     const $closure_button =
+    //         $(this.wrapper)
+    //             .find(
+    //                 ".archive-pending-close-toggle"
+    //             );
+
+    //     const show_closure_button =
+    //         Boolean(
+    //             can_close
+    //             ||
+    //             can_reopen
+    //         );
+
+    //     $closure_button
+    //         .toggle(
+    //             show_closure_button
+    //         )
+    //         .prop(
+    //             "disabled",
+    //             (
+    //                 this.is_loading
+    //                 ||
+    //                 !show_closure_button
+    //             )
+    //         )
+    //         .toggleClass(
+    //             "is-reopen",
+    //             Boolean(
+    //                 is_closed
+    //             )
+    //         );
+
+    //     $closure_button
+    //         .find(
+    //             ".archive-pending-close-toggle-label"
+    //         )
+    //         .text(
+    //             is_closed
+    //                 ? "إلغاء الإنهاء"
+    //                 : "إنهاء العملية"
+    //         );
+
+    //     $closure_button
+    //         .find(
+    //             "i"
+    //         )
+    //         .attr(
+    //             "class",
+    //             is_closed
+    //                 ? "fa fa-undo"
+    //                 : "fa fa-check-circle"
     //         );
     // }
     update_selected_actions() {
@@ -2449,6 +2566,13 @@ class ArchivePendingOperationsPage {
                 selected
             );
 
+        const is_failed =
+            has_selected
+            &&
+            this.is_operation_failed(
+                selected
+            );
+
         const can_close =
             has_selected
             &&
@@ -2460,6 +2584,20 @@ class ArchivePendingOperationsPage {
             has_selected
             &&
             this.can_reopen_operation(
+                selected
+            );
+
+        const can_mark_failed =
+            has_selected
+            &&
+            this.can_mark_operation_failed(
+                selected
+            );
+
+        const can_revert_failed =
+            has_selected
+            &&
+            this.can_revert_operation_failed(
                 selected
             );
 
@@ -2479,7 +2617,7 @@ class ArchivePendingOperationsPage {
 
 
         // ---------------------------------------------------------
-        // Timeline
+        // مسار العملية
         // ---------------------------------------------------------
 
         $(this.wrapper)
@@ -2493,23 +2631,46 @@ class ArchivePendingOperationsPage {
 
 
         // ---------------------------------------------------------
-        // إجراء → معلقة فاشلة
+        // إجراء / إلغاء الفشل
         // ---------------------------------------------------------
 
-        $(this.wrapper)
-            .find(
-                ".archive-pending-selected-actions"
-            )
+        const $action_button =
+            $(this.wrapper)
+                .find(
+                    ".archive-pending-selected-actions"
+                );
+
+        $action_button
             .prop(
                 "disabled",
                 (
                     this.is_loading
                     ||
-                    !this
-                        .can_mark_operation_failed(
-                            selected
-                        )
+                    !(
+                        can_mark_failed
+                        ||
+                        can_revert_failed
+                    )
                 )
+            )
+            .toggleClass(
+                "is-revert-failed",
+                Boolean(
+                    is_failed
+                    &&
+                    can_revert_failed
+                )
+            )
+            .text(
+                is_failed
+                    ? "إلغاء الفشل"
+                    : "إجراء"
+            )
+            .attr(
+                "title",
+                is_failed
+                    ? "إلغاء تحويل العملية إلى فاشلة"
+                    : "إجراء على العملية"
             );
 
 
@@ -2650,6 +2811,17 @@ class ArchivePendingOperationsPage {
 
             return;
         }
+        if (
+            this.is_operation_failed(
+                operation
+            )
+        ) {
+            this.open_revert_failed_dialog(
+                operation
+            );
+
+            return;
+        }
 
         if (
             !this
@@ -2781,6 +2953,119 @@ class ArchivePendingOperationsPage {
                                 )
                                 .text(
                                     "تغيير إلى معلقة فاشلة"
+                                );
+                        }
+                    },
+            });
+
+        dialog.show();
+    }
+
+    async open_revert_failed_dialog(
+        operation
+    ) {
+        if (
+            !this
+                .can_revert_operation_failed(
+                    operation
+                )
+        ) {
+            return;
+        }
+
+        const dialog =
+            new frappe.ui.Dialog({
+                title:
+                    `إلغاء الفشل — ${operation.name}`,
+
+                fields: [
+
+                    {
+                        fieldname:
+                            "revert_failed_info",
+
+                        fieldtype:
+                            "HTML",
+
+                        options:
+                            `
+                                <div
+                                    class="
+                                        archive-pending-revert-failed-info
+                                    "
+                                >
+                                    <strong>
+                                        سيتم إلغاء تحويل العملية إلى
+                                        معلقة فاشلة.
+                                    </strong>
+
+                                    <p>
+                                        ستعود العملية تلقائيًا إلى
+                                        حالتها المالية الصحيحة قبل الفشل
+                                        بحسب الحركة المالية الحالية.
+                                    </p>
+                                </div>
+                            `,
+                    },
+                ],
+
+                primary_action_label:
+                    "تأكيد إلغاء الفشل",
+
+                primary_action:
+                    async () => {
+
+                        const $primary =
+                            dialog
+                                .get_primary_btn();
+
+                        $primary
+                            .prop(
+                                "disabled",
+                                true
+                            )
+                            .text(
+                                "جارٍ إلغاء الفشل..."
+                            );
+
+                        try {
+                            await frappe.call({
+                                method:
+                                    "archive.api.pending_operations.revert_pending_operation_failure",
+
+                                type:
+                                    "POST",
+
+                                args: {
+                                    name:
+                                        operation.name,
+
+                                    expected_modified:
+                                        operation.modified,
+                                },
+                            });
+
+                            dialog.hide();
+
+                            frappe.show_alert({
+                                message:
+                                    "تم إلغاء تحويل العملية إلى فاشلة",
+
+                                indicator:
+                                    "green",
+                            });
+
+                            await this
+                                .load_context();
+
+                        } finally {
+                            $primary
+                                .prop(
+                                    "disabled",
+                                    false
+                                )
+                                .text(
+                                    "تأكيد إلغاء الفشل"
                                 );
                         }
                     },

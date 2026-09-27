@@ -610,3 +610,121 @@ textarea {
         flex-direction: column;
     }
 }
+
+/* ============================================================
+   UNIFIED RTL FIELDS
+   جميع حقول العرض والتعديل من اليمين إلى اليسار
+   ============================================================ */
+
+.archive-pending-operation-view-dialog {
+    direction:
+        rtl;
+}
+
+
+.archive-pending-operation-view-dialog
+.form-group,
+
+.archive-pending-operation-view-dialog
+.frappe-control,
+
+.archive-pending-operation-view-dialog
+.control-input-wrapper,
+
+.archive-pending-operation-view-dialog
+.control-input {
+    direction:
+        rtl;
+}
+
+
+.archive-pending-operation-view-dialog
+input,
+
+.archive-pending-operation-view-dialog
+textarea,
+
+.archive-pending-operation-view-dialog
+select,
+
+.archive-pending-operation-view-dialog
+.form-control {
+    direction:
+        rtl !important;
+
+    text-align:
+        right !important;
+}
+
+
+/*
+ * Frappe / Awesomplete / Link fields
+ */
+.archive-pending-operation-view-dialog
+.awesomplete,
+
+.archive-pending-operation-view-dialog
+.awesomplete input,
+
+.archive-pending-operation-view-dialog
+.input-with-feedback {
+    direction:
+        rtl !important;
+
+    text-align:
+        right !important;
+}
+
+
+/*
+ * Placeholders كذلك تبدأ من اليمين.
+ */
+.archive-pending-operation-view-dialog
+input::placeholder,
+
+.archive-pending-operation-view-dialog
+textarea::placeholder {
+    direction:
+        rtl;
+
+    text-align:
+        right;
+}
+
+
+/*
+ * Labels
+ */
+.archive-pending-operation-view-dialog
+.control-label,
+
+.archive-pending-operation-view-dialog
+label {
+    direction:
+        rtl;
+
+    text-align:
+        right;
+}
+
+
+/*
+ * Ledger editable fields
+ */
+.archive-pending-operation-view-dialog
+.pending-view-ledger-table
+input,
+
+.archive-pending-operation-view-dialog
+.pending-view-ledger-table
+textarea,
+
+.archive-pending-operation-view-dialog
+.pending-view-ledger-table
+.form-control {
+    direction:
+        rtl !important;
+
+    text-align:
+        right !important;
+}

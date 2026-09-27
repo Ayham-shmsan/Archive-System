@@ -37,6 +37,8 @@ class ArchivePendingOperationTimelineDialog {
 
             marked_failed:
                 "تغيير الحالة إلى معلقة فاشلة",
+            failure_reverted:
+                "إلغاء تحويل العملية إلى فاشلة",
         };
 
         this.field_labels = {
@@ -586,6 +588,10 @@ class ArchivePendingOperationTimelineDialog {
             case "attachment_added":
             case "attachment_deleted":
                 return this.render_attachment_event(
+                    event
+                );
+            case "failure_reverted":
+                return this.render_status_change(
                     event
                 );
 
@@ -1232,6 +1238,8 @@ class ArchivePendingOperationTimelineDialog {
                 "dot-attachment",
             marked_failed:
                 "dot-failed",
+            failure_reverted:
+                "dot-status",
         };
 
         return (

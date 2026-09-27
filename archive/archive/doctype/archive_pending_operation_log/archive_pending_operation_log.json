@@ -30,7 +30,7 @@
       "fieldname": "event_type",
       "fieldtype": "Select",
       "label": "نوع الحدث",
-      "options": "created\nmanual_edit\nreturn_added\nledger_corrected\nstatus_change\nattachment_added\nattachment_deleted\nmarked_failed\noperation_closed\noperation_reopened",
+      "options": "created\nmanual_edit\nreturn_added\nledger_corrected\nstatus_change\nattachment_added\nattachment_deleted\nmarked_failed\noperation_closed\noperation_reopened\nfailure_reverted",
       "read_only": 1,
       "reqd": 1,
       "search_index": 1

@@ -1834,6 +1834,173 @@ def mark_pending_operation_failed(
             doc
         )
     )
+
+@frappe.whitelist(
+    methods=["POST"]
+)
+def revert_pending_operation_failure(
+    name: str,
+    expected_modified: Any = None,
+) -> dict[str, Any]:
+    name = cstr(
+        name
+    ).strip()
+
+    if not name:
+        frappe.throw(
+            _(
+                "اسم العملية المعلقة مطلوب."
+            ),
+            frappe.ValidationError,
+        )
+
+    doc = frappe.get_doc(
+        PENDING_DOCTYPE,
+        name,
+        for_update=True,
+    )
+
+    # نفس صلاحية إجراء تحويل العملية إلى فاشلة.
+    _require_edit_pending_operation(
+        doc
+    )
+
+    # العملية المنتهية لا تتغير.
+    # يجب إلغاء الإنهاء أولًا.
+    _require_pending_operation_open(
+        doc
+    )
+
+    # حماية من تعديل سجل قديم.
+    _validate_pending_transition_token(
+        doc,
+        expected_modified,
+    )
+
+    if not cint(
+        doc.is_failed
+    ):
+        frappe.throw(
+            _(
+                "العملية ليست معلقة فاشلة."
+            ),
+            frappe.ValidationError,
+        )
+
+    before_status = cstr(
+        doc.status
+    ).strip()
+
+    previous_failed_at = (
+        doc.failed_at
+    )
+
+    previous_failed_by = (
+        doc.failed_by
+    )
+
+    previous_failed_note = cstr(
+        doc.failed_note
+        or ""
+    ).strip()
+
+
+    # ---------------------------------------------------------
+    # نزيل حالة الفشل الحالية.
+    #
+    # لا نعيد status يدويًا.
+    # Ledger هو مصدر الحقيقة وسيعيد حساب الحالة.
+    # ---------------------------------------------------------
+
+    doc.is_failed = 0
+
+    doc.failed_at = None
+
+    doc.failed_by = None
+
+    doc.failed_note = None
+
+
+    # نفس Authorization المستخدم في
+    # mark_pending_operation_failed.
+    authorize_pending_failure_transition(
+        doc
+    )
+
+
+    # ---------------------------------------------------------
+    # إعادة الحالة المالية الحقيقية.
+    #
+    # returned = 0
+    #     -> تحت الإجراء
+    #
+    # returned > 0 + remaining > 0
+    #     -> مرتجعة غير مكتملة
+    #
+    # remaining = 0
+    #     -> مرتجعة مكتملة
+    # ---------------------------------------------------------
+
+    validate_and_recalculate_ledger(
+        doc
+    )
+
+
+    # Business Permission تم التحقق منه أعلاه.
+    doc.save(
+        ignore_permissions=True
+    )
+
+
+    # ---------------------------------------------------------
+    # Audit
+    #
+    # نمسح حالة الفشل الحالية من Parent،
+    # لكن التاريخ لا يختفي.
+    # ---------------------------------------------------------
+
+    create_pending_operation_log(
+        operation_name=
+            doc.name,
+
+        event_type=
+            "failure_reverted",
+
+        event_title=
+            "إلغاء تحويل العملية إلى فاشلة",
+
+        event_source=
+            "User",
+
+        details={
+            "before_status":
+                before_status,
+
+            "after_status":
+                doc.status,
+
+            "failed_at":
+                previous_failed_at,
+
+            "failed_by":
+                previous_failed_by,
+
+            "failed_note":
+                previous_failed_note,
+
+            "financial_summary":
+                financial_summary_snapshot(
+                    doc
+                ),
+        },
+    )
+
+    return _build_pending_operation_details(
+        doc
+    )
+
+
+
 @frappe.whitelist(
     methods=["POST"]
 )
@@ -2268,70 +2435,7 @@ def _build_pending_operation_details(
 ) -> dict[str, Any]:
     user = frappe.session.user
 
-    # permissions = (
-    #     get_pending_record_permissions(
-    #         doc,
-    #         user=user,
-    #     )
-    # )
-
-    # remaining = float(
-    #     doc.remaining_amount
-    #     or 0
-    # )
-
-    # is_failed = bool(
-    #         cint(
-    #             doc.is_failed
-    #         )
-    #     )
-
-
-    # permissions = dict(
-    #     permissions
-    # )
-    # permissions[
-    #     "can_manage_attachments"
-    # ] = bool(
-    #     permissions.get(
-    #         "can_edit"
-    #     )
-    # )
-    # # Capability فعلي لهذه اللحظة،
-    # # وليس Permission Type فقط.
-    # permissions[
-    #         "can_add_return"
-    #     ] = bool(
-    #         permissions.get(
-    #             "can_add_return"
-    #         )
-    #         and
-    #         remaining > 0
-    #         and
-    #         not is_failed
-    #     )
-
-    # permissions[
-    #     "can_mark_failed"
-    # ] = bool(
-    #     permissions.get(
-    #         "can_edit"
-    #     )
-    #     and
-    #     not is_failed
-    # )
-
-    # permissions[
-    #     "can_enter_edit_mode"
-    # ] = bool(
-    #     permissions.get(
-    #         "can_edit"
-    #     )
-    #     or
-    #     permissions.get(
-    #         "can_correct_ledger"
-    #     )
-    # )
+    
     permissions = (
         get_pending_record_permissions(
             doc,
@@ -2452,6 +2556,15 @@ def _build_pending_operation_details(
         and
         not is_closed
     )
+    permissions[
+        "can_revert_failed"
+    ] = bool(
+        base_can_edit
+        and
+        is_failed
+        and
+        not is_closed
+    )
 
     permissions[
         "can_enter_edit_mode"
@@ -2499,6 +2612,9 @@ def _build_pending_operation_details(
 
         permissions[
             "can_enter_edit_mode"
+        ] = False
+        permissions[
+            "can_revert_failed"
         ] = False
 
     operation = {

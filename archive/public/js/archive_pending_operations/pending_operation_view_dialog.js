@@ -2095,13 +2095,7 @@ class ArchivePendingOperationViewDialog {
                     },
 
 
-                    {
-                        fieldname:
-                            "suspended_note_break",
-
-                        fieldtype:
-                            "Section Break",
-                    },
+                
 
                     {
                         fieldname:
@@ -2433,6 +2427,8 @@ class ArchivePendingOperationViewDialog {
                             م
                         </option>
                     </select>
+
+                    
                 </div>
             </div>
         `);
