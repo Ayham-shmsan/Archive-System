@@ -971,7 +971,32 @@ class OperationViewDialog {
 				.operation_body
 				.$wrapper;
 
+		const has_extraction_source =
+			this.has_persisted_extraction_source();
 
+
+		const can_select_extraction =
+			this.can_select_extraction_file();
+
+
+		const extraction_action_title =
+			has_extraction_source
+				? "إعادة استخراج البيانات"
+				: "إرفاق ملف استخراج";
+
+
+		const extraction_action_help =
+			has_extraction_source
+				? `
+					اسحب ملف PDF جديد هنا
+					أو اضغط لاختيار الملف
+				`
+				: `
+					اسحب ملف PDF هنا
+					أو اضغط لاختيار الملف.
+					سيتم حفظه كمصدر استخراج
+					دون استخراج البيانات.
+				`;
 		this.$body.html(`
 			<div
 				class="archive-operation-form"
@@ -1019,8 +1044,7 @@ class OperationViewDialog {
 							===================================== -->
 
 						${
-							this.permissions
-								.can_re_extract
+							can_select_extraction
 								? `
 									<div
 										class="
@@ -1048,12 +1072,11 @@ class OperationViewDialog {
 										<div>
 
 											<div class="archive-upload-title">
-												إعادة استخراج البيانات
+												${extraction_action_title}
 											</div>
 
 											<div class="archive-upload-help">
-												اسحب ملف PDF جديد هنا
-												أو اضغط لاختيار الملف
+												${extraction_action_help}
 											</div>
 
 										</div>
@@ -1413,6 +1436,7 @@ class OperationViewDialog {
 			</div>
 		`);
 
+		
 
 		// ========================================================
 		// Controls
@@ -1442,10 +1466,8 @@ class OperationViewDialog {
 
 
 		if (
-			this.permissions
-				.can_re_extract
+			this.can_select_extraction_file()
 		) {
-
 			this.bind_re_extraction_events();
 
 			this.render_pending_extraction_file();
@@ -2806,7 +2828,36 @@ class OperationViewDialog {
 			});
 		}
 	
+	has_persisted_extraction_source() {
 
+			return Boolean(
+				String(
+					this.operation
+						?.extraction_source_file
+					|| ""
+				).trim()
+			);
+		}
+
+
+	can_select_extraction_file() {
+
+			if (
+				this.has_persisted_extraction_source()
+			) {
+
+				return Boolean(
+					this.permissions
+						.can_re_extract
+				);
+			}
+
+
+			return Boolean(
+				this.permissions
+					.can_manage_attachments
+			);
+		}
 	is_pdf_file(
 			file
 		) {
@@ -2841,11 +2892,10 @@ class OperationViewDialog {
 		) {
 
 			if (
-				!this.permissions
-					.can_re_extract
-			) {
-				return;
-			}
+					!this.can_select_extraction_file()
+				) {
+					return;
+				}
 
 
 			if (
@@ -3299,11 +3349,10 @@ class OperationViewDialog {
 		async bind_re_extraction_events() {
 
 			if (
-				!this.permissions
-					.can_re_extract
-			) {
-				return;
-			}
+					!this.can_select_extraction_file()
+				) {
+					return;
+				}
 
 
 			const input =
@@ -3484,7 +3533,8 @@ class OperationViewDialog {
 
 			const file =
 				this.pending_extraction_file;
-
+			const is_missing_source_attachment =
+    			!this.has_persisted_extraction_source();
 
 			if (!file) {
 
@@ -3506,20 +3556,42 @@ class OperationViewDialog {
 				).length;
 
 
+			// const extraction_status =
+			// 	extracted_count
+			// 		? `
+			// 			تم استخراج
+			// 			${extracted_count}
+			// 			حقول
+			// 			·
+			// 			بانتظار الحفظ
+			// 		`
+			// 		: `
+			// 			ملف جديد
+			// 			·
+			// 			لم يتم استخراج البيانات بعد
+			// 		`;
 			const extraction_status =
-				extracted_count
+				is_missing_source_attachment
 					? `
-						تم استخراج
-						${extracted_count}
-						حقول
+						ملف استخراج جديد
 						·
-						بانتظار الحفظ
+						سيُحفظ دون استخراج البيانات
 					`
-					: `
-						ملف جديد
-						·
-						لم يتم استخراج البيانات بعد
-					`;
+					: (
+						extracted_count
+							? `
+								تم استخراج
+								${extracted_count}
+								حقول
+								·
+								بانتظار الحفظ
+							`
+							: `
+								ملف جديد
+								·
+								لم يتم استخراج البيانات بعد
+							`
+					);
 
 
 			$container.html(`
@@ -3552,21 +3624,27 @@ class OperationViewDialog {
 
 					<div class="archive-extraction-actions">
 
-						<button
-							type="button"
-							class="
-								btn
-								btn-primary
-								btn-sm
-								archive-run-re-extraction
-							"
-						>
-							${
-								extracted_count
-									? "إعادة الاستخراج"
-									: "استخراج البيانات"
-							}
-						</button>
+						${
+							!is_missing_source_attachment
+								? `
+									<button
+										type="button"
+										class="
+											btn
+											btn-primary
+											btn-sm
+											archive-run-re-extraction
+										"
+									>
+										${
+											extracted_count
+												? "إعادة الاستخراج"
+												: "استخراج البيانات"
+										}
+									</button>
+								`
+								: ""
+						}
 
 
 						<button
@@ -6759,9 +6837,35 @@ $list
 		// Pending states
 		// ========================================================
 
-		const has_pending_re_extraction =
+		// const has_pending_re_extraction =
+		// 	Boolean(
+		// 		this.pending_extraction_file
+		// 	);
+			
+
+		const has_existing_extraction_source =
+			this.has_persisted_extraction_source();
+
+
+		const has_pending_extraction_file =
 			Boolean(
 				this.pending_extraction_file
+			);
+
+
+		const has_pending_missing_extraction_source =
+			Boolean(
+				has_pending_extraction_file
+				&&
+				!has_existing_extraction_source
+			);
+
+
+		const has_pending_re_extraction =
+			Boolean(
+				has_pending_extraction_file
+				&&
+				has_existing_extraction_source
 			);
 
 
@@ -6808,7 +6912,28 @@ $list
 			return;
 		}
 
+		if (
+			has_pending_missing_extraction_source
+			&&
+			!can_manage_attachments
+		) {
 
+			frappe.msgprint({
+				title:
+					__("غير مسموح"),
+
+				message:
+					__(
+						"ليس لديك صلاحية إرفاق ملف استخراج لهذه العملية."
+					),
+
+				indicator:
+					"red",
+			});
+
+
+			return;
+		}
 		// ========================================================
 		// Re-extraction validation
 		// ========================================================
@@ -6901,7 +7026,74 @@ $list
 				? this.get_values()
 				: {};
 
-		
+		// ========================================================
+		// Re-extraction values
+		//
+		// operation_no لا يدخل في مسار إعادة الاستخراج.
+		// لكن إذا عدله المستخدم فعلاً في نفس الجلسة، لا نتجاهل
+		// التغيير بصمت؛ نطلب منه حفظ تغيير الرقم أولاً.
+		// ========================================================
+
+		let re_extraction_values =
+			{
+				...values,
+			};
+
+
+		if (
+			has_pending_re_extraction
+			&&
+			Object.prototype
+				.hasOwnProperty.call(
+					re_extraction_values,
+					"operation_no"
+				)
+		) {
+
+			const submitted_operation_no =
+				String(
+					re_extraction_values
+						.operation_no
+					|| ""
+				).trim();
+
+			const current_operation_no =
+				String(
+					this.operation
+						?.operation_no
+					|| ""
+				).trim();
+
+
+			if (
+				submitted_operation_no
+				!==
+				current_operation_no
+			) {
+
+				frappe.msgprint({
+					title:
+						__(
+							"تغيير رقم العملية"
+						),
+
+					message:
+						__(
+							"لا يمكن تغيير رقم العملية وإعادة استخراج البيانات في نفس الحفظ. احفظ تغيير رقم العملية أولاً، ثم افتح العملية ونفّذ إعادة الاستخراج."
+						),
+
+					indicator:
+						"orange",
+				});
+
+
+				return;
+			}
+
+
+			delete re_extraction_values
+				.operation_no;
+		}
 		// ========================================================
 		// Operation Number confirmation
 		//
@@ -6909,14 +7101,30 @@ $list
 		// قبل أن يؤكد المستخدم.
 		// ========================================================
 
-		if (can_edit) {
+		// if (can_edit) {
+
+		// 	const confirmed =
+		// 		await this
+		// 			.confirm_operation_number_change(
+		// 				values
+		// 			);
+
+
+		// 	if (!confirmed) {
+		// 		return;
+		// 	}
+		// }
+		if (
+			can_edit
+			&&
+			!has_pending_re_extraction
+		) {
 
 			const confirmed =
 				await this
 					.confirm_operation_number_change(
 						values
 					);
-
 
 			if (!confirmed) {
 				return;
@@ -6961,6 +7169,23 @@ $list
 					? await this
 						.upload_pending_shared_documents()
 					: [];
+			let missing_extraction_upload =
+				null;
+
+
+			if (
+				has_pending_missing_extraction_source
+			) {
+
+				missing_extraction_upload =
+					await this.upload_file_once(
+						this.pending_extraction_file
+					);
+
+
+				this.pending_extraction_uploaded =
+					missing_extraction_upload;
+			}
 
 
 			let response;
@@ -6992,7 +7217,7 @@ $list
 								this.operation.name,
 
 							values:
-								values,
+    							re_extraction_values,
 
 							shared_documents:
 								shared_documents,
@@ -7067,6 +7292,15 @@ $list
 								Array.from(
 									this.deleted_attachment_names
 								),
+							extraction_file_id:
+								missing_extraction_upload
+									?.file_id
+								|| null,
+
+							extraction_file_url:
+								missing_extraction_upload
+									?.file_url
+								|| null,
 						},
 					});
 			}
@@ -7187,7 +7421,7 @@ $list
 			// ========================================================
 
 			if (
-				has_pending_re_extraction
+				has_pending_extraction_file
 			) {
 
 				this.clear_saved_re_extraction_state();
@@ -7210,6 +7444,13 @@ $list
 
 				success_message =
 					`تم حفظ إعادة الاستخراج والمستندات المشتركة للعملية ${this.operation.name}`;
+			}
+			else if (
+				has_pending_missing_extraction_source
+			) {
+
+				success_message =
+					`تم إرفاق ملف الاستخراج وحفظ تعديلات ${this.operation.name}`;
 			}
 
 			else if (

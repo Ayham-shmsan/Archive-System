@@ -160,13 +160,13 @@ class ArchivePendingOperationsPage {
 
                     ${this.summary_card(
                         "partial",
-                        "مرتجعة غير مكتملة",
+                        "معلقة غير مكتملة",
                         "0"
                     )}
 
                     ${this.summary_card(
                         "complete",
-                        "مرتجعة مكتملة",
+                        "معلقة مكتملة",
                         "0"
                     )}
 

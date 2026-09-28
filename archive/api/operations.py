@@ -5405,22 +5405,98 @@ def save_operation_re_extraction(
     # Manual field protection
     # ========================================================
 
+    # received_fields = set(
+    #     values.keys()
+    # )
+
+
+    # if (
+    #     "operation_no"
+    #     in received_fields
+    # ):
+
+    #     frappe.throw(
+    #         _(
+    #             "لا يمكن تغيير رقم العملية "
+    #             "من مسار إعادة الاستخراج."
+    #         ),
+    #         frappe.PermissionError,
+    #     )
+
+
+    # forbidden_fields = (
+    #     received_fields
+    #     - MANUAL_EDITABLE_FIELDS
+    # )
     received_fields = set(
         values.keys()
     )
 
+
+    # ========================================================
+    # Operation number protection
+    #
+    # شاشة العرض قد ترسل operation_no ضمن كامل قيم النموذج
+    # حتى لو لم يغيره المستخدم.
+    #
+    # في إعادة الاستخراج:
+    #
+    # - إذا كان الرقم المرسل هو نفس الرقم الحالي:
+    #   نتجاهله فقط.
+    #
+    # - إذا كان مختلفاً فعلاً:
+    #   نمنع التغيير من هذا المسار.
+    #
+    # تغيير رقم العملية له Workflow مستقل لأنه يؤثر
+    # على Operation Group والمستندات المشتركة.
+    # ========================================================
 
     if (
         "operation_no"
         in received_fields
     ):
 
-        frappe.throw(
-            _(
-                "لا يمكن تغيير رقم العملية "
-                "من مسار إعادة الاستخراج."
-            ),
-            frappe.PermissionError,
+        submitted_operation_no = cstr(
+            values.get(
+                "operation_no"
+            )
+        ).strip()
+
+        current_operation_no = cstr(
+            operation.operation_no
+        ).strip()
+
+
+        if (
+            submitted_operation_no
+            !=
+            current_operation_no
+        ):
+
+            frappe.throw(
+                _(
+                    "لا يمكن تغيير رقم العملية "
+                    "من مسار إعادة الاستخراج. "
+                    "احفظ تغيير رقم العملية أولاً، "
+                    "ثم نفّذ إعادة الاستخراج."
+                ),
+                frappe.PermissionError,
+            )
+
+
+        # نفس الرقم الحالي:
+        # لا يعتبر تعديلاً، ولا ندخله في whitelist.
+        values = dict(
+            values
+        )
+
+        values.pop(
+            "operation_no",
+            None,
+        )
+
+        received_fields.discard(
+            "operation_no"
         )
 
 
@@ -7270,6 +7346,11 @@ def save_operation_view_changes(
         list[str]
         | str
         | None = None,
+    extraction_file_id:
+        str | None = None,
+
+    extraction_file_url:
+        str | None = None,
 ) -> dict[str, Any]:
 
     operation_name = (
@@ -7299,6 +7380,32 @@ def save_operation_view_changes(
         delete_shared_document_names,
         [],
     )
+    extraction_file_id = cstr(
+        extraction_file_id
+    ).strip()
+
+    extraction_file_url = cstr(
+        extraction_file_url
+    ).strip()
+
+
+    has_new_extraction_source = bool(
+        extraction_file_id
+        or
+        extraction_file_url
+    )
+
+
+    if has_new_extraction_source and (
+        not extraction_file_id
+        or
+        not extraction_file_url
+    ):
+        frappe.throw(
+            _(
+                "بيانات ملف الاستخراج غير مكتملة."
+            )
+        )
 
     if not operation_name:
         frappe.throw(
@@ -7374,6 +7481,18 @@ def save_operation_view_changes(
             operation
         )
     )
+    if (
+        has_new_extraction_source
+        and
+        not can_manage_attachments
+    ):
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية إرفاق "
+                "ملف استخراج للعملية."
+            ),
+            frappe.PermissionError,
+        )
 
     if (
         shared_documents
@@ -7413,20 +7532,168 @@ def save_operation_view_changes(
             ),
             frappe.PermissionError,
         )
+    # = =======================================================
+    # Missing Extraction Source
+    #
+    # هذا المسار فقط لملء ملف استخراج مفقود
+    # في عملية قديمة / مستوردة.
+    #
+    # لا يسمح باستبدال Extraction موجود.
+    # الاستبدال يبقى حصراً عبر Re-extraction.
+    # ========================================================
 
+    extraction_file_doc = None
+
+
+    if has_new_extraction_source:
+
+        # ----------------------------------------------------
+        # Lock
+        #
+        # يمنع موظفين من إضافة ملفين مختلفين
+        # للعملية نفسها في اللحظة نفسها.
+        # ----------------------------------------------------
+
+        frappe.db.sql(
+            """
+            SELECT name
+            FROM `tabArchive Operation`
+            WHERE name = %s
+            FOR UPDATE
+            """,
+            (
+                operation.name,
+            ),
+        )
+
+
+        operation.reload()
+        if extraction_file_doc:
+
+            log_operation_event(
+                operation.name,
+
+                "attachment_added",
+
+                "تم إرفاق ملف استخراج للعملية",
+
+                details={
+                    "document_role":
+                        "extraction_source",
+
+                    "without_data_extraction":
+                        True,
+
+                    "files": [
+                        {
+                            "file_name":
+                                extraction_file_doc
+                                    .file_name,
+
+                            "file_url":
+                                extraction_file_doc
+                                    .file_url,
+                        },
+                    ],
+                },
+
+                event_source=
+                    "User",
+            )
+
+
+
+
+        # ----------------------------------------------------
+        # Attach-only مسموح فقط عندما المصدر مفقود.
+        # ----------------------------------------------------
+
+        if cstr(
+            operation.extraction_source_file
+        ).strip():
+
+            frappe.throw(
+                _(
+                    "هذه العملية لديها ملف استخراج بالفعل. "
+                    "لاستبداله استخدم إعادة استخراج البيانات."
+                )
+            )
+
+
+        # ----------------------------------------------------
+        # Exact temporary File
+        #
+        # File.name هو الهوية الأساسية.
+        # ----------------------------------------------------
+
+        extraction_file_doc = (
+            get_unattached_uploaded_file(
+                file_id=
+                    extraction_file_id,
+
+                file_url=
+                    extraction_file_url,
+            )
+        )
+
+
+        # ----------------------------------------------------
+        # PDF only
+        # ----------------------------------------------------
+
+        extraction_file_name = cstr(
+            extraction_file_doc.file_name
+            or
+            extraction_file_doc.file_url
+        ).strip()
+
+
+        if (
+            Path(
+                extraction_file_name
+            ).suffix.lower()
+            != ".pdf"
+        ):
+
+            frappe.throw(
+                _(
+                    "ملف استخراج البيانات "
+                    "يجب أن يكون بصيغة PDF."
+                )
+            )
     # ========================================================
     # Validate new Shared Documents BEFORE changing anything
     #
     # Extraction Source لا يمكن تحويله إلى Shared Document.
     # ========================================================
 
+    # shared_file_docs = (
+    #     _prepare_shared_document_file_docs(
+    #         shared_documents,
+
+    #         forbidden_file_urls={
+    #             operation.extraction_source_file,
+    #         },
+    #     )
+    # )
+    forbidden_shared_file_urls = {
+        operation.extraction_source_file,
+    }
+
+
+    if extraction_file_doc:
+
+        forbidden_shared_file_urls.add(
+            extraction_file_doc.file_url
+        )
+
+
     shared_file_docs = (
         _prepare_shared_document_file_docs(
             shared_documents,
 
-            forbidden_file_urls={
-                operation.extraction_source_file,
-            },
+            forbidden_file_urls=
+                forbidden_shared_file_urls,
         )
     )
 
@@ -7737,10 +8004,25 @@ def save_operation_view_changes(
         ).strip()
 
 
+
+
         if not file_url:
             frappe.throw(
                 _(
                     "يوجد مرفق جديد بدون رابط ملف."
+                )
+            )
+        if (
+            extraction_file_doc
+            and
+            file_url
+            ==
+            extraction_file_doc.file_url
+        ):
+            frappe.throw(
+                _(
+                    "لا يمكن استخدام ملف الاستخراج "
+                    "كمرفق عادي في نفس الوقت."
                 )
             )
 
@@ -8062,6 +8344,22 @@ def save_operation_view_changes(
                     "target_request_date"
                 ]
             )
+
+    # ========================================================
+    # Missing Extraction Source
+    #
+    # لا نشغّل Parser هنا.
+    # فقط نثبت الملف كمصدر استخراج للعملية.
+    #
+    # sync_extraction_source() في Controller
+    # سينشئ/يحدّث Child Attachment تلقائياً.
+    # ========================================================
+
+    if extraction_file_doc:
+
+        operation.extraction_source_file = (
+            extraction_file_doc.file_url
+        )
     # ========================================================
     # One document save
     # ========================================================
@@ -8069,6 +8367,27 @@ def save_operation_view_changes(
     operation.save(
         ignore_permissions=True
     )
+
+    # ========================================================
+    # Physically bind uploaded File
+    # ========================================================
+
+    if extraction_file_doc:
+
+        extraction_file_doc.db_set(
+            {
+                "attached_to_doctype":
+                    "Archive Operation",
+
+                "attached_to_name":
+                    operation.name,
+
+                "attached_to_field":
+                    "extraction_source_file",
+            },
+
+            update_modified=False,
+        )
 
 
 
