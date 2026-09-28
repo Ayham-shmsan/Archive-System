@@ -2330,7 +2330,26 @@ class ArchivePendingOperationViewDialog {
                             "Small Text",
 
                         label:
-                            "ملاحظات",
+                            "ملاحظة إنهاء المعلقة ",
+                    },
+
+                    {
+                        fieldtype:
+                            "Column Break",
+                    },
+
+                    {
+                        fieldname:
+                            "closed_date",
+
+                        fieldtype:
+                            "Date",
+
+                        label:
+                            "تاريخ الإنهاء",
+
+                        read_only:
+                            1,
                     },
                 ],
 
@@ -2449,7 +2468,11 @@ class ArchivePendingOperationViewDialog {
                     dialog:
                         this.dialog,
 
-                    fieldnames: [
+                   fieldnames: [
+                        "card_name",
+                        "account_number",
+                        "card_number",
+
                         "machine_location",
                         "machine_no",
                         "branch_no",
@@ -2477,6 +2500,20 @@ class ArchivePendingOperationViewDialog {
 
     get_smart_lookup_context() {
         return {
+            card_name:
+                this.dialog.get_value(
+                    "card_name"
+                ),
+
+            account_number:
+                this.dialog.get_value(
+                    "account_number"
+                ),
+
+            card_number:
+                this.dialog.get_value(
+                    "card_number"
+                ),
             bank:
                 this.dialog
                     .get_value(
@@ -2609,6 +2646,9 @@ class ArchivePendingOperationViewDialog {
 
             notes:
                 operation.notes
+                || "",
+            closed_date:
+                operation.closed_date
                 || "",
         };
 

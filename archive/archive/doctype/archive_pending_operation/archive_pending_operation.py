@@ -62,6 +62,7 @@ _FAILURE_MUTATION_TOKEN = (
 
 _CLOSURE_STATE_FIELDS = (
     "is_closed",
+    "closed_date",
     "closed_at",
     "closed_by",
 )
@@ -348,6 +349,7 @@ class ArchivePendingOperation(Document):
                 get_next_pending_operation_serial()
             )
         self.is_closed = 0
+        self.closed_date = None
         self.closed_at = None
         self.closed_by = None
 

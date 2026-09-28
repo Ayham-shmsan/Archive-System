@@ -1011,6 +1011,10 @@ class ArchivePendingOperationDialog {
                         this.dialog,
 
                     fieldnames: [
+                        "card_name",
+                        "account_number",
+                        "card_number",
+
                         "machine_location",
                         "machine_no",
                         "branch_no",
@@ -1033,6 +1037,23 @@ class ArchivePendingOperationDialog {
 
     get_smart_lookup_context() {
         return {
+            card_name:
+                this.dialog
+                    .get_value(
+                        "card_name"
+                    ),
+
+            account_number:
+                this.dialog
+                    .get_value(
+                        "account_number"
+                    ),
+
+            card_number:
+                this.dialog
+                    .get_value(
+                        "card_number"
+                    ),
             bank:
                 this.dialog
                     .get_value(

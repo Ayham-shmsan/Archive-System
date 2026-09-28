@@ -3169,6 +3169,23 @@ class ArchivePendingOperationsPage {
                                 </div>
                             `,
                     },
+                    {
+                        fieldname:
+                            "closed_date",
+
+                        fieldtype:
+                            "Date",
+
+                        label:
+                            "تاريخ الإنهاء",
+
+                        reqd:
+                            1,
+
+                        default:
+                            frappe.datetime
+                                .get_today(),
+                    },
 
                     {
                         fieldname:
@@ -3235,6 +3252,9 @@ class ArchivePendingOperationsPage {
 
                                     payload: {
                                         note,
+
+                                        closed_date:
+                                            values.closed_date,
                                     },
 
                                     expected_modified:

@@ -50,6 +50,7 @@
   "failed_by",
   "failed_note",
   "is_closed",
+  "closed_date",
 "closed_at",
 "closed_by",
   "search_text"
@@ -321,6 +322,13 @@
     "label": "منتهية",
     "read_only": 1
 },
+  {
+    "fieldname": "closed_date",
+    "fieldtype": "Date",
+    "hidden": 1,
+    "label": "تاريخ الإنهاء",
+    "read_only": 1
+  },
 {
     "fieldname": "closed_at",
     "fieldtype": "Datetime",

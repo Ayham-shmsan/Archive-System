@@ -8,6 +8,7 @@ from frappe.utils import (
     cint,
     cstr,
     now_datetime,
+    getdate,
 )
 from archive.archive.doctype.archive_pending_operation.archive_pending_operation import (
     authorize_pending_closure_transition,
@@ -197,6 +198,7 @@ def close_pending_operation(
         data,
         {
             "note",
+            "closed_date",
         },
         context=_(
             "بيانات إنهاء العملية"
@@ -208,6 +210,33 @@ def close_pending_operation(
             "note"
         )
     ).strip()
+
+    closed_date_text = cstr(
+        data.get(
+            "closed_date"
+        )
+    ).strip()
+
+    if not closed_date_text:
+        frappe.throw(
+            _(
+                "تاريخ إنهاء العملية مطلوب."
+            ),
+            frappe.ValidationError,
+        )
+
+    try:
+        closed_date = getdate(
+            closed_date_text
+        )
+
+    except Exception:
+        frappe.throw(
+            _(
+                "تاريخ إنهاء العملية غير صالح."
+            ),
+            frappe.ValidationError,
+        )
 
     if not closure_note:
         frappe.throw(
@@ -263,6 +292,23 @@ def close_pending_operation(
             frappe.ValidationError,
         )
 
+    operation_date = getdate(
+        doc.operation_datetime
+    )
+
+    if (
+        closed_date
+        <
+        operation_date
+    ):
+        frappe.throw(
+            _(
+                "تاريخ إنهاء العملية لا يمكن "
+                "أن يكون أقدم من تاريخ العملية."
+            ),
+            frappe.ValidationError,
+        )
+
     notes_before = cstr(
         doc.notes
         or ""
@@ -288,6 +334,9 @@ def close_pending_operation(
     )
 
     doc.is_closed = 1
+    doc.closed_date = (
+        closed_date
+    )
 
     doc.closed_at = (
         closed_at
@@ -339,6 +388,8 @@ def close_pending_operation(
 
             "closed_at":
                 closed_at,
+            "closed_date":
+                closed_date,
 
             "closed_by":
                 closed_by,
@@ -461,6 +512,9 @@ def reopen_pending_operation(
     doc.notes = (
         notes_before
     )
+    previous_closed_date = (
+        doc.closed_date
+    )
 
     doc.is_closed = 0
 
@@ -510,6 +564,8 @@ def reopen_pending_operation(
 
             "remaining_amount":
                 doc.remaining_amount,
+            "previous_closed_date":
+                previous_closed_date,
         },
     )
 
@@ -2747,6 +2803,8 @@ def _build_pending_operation_details(
             cint(
                 doc.is_closed
             ),
+        "closed_date":
+            doc.closed_date,
 
         "closed_at":
             doc.closed_at,

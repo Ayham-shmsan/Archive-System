@@ -26,6 +26,10 @@ QUERY_POOL_SIZE = 200
 
 
 _TARGET_FIELDS = {
+    "card_name",
+    "account_number",
+    "card_number",
+
     "machine_location",
     "machine_no",
     "branch_no",
@@ -35,6 +39,12 @@ _TARGET_FIELDS = {
 _ALLOWED_CONTEXT_FIELDS = {
     "bank",
     "region",
+    "card_owner",
+
+    "card_name",
+    "account_number",
+    "card_number",
+
     "machine_location",
     "machine_no",
     "branch_no",
@@ -42,6 +52,155 @@ _ALLOWED_CONTEXT_FIELDS = {
 
 
 _CONTEXT_TIERS = {
+    # =========================================================
+    # بيانات البطاقة
+    # =========================================================
+
+    "card_name": (
+        (
+            (
+                "bank",
+                "card_owner",
+            ),
+            260,
+        ),
+        (
+            (
+                "bank",
+            ),
+            180,
+        ),
+        (
+            (
+                "card_owner",
+            ),
+            170,
+        ),
+        (
+            (),
+            0,
+        ),
+    ),
+
+    "account_number": (
+        (
+            (
+                "bank",
+                "card_owner",
+                "card_name",
+            ),
+            340,
+        ),
+        (
+            (
+                "bank",
+                "card_name",
+            ),
+            290,
+        ),
+        (
+            (
+                "card_owner",
+                "card_name",
+            ),
+            280,
+        ),
+        (
+            (
+                "card_name",
+            ),
+            230,
+        ),
+        (
+            (
+                "bank",
+                "card_owner",
+            ),
+            200,
+        ),
+        (
+            (
+                "bank",
+            ),
+            130,
+        ),
+        (
+            (
+                "card_owner",
+            ),
+            120,
+        ),
+        (
+            (),
+            0,
+        ),
+    ),
+
+    "card_number": (
+        (
+            (
+                "bank",
+                "card_owner",
+                "card_name",
+                "account_number",
+            ),
+            420,
+        ),
+        (
+            (
+                "card_owner",
+                "card_name",
+                "account_number",
+            ),
+            390,
+        ),
+        (
+            (
+                "bank",
+                "card_name",
+                "account_number",
+            ),
+            370,
+        ),
+        (
+            (
+                "card_name",
+                "account_number",
+            ),
+            340,
+        ),
+        (
+            (
+                "account_number",
+            ),
+            285,
+        ),
+        (
+            (
+                "bank",
+                "card_owner",
+                "card_name",
+            ),
+            260,
+        ),
+        (
+            (
+                "card_name",
+            ),
+            210,
+        ),
+        (
+            (
+                "bank",
+                "card_owner",
+            ),
+            175,
+        ),
+        (
+            (),
+            0,
+        ),
+    ),
     "machine_location": (
         (
             (
@@ -179,6 +338,8 @@ _CONTEXT_TIERS = {
             0,
         ),
     ),
+    
+
 }
 
 
