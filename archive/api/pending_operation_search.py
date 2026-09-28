@@ -132,9 +132,9 @@ def set_pending_search_text(doc) -> str:
 
             "card_owner_name":
                 _get_link_label(
-                    "Archive Card Owner",
+                    "Archive Account",
                     doc.card_owner,
-                    "card_owner_name",
+                    "account_name",
                 ),
 
             "bank_name":
@@ -517,8 +517,8 @@ def hydrate_pending_context_rows(
     }
 
     card_owner_map = _load_label_map(
-        "Archive Card Owner",
-        "card_owner_name",
+        "Archive Account",
+        "account_name",
         card_owner_ids,
     )
 

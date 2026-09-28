@@ -310,7 +310,7 @@ class ArchivePendingOperationDialog {
                             "مالك البطاقة",
 
                         options:
-                            "Archive Card Owner",
+                            "Archive Account",
 
                         reqd:
                             1,

@@ -58,7 +58,7 @@ test_records = []
 
 
 IGNORE_TEST_RECORD_DEPENDENCIES = [
-    "Archive Card Owner",
+    "Archive Account",
     "Currency",
     "Archive Bank",
     "Archive Region",
@@ -108,8 +108,8 @@ class TestArchivePendingOperation(
 
         self.card_owner = (
             self._make_master(
-                "Archive Card Owner",
-                "card_owner_name",
+                "Archive Account",
+                "account_name",
                 f"TEST OWNER {self.suffix}",
             )
         )

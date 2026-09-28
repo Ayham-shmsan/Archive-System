@@ -2666,9 +2666,9 @@ def _build_pending_operation_details(
 
         "card_owner_name":
             _get_pending_link_label(
-                "Archive Card Owner",
+                "Archive Account",
                 doc.card_owner,
-                "card_owner_name",
+                "account_name",
             ),
 
         "currency":

@@ -100,7 +100,7 @@
       "fieldtype": "Link",
       "in_standard_filter": 1,
       "label": "مالك البطاقة",
-      "options": "Archive Card Owner",
+      "options": "Archive Account",
       "reqd": 1
     },
     {
