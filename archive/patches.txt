@@ -13,3 +13,4 @@
 archive.patches.v1_0.backfill_pending_operation_search_text
 archive.patches.v1_0.setup_pending_operation_roles
 archive.patches.v1_0.migrate_pending_card_owner_to_archive_account
+archive.patches.v1_0.repair_pending_closed_date

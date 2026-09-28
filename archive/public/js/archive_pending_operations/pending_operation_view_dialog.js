@@ -2322,6 +2322,7 @@ class ArchivePendingOperationViewDialog {
                             "الملاحظات",
                     },
 
+
                     {
                         fieldname:
                             "notes",
@@ -2331,25 +2332,6 @@ class ArchivePendingOperationViewDialog {
 
                         label:
                             "ملاحظة إنهاء المعلقة ",
-                    },
-
-                    {
-                        fieldtype:
-                            "Column Break",
-                    },
-
-                    {
-                        fieldname:
-                            "closed_date",
-
-                        fieldtype:
-                            "Date",
-
-                        label:
-                            "تاريخ الإنهاء",
-
-                        read_only:
-                            1,
                     },
                 ],
 
@@ -2498,53 +2480,104 @@ class ArchivePendingOperationViewDialog {
     }
 
 
-    get_smart_lookup_context() {
-        return {
-            card_name:
-                this.dialog.get_value(
-                    "card_name"
-                ),
+    // get_smart_lookup_context() {
+    //     return {
+    //         card_name:
+    //             this.dialog.get_value(
+    //                 "card_name"
+    //             ),
 
-            account_number:
-                this.dialog.get_value(
-                    "account_number"
-                ),
+    //         account_number:
+    //             this.dialog.get_value(
+    //                 "account_number"
+    //             ),
 
-            card_number:
-                this.dialog.get_value(
-                    "card_number"
-                ),
-            bank:
-                this.dialog
-                    .get_value(
-                        "bank"
-                    ),
+    //         card_number:
+    //             this.dialog.get_value(
+    //                 "card_number"
+    //             ),
+    //         bank:
+    //             this.dialog
+    //                 .get_value(
+    //                     "bank"
+    //                 ),
 
-            region:
-                this.dialog
-                    .get_value(
-                        "region"
-                    ),
+    //         region:
+    //             this.dialog
+    //                 .get_value(
+    //                     "region"
+    //                 ),
 
-            machine_location:
-                this.dialog
-                    .get_value(
-                        "machine_location"
-                    ),
+    //         machine_location:
+    //             this.dialog
+    //                 .get_value(
+    //                     "machine_location"
+    //                 ),
 
-            machine_no:
-                this.dialog
-                    .get_value(
-                        "machine_no"
-                    ),
+    //         machine_no:
+    //             this.dialog
+    //                 .get_value(
+    //                     "machine_no"
+    //                 ),
 
-            branch_no:
-                this.dialog
-                    .get_value(
-                        "branch_no"
-                    ),
-        };
-    }
+    //         branch_no:
+    //             this.dialog
+    //                 .get_value(
+    //                     "branch_no"
+    //                 ),
+    //     };
+    // }
+        get_smart_lookup_context() {
+            return {
+                bank:
+                    this.dialog
+                        .get_value(
+                            "bank"
+                        ),
+
+                card_owner:
+                    this.dialog
+                        .get_value(
+                            "card_owner"
+                        ),
+
+                card_name:
+                    this.dialog
+                        .get_value(
+                            "card_name"
+                        ),
+
+                account_number:
+                    this.dialog
+                        .get_value(
+                            "account_number"
+                        ),
+
+                region:
+                    this.dialog
+                        .get_value(
+                            "region"
+                        ),
+
+                machine_location:
+                    this.dialog
+                        .get_value(
+                            "machine_location"
+                        ),
+
+                machine_no:
+                    this.dialog
+                        .get_value(
+                            "machine_no"
+                        ),
+
+                branch_no:
+                    this.dialog
+                        .get_value(
+                            "branch_no"
+                        ),
+            };
+        }
 
 
     can_edit_metadata() {
@@ -2647,9 +2680,7 @@ class ArchivePendingOperationViewDialog {
             notes:
                 operation.notes
                 || "",
-            closed_date:
-                operation.closed_date
-                || "",
+            
         };
 
         for (
@@ -2667,6 +2698,10 @@ class ArchivePendingOperationViewDialog {
                     value
                 );
         }
+
+        this.render_closed_date_over_notes(
+            operation.closed_date
+        );
 
         this.set_operation_datetime_value(
             operation
@@ -2694,6 +2729,101 @@ class ArchivePendingOperationViewDialog {
 
         this.syncing_suspended_amount =
             false;
+    }
+    render_closed_date_over_notes(
+        closed_date
+    ) {
+        const notes_field =
+            this.dialog
+                ?.fields_dict
+                ?.notes;
+
+        if (
+            !notes_field
+            || !notes_field.$wrapper
+            || !notes_field.$wrapper.length
+        ) {
+            return;
+        }
+
+        let $display =
+            notes_field
+                .$wrapper
+                .find(
+                    ".pending-view-closed-date-over-notes"
+                );
+
+        if (
+            !$display.length
+        ) {
+            $display = $(`
+                <div
+                    class="
+                        pending-view-closed-date-over-notes
+                    "
+                >
+                    <span
+                        class="
+                            pending-view-closed-date-label
+                        "
+                    ></span>
+
+                    <span
+                        class="
+                            pending-view-closed-date-value
+                        "
+                        dir="ltr"
+                    ></span>
+                </div>
+            `);
+
+            notes_field
+                .$wrapper
+                .prepend(
+                    $display
+                );
+        }
+
+        $display
+            .attr(
+                "dir",
+                document
+                    .documentElement
+                    .getAttribute(
+                        "dir"
+                    )
+                || "ltr"
+            );
+
+        $display
+            .find(
+                ".pending-view-closed-date-label"
+            )
+            .text(
+                __(
+                    "Closing Date"
+                ) + ":"
+            );
+
+        if (
+            !closed_date
+        ) {
+            $display.hide();
+
+            return;
+        }
+
+        $display
+            .find(
+                ".pending-view-closed-date-value"
+            )
+            .text(
+                this.format_date(
+                    closed_date
+                )
+            );
+
+        $display.show();
     }
 
 

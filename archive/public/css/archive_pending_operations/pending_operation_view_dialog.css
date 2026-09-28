@@ -558,16 +558,72 @@ tbody tr:last-child td {
 
 /* Notes */
 
+/* Notes */
 .archive-pending-operation-view-dialog
-[data-fieldname="suspended_note"]
-textarea,
-.archive-pending-operation-view-dialog
-[data-fieldname="notes"]
-textarea {
-    min-height: 72px;
+[data-fieldname="notes"] {
+    position: relative;
 }
 
+.archive-pending-operation-view-dialog
+.pending-view-closed-date-over-notes {
+    position: absolute;
 
+    top: 0;
+
+    width: auto;
+    max-width: 48%;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+
+    white-space: nowrap;
+
+    font-size: 12px;
+    line-height: 20px;
+
+    z-index: 2;
+
+    pointer-events: none;
+}
+
+/* العربية وعموم لغات RTL:
+   التاريخ في الطرف الأيسر فعليًا */
+html[dir="rtl"]
+.archive-pending-operation-view-dialog
+.pending-view-closed-date-over-notes {
+    left: 0;
+    right: auto;
+}
+
+/* الإنجليزية وعموم لغات LTR:
+   التاريخ في الطرف الأيمن فعليًا */
+html[dir="ltr"]
+.archive-pending-operation-view-dialog
+.pending-view-closed-date-over-notes {
+    right: 0;
+    left: auto;
+}
+
+.archive-pending-operation-view-dialog
+.pending-view-closed-date-label {
+    color: var(--text-muted);
+
+    font-size: 14px;
+
+    font-weight: 600;
+
+    line-height: 1.4;
+}
+
+.archive-pending-operation-view-dialog
+.pending-view-closed-date-value {
+    color: var(--text-color);
+    font-weight: 500;
+
+    direction: ltr;
+    unicode-bidi: isolate;
+}
 /* Responsive */
 
 @media (
@@ -599,6 +655,16 @@ textarea {
 @media (
     max-width: 600px
 ) {
+    .archive-pending-operation-view-dialog
+    .pending-view-closed-date-over-notes {
+        position: static;
+
+        max-width: 100%;
+
+        margin-bottom: 6px;
+
+        justify-content: flex-start;
+    }
     .pending-view-summary-grid {
         grid-template-columns:
             1fr;
@@ -728,3 +794,4 @@ textarea,
     text-align:
         right !important;
 }
+

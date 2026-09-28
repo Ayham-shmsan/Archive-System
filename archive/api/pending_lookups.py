@@ -38,18 +38,15 @@ _TARGET_FIELDS = {
 
 _ALLOWED_CONTEXT_FIELDS = {
     "bank",
-    "region",
     "card_owner",
-
     "card_name",
     "account_number",
-    "card_number",
 
+    "region",
     "machine_location",
     "machine_no",
     "branch_no",
 }
-
 
 _CONTEXT_TIERS = {
     # =========================================================
@@ -607,6 +604,20 @@ def get_pending_related_fields(
     context_data = _parse_context(
         context
     )
+    # بعض الحقول تدعم Suggestions فقط، ولا تشارك في
+    # Related-field inference / autofill.
+    #
+    # مثال: card_name / account_number / card_number.
+    # نعيد نتيجة فارغة بدل الاعتماد على dict indexing
+    # الذي قد يسبب KeyError عند استدعاء الـAPI مباشرة.
+    if (
+        fieldname not in _RELATED_FIELDS
+        or
+        fieldname not in _INFERENCE_CONTEXT_FIELDS
+    ):
+        return {
+            "related": {},
+        }
 
     user = frappe.session.user
 

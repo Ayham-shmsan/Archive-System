@@ -1035,56 +1035,107 @@ class ArchivePendingOperationDialog {
     }
 
 
+    // get_smart_lookup_context() {
+    //     return {
+    //         card_name:
+    //             this.dialog
+    //                 .get_value(
+    //                     "card_name"
+    //                 ),
+
+    //         account_number:
+    //             this.dialog
+    //                 .get_value(
+    //                     "account_number"
+    //                 ),
+
+    //         card_number:
+    //             this.dialog
+    //                 .get_value(
+    //                     "card_number"
+    //                 ),
+    //         bank:
+    //             this.dialog
+    //                 .get_value(
+    //                     "bank"
+    //                 ),
+
+    //         region:
+    //             this.dialog
+    //                 .get_value(
+    //                     "region"
+    //                 ),
+
+    //         machine_location:
+    //             this.dialog
+    //                 .get_value(
+    //                     "machine_location"
+    //                 ),
+
+    //         machine_no:
+    //             this.dialog
+    //                 .get_value(
+    //                     "machine_no"
+    //                 ),
+
+    //         branch_no:
+    //             this.dialog
+    //                 .get_value(
+    //                     "branch_no"
+    //                 ),
+    //     };
+    // }
     get_smart_lookup_context() {
-        return {
-            card_name:
-                this.dialog
-                    .get_value(
-                        "card_name"
-                    ),
+            return {
+                bank:
+                    this.dialog
+                        .get_value(
+                            "bank"
+                        ),
 
-            account_number:
-                this.dialog
-                    .get_value(
-                        "account_number"
-                    ),
+                card_owner:
+                    this.dialog
+                        .get_value(
+                            "card_owner"
+                        ),
 
-            card_number:
-                this.dialog
-                    .get_value(
-                        "card_number"
-                    ),
-            bank:
-                this.dialog
-                    .get_value(
-                        "bank"
-                    ),
+                card_name:
+                    this.dialog
+                        .get_value(
+                            "card_name"
+                        ),
 
-            region:
-                this.dialog
-                    .get_value(
-                        "region"
-                    ),
+                account_number:
+                    this.dialog
+                        .get_value(
+                            "account_number"
+                        ),
 
-            machine_location:
-                this.dialog
-                    .get_value(
-                        "machine_location"
-                    ),
+                region:
+                    this.dialog
+                        .get_value(
+                            "region"
+                        ),
 
-            machine_no:
-                this.dialog
-                    .get_value(
-                        "machine_no"
-                    ),
+                machine_location:
+                    this.dialog
+                        .get_value(
+                            "machine_location"
+                        ),
 
-            branch_no:
-                this.dialog
-                    .get_value(
-                        "branch_no"
-                    ),
-        };
-    }
+                machine_no:
+                    this.dialog
+                        .get_value(
+                            "machine_no"
+                        ),
+
+                branch_no:
+                    this.dialog
+                        .get_value(
+                            "branch_no"
+                        ),
+            };
+        }
 
 
     bind_events() {

@@ -395,14 +395,15 @@ class ArchivePendingOperation(Document):
         )
         self._validate_closure_mutation()
 
+        self._validate_closure_state()
+
         self._validate_closed_immutability()
 
     def _validate_closure_mutation(
         self,
     ) -> None:
         """
-        يمنع تعديل is_closed / closed_at / closed_by
-        من Save عادي أو REST أو Generic Form.
+        يمنع تعديل is_closed / closed_date / closed_at / closed_by        من Save عادي أو REST أو Generic Form.
 
         التغيير مسموح فقط عبر:
         close_pending_operation
@@ -454,6 +455,56 @@ class ArchivePendingOperation(Document):
                 ),
                 frappe.PermissionError,
             )
+    def _validate_closure_state(
+            self,
+        ) -> None:
+            """
+            يحافظ على اتساق Current closure state.
+
+            العملية المنتهية يجب أن تملك تاريخ الإنهاء التجاري
+            ووقت التنفيذ والمستخدم المنفذ.
+            العملية المفتوحة يجب ألا تحتفظ بأي قيمة حالية منها؛
+            التاريخ السابق يبقى محفوظًا في Audit فقط.
+            """
+
+            closed_by = cstr(
+                self.closed_by
+                or ""
+            ).strip()
+
+            if cint(
+                self.is_closed
+            ):
+                if (
+                    not self.closed_date
+                    or
+                    not self.closed_at
+                    or
+                    not closed_by
+                ):
+                    frappe.throw(
+                        _(
+                            "بيانات إنهاء العملية غير مكتملة."
+                        ),
+                        frappe.ValidationError,
+                    )
+
+                return
+
+            if (
+                self.closed_date
+                or
+                self.closed_at
+                or
+                closed_by
+            ):
+                frappe.throw(
+                    _(
+                        "لا يمكن وجود بيانات إنهاء حالية "
+                        "لعملية غير منتهية."
+                    ),
+                    frappe.ValidationError,
+                )
 
 
     def _validate_closed_immutability(

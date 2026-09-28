@@ -61,6 +61,7 @@
   ],
   "quick_entry": 1,
   "search_fields": "region_name",
+  "show_title_field_in_link": 1,
   "sort_field": "region_name",
   "sort_order": "ASC",
   "states": [],

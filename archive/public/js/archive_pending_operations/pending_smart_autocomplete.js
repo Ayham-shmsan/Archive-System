@@ -31,6 +31,18 @@ class ArchivePendingSmartAutocomplete {
                 options.limit
                 || 10
             );
+        // Suggestions متاحة لكل الحقول المسجلة في fieldnames،
+        // لكن Related-field inference مقصود فقط لحقول المكينة.
+        // حقول البطاقة تبقى Suggestions-only ولا تعمل Autofill.
+        this.related_source_fields =
+            new Set(
+                options.related_source_fields
+                || [
+                    "machine_location",
+                    "machine_no",
+                    "branch_no",
+                ]
+            );
 
         this.cache =
             new Map();
@@ -584,35 +596,70 @@ class ArchivePendingSmartAutocomplete {
             });
     }
 
-    async select_item(
-        state,
-        index
-    ) {
-        const value =
-            state.items[
-                index
-            ];
+    // async select_item(
+    //     state,
+    //     index
+    // ) {
+    //     const value =
+    //         state.items[
+    //             index
+    //         ];
 
-        if (!value) {
-            return;
+    //     if (!value) {
+    //         return;
+    //     }
+
+    //     this.hide_menu(
+    //         state
+    //     );
+
+    //     await Promise.resolve(
+    //         this.dialog.set_value(
+    //             state.fieldname,
+    //             value
+    //         )
+    //     );
+
+    //     await this.offer_related_fields(
+    //         state.fieldname,
+    //         value
+    //     );
+    // }
+        async select_item(
+            state,
+            index
+        ) {
+            const value =
+                state.items[
+                    index
+                ];
+
+            if (!value) {
+                return;
+            }
+
+            this.hide_menu(
+                state
+            );
+
+            await Promise.resolve(
+                this.dialog.set_value(
+                    state.fieldname,
+                    value
+                )
+            );
+
+            if (
+                this.related_source_fields.has(
+                    state.fieldname
+                )
+            ) {
+                await this.offer_related_fields(
+                    state.fieldname,
+                    value
+                );
+            }
         }
-
-        this.hide_menu(
-            state
-        );
-
-        await Promise.resolve(
-            this.dialog.set_value(
-                state.fieldname,
-                value
-            )
-        );
-
-        await this.offer_related_fields(
-            state.fieldname,
-            value
-        );
-    }
 
     async offer_related_fields(
         fieldname,
@@ -810,38 +857,76 @@ class ArchivePendingSmartAutocomplete {
         }
     }
 
-    get_context() {
-        const raw =
-            this.context_provider()
-            || {};
+    // get_context() {
+    //     const raw =
+    //         this.context_provider()
+    //         || {};
 
-        const result = {};
+    //     const result = {};
 
-        for (
-            const fieldname
-            of [
-                "bank",
-                "region",
-                "machine_location",
-                "machine_no",
-                "branch_no",
-            ]
-        ) {
-            const value =
-                String(
-                    raw[fieldname]
-                    || ""
-                ).trim();
+    //     for (
+    //         const fieldname
+    //         of [
+    //             "bank",
+    //             "region",
+    //             "machine_location",
+    //             "machine_no",
+    //             "branch_no",
+    //             "card_owner",
+    //             "card_name",
+    //             "account_number",
+    //         ]
+    //     ) {
+    //         const value =
+    //             String(
+    //                 raw[fieldname]
+    //                 || ""
+    //             ).trim();
 
-            if (value) {
-                result[
-                    fieldname
-                ] = value;
+    //         if (value) {
+    //             result[
+    //                 fieldname
+    //             ] = value;
+    //         }
+    //     }
+
+    //     return result;
+    // }
+        get_context() {
+            const raw =
+                this.context_provider()
+                || {};
+
+            const result = {};
+
+            for (
+                const fieldname
+                of [
+                    "bank",
+                    "card_owner",
+                    "card_name",
+                    "account_number",
+                    "region",
+                    "machine_location",
+                    "machine_no",
+                    "branch_no",
+                ]
+            ) {
+                const value =
+                    String(
+                        raw[fieldname]
+                        || ""
+                    ).trim();
+
+                if (value) {
+                    result[
+                        fieldname
+                    ] = value;
+                }
             }
-        }
 
-        return result;
-    }
+            return result;
+        }
 
     is_enabled() {
         try {

@@ -518,6 +518,8 @@ def reopen_pending_operation(
 
     doc.is_closed = 0
 
+    doc.closed_date = None
+
     doc.closed_at = None
 
     doc.closed_by = None
@@ -1739,18 +1741,18 @@ def mark_pending_operation_failed(
         )
     ).strip()
 
-    if not note:
-        frappe.throw(
-            _(
-                "ملاحظة تحويل العملية "
-                "إلى معلقة فاشلة مطلوبة."
-            ),
-            frappe.ValidationError,
-        )
-
-    if len(
+    # الملاحظة لم تعد مطلوبة عند تحويل العملية
+    # إلى معلقة فاشلة.
+    #
+    # نبقي دعمها اختياريًا للتوافق مع أي سجلات
+    # أو Clients أقدم ما زالت ترسل note.
+    if (
         note
-    ) > 2000:
+        and
+        len(
+            note
+        ) > 2000
+    ):
         frappe.throw(
             _(
                 "ملاحظة المعلقة الفاشلة طويلة جدًا. "
@@ -1819,6 +1821,7 @@ def mark_pending_operation_failed(
 
     doc.failed_note = (
         note
+        or None
     )
 
     doc.save(

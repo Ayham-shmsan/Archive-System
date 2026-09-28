@@ -95,6 +95,16 @@
         13px;
 }
 
+.archive-pending-create-button {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 6px;
+
+    white-space: nowrap;
+}
+
 .archive-pending-title-row {
     display: flex;
 
