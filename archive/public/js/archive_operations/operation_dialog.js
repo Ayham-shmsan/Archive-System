@@ -1028,6 +1028,72 @@ archive.ui.OperationDialog = class OperationDialog {
 		this.render_shared_documents();
 	}
 
+	is_blocked_operation_mode() {
+
+		const blocked =
+			this.controls
+				.is_blocked_operation;
+
+
+		return Boolean(
+			Number(
+				blocked?.get_value()
+				|| 0
+			)
+		);
+	}
+
+
+	apply_blocked_required_mode(
+		is_blocked
+	) {
+
+		for (
+			const [
+				fieldname,
+				control,
+			]
+			of Object.entries(
+				this.controls
+			)
+		) {
+
+			if (
+				!control
+				||
+				!control.df
+			) {
+				continue;
+			}
+
+
+			/*
+			* رقم العملية له منطق مستقل:
+			* عند المحضورة يصبح فارغاً وRead Only.
+			*/
+			if (
+				fieldname
+				===
+				"operation_no"
+			) {
+				continue;
+			}
+
+
+			control.df.reqd =
+				is_blocked
+					? 0
+					: (
+						control.archive_normal_reqd
+							? 1
+							: 0
+					);
+
+
+			control.refresh();
+		}
+	}
+
 	
 	update_operation_number_mode() {
 
@@ -1064,6 +1130,9 @@ archive.ui.OperationDialog = class OperationDialog {
 					|| 0
 				)
 			);
+		this.apply_blocked_required_mode(
+			is_blocked
+		);
 
 
 		const $status_badge =
@@ -1147,6 +1216,33 @@ archive.ui.OperationDialog = class OperationDialog {
 		operation_no.refresh();
 
 		allow_duplicate.refresh();
+		/*
+		* نعيد تطبيق منطق سعر العميل بعد تغيير
+		* وضع العملية.
+		*
+		* في المحضورة تبقى حقوله اختيارية.
+		* في العملية العادية تعود قواعدها الطبيعية.
+		*/
+		this.update_customer_rate_mode({
+			rate_currency_value:
+				this.controls
+					.customer_rate_currency
+					?.$input
+					?.val()
+				|| "",
+
+			rate_type_value:
+				this.controls
+					.customer_rate_type
+					?.$input
+					?.val()
+				|| "",
+
+			rate_amount_value:
+				this.controls
+					.customer_rate_amount
+					?.get_value(),
+		});
 	}
 
 
@@ -2213,6 +2309,10 @@ archive.ui.OperationDialog = class OperationDialog {
 			const previous_currency =
 				this.customer_rate_last_currency;
 
+						
+			const is_blocked =
+				this.is_blocked_operation_mode();
+
 
 			if (
 				previous_currency
@@ -2259,7 +2359,9 @@ archive.ui.OperationDialog = class OperationDialog {
 						0;
 
 					rate_type.df.reqd =
-						1;
+						is_blocked
+							? 0
+							: 1;
 
 					rate_type.$wrapper.show();
 
@@ -2375,7 +2477,9 @@ archive.ui.OperationDialog = class OperationDialog {
 						0;
 
 					rate_amount.df.reqd =
-						1;
+						is_blocked
+							? 0
+							: 1;
 
 					rate_amount.$wrapper.show();
 
@@ -2706,6 +2810,23 @@ archive.ui.OperationDialog = class OperationDialog {
 	}
 
 
+	// make_control($parent, df) {
+	// 	const control = frappe.ui.form.make_control({
+	// 		parent: $parent,
+	// 		df: df,
+	// 		render_input: true,
+	// 	});
+
+	// 	control.refresh();
+
+	// 	if (df.default !== undefined) {
+	// 		control.set_value(df.default);
+	// 	}
+
+	// 	this.controls[df.fieldname] = control;
+
+	// 	return control;
+	// }
 	make_control($parent, df) {
 		const control = frappe.ui.form.make_control({
 			parent: $parent,
@@ -2713,13 +2834,39 @@ archive.ui.OperationDialog = class OperationDialog {
 			render_input: true,
 		});
 
+
+		/*
+		* نحفظ حالة الإلزام الأصلية.
+		*
+		* عند اختيار "عملية محضورة":
+		* تصبح جميع الحقول اختيارية.
+		*
+		* وعند إلغاء الخيار:
+		* نستعيد الحالة الأصلية كما كانت.
+		*/
+		control.archive_normal_reqd =
+			Boolean(
+				df.reqd
+			);
+
+
 		control.refresh();
 
-		if (df.default !== undefined) {
-			control.set_value(df.default);
+
+		if (
+			df.default
+			!== undefined
+		) {
+			control.set_value(
+				df.default
+			);
 		}
 
-		this.controls[df.fieldname] = control;
+
+		this.controls[
+			df.fieldname
+		] = control;
+
 
 		return control;
 	}
@@ -3972,7 +4119,40 @@ archive.ui.OperationDialog = class OperationDialog {
 		}
 
 
+		// if (
+		// 	!this.validate_customer_rate_mode(
+		// 		values
+		// 	)
+		// ) {
+		// 	return;
+		// }
+
+
+		// if (
+		// 	!this.validate_required_fields()
+		// ) {
+		// 	return;
+		// }
+		const is_blocked =
+			Boolean(
+				Number(
+					values
+						.is_blocked_operation
+					|| 0
+				)
+			);
+
+
+		/*
+		* العملية المحضورة:
+		* جميع حقول البيانات اختيارية.
+		*
+		* العملية العادية:
+		* تبقى كل قواعد التحقق الحالية كما هي.
+		*/
 		if (
+			!is_blocked
+			&&
 			!this.validate_customer_rate_mode(
 				values
 			)
@@ -3982,6 +4162,8 @@ archive.ui.OperationDialog = class OperationDialog {
 
 
 		if (
+			!is_blocked
+			&&
 			!this.validate_required_fields()
 		) {
 			return;

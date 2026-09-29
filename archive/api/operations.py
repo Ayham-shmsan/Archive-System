@@ -1621,9 +1621,33 @@ def create_operation(
             )
         )
 
-    _normalize_customer_rate_values(
-        values
+    # _normalize_customer_rate_values(
+    #     values
+    # )
+    is_blocked_operation = bool(
+        cint(
+            values.get(
+                "is_blocked_operation"
+            )
+        )
     )
+
+
+    # ========================================================
+    # Customer rate
+    #
+    # العملية المحضورة تسمح بأن تكون جميع بيانات
+    # العملية اختيارية.
+    #
+    # لذلك قواعد سعر العميل الإلزامية تخص فقط
+    # العملية العادية.
+    # ========================================================
+
+    if not is_blocked_operation:
+
+        _normalize_customer_rate_values(
+            values
+        )
 
     # ========================================================
     # Existing operation number
