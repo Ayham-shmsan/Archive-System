@@ -79,6 +79,9 @@ class ArchivePendingOperationsPage {
                 new window
                     .ArchivePendingOperationViewDialog({
                         name,
+                        lookup_rows:
+                            this
+                                .get_card_account_lookup_rows(),
 
                         on_changed:
                             async () => {
@@ -4032,6 +4035,69 @@ class ArchivePendingOperationsPage {
                 }
             );
     }
+    get_card_account_lookup_rows() {
+        const records =
+            this.data_source
+                ?.records;
+
+
+        let rows = [];
+
+
+        if (
+            records
+            instanceof Map
+        ) {
+            rows =
+                Array.from(
+                    records.values()
+                );
+
+        } else if (
+            Array.isArray(
+                records
+            )
+        ) {
+            rows =
+                records;
+
+        } else if (
+            records
+            &&
+            typeof records.values
+                === "function"
+        ) {
+            rows =
+                Array.from(
+                    records.values()
+                );
+        }
+
+
+        /*
+        * لا نمرر كامل Record إلى Dialog.
+        * فقط الحقول اللازمة للعلاقة.
+        */
+        return rows.map(
+            (row) => ({
+                card_name:
+                    row.card_name
+                    || "",
+
+                account_number:
+                    row.account_number
+                    || "",
+
+                bank:
+                    row.bank
+                    || "",
+
+                card_owner:
+                    row.card_owner
+                    || "",
+            })
+        );
+    }
     
     open_create_dialog() {
         if (
@@ -4077,6 +4143,10 @@ class ArchivePendingOperationsPage {
         const create_dialog =
             new window
                 .ArchivePendingOperationDialog({
+
+                    lookup_rows:
+                        this
+                            .get_card_account_lookup_rows(),
 
                     on_created:
                         async (

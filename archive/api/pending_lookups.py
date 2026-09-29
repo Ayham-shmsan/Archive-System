@@ -339,8 +339,24 @@ _CONTEXT_TIERS = {
 
 }
 
-
 _RELATED_FIELDS = {
+    # ========================================================
+    # Card / Account relation
+    # ========================================================
+
+    "card_name": (
+        "account_number",
+    ),
+
+    "account_number": (
+        "card_name",
+    ),
+
+
+    # ========================================================
+    # Machine relation
+    # ========================================================
+
     "machine_location": (
         "machine_no",
         "branch_no",
@@ -357,8 +373,47 @@ _RELATED_FIELDS = {
     ),
 }
 
+# _INFERENCE_CONTEXT_FIELDS = {
+#     "machine_location": (
+#         "bank",
+#         "region",
+#     ),
 
+#     "machine_no": (
+#         "bank",
+#         "region",
+#         "machine_location",
+#     ),
+
+#     "branch_no": (
+#         "bank",
+#         "region",
+#         "machine_location",
+#     ),
+# }
 _INFERENCE_CONTEXT_FIELDS = {
+    # ========================================================
+    # Card / Account
+    #
+    # البنك ومالك البطاقة يساعدان على إزالة الالتباس
+    # إذا تكرر نفس الاسم أو الرقم في أكثر من سياق.
+    # ========================================================
+
+    "card_name": (
+        "bank",
+        "card_owner",
+    ),
+
+    "account_number": (
+        "bank",
+        "card_owner",
+    ),
+
+
+    # ========================================================
+    # Machine
+    # ========================================================
+
     "machine_location": (
         "bank",
         "region",
@@ -376,7 +431,6 @@ _INFERENCE_CONTEXT_FIELDS = {
         "machine_location",
     ),
 }
-
 
 @frappe.whitelist(
     methods=["GET"]

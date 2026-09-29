@@ -7,6 +7,19 @@ class ArchivePendingOperationDialog {
             typeof options.on_created === "function"
                 ? options.on_created
                 : null;
+        this.card_account_lookup =
+            window
+                .ArchivePendingCardAccountLookup
+                ? new window
+                    .ArchivePendingCardAccountLookup({
+                        rows:
+                            Array.isArray(
+                                options.lookup_rows
+                            )
+                                ? options.lookup_rows
+                                : [],
+                    })
+                : null;
 
         this.row_counter = 0;
 
@@ -26,6 +39,7 @@ class ArchivePendingOperationDialog {
         this.setup_attachment_manager();
 
         this.setup_smart_autocomplete();
+        this.setup_card_account_autofill();
 
         this.bind_events();
 
@@ -1007,6 +1021,7 @@ class ArchivePendingOperationDialog {
         this.smart_autocomplete =
             new window
                 .ArchivePendingSmartAutocomplete({
+
                     dialog:
                         this.dialog,
 
@@ -1031,60 +1046,40 @@ class ArchivePendingOperationDialog {
 
                     limit:
                         10,
+                    on_select:
+                        ({
+                            fieldname,
+                            value,
+                        }) => {
+
+                            if (
+                                ![
+                                    "card_name",
+                                    "account_number",
+                                ].includes(
+                                    fieldname
+                                )
+                            ) {
+                                return;
+                            }
+
+
+                            /*
+                            * القيمة تم وضعها بالفعل في الحقل
+                            * بواسطة Smart Autocomplete.
+                            *
+                            * نبدأ Card ↔ Account resolver فورًا.
+                            */
+                            this
+                                .schedule_card_account_autofill(
+                                    fieldname
+                                );
+                        },
                 });
     }
 
 
-    // get_smart_lookup_context() {
-    //     return {
-    //         card_name:
-    //             this.dialog
-    //                 .get_value(
-    //                     "card_name"
-    //                 ),
-
-    //         account_number:
-    //             this.dialog
-    //                 .get_value(
-    //                     "account_number"
-    //                 ),
-
-    //         card_number:
-    //             this.dialog
-    //                 .get_value(
-    //                     "card_number"
-    //                 ),
-    //         bank:
-    //             this.dialog
-    //                 .get_value(
-    //                     "bank"
-    //                 ),
-
-    //         region:
-    //             this.dialog
-    //                 .get_value(
-    //                     "region"
-    //                 ),
-
-    //         machine_location:
-    //             this.dialog
-    //                 .get_value(
-    //                     "machine_location"
-    //                 ),
-
-    //         machine_no:
-    //             this.dialog
-    //                 .get_value(
-    //                     "machine_no"
-    //                 ),
-
-    //         branch_no:
-    //             this.dialog
-    //                 .get_value(
-    //                     "branch_no"
-    //                 ),
-    //     };
-    // }
+    
     get_smart_lookup_context() {
             return {
                 bank:
@@ -1136,6 +1131,683 @@ class ArchivePendingOperationDialog {
                         ),
             };
         }
+    setup_card_account_autofill() {
+        if (!this.dialog) {
+            return;
+        }
+
+        if (!this.card_account_autofill_state) {
+            this.card_account_autofill_state = {
+                timer:
+                    null,
+
+                request_sequence:
+                    0,
+
+                applying:
+                    false,
+
+                auto_values:
+                    {},
+            };
+        }
+
+
+        const fields = [
+            "card_name",
+            "account_number",
+        ];
+
+
+        for (
+            const fieldname
+            of fields
+        ) {
+            const control =
+                this.dialog
+                    .fields_dict
+                    ?.[fieldname];
+
+            if (
+                !control
+                || !control.$input
+                || !control.$input.length
+            ) {
+                continue;
+            }
+
+
+            control.$input
+                .off(
+                    ".archiveCardAccountAutofill"
+                )
+                .on(
+                    [
+                        "input.archiveCardAccountAutofill",
+                        "change.archiveCardAccountAutofill",
+                        "blur.archiveCardAccountAutofill",
+                    ].join(" "),
+
+                    () => {
+                        if (
+                            this
+                                .card_account_autofill_state
+                                .applying
+                        ) {
+                            return;
+                        }
+
+
+                        const current_value =
+                            String(
+                                this.dialog
+                                    .get_value(
+                                        fieldname
+                                    )
+                                || ""
+                            ).trim();
+
+
+                        const previous_auto =
+                            this
+                                .card_account_autofill_state
+                                .auto_values[
+                                    fieldname
+                                ];
+
+
+                        /*
+                        * إذا عدّل المستخدم قيمة كانت
+                        * Auto-filled يدويًا، فهي لم تعد
+                        * ملك النظام ولا نستبدلها بصمت.
+                        */
+                        if (
+                            previous_auto
+                            &&
+                            current_value
+                            !== previous_auto
+                        ) {
+                            delete this
+                                .card_account_autofill_state
+                                .auto_values[
+                                    fieldname
+                                ];
+                        }
+
+
+                        this
+                            .schedule_card_account_autofill(
+                                fieldname
+                            );
+                    }
+                );
+        }
+    }
+
+
+    // schedule_card_account_autofill(
+    //     fieldname
+    // ) {
+    //     const state =
+    //         this.card_account_autofill_state;
+
+    //     if (!state) {
+    //         return;
+    //     }
+
+
+    //     clearTimeout(
+    //         state.timer
+    //     );
+
+
+    //     state.timer =
+    //         setTimeout(
+    //             () => {
+    //                 this
+    //                     .apply_card_account_autofill(
+    //                         fieldname
+    //                     );
+    //             },
+    //             300
+    //         );
+    // }
+    schedule_card_account_autofill(
+        fieldname
+    ) {
+        const state =
+            this
+                .card_account_autofill_state;
+
+
+        if (!state) {
+            return;
+        }
+
+
+        clearTimeout(
+            state.timer
+        );
+
+
+        const relation = {
+            card_name:
+                "account_number",
+
+            account_number:
+                "card_name",
+        };
+
+
+        const target_fieldname =
+            relation[
+                fieldname
+            ];
+
+
+        if (
+            !target_fieldname
+        ) {
+            return;
+        }
+
+
+        const source_value =
+            String(
+                this.dialog
+                    .get_value(
+                        fieldname
+                    )
+                || ""
+            ).trim();
+
+
+        /*
+        * إذا مسح المستخدم المصدر، نترك الدالة
+        * الحالية تتعامل فورًا مع تنظيف Auto Value.
+        *
+        * هذا المسار لا ينفذ Request لأن
+        * apply_card_account_autofill() يرجع
+        * قبل frappe.call عندما source فارغ.
+        */
+        if (!source_value) {
+            this
+                .apply_card_account_autofill(
+                    fieldname
+                );
+
+            return;
+        }
+
+
+        // ========================================================
+        // FAST PATH
+        //
+        // البيانات موجودة أصلًا في Context الشاشة.
+        // لا Debounce ولا Server Request.
+        // ========================================================
+
+        const local_value =
+            this.card_account_lookup
+                ?.resolve(
+                    fieldname,
+                    source_value,
+                    this
+                        .get_smart_lookup_context()
+                )
+            || "";
+
+
+        if (local_value) {
+            const current_target_value =
+                String(
+                    this.dialog
+                        .get_value(
+                            target_fieldname
+                        )
+                    || ""
+                ).trim();
+
+
+            const previous_auto_target =
+                state
+                    .auto_values[
+                        target_fieldname
+                    ];
+
+
+            const target_is_auto_owned =
+                Boolean(
+                    previous_auto_target
+                    &&
+                    current_target_value
+                    === previous_auto_target
+                );
+
+
+            /*
+            * المستخدم كتب الطرف الآخر بنفسه:
+            * لا نستبدله.
+            */
+            if (
+                current_target_value
+                &&
+                !target_is_auto_owned
+            ) {
+                return;
+            }
+
+
+            /*
+            * موجودة أصلًا.
+            */
+            if (
+                current_target_value
+                === local_value
+            ) {
+                state
+                    .auto_values[
+                        target_fieldname
+                    ] =
+                        local_value;
+
+                return;
+            }
+
+
+            state.applying =
+                true;
+
+
+            Promise
+                .resolve(
+                    this.dialog
+                        .set_value(
+                            target_fieldname,
+                            local_value
+                        )
+                )
+                .then(
+                    () => {
+                        state
+                            .auto_values[
+                                target_fieldname
+                            ] =
+                                local_value;
+                    }
+                )
+                .finally(
+                    () => {
+                        state.applying =
+                            false;
+                    }
+                );
+
+
+            return;
+        }
+
+
+        // ========================================================
+        // FALLBACK
+        //
+        // لا توجد علاقة محلية أو العلاقة ملتبسة.
+        // ننتظر فقط في هذه الحالة قبل الرجوع للسيرفر.
+        // ========================================================
+
+        state.timer =
+            setTimeout(
+                () => {
+                    this
+                        .apply_card_account_autofill(
+                            fieldname
+                        );
+                },
+                250
+            );
+    }
+
+
+    async apply_card_account_autofill(
+        fieldname
+    ) {
+        const relation = {
+            card_name:
+                "account_number",
+
+            account_number:
+                "card_name",
+        };
+
+
+        const target_fieldname =
+            relation[
+                fieldname
+            ];
+
+
+        if (
+            !target_fieldname
+            || !this.dialog
+        ) {
+            return;
+        }
+
+
+        const state =
+            this.card_account_autofill_state;
+
+
+        if (
+            !state
+            || state.applying
+        ) {
+            return;
+        }
+
+
+        const source_value =
+            String(
+                this.dialog
+                    .get_value(
+                        fieldname
+                    )
+                || ""
+            ).trim();
+
+
+        const current_target_value =
+            String(
+                this.dialog
+                    .get_value(
+                        target_fieldname
+                    )
+                || ""
+            ).trim();
+
+
+        const previous_auto_target =
+            state
+                .auto_values[
+                    target_fieldname
+                ];
+
+
+        const target_is_auto_owned =
+            Boolean(
+                previous_auto_target
+                &&
+                current_target_value
+                === previous_auto_target
+            );
+
+
+        /*
+        * إذا مسح المستخدم المصدر، نمسح الطرف الآخر
+        * فقط إذا كان النظام هو الذي ملأه.
+        *
+        * لا نمسح قيمة كتبها المستخدم بنفسه.
+        */
+        if (!source_value) {
+            if (
+                target_is_auto_owned
+            ) {
+                state.applying =
+                    true;
+
+                try {
+                    await this.dialog
+                        .set_value(
+                            target_fieldname,
+                            ""
+                        );
+
+                    delete state
+                        .auto_values[
+                            target_fieldname
+                        ];
+
+                } finally {
+                    state.applying =
+                        false;
+                }
+            }
+
+            return;
+        }
+
+
+        const request_sequence =
+            ++state
+                .request_sequence;
+
+
+        let response = null;
+
+
+        try {
+            response =
+                    await frappe.call({
+                        method:
+                            "archive.api.pending_lookups.get_pending_related_fields",
+
+                        type:
+                            "GET",
+
+                        args: {
+                            fieldname:
+                                fieldname,
+
+                            value:
+                                source_value,
+
+                            context:
+                                JSON.stringify(
+                                    this
+                                        .get_smart_lookup_context()
+                                ),
+                        },
+                    });
+
+        } catch (error) {
+            console.error(
+                "Card/account autofill failed:",
+                error
+            );
+
+            return;
+        }
+
+
+        /*
+        * تجاهل Response قديم إذا كتب المستخدم
+        * قيمة جديدة قبل عودة الطلب السابق.
+        */
+        if (
+            request_sequence
+            !== state
+                .request_sequence
+        ) {
+            return;
+        }
+
+
+        const latest_source_value =
+            String(
+                this.dialog
+                    .get_value(
+                        fieldname
+                    )
+                || ""
+            ).trim();
+
+
+        if (
+            latest_source_value
+            !== source_value
+        ) {
+            return;
+        }
+
+
+        const related =
+            response
+                ?.message
+                ?.related
+            || {};
+
+
+        const suggestion =
+            related[
+                target_fieldname
+            ];
+
+
+        /*
+        * لا نملأ تلقائيًا إلا العلاقة
+        * التي يعتبرها السيرفر مؤكدة تاريخيًا.
+        *
+        * tentative تعني أن لدينا سجلًا واحدًا فقط،
+        * وهذا لا يكفي للتعبئة التلقائية.
+        */
+        const has_usable_confidence =
+            Boolean(
+                suggestion
+                &&
+                (
+                    suggestion.confidence
+                        === "high"
+                    ||
+                    suggestion.confidence
+                        === "tentative"
+                )
+            );
+
+
+        const suggested_value =
+            has_usable_confidence
+                ? String(
+                    suggestion.value
+                    || ""
+                ).trim()
+                : "";
+
+
+        const latest_target_value =
+            String(
+                this.dialog
+                    .get_value(
+                        target_fieldname
+                    )
+                || ""
+            ).trim();
+
+
+        const latest_auto_target =
+            state
+                .auto_values[
+                    target_fieldname
+                ];
+
+
+        const latest_target_is_auto =
+            Boolean(
+                latest_auto_target
+                &&
+                latest_target_value
+                === latest_auto_target
+            );
+
+
+        /*
+        * لا توجد علاقة مؤكدة.
+        *
+        * إذا كانت القيمة القديمة Auto-fill
+        * من علاقة سابقة، نمسحها حتى لا تبقى
+        * بيانات غير متوافقة.
+        */
+        if (!suggested_value) {
+            if (
+                latest_target_is_auto
+            ) {
+                state.applying =
+                    true;
+
+                try {
+                    await this.dialog
+                        .set_value(
+                            target_fieldname,
+                            ""
+                        );
+
+                    delete state
+                        .auto_values[
+                            target_fieldname
+                        ];
+
+                } finally {
+                    state.applying =
+                        false;
+                }
+            }
+
+            return;
+        }
+
+
+        /*
+        * إذا كتب المستخدم الطرف الآخر بنفسه،
+        * لا نستبدله.
+        */
+        if (
+            latest_target_value
+            &&
+            !latest_target_is_auto
+        ) {
+            return;
+        }
+
+
+        /*
+        * القيمة موجودة أصلًا ولا تحتاج إعادة Set.
+        */
+        if (
+            latest_target_value
+            === suggested_value
+        ) {
+            state
+                .auto_values[
+                    target_fieldname
+                ] =
+                    suggested_value;
+
+            return;
+        }
+
+
+        state.applying =
+            true;
+
+
+        try {
+            await this.dialog
+                .set_value(
+                    target_fieldname,
+                    suggested_value
+                );
+
+
+            state
+                .auto_values[
+                    target_fieldname
+                ] =
+                    suggested_value;
+
+        } finally {
+            state.applying =
+                false;
+        }
+    }
 
 
     bind_events() {

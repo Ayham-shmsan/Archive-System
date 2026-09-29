@@ -25,15 +25,24 @@ class ArchivePendingSmartAutocomplete {
                 === "function"
                 ? options.enabled_provider
                 : () => true;
+        this.on_select =
+            typeof options.on_select
+                === "function"
+                ? options.on_select
+                : null;
 
         this.limit =
             Number(
                 options.limit
                 || 10
             );
-        // Suggestions متاحة لكل الحقول المسجلة في fieldnames،
-        // لكن Related-field inference مقصود فقط لحقول المكينة.
-        // حقول البطاقة تبقى Suggestions-only ولا تعمل Autofill.
+        // Suggestions متاحة لكل الحقول المسجلة في fieldnames.
+        //
+        // Related-field prompt داخل هذا component
+        // يبقى خاصًا بحقوق المكينة.
+        //
+        // Card ↔ Account autofill يتم في Dialog
+        // عبر on_select + local resolver.
         this.related_source_fields =
             new Set(
                 options.related_source_fields
@@ -625,6 +634,41 @@ class ArchivePendingSmartAutocomplete {
     //         value
     //     );
     // }
+        // async select_item(
+        //     state,
+        //     index
+        // ) {
+        //     const value =
+        //         state.items[
+        //             index
+        //         ];
+
+        //     if (!value) {
+        //         return;
+        //     }
+
+        //     this.hide_menu(
+        //         state
+        //     );
+
+        //     await Promise.resolve(
+        //         this.dialog.set_value(
+        //             state.fieldname,
+        //             value
+        //         )
+        //     );
+
+        //     if (
+        //         this.related_source_fields.has(
+        //             state.fieldname
+        //         )
+        //     ) {
+        //         await this.offer_related_fields(
+        //             state.fieldname,
+        //             value
+        //         );
+        //     }
+        // }
         async select_item(
             state,
             index
@@ -634,30 +678,74 @@ class ArchivePendingSmartAutocomplete {
                     index
                 ];
 
+
             if (!value) {
                 return;
             }
+
 
             this.hide_menu(
                 state
             );
 
+
             await Promise.resolve(
-                this.dialog.set_value(
-                    state.fieldname,
-                    value
-                )
+                this.dialog
+                    .set_value(
+                        state.fieldname,
+                        value
+                    )
             );
 
+
+            /*
+            * إشعار الـDialog مباشرة بأن المستخدم
+            * اختار قيمة من Smart Autocomplete.
+            *
+            * هذا مهم خصوصًا لـ:
+            * card_name ↔ account_number
+            *
+            * لأن set_value البرمجي ليس من الصحيح
+            * الاعتماد عليه لإطلاق DOM input/change.
+            */
             if (
-                this.related_source_fields.has(
-                    state.fieldname
-                )
+                this.on_select
             ) {
-                await this.offer_related_fields(
-                    state.fieldname,
-                    value
-                );
+                try {
+                    await Promise.resolve(
+                        this.on_select({
+                            fieldname:
+                                state.fieldname,
+
+                            value:
+                                value,
+                        })
+                    );
+
+                } catch (error) {
+                    console.error(
+                        "Pending smart autocomplete on_select failed:",
+                        error
+                    );
+                }
+            }
+
+
+            /*
+            * Related-field prompt القديم يبقى
+            * للمكينة/الفرع فقط.
+            */
+            if (
+                this.related_source_fields
+                    .has(
+                        state.fieldname
+                    )
+            ) {
+                await this
+                    .offer_related_fields(
+                        state.fieldname,
+                        value
+                    );
             }
         }
 
@@ -1057,5 +1145,310 @@ class ArchivePendingSmartAutocomplete {
             );
 
         this.cache.clear();
+    }
+};
+
+window.ArchivePendingCardAccountLookup =
+class ArchivePendingCardAccountLookup {
+
+    constructor(options = {}) {
+        this.rows =
+            Array.isArray(
+                options.rows
+            )
+                ? options.rows
+                : [];
+
+        this.index = {
+            card_name:
+                new Map(),
+
+            account_number:
+                new Map(),
+        };
+
+        this.build_index();
+    }
+
+
+    normalize(
+        value
+    ) {
+        return String(
+            value
+            ?? ""
+        )
+            .normalize(
+                "NFKC"
+            )
+            .trim()
+            .replace(
+                /\s+/g,
+                " "
+            )
+            .toLocaleLowerCase();
+    }
+
+
+    add_to_index(
+        fieldname,
+        value,
+        row
+    ) {
+        const key =
+            this.normalize(
+                value
+            );
+
+        if (!key) {
+            return;
+        }
+
+
+        const map =
+            this.index[
+                fieldname
+            ];
+
+
+        if (
+            !map.has(
+                key
+            )
+        ) {
+            map.set(
+                key,
+                []
+            );
+        }
+
+
+        map.get(
+            key
+        ).push(
+            row
+        );
+    }
+
+
+    build_index() {
+        for (
+            const row
+            of this.rows
+        ) {
+            const card_name =
+                String(
+                    row?.card_name
+                    || ""
+                ).trim();
+
+            const account_number =
+                String(
+                    row?.account_number
+                    || ""
+                ).trim();
+
+
+            /*
+             * لا نبني علاقة من سجل ناقص.
+             */
+            if (
+                !card_name
+                ||
+                !account_number
+            ) {
+                continue;
+            }
+
+
+            this.add_to_index(
+                "card_name",
+                card_name,
+                row
+            );
+
+            this.add_to_index(
+                "account_number",
+                account_number,
+                row
+            );
+        }
+    }
+
+
+    resolve(
+        fieldname,
+        value,
+        context = {}
+    ) {
+        const relation = {
+            card_name:
+                "account_number",
+
+            account_number:
+                "card_name",
+        };
+
+
+        const target_fieldname =
+            relation[
+                fieldname
+            ];
+
+
+        if (!target_fieldname) {
+            return "";
+        }
+
+
+        const key =
+            this.normalize(
+                value
+            );
+
+
+        if (!key) {
+            return "";
+        }
+
+
+        const candidates =
+            [
+                ...(
+                    this.index[
+                        fieldname
+                    ]?.get(
+                        key
+                    )
+                    || []
+                ),
+            ];
+
+
+        if (!candidates.length) {
+            return "";
+        }
+
+
+        /*
+         * نحاول إزالة الالتباس باستخدام
+         * البنك ومالك البطاقة إذا كانا معروفين.
+         *
+         * إذا لم يوجد Match للسياق لا نسقط
+         * كل النتائج؛ نبقى على المجموعة السابقة.
+         */
+        let scoped =
+            candidates;
+
+
+        for (
+            const context_field
+            of [
+                "bank",
+                "card_owner",
+            ]
+        ) {
+            const context_value =
+                this.normalize(
+                    context?.[
+                        context_field
+                    ]
+                );
+
+
+            if (!context_value) {
+                continue;
+            }
+
+
+            const matches =
+                scoped.filter(
+                    (row) =>
+                        this.normalize(
+                            row?.[
+                                context_field
+                            ]
+                        )
+                        ===
+                        context_value
+                );
+
+
+            if (
+                matches.length
+            ) {
+                scoped =
+                    matches;
+            }
+        }
+
+
+        /*
+         * نجمع القيم الفريدة فعليًا.
+         *
+         * إذا بقيت قيمة واحدة:
+         * العلاقة غير ملتبسة ويمكن تعبئتها.
+         *
+         * إذا بقي أكثر من Target:
+         * لا نخمن.
+         */
+        const unique_values =
+            new Map();
+
+
+        for (
+            const row
+            of scoped
+        ) {
+            const raw_value =
+                String(
+                    row?.[
+                        target_fieldname
+                    ]
+                    || ""
+                ).trim();
+
+
+            const normalized_value =
+                this.normalize(
+                    raw_value
+                );
+
+
+            if (
+                !normalized_value
+            ) {
+                continue;
+            }
+
+
+            if (
+                !unique_values.has(
+                    normalized_value
+                )
+            ) {
+                unique_values.set(
+                    normalized_value,
+                    raw_value
+                );
+            }
+        }
+
+
+        if (
+            unique_values.size
+            !== 1
+        ) {
+            return "";
+        }
+
+
+        return (
+            unique_values
+                .values()
+                .next()
+                .value
+            || ""
+        );
     }
 };
