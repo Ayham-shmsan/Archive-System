@@ -45,6 +45,9 @@ class ArchiveOperationsPage {
         this.search_frame = null;
         this.filter_controller =
             null;
+        
+        this.hidden_columns =
+            this.load_hidden_columns();
 
 
         this.make_page();
@@ -285,6 +288,693 @@ class ArchiveOperationsPage {
 
 
         await this.load_operations();
+    }
+    get_column_visibility_storage_key() {
+        const user = String(
+            frappe.session?.user
+            || "Guest"
+        ).trim();
+
+        return (
+            "archive.operations.hidden_columns.v1:"
+            + user
+        );
+    }
+
+
+    load_hidden_columns() {
+        try {
+            const raw =
+                window.localStorage.getItem(
+                    this
+                        .get_column_visibility_storage_key()
+                );
+
+            if (!raw) {
+                return new Set();
+            }
+
+            const parsed =
+                JSON.parse(
+                    raw
+                );
+
+            if (!Array.isArray(parsed)) {
+                return new Set();
+            }
+
+            return new Set(
+                parsed
+                    .map(
+                        (field) =>
+                            String(
+                                field || ""
+                            ).trim()
+                    )
+                    .filter(Boolean)
+            );
+
+        } catch (error) {
+            console.warn(
+                "Could not load Archive Operations column preferences:",
+                error
+            );
+
+            return new Set();
+        }
+    }
+
+
+    save_hidden_columns() {
+        try {
+            window.localStorage.setItem(
+                this
+                    .get_column_visibility_storage_key(),
+
+                JSON.stringify(
+                    Array.from(
+                        this.hidden_columns
+                        || []
+                    )
+                )
+            );
+
+        } catch (error) {
+            console.warn(
+                "Could not save Archive Operations column preferences:",
+                error
+            );
+        }
+    }
+
+
+    get_operation_column_definitions() {
+        const columns = [];
+
+        $(this.wrapper)
+            .find(
+                ".archive-operations-table thead th[data-sort-field]"
+            )
+            .each(
+                (
+                    index,
+                    element
+                ) => {
+
+                    const $header =
+                        $(element);
+
+                    const field =
+                        String(
+                            $header.attr(
+                                "data-sort-field"
+                            )
+                            || ""
+                        ).trim();
+
+                    if (!field) {
+                        return;
+                    }
+
+                    const $label_source =
+                        $header.clone();
+
+                    $label_source
+                        .find(
+                            ".generic-sort-indicator"
+                        )
+                        .remove();
+
+                    const label =
+                        $label_source
+                            .text()
+                            .replace(
+                                /\s+/g,
+                                " "
+                            )
+                            .trim()
+                        || field;
+
+                    columns.push({
+                        field,
+                        label,
+                        index:
+                            index + 1,
+                    });
+                }
+            );
+
+        return columns;
+    }
+
+
+    update_column_visibility_button() {
+        const columns =
+            this
+                .get_operation_column_definitions();
+
+        const valid_fields =
+            new Set(
+                columns.map(
+                    (column) =>
+                        column.field
+                )
+            );
+
+        const hidden_count =
+            Array.from(
+                this.hidden_columns
+                || []
+            )
+                .filter(
+                    (field) =>
+                        valid_fields.has(
+                            field
+                        )
+                )
+                .length;
+
+        const $button =
+            $(this.wrapper)
+                .find(
+                    ".archive-columns-button"
+                );
+
+        $button
+            .toggleClass(
+                "has-hidden-columns",
+                hidden_count > 0
+            )
+            .attr(
+                "title",
+                hidden_count
+                    ? `${hidden_count} أعمدة مخفية`
+                    : "اختيار الأعمدة الظاهرة"
+            );
+
+        const $count =
+            $button.find(
+                ".archive-hidden-columns-count"
+            );
+
+        if (hidden_count) {
+            $count
+                .text(
+                    hidden_count
+                )
+                .show();
+
+        } else {
+            $count
+                .text("")
+                .hide();
+        }
+    }
+
+
+    update_column_visibility_footer(
+        visible_count
+    ) {
+        const $footer =
+            $(this.wrapper)
+                .find(
+                    ".archive-operation-total-row"
+                );
+
+        const $label_cell =
+            $footer
+                .find("td")
+                .first();
+
+        const $total_cell =
+            $footer.find(
+                ".archive-visible-amount-total"
+            );
+
+        if (!visible_count) {
+            $footer.hide();
+            return;
+        }
+
+        $footer.show();
+
+        if (
+            visible_count === 1
+        ) {
+            $label_cell.hide();
+
+            $total_cell
+                .show()
+                .attr(
+                    "colspan",
+                    "1"
+                );
+
+            return;
+        }
+
+        const label_span =
+            Math.min(
+                3,
+                visible_count - 1
+            );
+
+        const total_span =
+            visible_count
+            - label_span;
+
+        $label_cell
+            .show()
+            .attr(
+                "colspan",
+                String(
+                    label_span
+                )
+            );
+
+        $total_cell
+            .show()
+            .attr(
+                "colspan",
+                String(
+                    total_span
+                )
+            );
+    }
+
+
+    apply_column_visibility() {
+        const $table =
+            $(this.wrapper)
+                .find(
+                    ".archive-operations-table"
+                );
+
+        if (!$table.length) {
+            return;
+        }
+
+        const columns =
+            this
+                .get_operation_column_definitions();
+
+        if (!columns.length) {
+            return;
+        }
+
+        const valid_fields =
+            new Set(
+                columns.map(
+                    (column) =>
+                        column.field
+                )
+            );
+
+        let hidden =
+            new Set(
+                Array.from(
+                    this.hidden_columns
+                    || []
+                )
+                    .filter(
+                        (field) =>
+                            valid_fields.has(
+                                field
+                            )
+                    )
+            );
+
+        /*
+        * حماية من localStorage قديم أو تعديل يدوي:
+        * يجب أن يبقى عمود واحد ظاهرًا على الأقل.
+        */
+        if (
+            hidden.size
+            >= columns.length
+        ) {
+            hidden.delete(
+                columns[0].field
+            );
+        }
+
+        const preferences_changed =
+            hidden.size
+            !== (
+                this.hidden_columns
+                || new Set()
+            ).size;
+
+        this.hidden_columns =
+            hidden;
+
+        if (
+            preferences_changed
+        ) {
+            this.save_hidden_columns();
+        }
+
+        let visible_count = 0;
+
+        let first_visible_index =
+            null;
+
+        for (
+            const column
+            of columns
+        ) {
+            const is_hidden =
+                hidden.has(
+                    column.field
+                );
+
+            if (!is_hidden) {
+                visible_count += 1;
+
+                if (
+                    first_visible_index
+                    === null
+                ) {
+                    first_visible_index =
+                        column.index;
+                }
+            }
+
+            $table
+                .find(
+                    `colgroup col:nth-child(${column.index})`
+                )
+                .toggle(
+                    !is_hidden
+                );
+
+            $table
+                .find(
+                    `thead th:nth-child(${column.index})`
+                )
+                .toggle(
+                    !is_hidden
+                );
+
+            $table
+                .find(
+                    `tbody tr td:nth-child(${column.index})`
+                )
+                .toggle(
+                    !is_hidden
+                );
+        }
+
+        /*
+        * إذا أخفى المستخدم العمود الأول،
+        * ننقل خط حالة العملية إلى أول عمود ظاهر.
+        */
+        $table
+            .find(
+                "tbody .archive-operation-row > td"
+            )
+            .removeClass(
+                "is-first-visible-column"
+            );
+
+        if (
+            first_visible_index
+            !== null
+        ) {
+            $table
+                .find(
+                    `tbody .archive-operation-row > td:nth-child(${first_visible_index})`
+                )
+                .addClass(
+                    "is-first-visible-column"
+                );
+        }
+
+        this
+            .update_column_visibility_footer(
+                visible_count
+            );
+
+        this
+            .update_column_visibility_button();
+    }
+
+
+    open_column_visibility_dialog() {
+        const columns =
+            this
+                .get_operation_column_definitions();
+
+        if (!columns.length) {
+            return;
+        }
+
+        const controls =
+            new Map();
+
+        const dialog =
+            new frappe.ui.Dialog({
+
+                title:
+                    __(
+                        "إظهار وإخفاء الأعمدة"
+                    ),
+
+                size:
+                    "extra-large",
+
+                fields: [
+                    {
+                        fieldname:
+                            "archive_column_visibility_layout",
+
+                        fieldtype:
+                            "HTML",
+                    },
+                ],
+
+                primary_action_label:
+                    __(
+                        "حفظ الأعمدة"
+                    ),
+
+                primary_action:
+                    () => {
+
+                        const hidden =
+                            new Set();
+
+                        let visible_count =
+                            0;
+
+                        for (
+                            const column
+                            of columns
+                        ) {
+                            const control =
+                                controls.get(
+                                    column.field
+                                );
+
+                            const is_visible =
+                                Boolean(
+                                    Number(
+                                        control
+                                            ?.get_value()
+                                        || 0
+                                    )
+                                );
+
+                            if (
+                                is_visible
+                            ) {
+                                visible_count += 1;
+
+                            } else {
+                                hidden.add(
+                                    column.field
+                                );
+                            }
+                        }
+
+                        if (
+                            !visible_count
+                        ) {
+                            frappe.msgprint({
+                                title:
+                                    __(
+                                        "الأعمدة"
+                                    ),
+
+                                message:
+                                    __(
+                                        "يجب إبقاء عمود واحد ظاهرًا على الأقل."
+                                    ),
+
+                                indicator:
+                                    "orange",
+                            });
+
+                            return;
+                        }
+
+                        this.hidden_columns =
+                            hidden;
+
+                        this
+                            .save_hidden_columns();
+
+                        this
+                            .apply_column_visibility();
+
+                        dialog.hide();
+
+                        frappe.show_alert({
+                            message:
+                                __(
+                                    "تم تحديث الأعمدة الظاهرة"
+                                ),
+
+                            indicator:
+                                "green",
+                        });
+                    },
+
+                secondary_action_label:
+                    __(
+                        "إظهار الكل"
+                    ),
+
+                secondary_action:
+                    () => {
+
+                        this.hidden_columns =
+                            new Set();
+
+                        this
+                            .save_hidden_columns();
+
+                        this
+                            .apply_column_visibility();
+
+                        dialog.hide();
+                    },
+            });
+
+        dialog.show();
+
+        /*
+        * نستخدم نفس تصميم Dialog الفلاتر الحالي.
+        */
+        dialog.$wrapper
+            .addClass(
+                "generic-filter-dialog archive-column-visibility-dialog"
+            );
+
+        const field =
+            dialog.fields_dict
+                .archive_column_visibility_layout;
+
+        const $host =
+            field.$wrapper;
+
+        $host.empty();
+
+        const $section =
+            $(`
+                <section
+                    class="generic-filter-section"
+                    dir="rtl"
+                >
+                    <div
+                        class="generic-filter-section-header"
+                    >
+                        <div
+                            class="generic-filter-section-title"
+                        >
+                            أعمدة شاشة العمليات
+                        </div>
+
+                        <div
+                            class="generic-filter-section-subtitle"
+                        >
+                            أزل العلامة لإخفاء العمود،
+                            وأعدها لإظهاره من جديد.
+                        </div>
+                    </div>
+
+                    <div
+                        class="generic-filter-grid"
+                    ></div>
+                </section>
+            `);
+
+        const $grid =
+            $section.find(
+                ".generic-filter-grid"
+            );
+
+        for (
+            const column
+            of columns
+        ) {
+            const $cell =
+                $(`
+                    <div
+                        class="
+                            generic-filter-field
+                            archive-column-visibility-field
+                        "
+                        data-column-field="${frappe.utils.escape_html(
+                            column.field
+                        )}"
+                    ></div>
+                `);
+
+            $grid.append(
+                $cell
+            );
+
+            const control =
+                frappe.ui.form.make_control({
+
+                    parent:
+                        $cell,
+
+                    df: {
+                        fieldname:
+                            `visible_${column.field}`,
+
+                        fieldtype:
+                            "Check",
+
+                        label:
+                            column.label,
+                    },
+
+                    render_input:
+                        true,
+                });
+
+            control.refresh();
+
+            control.set_value(
+                this.hidden_columns
+                    .has(
+                        column.field
+                    )
+                    ? 0
+                    : 1
+            );
+
+            controls.set(
+                column.field,
+                control
+            );
+        }
+
+        $host.append(
+            $section
+        );
     }
 
     initialize_filters() {
@@ -1364,6 +2054,26 @@ class ArchiveOperationsPage {
                         الفلاتر
                     </button>
 
+                    <button
+                        type="button"
+                        class="btn btn-default archive-columns-button"
+                        title="اختيار الأعمدة الظاهرة"
+                    >
+                        <i
+                            class="fa fa-columns"
+                            aria-hidden="true"
+                        ></i>
+
+                        <span>
+                            الأعمدة
+                        </span>
+
+                        <span
+                            class="archive-hidden-columns-count"
+                            style="display: none;"
+                        ></span>
+                    </button>
+
                 </div>
 
 					<div class="archive-toolbar-actions">
@@ -1754,6 +2464,7 @@ class ArchiveOperationsPage {
 		`);
 
 		this.bind_events();
+        this.apply_column_visibility();
 	}
 
 	summary_card(status, label, value) {
@@ -2430,6 +3141,7 @@ class ArchiveOperationsPage {
         this.update_visible_amount_total(
             operations
         );
+        this.apply_column_visibility();
 
         this.bind_row_events();
     }
@@ -3236,6 +3948,18 @@ class ArchiveOperationsPage {
             .on("click", () => {
                 this.open_create_operation();
             });
+        
+        $wrapper
+            .find(
+                ".archive-columns-button"
+            )
+            .on(
+                "click",
+                () => {
+                    this
+                        .open_column_visibility_dialog();
+                }
+            );
 
 
         // $wrapper
