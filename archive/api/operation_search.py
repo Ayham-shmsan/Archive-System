@@ -128,8 +128,24 @@ def normalize_search_text(
         return ""
 
 
-    text = str(
-        value
+        # Unicode compatibility normalization.
+    #
+    # مهم خصوصًا للبيانات المستوردة من Excel / PDF / OCR
+    # التي قد تحتوي Arabic Presentation Forms مثل:
+    #
+    #   ﻣﺆﺳﺴﺔ ﻋﺮﻭﺽ ﺍﻟﻘﻤﺮ
+    #
+    # لتصبح أحرفًا عربية قياسية:
+    #
+    #   مؤسسة عروض القمر
+    #
+    # نستخدم NFKC وليس NFC لأن Presentation Forms
+    # هي compatibility characters.
+    text = unicodedata.normalize(
+        "NFKC",
+        str(
+            value
+        ),
     )
 
 
