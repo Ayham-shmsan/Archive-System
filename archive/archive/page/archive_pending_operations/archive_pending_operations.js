@@ -461,13 +461,15 @@ class ArchivePendingOperationsPage {
                                     )}
 
                                     ${this.sortable_header(
-                                        "currency",
-                                        "العملة"
+                                        "remaining-amount",
+                                        "المبلغ المتبقي"
                                     )}
+
+                                    
 
                                     ${this.sortable_header(
                                         "owner_full_name",
-                                        "أنشأ بواسطة"
+                                        "اسم المستخدم"
                                     )}
 
                                     ${this.sortable_header(

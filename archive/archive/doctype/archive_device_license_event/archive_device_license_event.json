@@ -1,0 +1,95 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "hash",
+  "creation": "2026-09-30 03:30:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "license",
+    "activation_code",
+    "event_type",
+    "event_datetime",
+    "event_user",
+    "source_ip",
+    "details"
+  ],
+  "fields": [
+    {
+      "fieldname": "license",
+      "fieldtype": "Link",
+      "options": "Archive Device License",
+      "label": "الترخيص",
+      "reqd": 1,
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "activation_code",
+      "fieldtype": "Data",
+      "label": "كود التفعيل",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "event_type",
+      "fieldtype": "Data",
+      "label": "نوع الحدث",
+      "reqd": 1,
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "event_datetime",
+      "fieldtype": "Datetime",
+      "label": "التاريخ والوقت",
+      "reqd": 1,
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "event_user",
+      "fieldtype": "Link",
+      "options": "User",
+      "label": "المستخدم",
+      "read_only": 1
+    },
+    {
+      "fieldname": "source_ip",
+      "fieldtype": "Data",
+      "label": "IP المصدر",
+      "read_only": 1
+    },
+    {
+      "fieldname": "details",
+      "fieldtype": "Long Text",
+      "label": "التفاصيل",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-09-30 03:30:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Device License Event",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 0,
+      "create": 0,
+      "delete": 0,
+      "export": 1,
+      "print": 1,
+      "report": 1,
+      "share": 0
+    }
+  ],
+  "quick_entry": 0,
+  "sort_field": "event_datetime",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}

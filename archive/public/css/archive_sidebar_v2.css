@@ -1,0 +1,2292 @@
+/* ============================================================
+   ARCHIVE SIDEBAR — SOFT SLATE V2
+   أرشفة وتسهيل
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+) {
+    --archive-side-bg:
+        #f8fafc;
+
+    --archive-side-surface:
+        #ffffff;
+
+    --archive-side-hover:
+        #f1f5f8;
+
+    --archive-side-active:
+        #e8f2f6;
+
+    --archive-side-active-hover:
+        #e3eef3;
+
+    --archive-side-border:
+        #e3eaf0;
+
+    --archive-side-text:
+        #334155;
+
+    --archive-side-title:
+        #203246;
+
+    --archive-side-muted:
+        #8a98a8;
+
+    --archive-side-icon:
+        #68798a;
+
+    --archive-side-accent:
+        #4f8399;
+
+    --archive-side-accent-dark:
+        #356c83;
+
+    --archive-side-radius:
+        9px;
+
+
+    position:
+        relative;
+
+
+    display:
+        flex;
+
+    flex-direction:
+        column;
+
+
+    height:
+        100%;
+
+    min-height:
+        0;
+
+
+    overflow:
+        visible;
+
+
+    background:
+        var(
+            --archive-side-bg
+        ) !important;
+
+
+    color:
+        var(
+            --archive-side-text
+        ) !important;
+
+
+    box-shadow:
+        none !important;
+}
+
+
+/* ============================================================
+   BORDER
+   ============================================================ */
+
+html[dir="ltr"]
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+) {
+    border-right:
+        1px solid
+        var(
+            --archive-side-border
+        ) !important;
+
+    border-left:
+        0 !important;
+}
+
+
+html[dir="rtl"]
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+) {
+    border-left:
+        1px solid
+        var(
+            --archive-side-border
+        ) !important;
+
+    border-right:
+        0 !important;
+}
+
+
+/* ============================================================
+   WIDTH
+   ============================================================ */
+
+.body-sidebar-container:has(
+    > .body-sidebar[data-title="أرشفة وتسهيل"]
+),
+
+.body-sidebar-container:has(
+    > .body-sidebar[data-title="الأرشفة"]
+),
+
+.body-sidebar-container:has(
+    > .body-sidebar[data-title="Archive"]
+) {
+    --sidebar-width:
+        248px;
+}
+
+
+.body-sidebar-container.expanded
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+) {
+    width:
+        var(
+            --sidebar-width
+        ) !important;
+
+    min-width:
+        var(
+            --sidebar-width
+        ) !important;
+}
+
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+) {
+    width:
+        66px !important;
+
+    min-width:
+        66px !important;
+}
+
+
+/* ============================================================
+   HIDE GLOBAL UTILITY ROW
+   Search / Notification
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.standard-items-sections {
+    display:
+        none !important;
+}
+
+
+/* ============================================================
+   MAIN LAYOUT
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.body-sidebar-top {
+    flex:
+        1 1 auto;
+
+    min-height:
+        0;
+
+    overflow:
+        hidden;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-items {
+    height:
+        100%;
+
+
+    display:
+        flex;
+
+    flex-direction:
+        column;
+
+
+    padding:
+        0 12px 18px !important;
+
+
+    overflow-x:
+        hidden;
+
+    overflow-y:
+        auto;
+
+
+    scrollbar-width:
+        thin;
+
+    scrollbar-color:
+        #d7e0e7
+        transparent;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-items::-webkit-scrollbar {
+    width:
+        4px;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-items::-webkit-scrollbar-thumb {
+    background:
+        #d7e0e7;
+
+    border-radius:
+        999px;
+}
+
+
+/* ============================================================
+   BRAND HEADER
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+
+.sidebar-header {
+    position:
+        sticky;
+
+    top:
+        0;
+
+    z-index:
+        5;
+
+
+    min-height:
+        96px !important;
+
+
+    display:
+        flex !important;
+
+    align-items:
+        flex-start !important;
+
+
+    gap:
+        10px;
+
+
+    padding:
+        19px 11px 15px !important;
+
+
+    margin:
+        0 0 8px !important;
+
+
+    background:
+        rgba(
+            248,
+            250,
+            252,
+            0.97
+        ) !important;
+
+
+    border-bottom:
+        1px solid
+        var(
+            --archive-side-border
+        ) !important;
+
+
+    color:
+        var(
+            --archive-side-title
+        ) !important;
+
+
+    backdrop-filter:
+        blur(
+            8px
+        );
+}
+
+
+/* App logo */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header
+.sidebar-item-icon {
+    width:
+        39px !important;
+
+    height:
+        39px !important;
+
+
+    flex:
+        0 0 39px !important;
+
+
+    display:
+        grid !important;
+
+    place-items:
+        center !important;
+
+
+    border-radius:
+        11px !important;
+
+
+    background:
+        #edf5f8 !important;
+
+
+    color:
+        var(
+            --archive-side-accent
+        ) !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header
+.sidebar-item-icon
+svg {
+    width:
+        21px !important;
+
+    height:
+        21px !important;
+}
+
+
+/* Brand title */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header
+.sidebar-item-label {
+    color:
+        var(
+            --archive-side-title
+        ) !important;
+
+
+    font-size:
+        15.5px !important;
+
+    font-weight:
+        750 !important;
+
+
+    line-height:
+        1.35;
+
+
+    white-space:
+        nowrap;
+}
+
+
+/* Subtitle */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header::after {
+    content:
+        "إدارة العمليات";
+
+
+    position:
+        absolute;
+
+
+    top:
+        49px;
+
+
+    color:
+        var(
+            --archive-side-muted
+        );
+
+
+    font-size:
+        10.5px;
+
+    font-weight:
+        500;
+}
+
+
+html[dir="rtl"]
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header::after {
+    right:
+        60px;
+}
+
+
+html[dir="ltr"]
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header::after {
+    left:
+        60px;
+}
+
+
+/* ============================================================
+   FULL SIDEBAR TOGGLE
+   Native Frappe Button
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.collapse-sidebar-link {
+    position:
+        absolute !important;
+
+
+    top:
+        72px !important;
+
+    bottom:
+        auto !important;
+
+
+    width:
+        27px !important;
+
+    height:
+        27px !important;
+
+
+    display:
+        grid !important;
+
+    place-items:
+        center !important;
+
+
+    padding:
+        0 !important;
+
+
+    border:
+        1px solid
+        var(
+            --archive-side-border
+        ) !important;
+
+
+    border-radius:
+        50% !important;
+
+
+    background:
+        #ffffff !important;
+
+
+    color:
+        var(
+            --archive-side-muted
+        ) !important;
+
+
+    box-shadow:
+        0 3px 9px
+        rgba(
+            15,
+            23,
+            42,
+            0.06
+        ) !important;
+
+
+    opacity:
+        1 !important;
+
+    visibility:
+        visible !important;
+
+
+    z-index:
+        1023 !important;
+
+
+    transition:
+        background 140ms ease,
+        border-color 140ms ease,
+        color 140ms ease,
+        transform 140ms ease;
+}
+
+
+html[dir="ltr"]
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.collapse-sidebar-link {
+    right:
+        -14px !important;
+
+    left:
+        auto !important;
+}
+
+
+html[dir="rtl"]
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.collapse-sidebar-link {
+    left:
+        -14px !important;
+
+    right:
+        auto !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.collapse-sidebar-link:hover {
+    background:
+        #f4f8fa !important;
+
+
+    border-color:
+        #cad8e0 !important;
+
+
+    color:
+        var(
+            --archive-side-accent
+        ) !important;
+
+
+    transform:
+        scale(
+            1.05
+        );
+}
+
+
+/* ============================================================
+   SECTION
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.section-item {
+    margin:
+        8px 0 0 !important;
+
+
+    padding:
+        0 !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.section-item
+> .standard-sidebar-item {
+    margin:
+        0 !important;
+
+
+    background:
+        transparent !important;
+
+
+    border:
+        0 !important;
+
+
+    border-radius:
+        8px !important;
+
+
+    box-shadow:
+        none !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.item-anchor.section-break {
+    min-height:
+        35px !important;
+
+
+    display:
+        flex !important;
+
+    align-items:
+        center !important;
+
+
+    gap:
+        8px;
+
+
+    padding:
+        4px 7px !important;
+
+
+    border-radius:
+        8px !important;
+
+
+    background:
+        transparent !important;
+
+
+    color:
+        var(
+            --archive-side-muted
+        ) !important;
+
+
+    font-size:
+        11.5px !important;
+
+    font-weight:
+        650 !important;
+
+
+    cursor:
+        pointer;
+
+
+    user-select:
+        none;
+
+
+    transition:
+        background 140ms ease,
+        color 140ms ease;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.item-anchor.section-break:hover {
+    background:
+        rgba(
+            79,
+            131,
+            153,
+            0.055
+        ) !important;
+
+
+    color:
+        #60788a !important;
+}
+
+
+/* Section icon injected by archive_sidebar.js */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.archive-sidebar-section-icon {
+    width:
+        20px;
+
+    height:
+        20px;
+
+
+    flex:
+        0 0 20px;
+
+
+    display:
+        grid;
+
+    place-items:
+        center;
+
+
+    color:
+        #738698;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.archive-sidebar-section-icon
+svg {
+    width:
+        15px !important;
+
+    height:
+        15px !important;
+
+
+    color:
+        currentColor !important;
+
+    stroke:
+        currentColor !important;
+}
+
+
+/* ============================================================
+   SECTION DROP TOGGLE
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.section-item
+.sidebar-item-control {
+    margin-inline-start:
+        auto;
+
+
+    display:
+        flex;
+
+    align-items:
+        center;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.section-item
+.drop-icon.hidden {
+    display:
+        none !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.section-item
+.drop-icon:not(.hidden) {
+    width:
+        24px;
+
+    height:
+        24px;
+
+
+    display:
+        grid !important;
+
+    place-items:
+        center;
+
+
+    padding:
+        0 !important;
+
+
+    border-radius:
+        7px;
+
+
+    opacity:
+        0.75;
+
+
+    color:
+        #8392a2 !important;
+
+
+    transition:
+        background 140ms ease,
+        color 140ms ease,
+        opacity 140ms ease;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.section-item
+.drop-icon:not(.hidden):hover {
+    background:
+        #e9f0f4;
+
+
+    color:
+        var(
+            --archive-side-accent
+        ) !important;
+
+
+    opacity:
+        1;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.section-item
+.drop-icon
+svg {
+    width:
+        14px !important;
+
+    height:
+        14px !important;
+}
+
+
+/* ============================================================
+   CHILDREN
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container {
+    display:
+        flex;
+
+    flex-direction:
+        column;
+
+
+    gap:
+        3px;
+
+
+    margin:
+        2px 0 0 !important;
+
+
+    padding:
+        0 !important;
+
+
+    border:
+        0 !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container:not(.hidden) {
+    animation:
+        archive-sidebar-show
+        120ms
+        ease-out;
+}
+
+
+@keyframes archive-sidebar-show {
+    from {
+        opacity:
+            0;
+
+        transform:
+            translateY(
+                -2px
+            );
+    }
+
+    to {
+        opacity:
+            1;
+
+        transform:
+            translateY(
+                0
+            );
+    }
+}
+
+
+/* ============================================================
+   NORMAL ITEM
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item {
+    position:
+        relative;
+
+
+    min-height:
+        39px;
+
+
+    margin:
+        0 !important;
+
+
+    border:
+        1px solid
+        transparent !important;
+
+
+    border-radius:
+        var(
+            --archive-side-radius
+        ) !important;
+
+
+    background:
+        transparent !important;
+
+
+    box-shadow:
+        none !important;
+
+
+    transition:
+        background 140ms ease,
+        border-color 140ms ease;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.item-anchor {
+    min-height:
+        39px !important;
+
+
+    display:
+        flex !important;
+
+    align-items:
+        center !important;
+
+
+    gap:
+        9px;
+
+
+    padding:
+        6px 9px !important;
+
+
+    border-radius:
+        var(
+            --archive-side-radius
+        ) !important;
+
+
+    background:
+        transparent !important;
+
+
+    color:
+        var(
+            --archive-side-text
+        ) !important;
+
+
+    font-size:
+        12px !important;
+
+    font-weight:
+        530 !important;
+
+
+    text-decoration:
+        none !important;
+}
+
+
+/* ============================================================
+   ITEM ICONS
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.sidebar-item-icon {
+    width:
+        21px !important;
+
+    height:
+        21px !important;
+
+
+    flex:
+        0 0 21px !important;
+
+
+    display:
+        grid !important;
+
+    place-items:
+        center !important;
+
+
+    color:
+        var(
+            --archive-side-icon
+        ) !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.sidebar-item-icon
+svg {
+    width:
+        16px !important;
+
+    height:
+        16px !important;
+
+
+    color:
+        currentColor !important;
+
+    stroke:
+        currentColor !important;
+}
+
+
+/* ============================================================
+   HOVER
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item:not(.active-sidebar):hover {
+    background:
+        var(
+            --archive-side-hover
+        ) !important;
+
+
+    border-color:
+        #e9eef3 !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item:not(.active-sidebar):hover
+.item-anchor {
+    color:
+        var(
+            --archive-side-title
+        ) !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item:not(.active-sidebar):hover
+.sidebar-item-icon {
+    color:
+        var(
+            --archive-side-accent
+        ) !important;
+}
+
+
+/* ============================================================
+   ACTIVE
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item.active-sidebar {
+    background:
+        var(
+            --archive-side-active
+        ) !important;
+
+
+    border-color:
+        rgba(
+            79,
+            131,
+            153,
+            0.09
+        ) !important;
+
+
+    box-shadow:
+        none !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item.active-sidebar:hover {
+    background:
+        var(
+            --archive-side-active-hover
+        ) !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item.active-sidebar::after {
+    content:
+        "";
+
+
+    position:
+        absolute;
+
+
+    top:
+        6px;
+
+    bottom:
+        6px;
+
+
+    width:
+        3px;
+
+
+    border-radius:
+        999px;
+
+
+    background:
+        var(
+            --archive-side-accent
+        );
+}
+
+
+html[dir="ltr"]
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item.active-sidebar::after {
+    right:
+        0;
+
+    left:
+        auto;
+}
+
+
+html[dir="rtl"]
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item.active-sidebar::after {
+    left:
+        0;
+
+    right:
+        auto;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item.active-sidebar
+.item-anchor {
+    color:
+        var(
+            --archive-side-accent-dark
+        ) !important;
+
+
+    font-weight:
+        650 !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item.active-sidebar
+.sidebar-item-icon {
+    color:
+        var(
+            --archive-side-accent
+        ) !important;
+}
+
+
+/* ============================================================
+   COLLAPSED SECTION DIVIDER
+   Frappe يظهره تلقائياً عند طي Sidebar كله
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.section-item
+.divider:not(.hidden) {
+    width:
+        30px;
+
+
+    height:
+        1px;
+
+
+    margin:
+        9px auto;
+
+
+    background:
+        var(
+            --archive-side-border
+        );
+}
+
+
+/* ============================================================
+   NATIVE FRAPPE USER FOOTER
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.body-sidebar-bottom {
+    flex:
+        0 0 auto;
+
+
+    padding:
+        8px 10px 11px !important;
+
+
+    border-top:
+        1px solid
+        var(
+            --archive-side-border
+        );
+
+
+    background:
+        rgba(
+            248,
+            250,
+            252,
+            0.98
+        );
+}
+
+
+/* لا نحتاج Banners أو Onboarding هنا */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.promotional-banners,
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.onboarding-sidebar {
+    display:
+        none !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.body-sidebar-bottom
+.nav-item {
+    margin:
+        0 !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-user-button {
+    min-height:
+        52px !important;
+
+
+    display:
+        flex !important;
+
+    align-items:
+        center !important;
+
+
+    gap:
+        9px;
+
+
+    padding:
+        7px 8px !important;
+
+
+    border-radius:
+        10px;
+
+
+    color:
+        var(
+            --archive-side-text
+        ) !important;
+
+
+    transition:
+        background 140ms ease;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-user-button:hover {
+    background:
+        var(
+            --archive-side-hover
+        );
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-user-button
+.avatar {
+    width:
+        34px !important;
+
+    height:
+        34px !important;
+
+
+    min-width:
+        34px !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.avatar-name-email {
+    flex:
+        1 1 auto;
+
+
+    width:
+        auto !important;
+
+    min-width:
+        0;
+
+
+    margin:
+        0 !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.avatar-name-email
+span:first-child {
+    color:
+        var(
+            --archive-side-title
+        ) !important;
+
+
+    font-size:
+        12px;
+
+
+    font-weight:
+        650;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.avatar-name-email
+span:last-child {
+    margin-top:
+        2px !important;
+
+
+    color:
+        var(
+            --archive-side-muted
+        ) !important;
+
+
+    font-size:
+        10.5px;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.archive-sidebar-native-user-arrow {
+    width:
+        18px;
+
+    height:
+        18px;
+
+
+    flex:
+        0 0 18px;
+
+
+    display:
+        grid;
+
+    place-items:
+        center;
+
+
+    margin-inline-start:
+        auto;
+
+
+    color:
+        var(
+            --archive-side-muted
+        );
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.archive-sidebar-native-user-arrow
+svg {
+    width:
+        13px !important;
+
+    height:
+        13px !important;
+}
+
+
+/* ============================================================
+   COLLAPSED SIDEBAR
+   ============================================================ */
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-items {
+    padding:
+        0 7px 14px !important;
+}
+
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header {
+    min-height:
+        72px !important;
+
+
+    justify-content:
+        center !important;
+
+
+    padding:
+        15px 7px !important;
+}
+
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header
+.sidebar-item-label,
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header::after,
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header
+.sidebar-item-control {
+    display:
+        none !important;
+}
+
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header
+.sidebar-item-icon {
+    width:
+        38px !important;
+
+    height:
+        38px !important;
+
+
+    flex-basis:
+        38px !important;
+}
+
+
+/* Child = Icon rail */
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.standard-sidebar-item {
+    width:
+        42px;
+
+
+    min-height:
+        42px;
+
+
+    margin-inline:
+        auto !important;
+
+
+    border-radius:
+        10px !important;
+}
+
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.item-anchor {
+    width:
+        42px;
+
+
+    min-height:
+        42px !important;
+
+
+    justify-content:
+        center !important;
+
+
+    padding:
+        0 !important;
+}
+
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.sidebar-item-label,
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.nested-container
+.sidebar-item-control {
+    display:
+        none !important;
+}
+
+
+/* Footer collapsed = avatar only */
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.body-sidebar-bottom {
+    padding:
+        9px 7px !important;
+}
+
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-user-button {
+    justify-content:
+        center !important;
+
+
+    padding:
+        6px !important;
+}
+
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.avatar-name-email,
+
+.body-sidebar-container:not(.expanded)
+> :where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.archive-sidebar-native-user-arrow {
+    display:
+        none !important;
+}
+
+
+/* ============================================================
+   SMALL HEIGHT
+   ============================================================ */
+
+@media (
+    max-height:
+        760px
+) {
+
+    :where(
+        .body-sidebar[data-title="أرشفة وتسهيل"],
+        .body-sidebar[data-title="الأرشفة"],
+        .body-sidebar[data-title="Archive"]
+    )
+    .sidebar-header {
+        min-height:
+            82px !important;
+
+
+        padding-top:
+            13px !important;
+    }
+
+
+    :where(
+        .body-sidebar[data-title="أرشفة وتسهيل"],
+        .body-sidebar[data-title="الأرشفة"],
+        .body-sidebar[data-title="Archive"]
+    )
+    .sidebar-header::after {
+        top:
+            43px;
+    }
+
+
+    :where(
+        .body-sidebar[data-title="أرشفة وتسهيل"],
+        .body-sidebar[data-title="الأرشفة"],
+        .body-sidebar[data-title="Archive"]
+    )
+    .section-item {
+        margin-top:
+            5px !important;
+    }
+
+
+    :where(
+        .body-sidebar[data-title="أرشفة وتسهيل"],
+        .body-sidebar[data-title="الأرشفة"],
+        .body-sidebar[data-title="Archive"]
+    )
+    .nested-container
+    .standard-sidebar-item,
+
+    :where(
+        .body-sidebar[data-title="أرشفة وتسهيل"],
+        .body-sidebar[data-title="الأرشفة"],
+        .body-sidebar[data-title="Archive"]
+    )
+    .nested-container
+    .item-anchor {
+        min-height:
+            36px !important;
+    }
+}
+
+/* ============================================================
+   ARCHIVE SIDEBAR — FINAL HEADER CONTROLS
+   ============================================================ */
+
+
+/*
+ * Search / Notification / Background tasks
+ *
+ * نخفيها بصريًا في Sidebar تطبيق Archive فقط.
+ */
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.archive-sidebar-utility-hidden {
+    display:
+        none !important;
+}
+
+
+/*
+ * زر Frappe الأصلي يمكن أن يكون في موضع
+ * مختلف حسب نسخة Frappe.
+ *
+ * نحن نستعمل محركه فقط، وليس شكله.
+ */
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.collapse-sidebar-link {
+    display:
+        none !important;
+}
+
+
+/* ============================================================
+   OUR VISUAL COLLAPSE BUTTON
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header
+.archive-sidebar-toggle {
+    position:
+        absolute;
+
+
+    top:
+        69px;
+
+
+    width:
+        28px;
+
+    height:
+        28px;
+
+
+    display:
+        grid;
+
+    place-items:
+        center;
+
+
+    padding:
+        0;
+
+
+    border:
+        1px solid
+        var(
+            --archive-side-border
+        );
+
+
+    border-radius:
+        50%;
+
+
+    background:
+        #ffffff;
+
+
+    color:
+        var(
+            --archive-side-muted
+        );
+
+
+    box-shadow:
+        0 3px 10px
+        rgba(
+            15,
+            23,
+            42,
+            0.07
+        );
+
+
+    cursor:
+        pointer;
+
+
+    z-index:
+        10;
+
+
+    transition:
+        color 140ms ease,
+        background 140ms ease,
+        border-color 140ms ease,
+        transform 140ms ease;
+}
+
+
+/*
+ * الحافة المواجهة للمحتوى.
+ */
+html[dir="ltr"]
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header
+.archive-sidebar-toggle {
+    right:
+        -14px;
+
+    left:
+        auto;
+}
+
+
+html[dir="rtl"]
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header
+.archive-sidebar-toggle {
+    left:
+        -14px;
+
+    right:
+        auto;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.sidebar-header
+.archive-sidebar-toggle:hover {
+    color:
+        var(
+            --archive-side-accent
+        );
+
+
+    background:
+        #f7fafb;
+
+
+    border-color:
+        #cad7df;
+
+
+    transform:
+        scale(
+            1.06
+        );
+}
+
+/* ============================================================
+   SIDEBAR COLLAPSE BUTTON
+   مثبت على تقاطع حافة Sidebar مع خط Footer
+   ============================================================ */
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.body-sidebar-bottom {
+    position:
+        relative;
+
+    overflow:
+        visible !important;
+}
+
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.body-sidebar-bottom
+.archive-sidebar-toggle {
+    position:
+        absolute;
+
+
+    top:
+        0;
+
+
+    width:
+        28px;
+
+    height:
+        28px;
+
+
+    display:
+        grid;
+
+    place-items:
+        center;
+
+
+    padding:
+        0;
+
+
+    border:
+        1px solid
+        var(
+            --archive-side-border
+        );
+
+
+    border-radius:
+        50%;
+
+
+    background:
+        #ffffff;
+
+
+    color:
+        var(
+            --archive-side-muted
+        );
+
+
+    box-shadow:
+        0 3px 10px
+        rgba(
+            15,
+            23,
+            42,
+            0.08
+        );
+
+
+    cursor:
+        pointer;
+
+
+    z-index:
+        50;
+
+
+    /*
+     * مركز الزر يكون بالضبط
+     * فوق خط الفصل.
+     */
+    transform:
+        translateY(
+            -50%
+        );
+
+
+    transition:
+        color 140ms ease,
+        background 140ms ease,
+        border-color 140ms ease,
+        box-shadow 140ms ease;
+}
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.body-sidebar-bottom
+.archive-sidebar-toggle {
+    right:
+        -14px;
+
+    left:
+        auto;
+}
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.body-sidebar-bottom
+.archive-sidebar-toggle:hover {
+    background:
+        #f7fafb;
+
+
+    border-color:
+        #c9d8e0;
+
+
+    color:
+        var(
+            --archive-side-accent
+        );
+
+
+    box-shadow:
+        0 4px 12px
+        rgba(
+            15,
+            23,
+            42,
+            0.11
+        );
+}
+
+:where(
+    .body-sidebar[data-title="أرشفة وتسهيل"],
+    .body-sidebar[data-title="الأرشفة"],
+    .body-sidebar[data-title="Archive"]
+)
+.body-sidebar-bottom
+.archive-sidebar-toggle
+svg {
+    width:
+        14px !important;
+
+    height:
+        14px !important;
+
+    color:
+        currentColor !important;
+
+    stroke:
+        currentColor !important;
+}

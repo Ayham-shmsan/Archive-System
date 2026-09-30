@@ -558,14 +558,15 @@ class ArchivePendingOperationViewDialog {
                     >
 
                     <input
-                        type="time"
+                        type="text"
                         class="
                             form-control
                             pending-view-operation-time
                         "
-                        min="01:00"
-                        max="12:59"
-                        step="60"
+                        inputmode="numeric"
+                        maxlength="5"
+                        placeholder="hh:mm"
+                        autocomplete="off"
                         aria-label="وقت المعلق"
                     >
 
@@ -2019,6 +2020,62 @@ class ArchivePendingOperationViewDialog {
                 "hidden.bs.modal.pending_view",
                 () => {
                     this.destroy();
+                }
+            );
+            
+        this.$datetime_root
+            .on(
+                "input.pending_view_time",
+                ".pending-view-operation-time",
+                (event) => {
+
+                    const input =
+                        event.currentTarget;
+
+
+                    let value =
+                        String(
+                            input.value
+                            || ""
+                        )
+                        .replace(
+                            /[^0-9:]/g,
+                            ""
+                        );
+
+
+                    /*
+                    * إذا كتب المستخدم:
+                    *
+                    * 1036
+                    *
+                    * تصبح:
+                    *
+                    * 10:36
+                    */
+                    const digits =
+                        value.replace(
+                            /:/g,
+                            ""
+                        );
+
+
+                    if (
+                        !value.includes(":")
+                        &&
+                        digits.length > 2
+                    ) {
+
+                        value =
+                            `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
+                    }
+
+
+                    input.value =
+                        value.slice(
+                            0,
+                            5
+                        );
                 }
             );
 

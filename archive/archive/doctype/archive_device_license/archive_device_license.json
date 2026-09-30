@@ -1,0 +1,327 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "field:activation_code",
+  "creation": "2026-09-30 03:30:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "activation_section",
+    "activation_code",
+    "status",
+    "column_break_identity",
+    "installation_id",
+    "device_name",
+
+    "platform_section",
+    "platform",
+    "architecture",
+    "interface_name",
+    "column_break_platform",
+    "first_seen",
+    "last_seen",
+
+    "network_section",
+    "initial_mac",
+    "initial_reported_ip",
+    "initial_observed_ip",
+    "column_break_network",
+    "last_mac",
+    "last_reported_ip",
+    "last_observed_ip",
+
+    "binding_section",
+    "licensed_mac",
+    "licensed_ip",
+
+    "security_section",
+    "machine_id_hash",
+    "device_fingerprint",
+    "public_key_fingerprint",
+    "public_key",
+
+    "activation_audit_section",
+    "activated_at",
+    "activated_by",
+    "column_break_activation_audit",
+    "suspended_at",
+    "suspended_reason",
+    "revoked_at",
+    "revoked_by",
+
+    "notes_section",
+    "admin_notes"
+  ],
+  "fields": [
+    {
+      "fieldname": "activation_section",
+      "fieldtype": "Section Break",
+      "label": "هوية الترخيص"
+    },
+    {
+      "fieldname": "activation_code",
+      "fieldtype": "Data",
+      "label": "كود التفعيل",
+      "reqd": 1,
+      "read_only": 1,
+      "unique": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "الحالة",
+      "options": "Pending\nActive\nSuspended\nMismatch\nRevoked",
+      "default": "Pending",
+      "reqd": 1,
+      "read_only": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "column_break_identity",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "installation_id",
+      "fieldtype": "Data",
+      "label": "معرف التثبيت",
+      "reqd": 1,
+      "read_only": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "device_name",
+      "fieldtype": "Data",
+      "label": "اسم الجهاز",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+
+    {
+      "fieldname": "platform_section",
+      "fieldtype": "Section Break",
+      "label": "الجهاز"
+    },
+    {
+      "fieldname": "platform",
+      "fieldtype": "Data",
+      "label": "نظام التشغيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "architecture",
+      "fieldtype": "Data",
+      "label": "المعمارية",
+      "read_only": 1
+    },
+    {
+      "fieldname": "interface_name",
+      "fieldtype": "Data",
+      "label": "بطاقة الشبكة",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_platform",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "first_seen",
+      "fieldtype": "Datetime",
+      "label": "أول ظهور",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_seen",
+      "fieldtype": "Datetime",
+      "label": "آخر ظهور",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+
+    {
+      "fieldname": "network_section",
+      "fieldtype": "Section Break",
+      "label": "بيانات الشبكة"
+    },
+    {
+      "fieldname": "initial_mac",
+      "fieldtype": "Data",
+      "label": "MAC عند التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "initial_reported_ip",
+      "fieldtype": "Data",
+      "label": "IP المبلغ عنه عند التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "initial_observed_ip",
+      "fieldtype": "Data",
+      "label": "IP المرصود عند التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_network",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "last_mac",
+      "fieldtype": "Data",
+      "label": "آخر MAC",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "last_reported_ip",
+      "fieldtype": "Data",
+      "label": "آخر IP مبلغ عنه",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_observed_ip",
+      "fieldtype": "Data",
+      "label": "آخر IP مرصود",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+
+    {
+      "fieldname": "binding_section",
+      "fieldtype": "Section Break",
+      "label": "الربط المعتمد"
+    },
+    {
+      "fieldname": "licensed_mac",
+      "fieldtype": "Data",
+      "label": "MAC المرخص",
+      "read_only": 1
+    },
+    {
+      "fieldname": "licensed_ip",
+      "fieldtype": "Data",
+      "label": "IP المرخص",
+      "read_only": 1
+    },
+
+    {
+      "fieldname": "security_section",
+      "fieldtype": "Section Break",
+      "label": "الهوية الأمنية"
+    },
+    {
+      "fieldname": "machine_id_hash",
+      "fieldtype": "Data",
+      "label": "Machine ID Hash",
+      "read_only": 1
+    },
+    {
+      "fieldname": "device_fingerprint",
+      "fieldtype": "Data",
+      "label": "Device Fingerprint",
+      "read_only": 1
+    },
+    {
+      "fieldname": "public_key_fingerprint",
+      "fieldtype": "Data",
+      "label": "Public Key Fingerprint",
+      "read_only": 1
+    },
+    {
+      "fieldname": "public_key",
+      "fieldtype": "Code",
+      "label": "Public Key",
+      "read_only": 1
+    },
+
+    {
+      "fieldname": "activation_audit_section",
+      "fieldtype": "Section Break",
+      "label": "التفعيل والتعليق"
+    },
+    {
+      "fieldname": "activated_at",
+      "fieldtype": "Datetime",
+      "label": "تاريخ التفعيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "activated_by",
+      "fieldtype": "Link",
+      "options": "User",
+      "label": "تم التفعيل بواسطة",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_activation_audit",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "suspended_at",
+      "fieldtype": "Datetime",
+      "label": "تاريخ التعليق",
+      "read_only": 1
+    },
+    {
+      "fieldname": "suspended_reason",
+      "fieldtype": "Small Text",
+      "label": "سبب التعليق",
+      "read_only": 1
+    },
+    {
+      "fieldname": "revoked_at",
+      "fieldtype": "Datetime",
+      "label": "تاريخ الإلغاء",
+      "read_only": 1
+    },
+    {
+      "fieldname": "revoked_by",
+      "fieldtype": "Link",
+      "options": "User",
+      "label": "تم الإلغاء بواسطة",
+      "read_only": 1
+    },
+
+    {
+      "fieldname": "notes_section",
+      "fieldtype": "Section Break",
+      "label": "ملاحظات الإدارة"
+    },
+    {
+      "fieldname": "admin_notes",
+      "fieldtype": "Small Text",
+      "label": "ملاحظات"
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-09-30 03:30:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Device License",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 0,
+      "delete": 0,
+      "email": 0,
+      "export": 1,
+      "print": 1,
+      "report": 1,
+      "share": 0
+    }
+  ],
+  "quick_entry": 0,
+  "search_fields": "activation_code,device_name,installation_id,last_mac,last_observed_ip",
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "title_field": "activation_code",
+  "track_changes": 1
+}
