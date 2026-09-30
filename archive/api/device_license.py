@@ -24,7 +24,19 @@ from frappe import _
 from frappe.utils import (
     now_datetime,
 )
+from frappe.utils import (
+    get_datetime,
+    now_datetime,
+)
 
+
+from archive.security.device_license import (
+    issue_challenge as issue_signed_challenge,
+)
+
+from archive.security.device_license import (
+    verify_heartbeat as verify_signed_heartbeat,
+)
 
 # ============================================================
 # Constants
@@ -605,21 +617,60 @@ def _validate_registration_payload(
     )
 
 
-    public_key = (
-        _clean_text(
-            payload.get(
-                "public_key"
-            ),
-            max_length=4096,
+    raw_public_key = (
+        payload.get(
+            "public_key"
         )
     )
 
 
+    if not isinstance(
+        raw_public_key,
+        str,
+    ):
+
+        frappe.throw(
+            _(
+                "المفتاح العام للجهاز "
+                "غير صالح."
+            )
+        )
+
+
     if (
-        "BEGIN PUBLIC KEY"
+        not raw_public_key
+        or
+        len(
+            raw_public_key
+        ) > 4096
+    ):
+
+        frappe.throw(
+            _(
+                "المفتاح العام للجهاز "
+                "غير صالح."
+            )
+        )
+
+
+    # لا نستخدم _clean_text هنا.
+    #
+    # الـ Public Key مادة تشفيرية،
+    # وأي تعديل في النص قبل حساب
+    # SHA-256 يغيّر البصمة.
+    #
+    # PEM المولد من Node ينتهي عادةً
+    # بسطر جديد، ويجب الحفاظ عليه.
+    public_key = (
+        raw_public_key
+    )
+
+
+    if (
+        "-----BEGIN PUBLIC KEY-----"
         not in public_key
         or
-        "END PUBLIC KEY"
+        "-----END PUBLIC KEY-----"
         not in public_key
     ):
 
@@ -629,6 +680,27 @@ def _validate_registration_payload(
                 "غير صالح."
             )
         )
+
+
+    supplied_public_key_hash = (
+        _normalize_hash(
+            payload.get(
+                "public_key_fingerprint"
+            ),
+            "Public Key Fingerprint",
+        )
+    )
+
+
+    calculated_public_key_hash = (
+        hashlib
+        .sha256(
+            public_key.encode(
+                "utf-8"
+            )
+        )
+        .hexdigest()
+    )
 
 
     supplied_public_key_hash = (
@@ -1050,7 +1122,15 @@ def register_device(
                         data[
                             "machine_id_hash"
                         ],
+                    "last_machine_id_hash":
+                        data[
+                            "machine_id_hash"
+                        ],
 
+                    "device_fingerprint":
+                        data[
+                            "device_fingerprint"
+                        ],
                     "device_fingerprint":
                         data[
                             "device_fingerprint"
@@ -1165,31 +1245,143 @@ def register_device(
             ]
         )
 
-        license_doc.last_seen = (
-            now
-        )
+        # license_doc.last_seen = (
+        #     now
+        # )
 
-        license_doc.last_mac = (
-            data[
-                "mac"
-            ]
-        )
+        # license_doc.last_mac = (
+        #     data[
+        #         "mac"
+        #     ]
+        # )
 
-        license_doc.last_reported_ip = (
-            data[
-                "reported_ip"
-            ]
-        )
+        # license_doc.last_reported_ip = (
+        #     data[
+        #         "reported_ip"
+        #     ]
+        # )
 
-        license_doc.last_observed_ip = (
-            observed_ip
-        )
+        # license_doc.last_observed_ip = (
+        #     observed_ip
+        # )
 
-        license_doc.device_fingerprint = (
-            data[
-                "device_fingerprint"
-            ]
-        )
+        # license_doc.device_fingerprint = (
+        #     data[
+        #         "device_fingerprint"
+        #     ]
+        # )
+        changed = False
+
+
+        descriptive_values = {
+            "device_name":
+                data[
+                    "device_name"
+                ],
+
+            "platform":
+                data[
+                    "platform"
+                ],
+
+            "architecture":
+                data[
+                    "architecture"
+                ],
+
+            "interface_name":
+                data[
+                    "interface_name"
+                ],
+        }
+
+
+        for (
+            fieldname,
+            value,
+        ) in descriptive_values.items():
+
+            if (
+                license_doc.get(
+                    fieldname
+                )
+                !=
+                value
+            ):
+
+                license_doc.set(
+                    fieldname,
+                    value,
+                )
+
+                changed = True
+
+
+        # /*
+        # * قبل التفعيل يمكن Registration
+        # * تحديث القيم المرشحة.
+        # *
+        # * بعد التفعيل لا نقبل Network Identity
+        # * إلا من Signed Heartbeat.
+        # */
+        if (
+            license_doc.status
+            ==
+            STATUS_PENDING
+        ):
+
+            pending_values = {
+                "last_seen":
+                    now,
+
+                "last_mac":
+                    data[
+                        "mac"
+                    ],
+
+                "last_reported_ip":
+                    data[
+                        "reported_ip"
+                    ],
+
+                "last_observed_ip":
+                    observed_ip,
+
+                "last_machine_id_hash":
+                    data[
+                        "machine_id_hash"
+                    ],
+
+                "last_device_fingerprint":
+                    data[
+                        "device_fingerprint"
+                    ],
+            }
+
+
+            for (
+                fieldname,
+                value,
+            ) in pending_values.items():
+
+                license_doc.set(
+                    fieldname,
+                    value,
+                )
+
+
+            changed = True
+
+
+        if changed:
+
+            with (
+                device_license_service_context()
+            ):
+
+                license_doc.save(
+                    ignore_permissions=True
+                )
 
 
         license_doc.save(
@@ -1370,6 +1562,542 @@ def _get_license(
 
 
 # ============================================================
+# Secure challenge
+# ============================================================
+
+@frappe.whitelist(
+    allow_guest=True,
+    methods=["POST"],
+)
+def issue_device_challenge(
+    activation_code: str,
+    installation_id: str,
+    public_key_fingerprint: str,
+) -> dict[str, Any]:
+
+    activation_code = (
+        _normalize_activation_code(
+            activation_code
+        )
+    )
+
+
+    installation_id = (
+        _normalize_uuid(
+            installation_id
+        )
+    )
+
+
+    public_key_fingerprint = (
+        _normalize_hash(
+            public_key_fingerprint,
+            "Public Key Fingerprint",
+        )
+    )
+
+
+    license_doc = _get_license(
+        activation_code
+    )
+
+
+    if (
+        license_doc.installation_id
+        !=
+        installation_id
+        or
+        license_doc
+        .public_key_fingerprint
+        !=
+        public_key_fingerprint
+    ):
+
+        frappe.throw(
+            _(
+                "تعذر التحقق من "
+                "هوية الجهاز."
+            )
+        )
+
+
+    response = _public_response(
+        license_doc
+    )
+
+
+    if (
+        license_doc.status
+        ==
+        STATUS_REVOKED
+    ):
+
+        return response
+
+
+    response[
+        "challenge"
+    ] = issue_signed_challenge(
+        license_doc
+    )
+
+
+    return response
+
+
+
+@frappe.whitelist(
+    allow_guest=True,
+    methods=["POST"],
+)
+def verify_device_heartbeat(
+    payload: str | dict[str, Any],
+) -> dict[str, Any]:
+
+    payload = _parse_payload(
+        payload
+    )
+
+
+    activation_code = (
+        _normalize_activation_code(
+            payload.get(
+                "activation_code"
+            )
+        )
+    )
+
+
+    license_doc = _get_license(
+        activation_code
+    )
+
+
+    if (
+        license_doc.status
+        ==
+        STATUS_REVOKED
+    ):
+
+        return (
+            _public_response(
+                license_doc
+            )
+        )
+
+
+    snapshot = (
+        verify_signed_heartbeat(
+            license_doc,
+            payload,
+        )
+    )
+
+
+    now = now_datetime()
+
+
+    observed_ip = (
+        _get_request_ip()
+        or
+        snapshot[
+            "reported_ip"
+        ]
+    )
+
+
+    previous_status = (
+        license_doc.status
+    )
+
+
+    mismatch_fields = []
+
+
+    if (
+        license_doc.status
+        ==
+        STATUS_ACTIVE
+    ):
+
+        if (
+            snapshot[
+                "machine_id_hash"
+            ]
+            !=
+            license_doc
+            .machine_id_hash
+        ):
+
+            mismatch_fields.append(
+                "Machine ID"
+            )
+
+
+        if (
+            snapshot[
+                "mac"
+            ]
+            !=
+            license_doc
+            .licensed_mac
+        ):
+
+            mismatch_fields.append(
+                "MAC"
+            )
+
+
+        if (
+            snapshot[
+                "reported_ip"
+            ]
+            !=
+            license_doc
+            .licensed_ip
+        ):
+
+            mismatch_fields.append(
+                "IP"
+            )
+
+
+    last_seen_due = True
+
+
+    if (
+        license_doc.last_seen
+    ):
+
+        previous_seen = get_datetime(
+            license_doc.last_seen
+        )
+
+
+        last_seen_due = (
+            now
+            -
+            previous_seen
+        ).total_seconds() >= 300
+
+
+    signed_values_changed = (
+        license_doc.last_mac
+        !=
+        snapshot[
+            "mac"
+        ]
+        or
+        license_doc.last_reported_ip
+        !=
+        snapshot[
+            "reported_ip"
+        ]
+        or
+        license_doc.last_observed_ip
+        !=
+        observed_ip
+        or
+        license_doc.last_machine_id_hash
+        !=
+        snapshot[
+            "machine_id_hash"
+        ]
+        or
+        license_doc.last_device_fingerprint
+        !=
+        snapshot[
+            "device_fingerprint"
+        ]
+    )
+
+
+    must_save = (
+        last_seen_due
+        or
+        signed_values_changed
+        or
+        not license_doc.key_proven_at
+        or
+        bool(
+            mismatch_fields
+        )
+        or
+        license_doc.status
+        !=
+        STATUS_ACTIVE
+    )
+
+
+    if must_save:
+
+        with (
+            device_license_service_context()
+        ):
+
+            license_doc.last_seen = (
+                now
+            )
+
+            license_doc.last_mac = (
+                snapshot[
+                    "mac"
+                ]
+            )
+
+            license_doc.last_reported_ip = (
+                snapshot[
+                    "reported_ip"
+                ]
+            )
+
+            license_doc.last_observed_ip = (
+                observed_ip
+            )
+
+            license_doc.last_machine_id_hash = (
+                snapshot[
+                    "machine_id_hash"
+                ]
+            )
+
+            license_doc.last_device_fingerprint = (
+                snapshot[
+                    "device_fingerprint"
+                ]
+            )
+
+
+            if not (
+                license_doc.key_proven_at
+            ):
+
+                license_doc.key_proven_at = (
+                    now
+                )
+
+
+            if (
+                mismatch_fields
+            ):
+
+                license_doc.status = (
+                    STATUS_MISMATCH
+                )
+
+                license_doc.suspended_at = (
+                    now
+                )
+
+                license_doc.suspended_reason = (
+                    "تم اكتشاف تغيير في: "
+                    +
+                    ", ".join(
+                        mismatch_fields
+                    )
+                )
+
+
+            license_doc.save(
+                ignore_permissions=True
+            )
+
+
+    if (
+        mismatch_fields
+        and
+        previous_status
+        !=
+        STATUS_MISMATCH
+    ):
+
+        _log_event(
+            license_doc,
+            "Device Identity Mismatch",
+
+            details={
+                "mismatch_fields":
+                    mismatch_fields,
+
+                "licensed_mac":
+                    license_doc
+                    .licensed_mac,
+
+                "current_mac":
+                    snapshot[
+                        "mac"
+                    ],
+
+                "licensed_ip":
+                    license_doc
+                    .licensed_ip,
+
+                "current_ip":
+                    snapshot[
+                        "reported_ip"
+                    ],
+
+                "observed_ip":
+                    observed_ip,
+            },
+        )
+
+
+    response = _public_response(
+        license_doc
+    )
+
+
+    response[
+        "key_proven"
+    ] = bool(
+        license_doc.key_proven_at
+    )
+
+
+    return response
+
+
+@frappe.whitelist(
+    methods=["POST"],
+)
+def rebind_device_license(
+    activation_code: str,
+) -> dict[str, Any]:
+
+    _require_manage_permission()
+
+
+    license_doc = _get_license(
+        activation_code
+    )
+
+
+    if (
+        license_doc.status
+        !=
+        STATUS_MISMATCH
+    ):
+
+        frappe.throw(
+            _(
+                "يمكن إعادة ربط الترخيص "
+                "من حالة تغير هوية الجهاز فقط."
+            )
+        )
+
+
+    if not (
+        license_doc.key_proven_at
+        and
+        license_doc.last_machine_id_hash
+        and
+        license_doc.last_mac
+        and
+        license_doc.last_reported_ip
+    ):
+
+        frappe.throw(
+            _(
+                "لا توجد هوية موقعة كافية "
+                "لإعادة ربط الجهاز."
+            )
+        )
+
+
+    old_values = {
+        "machine_id_hash":
+            license_doc
+            .machine_id_hash,
+
+        "mac":
+            license_doc
+            .licensed_mac,
+
+        "ip":
+            license_doc
+            .licensed_ip,
+    }
+
+
+    with (
+        device_license_service_context()
+    ):
+
+        license_doc.machine_id_hash = (
+            license_doc
+            .last_machine_id_hash
+        )
+
+        license_doc.device_fingerprint = (
+            license_doc
+            .last_device_fingerprint
+        )
+
+        license_doc.licensed_mac = (
+            license_doc
+            .last_mac
+        )
+
+        license_doc.licensed_ip = (
+            license_doc
+            .last_reported_ip
+        )
+
+        license_doc.status = (
+            STATUS_ACTIVE
+        )
+
+        license_doc.suspended_at = (
+            None
+        )
+
+        license_doc.suspended_reason = (
+            None
+        )
+
+
+        license_doc.save(
+            ignore_permissions=True
+        )
+
+
+    _log_event(
+        license_doc,
+        "Device Rebound",
+
+        details={
+            "old":
+                old_values,
+
+            "new": {
+                "machine_id_hash":
+                    license_doc
+                    .machine_id_hash,
+
+                "mac":
+                    license_doc
+                    .licensed_mac,
+
+                "ip":
+                    license_doc
+                    .licensed_ip,
+            },
+        },
+    )
+
+
+    return {
+        "name":
+            license_doc.name,
+
+        "status":
+            license_doc.status,
+    }
+
+
+
+# ============================================================
 # Activate
 # ============================================================
 
@@ -1401,6 +2129,19 @@ def activate_device_license(
             )
         )
 
+    if not (
+        license_doc.key_proven_at
+    ):
+
+        frappe.throw(
+            _(
+                "لم يثبت الجهاز امتلاك "
+                "المفتاح الخاص بعد. "
+                "اترك التطبيق متصلاً ثم "
+                "أعد المحاولة."
+            )
+        )
+
 
     if not (
         license_doc.last_mac
@@ -1424,13 +2165,32 @@ def activate_device_license(
             STATUS_ACTIVE
         )
 
+        license_doc.machine_id_hash = (
+            license_doc
+            .last_machine_id_hash
+            or
+            license_doc
+            .machine_id_hash
+        )
+
+
+        license_doc.device_fingerprint = (
+            license_doc
+            .last_device_fingerprint
+            or
+            license_doc
+            .device_fingerprint
+        )
+
+
         license_doc.licensed_mac = (
             license_doc.last_mac
         )
 
+
         license_doc.licensed_ip = (
             license_doc
-            .last_observed_ip
+            .last_reported_ip
         )
 
         license_doc.activated_at = (
@@ -1453,6 +2213,7 @@ def activate_device_license(
         license_doc.save(
             ignore_permissions=True
         )
+        
 
 
     _log_event(

@@ -36,9 +36,12 @@
 
     "security_section",
     "machine_id_hash",
+    "last_machine_id_hash",
     "device_fingerprint",
+    "last_device_fingerprint",
     "public_key_fingerprint",
     "public_key",
+    "key_proven_at",
 
     "activation_audit_section",
     "activated_at",
@@ -218,11 +221,24 @@
       "read_only": 1
     },
     {
+      "fieldname": "last_machine_id_hash",
+      "fieldtype": "Data",
+      "label": "آخر Machine ID Hash",
+      "read_only": 1
+    },
+    {
       "fieldname": "device_fingerprint",
       "fieldtype": "Data",
       "label": "Device Fingerprint",
       "read_only": 1
     },
+    {
+      "fieldname": "last_device_fingerprint",
+      "fieldtype": "Data",
+      "label": "آخر Device Fingerprint",
+      "read_only": 1
+    },
+
     {
       "fieldname": "public_key_fingerprint",
       "fieldtype": "Data",
@@ -233,6 +249,12 @@
       "fieldname": "public_key",
       "fieldtype": "Code",
       "label": "Public Key",
+      "read_only": 1
+    },
+    {
+      "fieldname": "key_proven_at",
+      "fieldtype": "Datetime",
+      "label": "تم إثبات المفتاح الخاص في",
       "read_only": 1
     },
 

@@ -84,7 +84,23 @@ frappe.ui.form.on(
                     }
                 );
             }
+            if (
+                frm.doc.status
+                    === "Mismatch"
+            ) {
+
+                frm.add_custom_button(
+                    "اعتماد التغيير وإعادة التفعيل",
+                    () => {
+
+                        rebind_license(
+                            frm
+                        );
+                    }
+                );
+            }
         },
+
     }
 );
 
@@ -273,6 +289,79 @@ function revoke_license(
 
                 freeze:
                     true,
+            });
+
+
+            await frm.reload_doc();
+        }
+    );
+}
+
+function rebind_license(
+    frm
+) {
+
+    frappe.confirm(
+        `
+            سيتم اعتماد هوية الجهاز الحالية
+            وربط الترخيص بها.
+            <br><br>
+
+            <b>MAC السابق:</b>
+            ${frappe.utils.escape_html(
+                frm.doc.licensed_mac
+                || "—"
+            )}
+
+            <br>
+
+            <b>MAC الحالي:</b>
+            ${frappe.utils.escape_html(
+                frm.doc.last_mac
+                || "—"
+            )}
+
+            <br><br>
+
+            <b>IP السابق:</b>
+            ${frappe.utils.escape_html(
+                frm.doc.licensed_ip
+                || "—"
+            )}
+
+            <br>
+
+            <b>IP الحالي:</b>
+            ${frappe.utils.escape_html(
+                frm.doc.last_reported_ip
+                || "—"
+            )}
+
+            <br><br>
+
+            هل تريد اعتماد التغيير؟
+        `,
+
+        async () => {
+
+            await frappe.call({
+                method:
+                    "archive.api.device_license.rebind_device_license",
+
+                type:
+                    "POST",
+
+                args: {
+                    activation_code:
+                        frm.doc
+                            .activation_code,
+                },
+
+                freeze:
+                    true,
+
+                freeze_message:
+                    "جارٍ إعادة ربط الجهاز...",
             });
 
 

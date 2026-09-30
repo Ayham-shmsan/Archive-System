@@ -37,6 +37,9 @@ PROTECTED_FIELDS = (
     "suspended_reason",
     "revoked_at",
     "revoked_by",
+    "last_machine_id_hash",
+    "last_device_fingerprint",
+    "key_proven_at",
 )
 
 
