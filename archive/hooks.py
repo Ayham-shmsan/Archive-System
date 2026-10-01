@@ -51,12 +51,12 @@ use_json_request_body = True
 # include js, css files in header of desk.html
 # app_include_css = "/assets/archive/css/archive.css"
 app_include_css = [
-    "/assets/archive/css/archive_sidebar_v3.css",
+    "/assets/archive/css/archive_sidebar_v4.css",
 ]
 # app_include_js = "/assets/archive/js/archive.js"
 app_include_js = [
     "/assets/archive/js/country_list.js",
-    "/assets/archive/js/archive_sidebar_v3.js",
+    "/assets/archive/js/archive_sidebar_v4.js",
 ]
 
 # include js, css files in header of web template

@@ -2293,3 +2293,38 @@ svg {
             none !important;
     }
 }
+/* ============================================================
+   ARCHIVE SIDEBAR — FULL VIEWPORT HEIGHT FIX
+   ============================================================ */
+
+.body-sidebar-container.archive-sidebar-expanded,
+.body-sidebar-container.archive-sidebar-compact {
+    height: 100vh !important;
+    min-height: 100vh !important;
+}
+
+.body-sidebar-container.archive-sidebar-expanded
+> .body-sidebar.archive-sidebar-v3,
+
+.body-sidebar-container.archive-sidebar-compact
+> .body-sidebar.archive-sidebar-v3 {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+/* ============================================================
+   ARCHIVE SIDEBAR — TOGGLE FULL CLICK AREA
+   ============================================================ */
+
+.archive-sidebar-v3
+.archive-sidebar-footer-anchor
+.archive-sidebar-toggle {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+.archive-sidebar-v3
+.archive-sidebar-footer-anchor
+.archive-sidebar-toggle * {
+    pointer-events: none !important;
+}
