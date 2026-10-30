@@ -364,22 +364,21 @@ class ArchivePendingOperationsPage {
 
                             <colgroup>
                                 <col class="col-serial">
+                                <col class="col-bank">
                                 <col class="col-card-name">
                                 <col class="col-account-number">
                                 <col class="col-card-number">
+                                <col class="col-total-suspended">
                                 <col class="col-operation-datetime">
                                 <col class="col-suspended-note">
-                                <col class="col-card-owner">
-                                <col class="col-bank">
-                                <col class="col-region">
-                                <col class="col-machine-location">
-                                <col class="col-machine-no">
-                                <col class="col-branch-no">
                                 <col class="col-representative">
-                                <col class="col-total-suspended">
+                                <col class="col-card-owner">
+                                <col class="col-region">
+                                <col class="col-branch-no">
+                                <col class="col-machine-no">
+                                <col class="col-machine-location">
                                 <col class="col-total-returned">
                                 <col class="col-remaining-amount">
-                                
                                 <col class="col-owner">
                                 <col class="col-status">
                             </colgroup>
@@ -390,6 +389,11 @@ class ArchivePendingOperationsPage {
                                     ${this.sortable_header(
                                         "serial_no",
                                         "الرقم"
+                                    )}
+
+                                    ${this.sortable_header(
+                                        "bank_name",
+                                        "البنك"
                                     )}
 
                                     ${this.sortable_header(
@@ -407,6 +411,11 @@ class ArchivePendingOperationsPage {
                                     )}
 
                                     ${this.sortable_header(
+                                        "total_suspended",
+                                        "إجمالي المعلق"
+                                    )}
+
+                                    ${this.sortable_header(
                                         "operation_datetime",
                                         "تاريخ المعلق"
                                     )}
@@ -416,13 +425,13 @@ class ArchivePendingOperationsPage {
                                     )}
 
                                     ${this.sortable_header(
-                                        "card_owner_name",
-                                        "مالك البطاقة"
+                                        "representative_name",
+                                        "المندوب"
                                     )}
 
                                     ${this.sortable_header(
-                                        "bank_name",
-                                        "البنك"
+                                        "card_owner_name",
+                                        "مالك البطاقة"
                                     )}
 
                                     ${this.sortable_header(
@@ -431,8 +440,8 @@ class ArchivePendingOperationsPage {
                                     )}
 
                                     ${this.sortable_header(
-                                        "machine_location",
-                                        "العنوان"
+                                        "branch_no",
+                                        "رقم الفرع"
                                     )}
 
                                     ${this.sortable_header(
@@ -441,18 +450,8 @@ class ArchivePendingOperationsPage {
                                     )}
 
                                     ${this.sortable_header(
-                                        "branch_no",
-                                        "رقم الفرع"
-                                    )}
-
-                                    ${this.sortable_header(
-                                        "representative_name",
-                                        "المندوب"
-                                    )}
-
-                                    ${this.sortable_header(
-                                        "total_suspended",
-                                        "إجمالي المعلق"
+                                        "machine_location",
+                                        "العنوان"
                                     )}
 
                                     ${this.sortable_header(
@@ -670,6 +669,10 @@ class ArchivePendingOperationsPage {
                             type: "number",
                         },
 
+                        bank_name: {
+                            type: "text",
+                        },
+
                         card_name: {
                             type: "text",
                         },
@@ -680,6 +683,11 @@ class ArchivePendingOperationsPage {
                         card_number: {
                             type: "text",
                         },
+
+                        total_suspended: {
+                            type: "number",
+                        },
+
                         /*
                          * نحافظ على الترتيب الافتراضي:
                          *
@@ -703,11 +711,11 @@ class ArchivePendingOperationsPage {
                             type: "text",
                         },
 
-                        card_owner_name: {
+                        representative_name: {
                             type: "text",
                         },
 
-                        bank_name: {
+                        card_owner_name: {
                             type: "text",
                         },
 
@@ -715,7 +723,7 @@ class ArchivePendingOperationsPage {
                             type: "text",
                         },
 
-                        machine_location: {
+                        branch_no: {
                             type: "text",
                         },
 
@@ -723,16 +731,8 @@ class ArchivePendingOperationsPage {
                             type: "text",
                         },
 
-                        branch_no: {
+                        machine_location: {
                             type: "text",
-                        },
-
-                        representative_name: {
-                            type: "text",
-                        },
-
-                        total_suspended: {
-                            type: "number",
                         },
 
                         total_returned: {
@@ -1949,6 +1949,13 @@ class ArchivePendingOperationsPage {
 
                 <td>
                     ${this.escape_value(
+                        operation.bank_name
+                        || operation.bank
+                    )}
+                </td>
+
+                <td>
+                    ${this.escape_value(
                         operation.card_name
                     )}
                 </td>
@@ -1968,6 +1975,12 @@ class ArchivePendingOperationsPage {
                     ${this.escape_value(
                         operation.card_number
                     )}
+                </td>
+
+                <td class="archive-pending-money-cell">
+                    ${this.format_amount(
+                        operation.total_suspended
+                    )}ر.س
                 </td>
 
                 <td>
@@ -1998,15 +2011,15 @@ class ArchivePendingOperationsPage {
 
                 <td>
                     ${this.escape_value(
-                        operation.card_owner_name
-                        || operation.card_owner
+                        operation.representative_name
+                        || operation.representative
                     )}
                 </td>
 
                 <td>
                     ${this.escape_value(
-                        operation.bank_name
-                        || operation.bank
+                        operation.card_owner_name
+                        || operation.card_owner
                     )}
                 </td>
 
@@ -2017,9 +2030,9 @@ class ArchivePendingOperationsPage {
                     )}
                 </td>
 
-                <td>
+                <td class="archive-pending-code-cell">
                     ${this.escape_value(
-                        operation.machine_location
+                        operation.branch_no
                     )}
                 </td>
 
@@ -2029,23 +2042,10 @@ class ArchivePendingOperationsPage {
                     )}
                 </td>
 
-                <td class="archive-pending-code-cell">
-                    ${this.escape_value(
-                        operation.branch_no
-                    )}
-                </td>
-
                 <td>
                     ${this.escape_value(
-                        operation.representative_name
-                        || operation.representative
+                        operation.machine_location
                     )}
-                </td>
-
-                <td class="archive-pending-money-cell">
-                    ${this.format_amount(
-                        operation.total_suspended
-                    )}ر.س
                 </td>
 
                 <td class="archive-pending-money-cell">
