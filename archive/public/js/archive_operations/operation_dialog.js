@@ -1048,97 +1048,64 @@ archive.ui.OperationDialog = class OperationDialog {
 		is_blocked
 	) {
 
-		for (
-			const [
-				fieldname,
-				control,
-			]
-			of Object.entries(
-				this.controls
-			)
-		) {
+		for (const [fieldname,control,]of Object.entries(this.controls)) {
 
-			if (
-				!control
-				||
-				!control.df
-			) {
+			if (!control||!control.df) {
 				continue;
 			}
-
 
 			/*
 			* رقم العملية له منطق مستقل:
 			* عند المحضورة يصبح فارغاً وRead Only.
 			*/
-			if (
-				fieldname
-				===
-				"operation_no"
-			) {
+			if (fieldname==="operation_no") {
 				continue;
 			}
 
-
-			control.df.reqd =
-				is_blocked
-					? 0
-					: (
-						control.archive_normal_reqd
-							? 1
-							: 0
-					);
+			// control.df.reqd =is_blocked? 0: (control.archive_normal_reqd? 1: 0);
+			// control.refresh();
+			const required =is_blocked? 0: (control.archive_normal_reqd? 1: 0);
 
 
-			control.refresh();
+			/*
+			* لا نعمل refresh للحقل إلا إذا تغيّرت حالة
+			* الإلزام فعلياً.
+			*
+			* refresh في Frappe قد يعيد بناء عنصر input/select
+			* داخل الـControl. وكان هذا يقطع event handlers
+			* المرتبطة مباشرة بحقول سعر العميل بعد الاستخراج.
+			*/
+			if (Number(Boolean(control.df.reqd))!==required) {
+
+				control.df.reqd =required;
+				control.refresh();
+			}
 		}
 	}
 
 	
 	update_operation_number_mode() {
 
-		const operation_no =
-			this.controls
-				.operation_no;
+		const operation_no =this.controls.operation_no;
 
 
-		const allow_duplicate =
-			this.controls
-				.allow_duplicate_operation_no;
+		const allow_duplicate =this.controls.allow_duplicate_operation_no;
 
 
-		const blocked =
-			this.controls
-				.is_blocked_operation;
+		const blocked =this.controls.is_blocked_operation;
 
 
-		if (
-			!operation_no
-			||
-			!allow_duplicate
-			||
-			!blocked
-		) {
+		if (!operation_no||!allow_duplicate||!blocked) {
 			return;
 		}
 
 
 		const is_blocked =
-			Boolean(
-				Number(
-					blocked.get_value()
-					|| 0
-				)
-			);
-		this.apply_blocked_required_mode(
-			is_blocked
-		);
+			Boolean(Number(blocked.get_value()|| 0));
+		this.apply_blocked_required_mode(is_blocked);
 
 
-		const $status_badge =
-			this.$body.find(
-				".archive-status-badge"
-			);
+		const $status_badge =this.$body.find(".archive-status-badge");
 
 
 		// ========================================================
@@ -1148,45 +1115,18 @@ archive.ui.OperationDialog = class OperationDialog {
 		if (is_blocked) {
 
 			// لا يوجد رقم عملية للعملية المحضورة.
-			operation_no.set_value(
-				""
-			);
-
+			operation_no.set_value("");
 
 			// السماح بالتكرار لا معنى له هنا.
-			allow_duplicate.set_value(
-				0
-			);
-
+			allow_duplicate.set_value(0);
 			this.hide_operation_number_suggestions();
-
-			clearTimeout(
-				this.operation_number_lookup_timer
-			);
-
+			clearTimeout(this.operation_number_lookup_timer);
 			this.operation_number_lookup_request_id++;
-
-
-			this.reset_operation_number_context({
-				clear_pending:
-					false,
-			});
-
-
-			operation_no.df.reqd =
-				0;
-
-			operation_no.df.read_only =
-				1;
-
-
-			allow_duplicate.df.read_only =
-				1;
-
-
-			$status_badge.text(
-				"محضورة"
-			);
+			this.reset_operation_number_context({clear_pending:false,});
+			operation_no.df.reqd =0;
+			operation_no.df.read_only =1;
+			allow_duplicate.df.read_only =1;
+			$status_badge.text("محضورة");
 		}
 
 
@@ -1223,26 +1163,33 @@ archive.ui.OperationDialog = class OperationDialog {
 		* في المحضورة تبقى حقوله اختيارية.
 		* في العملية العادية تعود قواعدها الطبيعية.
 		*/
-		this.update_customer_rate_mode({
-			rate_currency_value:
-				this.controls
-					.customer_rate_currency
-					?.$input
-					?.val()
-				|| "",
+		// this.update_customer_rate_mode({
+		// 	rate_currency_value:
+		// 		this.controls
+		// 			.customer_rate_currency
+		// 			?.$input
+		// 			?.val()
+		// 		|| "",
 
-			rate_type_value:
-				this.controls
-					.customer_rate_type
-					?.$input
-					?.val()
-				|| "",
+		// 	rate_type_value:
+		// 		this.controls
+		// 			.customer_rate_type
+		// 			?.$input
+		// 			?.val()
+		// 		|| "",
 
-			rate_amount_value:
-				this.controls
-					.customer_rate_amount
-					?.get_value(),
-		});
+		// 	rate_amount_value:
+		// 		this.controls
+		// 			.customer_rate_amount
+		// 			?.get_value(),
+		// });
+		/*
+		* apply_blocked_required_mode قد يعمل refresh لبعض
+		* Controls، وFrappe قد يستبدل input/select الداخلي.
+		* لذلك نعيد الربط بعد انتهاء تحديث الوضع، ثم يقوم
+		* bind_customer_rate_mode أيضاً بمزامنة الحالة الحالية.
+		*/
+		this.bind_customer_rate_mode();
 	}
 
 
@@ -2619,56 +2566,28 @@ archive.ui.OperationDialog = class OperationDialog {
 
 		bind_customer_rate_mode() {
 
-			const rate =
-				this.controls
-					.customer_rate;
+			const rate =this.controls.customer_rate;
+			const rate_type =this.controls.customer_rate_type;
+			const rate_currency =this.controls.customer_rate_currency;
+			const rate_amount =this.controls.customer_rate_amount;
 
-
-			const rate_type =
-				this.controls
-					.customer_rate_type;
-
-
-			const rate_currency =
-				this.controls
-					.customer_rate_currency;
-
-
-			const rate_amount =
-				this.controls
-					.customer_rate_amount;
-
-
-			if (
-				!rate
-				||
-				!rate_type
-				||
-				!rate_currency
-				||
-				!rate_amount
-			) {
+			if (!rate||!rate_type||!rate_currency||!rate_amount) {
 				return;
 			}
 
-
-			this.customer_rate_last_currency =
-				String(
-					rate_currency.$input?.val()
-					|| ""
-				).trim();
-
+			this.customer_rate_last_currency =String(rate_currency.$input?.val()|| "").trim();
 
 			// ========================================================
 			// Type
 			// ========================================================
 
-			rate_type.$input
+			rate_type.$wrapper
 				.off(
 					".archiveCustomerRate"
 				)
 				.on(
 					"change.archiveCustomerRate",
+					"select",
 					(event) => {
 
 						this.update_customer_rate_mode({
@@ -2690,12 +2609,13 @@ archive.ui.OperationDialog = class OperationDialog {
 			// Currency
 			// ========================================================
 
-			rate_currency.$input
+			rate_currency.$wrapper
 				.off(
 					".archiveCustomerRate"
 				)
 				.on(
 					"change.archiveCustomerRate",
+					"select",
 					(event) => {
 
 						this.update_customer_rate_mode({
@@ -2717,12 +2637,13 @@ archive.ui.OperationDialog = class OperationDialog {
 			// Dollar amount
 			// ========================================================
 
-			rate_amount.$input
+			rate_amount.$wrapper
 				.off(
 					".archiveCustomerRate"
 				)
 				.on(
 					"input.archiveCustomerRate change.archiveCustomerRate",
+					"input",
 					(event) => {
 
 						this.update_customer_rate_mode({
