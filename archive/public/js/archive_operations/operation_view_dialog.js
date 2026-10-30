@@ -1914,6 +1914,18 @@ class OperationViewDialog {
 			]
 		);
 
+		if (this.controls.customer_rate_amount) {
+			this.make_control(
+				this.controls.customer_rate_amount.$wrapper.parent(),
+				{
+					fieldname: "replacement_note",
+					label: "ملاحظة البدل",
+					fieldtype: "Data",
+				}
+			);
+			this.controls.replacement_note?.$wrapper.hide();
+		}
+
 
 		/*
 		* ====================================================
@@ -2300,6 +2312,17 @@ class OperationViewDialog {
 				);
 
 
+			const can_edit_replacement_note =
+				this.editable_fields.has(
+					"replacement_note"
+				);
+
+
+			const note =
+				this.controls
+					.replacement_note;
+
+
 			this.updating_customer_rate_mode =
 				true;
 
@@ -2344,6 +2367,20 @@ class OperationViewDialog {
 
 						rate_amount.$wrapper.hide();
 
+						if (note) {
+							note.df.hidden = 1;
+							note.df.reqd = 0;
+							note.$wrapper.hide();
+							if (
+								can_edit_replacement_note
+								&&
+								note.get_value()
+							) {
+								await note.set_value(
+									""
+								);
+							}
+						}
 
 						if (
 							can_edit_rate
@@ -2409,6 +2446,32 @@ class OperationViewDialog {
 						}
 
 
+						if (note) {
+							if (
+								type
+								===
+								"بدل حوالة مرتجعة"
+							) {
+								note.df.hidden = 0;
+								note.df.reqd = 0;
+								note.$wrapper.show();
+							} else {
+								note.df.hidden = 1;
+								note.df.reqd = 0;
+								note.$wrapper.hide();
+								if (
+									can_edit_replacement_note
+									&&
+									note.get_value()
+								) {
+									await note.set_value(
+										""
+									);
+								}
+							}
+						}
+
+
 						this.customer_rate_last_currency =
 							currency;
 
@@ -2428,6 +2491,21 @@ class OperationViewDialog {
 						1;
 
 					rate_amount.$wrapper.show();
+
+					if (note) {
+						note.df.hidden = 1;
+						note.df.reqd = 0;
+						note.$wrapper.hide();
+						if (
+							can_edit_replacement_note
+							&&
+							note.get_value()
+						) {
+							await note.set_value(
+								""
+							);
+						}
+					}
 
 
 					if (
@@ -2477,6 +2555,21 @@ class OperationViewDialog {
 						0;
 
 					rate_amount.$wrapper.hide();
+
+					if (note) {
+						note.df.hidden = 1;
+						note.df.reqd = 0;
+						note.$wrapper.hide();
+						if (
+							can_edit_replacement_note
+							&&
+							note.get_value()
+						) {
+							await note.set_value(
+								""
+							);
+						}
+					}
 
 
 					if (
@@ -2566,6 +2659,21 @@ class OperationViewDialog {
 					0;
 
 				rate_amount.$wrapper.hide();
+
+				if (note) {
+					note.df.hidden = 1;
+					note.df.reqd = 0;
+					note.$wrapper.hide();
+					if (
+						can_edit_replacement_note
+						&&
+						note.get_value()
+					) {
+						await note.set_value(
+							""
+						);
+					}
+				}
 
 
 				this.set_customer_rate_read_only(
@@ -2816,15 +2924,13 @@ class OperationViewDialog {
 			*/
 			this.update_customer_rate_mode({
 				rate_currency_value:
-					rate_currency.get_value()
-					|| "",
+					this.operation?.customer_rate_currency || "",
 
 				rate_type_value:
-					rate_type.get_value()
-					|| "",
+					this.operation?.customer_rate_type || "",
 
 				rate_amount_value:
-					rate_amount.get_value(),
+					this.operation?.customer_rate_amount,
 			});
 		}
 	

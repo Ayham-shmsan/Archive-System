@@ -138,6 +138,7 @@ class ArchiveOperation(Document):
         operation_no_normalized: DF.Data | None
         operation_no_uniqueness_key: DF.Data | None
         reference_no: DF.Data | None
+        replacement_note: DF.Data | None
         request_date: DF.Date | None
         search_text: DF.LongText | None
         sender_account: DF.Data | None
@@ -590,6 +591,17 @@ class ArchiveOperation(Document):
             if cint(
                 self.is_blocked_operation
             ):
+                if (
+                    cstr(self.get("customer_rate_currency")).strip() == "دولار"
+                    and cstr(self.get("customer_rate_type")).strip() == "بدل حوالة مرتجعة"
+                ):
+                    self.replacement_note = (
+                        cstr(self.replacement_note).strip()
+                        or None
+                    )
+                else:
+                    self.replacement_note = None
+
                 return
 
 
@@ -706,6 +718,11 @@ class ArchiveOperation(Document):
                 )
 
 
+                self.replacement_note = (
+                    None
+                )
+
+
                 self.customer_rate = (
                     cstr(
                         self.customer_rate
@@ -773,6 +790,11 @@ class ArchiveOperation(Document):
                 )
 
 
+                self.replacement_note = (
+                    None
+                )
+
+
                 self.customer_rate = (
                     "بدون عمولة"
                 )
@@ -787,6 +809,14 @@ class ArchiveOperation(Document):
 
                 self.customer_rate_amount = (
                     None
+                )
+
+
+                self.replacement_note = (
+                    cstr(
+                        self.replacement_note
+                    ).strip()
+                    or None
                 )
 
 
@@ -847,6 +877,11 @@ class ArchiveOperation(Document):
 
             self.customer_rate_amount = (
                 amount
+            )
+
+
+            self.replacement_note = (
+                None
             )
 
 

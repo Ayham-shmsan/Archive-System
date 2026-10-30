@@ -1275,6 +1275,10 @@ class ArchiveOperationsPage {
                             type: "text",
                         },
 
+                        replacement_note: {
+                            type: "text",
+                        },
+
                         beneficiary_name: {
                             type: "text",
                         },
@@ -2183,6 +2187,7 @@ class ArchiveOperationsPage {
                                 <col class="col-amount">
                                 <col class="col-currency">
                                 <col class="col-customer-rate">
+                                <col class="col-replacement-note">
 
                                 <col class="col-beneficiary-name">
                                 <col class="col-beneficiary-account">
@@ -2253,6 +2258,14 @@ class ArchiveOperationsPage {
                                         data-sort-field="customer_rate"
                                     >
                                         سعر العميل
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="replacement_note"
+                                    >
+                                        ملاحظة البدل
                                         <span class="generic-sort-indicator"></span>
                                     </th>
 
@@ -2408,7 +2421,7 @@ class ArchiveOperationsPage {
                                     </td>
 
                                     <td
-                                        colspan="19"
+                                        colspan="20"
                                         class="archive-visible-amount-total"
                                     >
                                         —
@@ -3313,6 +3326,14 @@ class ArchiveOperationsPage {
                 <td>
                     ${this.format_rate(
                         operation.customer_rate
+                    )}
+                </td>
+
+
+                <!-- ملاحظة البدل -->
+                <td>
+                    ${this.escape_value(
+                        operation.replacement_note
                     )}
                 </td>
 

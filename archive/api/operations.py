@@ -46,7 +46,8 @@ MANUAL_FIELD_LABELS = {
         "نوع عمولة العميل",
     "customer_rate_amount":
         "مبلغ التسعير",
-
+    "replacement_note":
+        "ملاحظة البدل",
     "customer_rate_currency":
         "عملة سعر العميل",
 
@@ -119,6 +120,7 @@ OPERATION_FIELDS = {
     "customer_rate",
     "customer_rate_type",
     "customer_rate_amount",
+    "replacement_note",
     "customer_rate_currency",
     "beneficiary_name",
     "beneficiary_account",
@@ -454,6 +456,7 @@ MANUAL_EDITABLE_FIELDS = {
     "customer_rate",
     "customer_rate_type",
     "customer_rate_amount",
+    "replacement_note",
     "customer_rate_currency",
 
     "from_account",
@@ -552,6 +555,10 @@ def _normalize_customer_rate_values(
             "customer_rate_amount"
         ] = None
 
+        values[
+            "replacement_note"
+        ] = None
+
 
         if not cstr(
             values.get(
@@ -614,6 +621,10 @@ def _normalize_customer_rate_values(
         ] = None
 
         values[
+            "replacement_note"
+        ] = None
+
+        values[
             "customer_rate"
         ] = "بدون عمولة"
 
@@ -625,6 +636,17 @@ def _normalize_customer_rate_values(
                 "customer_rate_amount"
             ] = None
     
+            values[
+                "replacement_note"
+            ] = (
+                cstr(
+                    values.get(
+                        "replacement_note"
+                    )
+                ).strip()
+                or None
+            )
+
             values[
                 "customer_rate"
             ] = "بدل حوالة مرتجعة"
@@ -685,6 +707,9 @@ def _normalize_customer_rate_values(
         "customer_rate_amount"
     ] = rate_amount
 
+    values[
+        "replacement_note"
+    ] = None
 
     values[
         "customer_rate"
@@ -1421,6 +1446,8 @@ def serialize_operation_for_view(
             operation.customer_rate_type,
         "customer_rate_amount":
             operation.customer_rate_amount,
+        "replacement_note":
+            operation.replacement_note,
 
         "customer_rate_currency":
             operation.customer_rate_currency,
@@ -1648,6 +1675,16 @@ def create_operation(
         _normalize_customer_rate_values(
             values
         )
+    else:
+        if (
+            cstr(values.get("customer_rate_currency")).strip() == "دولار"
+            and cstr(values.get("customer_rate_type")).strip() == "بدل حوالة مرتجعة"
+        ):
+            values["replacement_note"] = (
+                cstr(values.get("replacement_note")).strip() or None
+            )
+        else:
+            values["replacement_note"] = None
 
     # ========================================================
     # Existing operation number
@@ -3048,6 +3085,7 @@ def get_operations_context() -> dict[str, Any]:
             "amount",
             "currency",
             "customer_rate",
+            "replacement_note",
 
             "beneficiary_name",
             "beneficiary_account",

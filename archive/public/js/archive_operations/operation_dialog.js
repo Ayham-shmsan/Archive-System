@@ -2040,6 +2040,18 @@ archive.ui.OperationDialog = class OperationDialog {
 			]
 		);
 
+		if (this.controls.customer_rate_amount) {
+			this.make_control(
+				this.controls.customer_rate_amount.$wrapper.parent(),
+				{
+					fieldname: "replacement_note",
+					label: "ملاحظة البدل",
+					fieldtype: "Data",
+				}
+			);
+			this.controls.replacement_note?.$wrapper.hide();
+		}
+
 	}
 
 	
@@ -2213,6 +2225,10 @@ archive.ui.OperationDialog = class OperationDialog {
 				this.controls
 					.customer_rate_amount;
 
+			const note =
+				this.controls
+					.replacement_note;
+
 
 			if (
 				!rate
@@ -2332,6 +2348,14 @@ archive.ui.OperationDialog = class OperationDialog {
 
 						rate_amount.$wrapper.hide();
 
+						if (note) {
+							note.df.hidden = 1;
+							note.df.reqd = 0;
+							note.$wrapper.hide();
+							if (note.get_value()) {
+								await note.set_value("");
+							}
+						}
 
 						await rate.set_value(
 							""
@@ -2360,6 +2384,14 @@ archive.ui.OperationDialog = class OperationDialog {
 
 						rate_amount.$wrapper.hide();
 
+						if (note) {
+							note.df.hidden = 1;
+							note.df.reqd = 0;
+							note.$wrapper.hide();
+							if (note.get_value()) {
+								await note.set_value("");
+							}
+						}
 
 						if (
 							rate_amount.get_value()
@@ -2396,6 +2428,11 @@ archive.ui.OperationDialog = class OperationDialog {
 
 						rate_amount.$wrapper.hide();
 
+						if (note) {
+							note.df.hidden = 0;
+							note.df.reqd = 0;
+							note.$wrapper.show();
+						}
 
 						if (
 							rate_amount.get_value()
@@ -2429,6 +2466,15 @@ archive.ui.OperationDialog = class OperationDialog {
 							: 1;
 
 					rate_amount.$wrapper.show();
+
+					if (note) {
+						note.df.hidden = 1;
+						note.df.reqd = 0;
+						note.$wrapper.hide();
+						if (note.get_value()) {
+							await note.set_value("");
+						}
+					}
 
 
 					await rate.set_value(
@@ -2469,6 +2515,15 @@ archive.ui.OperationDialog = class OperationDialog {
 						0;
 
 					rate_amount.$wrapper.hide();
+
+					if (note) {
+						note.df.hidden = 1;
+						note.df.reqd = 0;
+						note.$wrapper.hide();
+						if (note.get_value()) {
+							await note.set_value("");
+						}
+					}
 
 
 					if (
@@ -2548,6 +2603,15 @@ archive.ui.OperationDialog = class OperationDialog {
 					0;
 
 				rate_amount.$wrapper.hide();
+
+				if (note) {
+					note.df.hidden = 1;
+					note.df.reqd = 0;
+					note.$wrapper.hide();
+					if (note.get_value()) {
+						await note.set_value("");
+					}
+				}
 
 
 				this.set_customer_rate_read_only(
@@ -3770,6 +3834,9 @@ archive.ui.OperationDialog = class OperationDialog {
 				values.customer_rate_amount =
 					null;
 
+				values.replacement_note =
+					null;
+
 
 				return true;
 			}
@@ -3816,6 +3883,9 @@ archive.ui.OperationDialog = class OperationDialog {
 				values.customer_rate_amount =
 					null;
 
+				values.replacement_note =
+					null;
+
 				values.customer_rate =
 					"بدون عمولة";
 
@@ -3830,6 +3900,13 @@ archive.ui.OperationDialog = class OperationDialog {
 
 				values.customer_rate_amount =
 					null;
+
+				values.replacement_note =
+					String(
+						values.replacement_note
+						|| ""
+					).trim()
+					|| null;
 
 				values.customer_rate =
 					"بدل حوالة مرتجعة";
@@ -3878,6 +3955,8 @@ archive.ui.OperationDialog = class OperationDialog {
 			values.customer_rate_amount =
 				amount;
 
+			values.replacement_note =
+				null;
 
 			values.customer_rate =
 				this.get_dollar_customer_rate_value(

@@ -637,6 +637,10 @@
 	width: 100px;
 }
 
+.archive-operations-table .col-replacement-note {
+	width: 140px;
+}
+
 .archive-operations-table .col-beneficiary-name {
 	width: 230px;
 }

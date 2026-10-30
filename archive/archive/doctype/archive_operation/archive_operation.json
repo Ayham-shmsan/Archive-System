@@ -17,6 +17,7 @@
   "customer_rate",
   "customer_rate_type",
   "customer_rate_amount",
+  "replacement_note",
   "customer_rate_currency",
   "user_notes",
   "beneficiary_section",
@@ -164,6 +165,11 @@
     "label": "مبلغ التسعير",
     "precision": "6"
 },
+  {
+   "fieldname": "replacement_note",
+   "fieldtype": "Data",
+   "label": "ملاحظة البدل"
+  },
   {
    "fieldname": "customer_rate_currency",
    "fieldtype": "Select",

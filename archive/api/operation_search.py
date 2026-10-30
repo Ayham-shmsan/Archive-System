@@ -19,6 +19,7 @@ OPERATION_SEARCH_FIELDS = (
     "amount",
     "currency",
     "customer_rate",
+    "replacement_note",
 
     "beneficiary_name",
     "beneficiary_account",
