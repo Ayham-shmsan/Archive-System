@@ -1908,7 +1908,7 @@ archive.ui.OperationDialog = class OperationDialog {
 						"user_notes",
 
 					label:
-						"ملاحظات العملية",
+						"ملاحظات العميل ",
 
 					fieldtype:
 						"Data",

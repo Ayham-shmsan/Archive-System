@@ -70,7 +70,7 @@ MANUAL_FIELD_LABELS = {
         "اسم البنك المحول",
 
     "user_notes":
-        "ملاحظات العملية",
+        "ملاحظات العميل",
 }
 
 PDF_EXTRACTED_FIELD_LABELS = {
