@@ -131,7 +131,7 @@ def has_file_permission(
 	user: str | None = None,
 ) -> bool | None:
 	if not is_archive_card_file_doc(doc):
-		return None
+		return True
 
 	perm = ptype or "read"
 	if perm in ("read", "select", "export", "print", "email"):
