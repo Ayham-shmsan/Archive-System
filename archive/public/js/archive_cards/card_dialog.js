@@ -64,6 +64,10 @@
 			this.saved_successfully = false;
 			this.is_submitting = false;
 			this.duplicate_family_info = null;
+			this._dup_info_cache = new Map();
+			this._dup_check_timer = null;
+			this._dup_check_seq = 0;
+			this.family_autocomplete = null;
 			this.pin_visible = false;
 		}
 
@@ -86,6 +90,9 @@
 			this.bind_events();
 
 			this.dialog.onhide = () => {
+				clearTimeout(this._dup_check_timer);
+				this.family_autocomplete?.destroy();
+				this.family_autocomplete = null;
 				this.cleanup_unused_staged_files();
 			};
 
@@ -356,6 +363,23 @@
 			});
 
 			ArchiveCardDailyLimitInput.bind(this.controls.daily_limit);
+
+			this.family_autocomplete?.destroy();
+			this.family_autocomplete = new ArchiveCardFamilyAutocomplete({
+				dialog: this.dialog,
+				controls: {
+					base_card_name: this.controls.base_card_name,
+					account_number: this.controls.account_number,
+				},
+				enabled_provider: () => !this.is_submitting,
+				initial_values: {
+					base_card_name: "",
+					account_number: "",
+				},
+				on_account_changed: (acc, meta = {}) => {
+					this.schedule_account_family_check(acc, meta);
+				},
+			});
 		}
 
 		bind_events() {
@@ -371,18 +395,6 @@
 					.find("i")
 					.attr("class", this.pin_visible ? "fa fa-eye-slash" : "fa fa-eye");
 			});
-
-			// Account duplicate check on blur / change
-			const $accInput = this.controls.account_number?.$input;
-			if ($accInput) {
-				let timer = null;
-				$accInput.on("input blur", () => {
-					clearTimeout(timer);
-					timer = setTimeout(() => {
-						this.check_account_family();
-					}, 280);
-				});
-			}
 
 			// Image pickers
 			$body.on("click", '[data-action="pick-image"]', (e) => {
@@ -465,69 +477,114 @@
 			}
 		}
 
-		async check_account_family() {
-			const acc = String(this.controls.account_number?.get_value() || "").trim();
+		reset_duplicate_ui() {
+			this.duplicate_family_info = null;
+			if (!this.dialog) return;
+			const $body = $(this.dialog.body);
+			$body.find('[data-role="duplicate-banner"]').prop("hidden", true).empty();
+			$body.find('[data-role="copy-badge"]').text("نسخة 1").removeClass("is-duplicate");
+			$body.find('[data-role="derived-name-hint"]').prop("hidden", true).empty();
+		}
+
+		apply_duplicate_ui(info) {
+			this.duplicate_family_info = info;
+			if (!this.dialog) return;
 			const $body = $(this.dialog.body);
 			const $banner = $body.find('[data-role="duplicate-banner"]');
 			const $badge = $body.find('[data-role="copy-badge"]');
 			const $hint = $body.find('[data-role="derived-name-hint"]');
 
+			if (info && info.family_exists) {
+				$badge
+					.text(`نسخة ${info.expected_copy_no}`)
+					.addClass("is-duplicate");
+
+				if (info.base_card_name) {
+					this.family_autocomplete?.sync_from_account_lookup(info.base_card_name);
+				}
+
+				$hint
+					.prop("hidden", false)
+					.html(
+						`اسم البطاقة يتبع الاسم الأساسي لعائلة الحساب: <strong>${frappe.utils.escape_html(
+							info.base_card_name
+						)}</strong> <span class="ac-copy-badge">نسخة ${info.expected_copy_no}</span>`
+					);
+
+				$banner.prop("hidden", false).html(`
+					<div class="acd-dup-banner-inner">
+						<i class="fa fa-exclamation-triangle"></i>
+						<div>
+							<strong>تنبيه تكرار رقم الحساب:</strong>
+							رقم الحساب <code>${frappe.utils.escape_html(info.account_number)}</code> مسجل مسبقاً لعائلة
+							<strong>${frappe.utils.escape_html(info.base_card_name)}</strong>
+							(${info.active_count} بطاقة نشطة).
+							سيتم إصدار هذه البطاقة باسم
+							<strong>${frappe.utils.escape_html(info.base_card_name)}</strong>
+							<span class="ac-copy-badge">نسخة ${info.expected_copy_no}</span> بعد التأكيد.
+						</div>
+					</div>
+				`);
+			} else {
+				this.reset_duplicate_ui();
+			}
+		}
+
+		schedule_account_family_check(acc, meta = {}) {
+			clearTimeout(this._dup_check_timer);
+			const clean_acc = String(acc || "").trim();
+			if (!clean_acc) {
+				this._dup_check_seq += 1;
+				this.reset_duplicate_ui();
+				return;
+			}
+
+			if (this.family_autocomplete?.loaded && !meta.matched_family) {
+				this._dup_check_seq += 1;
+				this.reset_duplicate_ui();
+				return;
+			}
+
+			if (meta.immediate) {
+				this.check_account_family();
+				return;
+			}
+
+			this._dup_check_timer = setTimeout(() => {
+				this.check_account_family();
+			}, 250);
+		}
+
+		async check_account_family(opts = {}) {
+			const acc = String(this.controls.account_number?.get_value() || "").trim();
 			if (!acc) {
-				this.duplicate_family_info = null;
-				$banner.prop("hidden", true).empty();
-				$badge.text("نسخة 1").removeClass("is-duplicate");
-				$hint.prop("hidden", true).empty();
-				this.controls.base_card_name?.$input?.prop("readonly", false);
+				this.reset_duplicate_ui();
 				return null;
 			}
 
+			const norm_acc = ArchiveCardFamilyAutocomplete.normalize_account(acc);
+			if (!opts.force_remote && norm_acc && this._dup_info_cache.has(norm_acc)) {
+				const cached = this._dup_info_cache.get(norm_acc);
+				this.apply_duplicate_ui(cached);
+				return cached;
+			}
+
+			const seq = ++this._dup_check_seq;
 			try {
 				const res = await frappe.call({
 					method: "archive.api.cards.check_duplicate_account",
 					args: { account_number: acc },
 				});
 				const info = res?.message || null;
-				this.duplicate_family_info = info;
-
-				if (info && info.family_exists) {
-					$badge
-						.text(`نسخة ${info.expected_copy_no}`)
-						.addClass("is-duplicate");
-
-					if (info.base_card_name) {
-						this.controls.base_card_name.set_value(info.base_card_name);
-						this.controls.base_card_name.$input?.prop("readonly", true);
-					}
-
-					$hint
-						.prop("hidden", false)
-						.html(
-							`اسم البطاقة يتبع الاسم الأساسي لعائلة الحساب: <strong>${frappe.utils.escape_html(
-								info.base_card_name
-							)}</strong> <span class="ac-copy-badge">نسخة ${info.expected_copy_no}</span>`
-						);
-
-					$banner.prop("hidden", false).html(`
-						<div class="acd-dup-banner-inner">
-							<i class="fa fa-exclamation-triangle"></i>
-							<div>
-								<strong>تنبيه تكرار رقم الحساب:</strong>
-								رقم الحساب <code>${frappe.utils.escape_html(info.account_number)}</code> مسجل مسبقاً لعائلة
-								<strong>${frappe.utils.escape_html(info.base_card_name)}</strong>
-								(${info.active_count} بطاقة نشطة).
-								سيتم إصدار هذه البطاقة باسم
-								<strong>${frappe.utils.escape_html(info.base_card_name)}</strong>
-								<span class="ac-copy-badge">نسخة ${info.expected_copy_no}</span> بعد التأكيد.
-							</div>
-						</div>
-					`);
-				} else {
-					$banner.prop("hidden", true).empty();
-					$badge.text("نسخة 1").removeClass("is-duplicate");
-					$hint.prop("hidden", true).empty();
-					this.controls.base_card_name?.$input?.prop("readonly", false);
+				if (norm_acc && info) {
+					this._dup_info_cache.set(norm_acc, info);
 				}
-
+				const latest_norm = ArchiveCardFamilyAutocomplete.normalize_account(
+					this.controls.account_number?.get_value() || ""
+				);
+				if (seq === this._dup_check_seq && latest_norm === norm_acc) {
+					this.apply_duplicate_ui(info);
+				}
 				return info;
 			} catch (_) {
 				return null;
@@ -615,6 +672,7 @@
 
 		async handle_submit() {
 			if (this.is_submitting) return;
+			this.family_autocomplete?.hide_all();
 			const payload = this.collect_payload();
 			if (!this.validate_client_payload(payload)) return;
 
@@ -622,8 +680,11 @@
 			this.dialog.get_primary_btn().prop("disabled", true);
 
 			try {
-				const dup_info = await this.check_account_family();
+				const dup_info = await this.check_account_family({ force_remote: true });
 				if (dup_info && dup_info.family_exists) {
+					if (dup_info.base_card_name) {
+						payload.base_card_name = dup_info.base_card_name;
+					}
 					this.is_submitting = false;
 					this.dialog.get_primary_btn().prop("disabled", false);
 					this.show_duplicate_confirmation_modal(dup_info, payload);
@@ -962,6 +1023,634 @@
 		},
 	};
 
+	class ArchiveCardFamilyAutocomplete {
+		static instance_counter = 0;
+
+		static normalize_digits(raw) {
+			return String(raw ?? "").replace(/[٠-٩۰-۹]/g, (c) => DIGIT_TRANSLATION_MAP[c] || c);
+		}
+
+		static normalize_account(raw) {
+			const clean = this.normalize_digits(raw).trim();
+			if (!clean) return "";
+			return clean.replace(/[\s\-_\u200b-\u200f\u202a-\u202e]+/g, "").toUpperCase();
+		}
+
+		static normalize_exact_name(raw) {
+			return String(raw ?? "")
+				.normalize("NFKC")
+				.trim()
+				.replace(/\s+/g, " ")
+				.toLocaleLowerCase();
+		}
+
+		static normalize_search_text(raw) {
+			return this.normalize_digits(String(raw ?? "").normalize("NFKC"))
+				.toLocaleLowerCase()
+				.replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+				.replace(/[أإآٱ]/g, "ا")
+				.replace(/ة/g, "ه")
+				.replace(/ى/g, "ي")
+				.replace(/ؤ/g, "و")
+				.replace(/ئ/g, "ي")
+				.replace(/\s+/g, " ")
+				.trim();
+		}
+
+		constructor(options = {}) {
+			this.dialog = options.dialog || null;
+			this.controls = options.controls || {};
+			this.enabled_provider =
+				typeof options.enabled_provider === "function" ? options.enabled_provider : () => true;
+			this.on_account_changed =
+				typeof options.on_account_changed === "function" ? options.on_account_changed : null;
+			this.limit = Number(options.limit || 12);
+
+			const init_base = String(options.initial_values?.base_card_name || "").trim();
+			const init_acc = String(options.initial_values?.account_number || "").trim();
+			this.initial_values = {
+				base_card_name: init_base,
+				account_number: init_acc,
+			};
+			this.fallback_base_card_name = init_base;
+			this.fallback_account_number = init_acc;
+			this.last_account_raw = init_acc;
+			this.is_base_autofilled = false;
+			this.is_acc_autofilled = false;
+			this.is_applying = false;
+			this.is_destroyed = false;
+
+			this.loaded = false;
+			this._load_promise = null;
+			this.families = [];
+			this.by_norm_account = new Map();
+			this.unique_name_items = [];
+			this.unique_account_items = [];
+
+			this.instance_id = ++ArchiveCardFamilyAutocomplete.instance_counter;
+			this.ns = `.acd_fam_ac_${this.instance_id}`;
+			this.states = new Map();
+			this._focus_ready = false;
+
+			this.attach_fields();
+			this.bind_global_events();
+
+			if (this.is_enabled()) {
+				this.ensure_loaded();
+			}
+
+			this._focus_ready_timer = setTimeout(() => {
+				if (!this.is_destroyed) {
+					this._focus_ready = true;
+				}
+			}, 260);
+		}
+
+		is_enabled() {
+			return !this.is_destroyed && Boolean(this.enabled_provider());
+		}
+
+		ensure_loaded() {
+			if (this.loaded) return Promise.resolve(this.families);
+			if (this._load_promise) return this._load_promise;
+
+			this._load_promise = frappe
+				.call({
+					method: "archive.api.cards.get_card_family_lookups",
+					type: "GET",
+				})
+				.then((res) => {
+					const list = Array.isArray(res?.message?.families) ? res.message.families : [];
+					this.build_indexes(list);
+					this.loaded = true;
+					return this.families;
+				})
+				.catch(() => {
+					this._load_promise = null;
+					return [];
+				});
+
+			return this._load_promise;
+		}
+
+		build_indexes(list) {
+			this.families = list;
+			this.by_norm_account.clear();
+			this.unique_name_items = [];
+			this.unique_account_items = [];
+
+			const seen_names = new Set();
+			const seen_accounts = new Set();
+
+			for (const fam of list) {
+				const base_name = String(fam.base_card_name || "").trim();
+				const acc_num = String(fam.account_number || "").trim();
+				const norm_acc =
+					String(fam.account_number_normalized || "").trim() ||
+					ArchiveCardFamilyAutocomplete.normalize_account(acc_num);
+				if (!base_name || !acc_num || !norm_acc) continue;
+
+				if (!this.by_norm_account.has(norm_acc)) {
+					this.by_norm_account.set(norm_acc, fam);
+				}
+
+				const exact_name_key = ArchiveCardFamilyAutocomplete.normalize_exact_name(base_name);
+				if (exact_name_key && !seen_names.has(exact_name_key)) {
+					seen_names.add(exact_name_key);
+					this.unique_name_items.push({
+						value: base_name,
+						exact_key: exact_name_key,
+						search_key: ArchiveCardFamilyAutocomplete.normalize_search_text(base_name),
+						family: fam,
+					});
+				}
+
+				if (!seen_accounts.has(norm_acc)) {
+					seen_accounts.add(norm_acc);
+					this.unique_account_items.push({
+						value: acc_num,
+						norm_acc,
+						raw_lower: acc_num.toLocaleLowerCase(),
+						family: fam,
+					});
+				}
+			}
+		}
+
+		find_by_account(raw_acc) {
+			const norm = ArchiveCardFamilyAutocomplete.normalize_account(raw_acc);
+			if (!norm) return null;
+			return this.by_norm_account.get(norm) || null;
+		}
+
+		attach_fields() {
+			for (const fieldname of ["base_card_name", "account_number"]) {
+				const ctrl = this.controls[fieldname];
+				const $input = ctrl?.$input;
+				if (!$input || !$input.length) continue;
+
+				$input.attr("autocomplete", "off");
+
+				const $menu = $(
+					`<div class="acd-autocomplete-menu" role="listbox" style="display:none;"></div>`
+				);
+				$("body").append($menu);
+
+				const state = {
+					fieldname,
+					ctrl,
+					$input,
+					$menu,
+					items: [],
+					active_index: -1,
+					edited_since_focus: false,
+				};
+				this.states.set(fieldname, state);
+
+				$input
+					.off(this.ns)
+					.on(`focus${this.ns}`, () => {
+						state.edited_since_focus = false;
+						if (this._focus_ready) {
+							this.open_suggestions(state, { show_all_if_exact: true });
+						}
+					})
+					.on(`click${this.ns}`, () => {
+						this._focus_ready = true;
+						if (!state.$menu.is(":visible")) {
+							this.open_suggestions(state, {
+								show_all_if_exact: !state.edited_since_focus,
+							});
+						}
+					})
+					.on(`input${this.ns}`, () => {
+						if (this.is_applying || !this.is_enabled()) return;
+						this._focus_ready = true;
+						state.edited_since_focus = true;
+						if (fieldname === "base_card_name") {
+							this.handle_base_name_typed(state);
+						} else {
+							this.handle_account_typed(state, { open_menu: true });
+						}
+					})
+					.on(`change${this.ns}`, () => {
+						if (this.is_applying || !this.is_enabled()) return;
+						if (fieldname === "account_number") {
+							this.handle_account_typed(state, { open_menu: false });
+						}
+					})
+					.on(`keydown${this.ns}`, (e) => {
+						this.handle_keydown(state, e);
+					})
+					.on(`blur${this.ns}`, () => {
+						setTimeout(() => {
+							if (!this.is_destroyed) {
+								this.hide_menu(state);
+							}
+						}, 130);
+					});
+
+				$menu
+					.on(`mousedown${this.ns}`, ".acd-autocomplete-item", (e) => {
+						e.preventDefault();
+					})
+					.on(`click${this.ns}`, ".acd-autocomplete-item", (e) => {
+						const idx = Number($(e.currentTarget).attr("data-index"));
+						this.select_item(state, idx);
+					});
+			}
+		}
+
+		bind_global_events() {
+			$(document).on(`mousedown${this.ns}`, (e) => {
+				for (const state of this.states.values()) {
+					if (
+						!state.$input.is(e.target) &&
+						!state.$menu.is(e.target) &&
+						state.$menu.has(e.target).length === 0
+					) {
+						this.hide_menu(state);
+					}
+				}
+			});
+
+			$(window).on(`resize${this.ns}`, () => {
+				for (const state of this.states.values()) {
+					if (state.$menu.is(":visible")) {
+						this.position_menu(state);
+					}
+				}
+			});
+
+			this.dialog?.$wrapper?.find(".modal-body").on(`scroll${this.ns}`, () => {
+				for (const state of this.states.values()) {
+					if (state.$menu.is(":visible")) {
+						this.position_menu(state);
+					}
+				}
+			});
+		}
+
+		async set_control_value(ctrl, val) {
+			if (!ctrl) return;
+			const str_val = String(val ?? "");
+			this.is_applying = true;
+			try {
+				ctrl.value = str_val;
+				if (ctrl.$input && ctrl.$input.length && ctrl.$input.val() !== str_val) {
+					ctrl.$input.val(str_val);
+				}
+				await Promise.resolve(ctrl.set_value(str_val, true));
+			} finally {
+				this.is_applying = false;
+			}
+		}
+
+		sync_from_account_lookup(base_card_name) {
+			const clean_name = String(base_card_name || "").trim();
+			if (!clean_name || this.is_destroyed) return;
+			const cur = String(this.controls.base_card_name?.get_value() || "").trim();
+			if (cur === clean_name) {
+				this.is_base_autofilled = true;
+				return;
+			}
+			this.is_base_autofilled = true;
+			this.set_control_value(this.controls.base_card_name, clean_name);
+		}
+
+		async handle_base_name_typed(state) {
+			const cur_base = String(this.controls.base_card_name?.get_value() || "").trim();
+			this.is_base_autofilled = false;
+			this.fallback_base_card_name = cur_base;
+
+			if (this.is_acc_autofilled) {
+				const cur_acc = String(this.controls.account_number?.get_value() || "").trim();
+				const linked_fam = this.find_by_account(cur_acc);
+				const still_same =
+					linked_fam &&
+					ArchiveCardFamilyAutocomplete.normalize_exact_name(linked_fam.base_card_name) ===
+						ArchiveCardFamilyAutocomplete.normalize_exact_name(cur_base);
+
+				if (!still_same) {
+					const restore_acc = this.fallback_account_number;
+					this.is_acc_autofilled = false;
+					this.last_account_raw = restore_acc;
+					await this.set_control_value(this.controls.account_number, restore_acc);
+					if (this.on_account_changed) {
+						this.on_account_changed(restore_acc, {
+							immediate: true,
+							matched_family: this.find_by_account(restore_acc),
+						});
+					}
+				}
+			}
+
+			this.open_suggestions(state, { show_all_if_exact: false });
+		}
+
+		async handle_account_typed(state, opts = {}) {
+			const raw_acc = String(this.controls.account_number?.get_value() || "").trim();
+			if (opts.open_menu !== false) {
+				this.open_suggestions(state, { show_all_if_exact: false });
+			}
+
+			if (raw_acc === this.last_account_raw) return;
+			this.last_account_raw = raw_acc;
+			this.is_acc_autofilled = false;
+			this.fallback_account_number = raw_acc;
+
+			if (!this.loaded) {
+				await this.ensure_loaded();
+				if (this.is_destroyed) return;
+				const latest_acc = String(this.controls.account_number?.get_value() || "").trim();
+				if (latest_acc !== raw_acc) return;
+			}
+
+			const matched = this.find_by_account(raw_acc);
+			if (matched) {
+				const is_same_initial_norm =
+					Boolean(this.initial_values.account_number) &&
+					ArchiveCardFamilyAutocomplete.normalize_account(raw_acc) ===
+						ArchiveCardFamilyAutocomplete.normalize_account(
+							this.initial_values.account_number
+						);
+				const user_renamed_own_family =
+					is_same_initial_norm &&
+					!this.is_base_autofilled &&
+					this.fallback_base_card_name !== this.initial_values.base_card_name;
+
+				if (!user_renamed_own_family) {
+					this.is_base_autofilled = true;
+					await this.set_control_value(
+						this.controls.base_card_name,
+						matched.base_card_name
+					);
+				}
+			} else if (this.is_base_autofilled) {
+				this.is_base_autofilled = false;
+				await this.set_control_value(
+					this.controls.base_card_name,
+					this.fallback_base_card_name
+				);
+			}
+
+			if (this.on_account_changed) {
+				this.on_account_changed(raw_acc, {
+					immediate: false,
+					matched_family: matched,
+				});
+			}
+		}
+
+		filter_items(fieldname, raw_query, show_all_if_exact = false) {
+			if (fieldname === "base_card_name") {
+				const q_search = ArchiveCardFamilyAutocomplete.normalize_search_text(raw_query);
+				const q_exact = ArchiveCardFamilyAutocomplete.normalize_exact_name(raw_query);
+				const init_exact = ArchiveCardFamilyAutocomplete.normalize_exact_name(
+					this.initial_values.base_card_name
+				);
+				const matches_known_exact =
+					show_all_if_exact &&
+					q_exact &&
+					(q_exact === init_exact ||
+						this.unique_name_items.some((it) => it.exact_key === q_exact));
+
+				if (!q_search || matches_known_exact) {
+					return this.unique_name_items.slice(0, this.limit);
+				}
+
+				const prefix = [];
+				const sub = [];
+				for (const item of this.unique_name_items) {
+					if (item.search_key.startsWith(q_search)) {
+						prefix.push(item);
+					} else if (item.search_key.includes(q_search)) {
+						sub.push(item);
+					}
+				}
+				return [...prefix, ...sub].slice(0, this.limit);
+			}
+
+			const q_norm = ArchiveCardFamilyAutocomplete.normalize_account(raw_query);
+			const q_raw_lower = ArchiveCardFamilyAutocomplete.normalize_digits(raw_query)
+				.trim()
+				.toLocaleLowerCase();
+			const init_acc_norm = ArchiveCardFamilyAutocomplete.normalize_account(
+				this.initial_values.account_number
+			);
+			const matches_known_acc =
+				show_all_if_exact &&
+				q_norm &&
+				(q_norm === init_acc_norm || this.by_norm_account.has(q_norm));
+
+			if (!q_norm || matches_known_acc) {
+				return this.unique_account_items.slice(0, this.limit);
+			}
+
+			const prefix = [];
+			const sub = [];
+			for (const item of this.unique_account_items) {
+				if (item.norm_acc.startsWith(q_norm) || item.raw_lower.startsWith(q_raw_lower)) {
+					prefix.push(item);
+				} else if (
+					item.norm_acc.includes(q_norm) ||
+					item.raw_lower.includes(q_raw_lower)
+				) {
+					sub.push(item);
+				}
+			}
+			return [...prefix, ...sub].slice(0, this.limit);
+		}
+
+		async open_suggestions(state, opts = {}) {
+			if (!this.is_enabled()) {
+				this.hide_menu(state);
+				return;
+			}
+			const el = state.$input[0];
+			if (!el || el.readOnly || el.disabled) {
+				this.hide_menu(state);
+				return;
+			}
+
+			if (!this.loaded) {
+				await this.ensure_loaded();
+				if (this.is_destroyed || document.activeElement !== el) return;
+			}
+
+			const raw_query = String(state.$input.val() || "");
+			const items = this.filter_items(
+				state.fieldname,
+				raw_query,
+				Boolean(opts.show_all_if_exact)
+			);
+			this.render_menu(state, items);
+		}
+
+		render_menu(state, items) {
+			state.items = items;
+			state.active_index = -1;
+
+			if (!items.length || !this.is_enabled() || document.activeElement !== state.$input[0]) {
+				this.hide_menu(state);
+				return;
+			}
+
+			const is_acc = state.fieldname === "account_number";
+			state.$menu.html(
+				items
+					.map(
+						(item, idx) => `
+						<button
+							type="button"
+							class="acd-autocomplete-item"
+							role="option"
+							data-index="${idx}"
+						>
+							<span class="acd-ac-primary" ${is_acc ? 'dir="ltr"' : 'dir="rtl"'}>${frappe.utils.escape_html(
+								item.value
+							)}</span>
+						</button>
+					`
+					)
+					.join("")
+			);
+
+			this.position_menu(state);
+			state.$menu.show();
+		}
+
+		position_menu(state) {
+			const el = state.$input[0];
+			if (!el) return;
+			const rect = el.getBoundingClientRect();
+			const width = Math.max(rect.width, 220);
+			const left = Math.max(8, rect.right - width);
+
+			state.$menu.css({
+				position: "fixed",
+				top: `${rect.bottom + 4}px`,
+				left: `${left}px`,
+				width: `${width}px`,
+				zIndex: 1080,
+			});
+		}
+
+		handle_keydown(state, e) {
+			if (!this.is_enabled()) return;
+			const visible = state.$menu.is(":visible") && state.items.length > 0;
+
+			if (e.key === "ArrowDown") {
+				if (!visible) {
+					e.preventDefault();
+					e.stopPropagation();
+					this.open_suggestions(state, {
+						show_all_if_exact: !state.edited_since_focus,
+					});
+					return;
+				}
+				e.preventDefault();
+				e.stopPropagation();
+				state.active_index = Math.min(state.active_index + 1, state.items.length - 1);
+				this.highlight_active(state);
+				return;
+			}
+
+			if (!visible) return;
+
+			if (e.key === "ArrowUp") {
+				e.preventDefault();
+				e.stopPropagation();
+				state.active_index = Math.max(state.active_index - 1, 0);
+				this.highlight_active(state);
+				return;
+			}
+
+			if (e.key === "Enter" && state.active_index >= 0) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.select_item(state, state.active_index);
+				return;
+			}
+
+			if (e.key === "Escape") {
+				e.preventDefault();
+				e.stopPropagation();
+				this.hide_menu(state);
+			}
+		}
+
+		highlight_active(state) {
+			const $btns = state.$menu.find(".acd-autocomplete-item");
+			$btns.removeClass("is-active");
+			const $cur = $btns.eq(state.active_index);
+			$cur.addClass("is-active");
+			$cur[0]?.scrollIntoView({ block: "nearest" });
+		}
+
+		async select_item(state, index) {
+			const item = state.items[index];
+			if (!item || !item.family) return;
+			const fam = item.family;
+
+			this.hide_menu(state);
+			state.edited_since_focus = false;
+
+			if (state.fieldname === "base_card_name") {
+				this.fallback_base_card_name = fam.base_card_name;
+				this.is_base_autofilled = false;
+				this.is_acc_autofilled = true;
+				this.last_account_raw = fam.account_number;
+
+				await this.set_control_value(this.controls.base_card_name, fam.base_card_name);
+				await this.set_control_value(this.controls.account_number, fam.account_number);
+			} else {
+				this.fallback_account_number = fam.account_number;
+				this.last_account_raw = fam.account_number;
+				this.is_acc_autofilled = false;
+				this.is_base_autofilled = true;
+
+				await this.set_control_value(this.controls.account_number, fam.account_number);
+				await this.set_control_value(this.controls.base_card_name, fam.base_card_name);
+			}
+
+			if (this.on_account_changed) {
+				this.on_account_changed(fam.account_number, {
+					immediate: true,
+					matched_family: fam,
+				});
+			}
+		}
+
+		hide_menu(state) {
+			state.items = [];
+			state.active_index = -1;
+			state.$menu.hide().empty();
+		}
+
+		hide_all() {
+			for (const state of this.states.values()) {
+				this.hide_menu(state);
+			}
+		}
+
+		destroy() {
+			this.is_destroyed = true;
+			clearTimeout(this._focus_ready_timer);
+
+			for (const state of this.states.values()) {
+				state.$input.off(this.ns);
+				state.$menu.off(this.ns).remove();
+			}
+			this.states.clear();
+
+			$(document).off(this.ns);
+			$(window).off(this.ns);
+			this.dialog?.$wrapper?.find(".modal-body").off(this.ns);
+		}
+	}
+
+	window.ArchiveCardFamilyAutocomplete = ArchiveCardFamilyAutocomplete;
 	window.ArchiveCardDailyLimitInput = ArchiveCardDailyLimitInput;
 	window.ArchiveCardCreateDialog = ArchiveCardCreateDialog;
 	window.upload_staged_card_image = upload_staged_card_image;

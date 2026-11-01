@@ -553,6 +553,55 @@ def get_card_details(card: str) -> dict[str, Any]:
 
 
 @frappe.whitelist()
+def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
+	require_card_permission("view_cards", _("ليست لديك صلاحية لعرض عائلات البطاقات."))
+	rows = frappe.db.sql(
+		"""
+		SELECT
+			f.name,
+			f.base_card_name,
+			f.account_number,
+			f.account_number_normalized,
+			f.highest_copy_no,
+			COUNT(CASE WHEN IFNULL(c.is_deleted, 0) = 0 THEN 1 END) AS active_count
+		FROM `tabArchive Card Family` f
+		LEFT JOIN `tabArchive Card` c ON c.card_family = f.name
+		GROUP BY
+			f.name,
+			f.base_card_name,
+			f.account_number,
+			f.account_number_normalized,
+			f.highest_copy_no,
+			f.modified
+		ORDER BY
+			(COUNT(CASE WHEN IFNULL(c.is_deleted, 0) = 0 THEN 1 END) > 0) DESC,
+			f.modified DESC
+		""",
+		as_dict=True,
+	)
+
+	families: list[dict[str, Any]] = []
+	for r in rows:
+		base_name = clean_base_card_name(r.base_card_name)
+		acc_num = clean_account_number_display(r.account_number)
+		norm_acc = cstr(r.account_number_normalized or "").strip() or normalize_account_number(acc_num)
+		if not base_name or not acc_num or not norm_acc:
+			continue
+		families.append(
+			{
+				"family_name": r.name,
+				"base_card_name": base_name,
+				"account_number": acc_num,
+				"account_number_normalized": norm_acc,
+				"highest_copy_no": cint(r.highest_copy_no),
+				"active_count": cint(r.active_count),
+			}
+		)
+
+	return {"families": families}
+
+
+@frappe.whitelist()
 def check_duplicate_account(
 	account_number: str,
 	exclude_card: str | None = None,

@@ -350,6 +350,8 @@
 			this.bind_events();
 
 			this.dialog.onhide = () => {
+				this.family_autocomplete?.destroy();
+				this.family_autocomplete = null;
 				this.cleanup_unused_staged_files();
 			};
 
@@ -734,6 +736,23 @@
 			if (window.ArchiveCardDailyLimitInput) {
 				window.ArchiveCardDailyLimitInput.bind(this.controls.daily_limit);
 			}
+
+			this.family_autocomplete?.destroy();
+			this.family_autocomplete = null;
+			if (this.can_edit_data() && window.ArchiveCardFamilyAutocomplete) {
+				this.family_autocomplete = new window.ArchiveCardFamilyAutocomplete({
+					dialog: this.dialog,
+					controls: {
+						base_card_name: this.controls.base_card_name,
+						account_number: this.controls.account_number,
+					},
+					enabled_provider: () => this.can_edit_data(),
+					initial_values: {
+						base_card_name: c.base_card_name || "",
+						account_number: c.account_number || "",
+					},
+				});
+			}
 		}
 
 		_resolve_current_image_url(side) {
@@ -998,6 +1017,7 @@
 				this.dialog.hide();
 				return;
 			}
+			this.family_autocomplete?.hide_all();
 			const payload = this.collect_edit_payload();
 
 			if (payload.new_pin !== undefined && !/^[0-9٠-٩۰-۹]{4}$/.test(payload.new_pin)) {

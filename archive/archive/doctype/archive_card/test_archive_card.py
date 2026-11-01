@@ -22,6 +22,7 @@ from archive.api.cards import (
 	create_card,
 	delete_card,
 	get_card_details,
+	get_card_family_lookups,
 	get_card_image,
 	get_card_preview,
 	get_cards_context,
@@ -688,5 +689,34 @@ class TestArchiveCard(IntegrationTestCase):
 		upd = update_card(created["name"], {"back_image": back_id})["card"]
 		self.assertEqual(upd["has_back_image"], 1)
 		self.assertTrue(bool(upd["back_image_url"]))
+
+	def test_12_card_family_lookups_unique_without_copy_suffix(self):
+		acc = f"ACC-LKP-{uuid.uuid4().hex[:8].upper()}"
+		base_name = f"بطاقة اقتراحات {uuid.uuid4().hex[:4]}"
+		c1 = self._make_card(account_number=acc, base_card_name=base_name)
+		c2 = self._make_card(
+			account_number=acc,
+			base_card_name=base_name,
+			allow_duplicate_account=True,
+		)
+		c3 = self._make_card(
+			account_number=acc,
+			base_card_name=base_name,
+			allow_duplicate_account=True,
+		)
+		self.assertEqual(c2["card_name"], f"{base_name} 2")
+		self.assertEqual(c3["card_name"], f"{base_name} 3")
+
+		lookups = get_card_family_lookups()["families"]
+		matching = [f for f in lookups if f["account_number"] == acc]
+		self.assertEqual(len(matching), 1)
+		self.assertEqual(matching[0]["base_card_name"], base_name)
+		self.assertEqual(matching[0]["family_name"], c1["card_family"])
+		self.assertEqual(matching[0]["active_count"], 3)
+		# Derived copy names (2, 3) must never appear in family base_card_name lookups
+		all_base_names = {f["base_card_name"] for f in lookups}
+		self.assertIn(base_name, all_base_names)
+		self.assertNotIn(f"{base_name} 2", all_base_names)
+		self.assertNotIn(f"{base_name} 3", all_base_names)
 
 

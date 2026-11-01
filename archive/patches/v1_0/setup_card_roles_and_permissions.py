@@ -71,8 +71,8 @@ ROLE_MATRIX: dict[str, dict[str, int]] = {
 		"delete_card": 0,
 		"view_card_images": 1,
 		"edit_card_images": 1,
-		"view_card_pin": 0,
-		"view_card_activity_timeline": 1,
+		"view_card_pin": 1,
+		"view_card_activity_timeline": 0,
 		"view_card_transfer_timeline": 1,
 	},
 	ROLE_CARD_READER: {
