@@ -745,11 +745,13 @@
 					controls: {
 						base_card_name: this.controls.base_card_name,
 						account_number: this.controls.account_number,
+						bank: this.controls.bank,
 					},
 					enabled_provider: () => this.can_edit_data(),
 					initial_values: {
 						base_card_name: c.base_card_name || "",
 						account_number: c.account_number || "",
+						bank: c.bank || "",
 					},
 				});
 			}
@@ -1047,20 +1049,48 @@
 					});
 					return;
 				}
+
+				if (payload.card_number && payload.card_number !== this.card.card_number) {
+					const norm_cnum = window.ArchiveCardFamilyAutocomplete
+						? window.ArchiveCardFamilyAutocomplete.normalize_account(payload.card_number)
+						: payload.card_number.replace(/[\s\-_]+/g, "").toUpperCase();
+					const sibling_dup = (this.family?.active_cards || []).some(
+						(c) =>
+							c.name !== this.card.name &&
+							norm_cnum &&
+							(window.ArchiveCardFamilyAutocomplete
+								? window.ArchiveCardFamilyAutocomplete.normalize_account(c.card_number)
+								: String(c.card_number || "")
+										.replace(/[\s\-_]+/g, "")
+										.toUpperCase()) === norm_cnum
+					);
+					if (sibling_dup) {
+						frappe.msgprint({
+							title: "رقم البطاقة مكرر",
+							message: `رقم البطاقة (<strong>${frappe.utils.escape_html(
+								payload.card_number
+							)}</strong>) مستخدم مسبقاً في بطاقة أخرى ولا يمكن تكراره.`,
+							indicator: "red",
+						});
+						return;
+					}
+				}
 			}
 
-			// Check if account_number changed
-			if (
-				this.permissions.can_edit &&
-				payload.account_number &&
-				payload.account_number !== this.card.account_number
-			) {
+			// Check if any family identity field (account_number, base_card_name, bank) changed
+			const identity_changed =
+				(payload.account_number && payload.account_number !== this.card.account_number) ||
+				(payload.base_card_name && payload.base_card_name !== this.card.base_card_name) ||
+				(payload.bank && payload.bank !== this.card.bank);
+
+			if (this.permissions.can_edit && identity_changed) {
 				const plan_res = await frappe.call({
 					method: "archive.api.card_family.build_account_change_plan",
 					args: {
 						card: this.card.name,
 						new_account_number: payload.account_number,
 						new_base_card_name: payload.base_card_name,
+						new_bank: payload.bank,
 					},
 				});
 				const plan = plan_res?.message || {};

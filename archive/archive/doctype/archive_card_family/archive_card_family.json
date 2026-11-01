@@ -9,6 +9,7 @@
     "family_section",
     "account_number",
     "account_number_normalized",
+    "bank",
     "column_break_family_1",
     "base_card_name",
     "highest_copy_no"
@@ -35,8 +36,17 @@
       "in_standard_filter": 1,
       "label": "رقم الحساب الموحد",
       "read_only": 1,
-      "reqd": 1,
-      "unique": 1
+      "reqd": 1
+    },
+    {
+      "fieldname": "bank",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "البنك",
+      "options": "Archive Bank",
+      "read_only": 1,
+      "reqd": 1
     },
     {
       "fieldname": "column_break_family_1",
@@ -64,7 +74,7 @@
   "in_create": 1,
   "index_web_pages_for_search": 0,
   "links": [],
-  "modified": "2026-11-01 00:00:00.000000",
+  "modified": "2026-11-02 00:35:00.000000",
   "modified_by": "Administrator",
   "module": "Archive",
   "name": "Archive Card Family",

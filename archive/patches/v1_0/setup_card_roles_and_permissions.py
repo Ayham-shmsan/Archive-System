@@ -193,12 +193,15 @@ def _sync_custom_docperms() -> None:
 
 
 def _ensure_unique_indexes() -> None:
-	if frappe.db.table_exists("Archive Card") and not frappe.db.has_index(
-		"tabArchive Card", "uq_card_family_copy"
-	):
-		frappe.db.sql(
-			"ALTER TABLE `tabArchive Card` ADD UNIQUE INDEX `uq_card_family_copy` (`card_family`, `copy_no`)"
-		)
+	if frappe.db.table_exists("Archive Card"):
+		if frappe.db.has_index("tabArchive Card", "uq_card_family_copy"):
+			frappe.db.sql_ddl(
+				"ALTER TABLE `tabArchive Card` DROP INDEX `uq_card_family_copy`, ADD INDEX `idx_card_family_copy` (`card_family`, `copy_no`)"
+			)
+		elif not frappe.db.has_index("tabArchive Card", "idx_card_family_copy"):
+			frappe.db.sql_ddl(
+				"ALTER TABLE `tabArchive Card` ADD INDEX `idx_card_family_copy` (`card_family`, `copy_no`)"
+			)
 
 	if frappe.db.table_exists("Archive Card Transfer") and not frappe.db.has_index(
 		"tabArchive Card Transfer", "uq_card_transfer_seq"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import frappe
@@ -115,6 +116,43 @@ def _validate_date_input(raw_date: Any, label: str) -> str:
 	except Exception:
 		frappe.throw(_("تاريخ {0} غير صالح.").format(label), frappe.ValidationError)
 		return ""
+
+
+def _validate_unique_card_number(card_number: str, exclude_card: str | None = None) -> None:
+	clean_num = clean_card_number(card_number)
+	norm_num = re.sub(r"[\s\-_]+", "", clean_num).upper()
+	if not clean_num or not norm_num:
+		return
+
+	params: dict[str, Any] = {
+		"card_number": clean_num,
+		"norm_num": norm_num,
+	}
+	exclude_sql = ""
+	if exclude_card:
+		exclude_sql = "AND name != %(exclude_card)s"
+		params["exclude_card"] = exclude_card
+
+	dup_rows = frappe.db.sql(
+		f"""
+		SELECT name
+		FROM `tabArchive Card`
+		WHERE 1=1
+		  {exclude_sql}
+		  AND (
+		      card_number = %(card_number)s
+		      OR UPPER(REPLACE(REPLACE(REPLACE(card_number, ' ', ''), '-', ''), '_', '')) = %(norm_num)s
+		  )
+		LIMIT 1
+		""",
+		params,
+		as_dict=True,
+	)
+	if dup_rows:
+		frappe.throw(
+			_("رقم البطاقة ({0}) مستخدم مسبقاً في بطاقة أخرى ولا يمكن تكراره.").format(clean_num),
+			frappe.ValidationError,
+		)
 
 
 def _serialize_card_row(
@@ -562,15 +600,21 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 			f.base_card_name,
 			f.account_number,
 			f.account_number_normalized,
+			COALESCE(NULLIF(f.bank, ''), MAX(c.bank)) AS bank,
+			COALESCE(NULLIF(b.bank_name, ''), MAX(cb.bank_name), NULLIF(f.bank, ''), MAX(c.bank)) AS bank_name,
 			f.highest_copy_no,
 			COUNT(CASE WHEN IFNULL(c.is_deleted, 0) = 0 THEN 1 END) AS active_count
 		FROM `tabArchive Card Family` f
+		LEFT JOIN `tabArchive Bank` b ON b.name = f.bank
 		LEFT JOIN `tabArchive Card` c ON c.card_family = f.name
+		LEFT JOIN `tabArchive Bank` cb ON cb.name = c.bank
 		GROUP BY
 			f.name,
 			f.base_card_name,
 			f.account_number,
 			f.account_number_normalized,
+			f.bank,
+			b.bank_name,
 			f.highest_copy_no,
 			f.modified
 		ORDER BY
@@ -585,7 +629,9 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 		base_name = clean_base_card_name(r.base_card_name)
 		acc_num = clean_account_number_display(r.account_number)
 		norm_acc = cstr(r.account_number_normalized or "").strip() or normalize_account_number(acc_num)
-		if not base_name or not acc_num or not norm_acc:
+		bank_id = cstr(r.bank or "").strip()
+		bank_label = cstr(r.bank_name or bank_id).strip()
+		if not base_name or not acc_num or not norm_acc or not bank_id:
 			continue
 		families.append(
 			{
@@ -593,6 +639,8 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 				"base_card_name": base_name,
 				"account_number": acc_num,
 				"account_number_normalized": norm_acc,
+				"bank": bank_id,
+				"bank_name": bank_label,
 				"highest_copy_no": cint(r.highest_copy_no),
 				"active_count": cint(r.active_count),
 			}
@@ -604,10 +652,17 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 @frappe.whitelist()
 def check_duplicate_account(
 	account_number: str,
+	base_card_name: str | None = None,
+	bank: str | None = None,
 	exclude_card: str | None = None,
 ) -> dict[str, Any]:
 	require_card_permission("view_cards", _("ليست لديك صلاحية للتحقق من رقم الحساب."))
-	return inspect_account_family(account_number=account_number, exclude_card=exclude_card)
+	return inspect_account_family(
+		account_number=account_number,
+		base_card_name=base_card_name,
+		bank=bank,
+		exclude_card=exclude_card,
+	)
 
 
 @frappe.whitelist()
@@ -636,6 +691,7 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 	card_number = clean_card_number(data.get("card_number"))
 	if not card_number:
 		frappe.throw(_("حقل رقم البطاقة مطلوب."), frappe.ValidationError)
+	_validate_unique_card_number(card_number)
 
 	status = cstr(data.get("status") or "نشطة").strip()
 	if status not in VALID_STATUSES:
@@ -672,6 +728,7 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 	family_doc, copy_no, derived_card_name, was_duplicate = acquire_or_create_family_for_new_card(
 		account_number=account_number,
 		raw_base_card_name=clean_base_name,
+		bank=bank,
 		allow_duplicate_account=allow_dup,
 	)
 
@@ -786,47 +843,53 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 	old_urls_to_cleanup: list[str] = []
 
 	try:
-		# 1. Account Number Transition (if changed in normalized OR raw representation)
+		if "card_number" in data and data.get("card_number") is not None:
+			pre_card_number = clean_card_number(data.get("card_number"))
+			if not pre_card_number:
+				frappe.throw(_("حقل رقم البطاقة مطلوب."), frappe.ValidationError)
+			if pre_card_number != card_doc.card_number:
+				require_card_permission("edit_card", _("ليست لديك صلاحية لتعديل بيانات البطاقة."))
+				_validate_unique_card_number(pre_card_number, exclude_card=card_doc.name)
+
+		# 1. Family Identity Transition (if any of account_number, base_card_name, or bank changed)
+		incoming_acc = card_doc.account_number
+		incoming_norm = card_doc.account_number_normalized
 		if "account_number" in data and data.get("account_number") is not None:
 			incoming_acc = clean_account_number_display(data.get("account_number"))
 			incoming_norm = normalize_account_number(incoming_acc)
-			if incoming_acc and (
-				incoming_norm != card_doc.account_number_normalized
-				or incoming_acc != card_doc.account_number
-			):
-				require_card_permission("edit_card", _("ليست لديك صلاحية لتعديل رقم الحساب."))
-				transition_mode = cstr(data.get("account_transition_mode") or "auto").strip()
-				raw_incoming_base = clean_base_card_name(
-					data.get("base_card_name") or data.get("card_name") or ""
-				)
-				explicit_base = (
-					raw_incoming_base
-					if raw_incoming_base and raw_incoming_base != card_doc.base_card_name
-					else None
-				)
-				change_card_account_number(
-					card=card_doc.name,
-					new_account_number=incoming_acc,
-					transition_mode=transition_mode,
-					new_base_card_name=explicit_base,
-					remarks=cstr(data.get("remarks") or "").strip() or None,
-				)
-				card_doc.reload()
+			if not incoming_acc or not incoming_norm:
+				frappe.throw(_("حقل رقم الحساب مطلوب."), frappe.ValidationError)
 
-		# 2. Family Base Card Name Rename (if changed)
+		incoming_base = card_doc.base_card_name
 		if "base_card_name" in data or "card_name" in data:
 			raw_base = cstr(data.get("base_card_name") or data.get("card_name") or "").strip()
-			clean_base = clean_base_card_name(raw_base)
-			if clean_base and clean_base != card_doc.base_card_name:
-				require_card_permission("edit_card", _("ليست لديك صلاحية لتعديل اسم البطاقة."))
-				rename_card_family_base_name(
-					card=card_doc.name,
-					new_base_card_name=clean_base,
-					remarks=cstr(data.get("remarks") or "").strip() or None,
-				)
-				card_doc.reload()
+			incoming_base = clean_base_card_name(raw_base)
+			if not incoming_base:
+				frappe.throw(_("حقل اسم البطاقة مطلوب."), frappe.ValidationError)
 
-		# 3. Direct Card Data Fields (card_number, bank, card_owner, region, representative, received_date)
+		incoming_bank = card_doc.bank
+		if "bank" in data and data.get("bank") is not None:
+			incoming_bank = _validate_link_exists("Archive Bank", data.get("bank"), _("البنك"))
+
+		if (
+			incoming_norm != card_doc.account_number_normalized
+			or incoming_acc != card_doc.account_number
+			or incoming_base != card_doc.base_card_name
+			or incoming_bank != card_doc.bank
+		):
+			require_card_permission("edit_card", _("ليست لديك صلاحية لتعديل بيانات البطاقة."))
+			transition_mode = cstr(data.get("account_transition_mode") or "auto").strip()
+			change_card_account_number(
+				card=card_doc.name,
+				new_account_number=incoming_acc,
+				transition_mode=transition_mode,
+				new_base_card_name=incoming_base,
+				new_bank=incoming_bank,
+				remarks=cstr(data.get("remarks") or "").strip() or None,
+			)
+			card_doc.reload()
+
+		# 2. Direct Card Data Fields (card_number, card_owner, region, representative, received_date)
 		manual_changes: dict[str, dict[str, Any]] = {}
 		data_fields_present = any(
 			k in data

@@ -81,8 +81,17 @@ class TestArchiveCard(IntegrationTestCase):
 		else:
 			cls.bank_1 = "BNK-CARD-TEST-1"
 
-		banks = frappe.get_all("Archive Bank", limit=1, pluck="name")
-		cls.bank_1 = banks[0]
+		banks = frappe.get_all("Archive Bank", limit=3, pluck="name")
+		while len(banks) < 3:
+			b = frappe.get_doc(
+				{
+					"doctype": "Archive Bank",
+					"bank_name": f"بنك اختبار البطاقات {uuid.uuid4().hex[:6]}",
+					"is_active": 1,
+				}
+			).insert(ignore_permissions=True)
+			banks.append(b.name)
+		cls.bank_1, cls.bank_2, cls.bank_3 = banks[0], banks[1], banks[2]
 
 		regions = frappe.get_all("Archive Region", limit=2, pluck="name")
 		while len(regions) < 2:
@@ -186,6 +195,7 @@ class TestArchiveCard(IntegrationTestCase):
 		account_number: str | None = None,
 		base_card_name: str = "بطاقة الراجحي الذهبية",
 		card_number: str | None = None,
+		bank: str | None = None,
 		pin: str = "4829",
 		daily_limit: float | str | None = 50000.0,
 		allow_duplicate_account: bool = False,
@@ -198,7 +208,7 @@ class TestArchiveCard(IntegrationTestCase):
 				"account_number": acc,
 				"base_card_name": base_card_name,
 				"card_number": cnum,
-				"bank": self.bank_1,
+				"bank": bank or self.bank_1,
 				"card_owner": self.owner_1,
 				"region": self.region_1,
 				"representative": self.rep_1,
@@ -237,15 +247,25 @@ class TestArchiveCard(IntegrationTestCase):
 		self.assertEqual(c2["card_name"], "بطاقة التميز 2")
 		self.assertEqual(c2["card_family"], c1["card_family"])
 
-		# Soft-delete copy 2, then create next card -> must be copy 3 (never reuses 2)
+		# Soft-delete copy 2 -> does not reserve copy 2; expected_copy_no and next card must be copy 2
 		delete_card(c2["name"], reason="تبديل بطاقة تالفة")
+		from archive.api.cards import check_duplicate_account
+
+		dup_info = check_duplicate_account(
+			account_number=acc, base_card_name="بطاقة التميز", bank=self.bank_1
+		)
+		self.assertEqual(dup_info["expected_copy_no"], 2)
+
 		c3 = self._make_card(
 			account_number=acc,
 			base_card_name="بطاقة التميز",
 			allow_duplicate_account=True,
 		)
-		self.assertEqual(c3["copy_no"], 3)
-		self.assertEqual(c3["card_name"], "بطاقة التميز 3")
+		self.assertEqual(c3["copy_no"], 2)
+		self.assertEqual(c3["card_name"], "بطاقة التميز 2")
+		# Soft-deleted c2 remains untouched
+		self.assertEqual(cint(frappe.db.get_value("Archive Card", c2["name"], "copy_no")), 2)
+		self.assertEqual(cint(frappe.db.get_value("Archive Card", c2["name"], "is_deleted")), 1)
 
 	def test_02_family_base_name_rename_updates_active_only(self):
 		acc = f"SA-REN-{uuid.uuid4().hex[:8].upper()}"
@@ -321,16 +341,19 @@ class TestArchiveCard(IntegrationTestCase):
 		self.assertEqual(c_a_return["copy_no"], 2)
 		self.assertEqual(c_a_return["card_name"], "بطاقة الحساب أ 2")
 
-		# 3. Existing target family join allocates next copy correctly
+		# 3. Existing target family join allocates next copy correctly when triplet matches
 		acc_target = f"SA-TRG-{uuid.uuid4().hex[:8].upper()}"
 		c_target = self._make_card(account_number=acc_target, base_card_name="عائلة مستهدفة")
-		plan_join = build_account_change_plan(c_a["name"], acc_target)
+		plan_join = build_account_change_plan(
+			c_a["name"], acc_target, new_base_card_name="عائلة مستهدفة"
+		)
 		self.assertEqual(plan_join["case"], "TARGET_FAMILY_EXISTS")
 		self.assertEqual(plan_join["expected_copy_no"], 2)
 
 		res_join = change_card_account_number(
 			card=c_a["name"],
 			new_account_number=acc_target,
+			new_base_card_name="عائلة مستهدفة",
 			transition_mode="move_card_to_target_family",
 		)
 		self.assertEqual(res_join["card_family"], c_target["card_family"])
@@ -693,30 +716,86 @@ class TestArchiveCard(IntegrationTestCase):
 	def test_12_card_family_lookups_unique_without_copy_suffix(self):
 		acc = f"ACC-LKP-{uuid.uuid4().hex[:8].upper()}"
 		base_name = f"بطاقة اقتراحات {uuid.uuid4().hex[:4]}"
-		c1 = self._make_card(account_number=acc, base_card_name=base_name)
+		c1 = self._make_card(account_number=acc, base_card_name=base_name, bank=self.bank_1)
 		c2 = self._make_card(
 			account_number=acc,
 			base_card_name=base_name,
+			bank=self.bank_1,
 			allow_duplicate_account=True,
 		)
 		c3 = self._make_card(
 			account_number=acc,
 			base_card_name=base_name,
+			bank=self.bank_1,
 			allow_duplicate_account=True,
 		)
 		self.assertEqual(c2["card_name"], f"{base_name} 2")
 		self.assertEqual(c3["card_name"], f"{base_name} 3")
 
+		# Same base_card_name in two other banks/accounts creates separate families at Copy 1
+		multi_name = f"مؤسسة الأيهم {uuid.uuid4().hex[:4]}"
+		acc_b1 = f"ACC-B1-{uuid.uuid4().hex[:8].upper()}"
+		acc_b2 = f"ACC-B2-{uuid.uuid4().hex[:8].upper()}"
+		acc_b3 = f"ACC-B3-{uuid.uuid4().hex[:8].upper()}"
+		m1 = self._make_card(account_number=acc_b1, base_card_name=multi_name, bank=self.bank_1)
+		m2 = self._make_card(account_number=acc_b2, base_card_name=multi_name, bank=self.bank_2)
+		m3 = self._make_card(account_number=acc_b3, base_card_name=multi_name, bank=self.bank_3)
+		self.assertEqual(m1["copy_no"], 1)
+		self.assertEqual(m2["copy_no"], 1)
+		self.assertEqual(m3["copy_no"], 1)
+		self.assertEqual(len({m1["card_family"], m2["card_family"], m3["card_family"]}), 3)
+
+		# Same base_card_name + same account_number + DIFFERENT bank -> new family, copy 1
+		m1_diff_bank = self._make_card(
+			account_number=acc_b1, base_card_name=multi_name, bank=self.bank_2
+		)
+		self.assertEqual(m1_diff_bank["copy_no"], 1)
+		self.assertNotEqual(m1_diff_bank["card_family"], m1["card_family"])
+
+		# Editing bank on c3 moves it to a new family at Copy 1 while c1 and c2 stay in their family
+		upd_c3 = update_card(c3["name"], {"bank": self.bank_2})["card"]
+		self.assertEqual(upd_c3["copy_no"], 1)
+		self.assertEqual(upd_c3["bank"], self.bank_2)
+		self.assertNotEqual(upd_c3["card_family"], c1["card_family"])
+
 		lookups = get_card_family_lookups()["families"]
-		matching = [f for f in lookups if f["account_number"] == acc]
-		self.assertEqual(len(matching), 1)
-		self.assertEqual(matching[0]["base_card_name"], base_name)
-		self.assertEqual(matching[0]["family_name"], c1["card_family"])
-		self.assertEqual(matching[0]["active_count"], 3)
+		matching_c1 = [
+			f for f in lookups if f["account_number"] == acc and f["bank"] == self.bank_1
+		]
+		self.assertEqual(len(matching_c1), 1)
+		self.assertEqual(matching_c1[0]["base_card_name"], base_name)
+		self.assertEqual(matching_c1[0]["family_name"], c1["card_family"])
+		self.assertEqual(matching_c1[0]["active_count"], 2)
+
+		matching_multi = [f for f in lookups if f["base_card_name"] == multi_name]
+		self.assertEqual(len(matching_multi), 4)
 		# Derived copy names (2, 3) must never appear in family base_card_name lookups
 		all_base_names = {f["base_card_name"] for f in lookups}
 		self.assertIn(base_name, all_base_names)
 		self.assertNotIn(f"{base_name} 2", all_base_names)
 		self.assertNotIn(f"{base_name} 3", all_base_names)
+
+	def test_13_create_with_duplicate_card_number_rejected(self):
+		cnum = f"4999{uuid.uuid4().int % 10**12:012d}"
+		self._make_card(base_card_name="بطاقة أصلية", card_number=cnum)
+
+		with self.assertRaises(frappe.ValidationError):
+			self._make_card(base_card_name="بطاقة أخرى بنفس الرقم", card_number=cnum)
+
+	def test_14_edit_to_existing_card_number_rejected(self):
+		c1 = self._make_card(base_card_name="بطاقة أولى")
+		c2 = self._make_card(base_card_name="بطاقة ثانية")
+
+		# Keeping current card_number on edit is allowed
+		same_res = update_card(c2["name"], {"card_number": c2["card_number"], "daily_limit": 60000})[
+			"card"
+		]
+		self.assertEqual(same_res["card_number"], c2["card_number"])
+
+		# Changing card_number to another card's card_number is rejected
+		with self.assertRaises(frappe.ValidationError):
+			update_card(c2["name"], {"card_number": c1["card_number"]})
+
+
 
 

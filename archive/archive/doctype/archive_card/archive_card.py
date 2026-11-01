@@ -73,6 +73,14 @@ class ArchiveCard(Document):
 		if cint(self.copy_no) < 1:
 			frappe.throw(_("رقم النسخة يجب أن يكون 1 أو أكبر."), frappe.ValidationError)
 
+		if not cint(self.is_deleted) and (self.is_new() or self.has_value_changed("card_number")):
+			from archive.api.cards import _validate_unique_card_number
+
+			_validate_unique_card_number(
+				self.card_number,
+				exclude_card=None if self.is_new() else self.name,
+			)
+
 		if self.daily_limit is not None and flt(self.daily_limit) < 0:
 			frappe.throw(_("الحد اليومي لا يقبل قيماً سالبة."), frappe.ValidationError)
 
@@ -98,7 +106,11 @@ class ArchiveCard(Document):
 
 
 def on_doctype_update():
-	if not frappe.db.has_index("tabArchive Card", "uq_card_family_copy"):
-		frappe.db.sql(
-			"ALTER TABLE `tabArchive Card` ADD UNIQUE INDEX `uq_card_family_copy` (`card_family`, `copy_no`)"
+	if frappe.db.has_index("tabArchive Card", "uq_card_family_copy"):
+		frappe.db.sql_ddl(
+			"ALTER TABLE `tabArchive Card` DROP INDEX `uq_card_family_copy`, ADD INDEX `idx_card_family_copy` (`card_family`, `copy_no`)"
+		)
+	elif not frappe.db.has_index("tabArchive Card", "idx_card_family_copy"):
+		frappe.db.sql_ddl(
+			"ALTER TABLE `tabArchive Card` ADD INDEX `idx_card_family_copy` (`card_family`, `copy_no`)"
 		)

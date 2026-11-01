@@ -19,42 +19,50 @@ from archive.services.card_permissions import CARD_DOCTYPE, require_card_permiss
 FAMILY_DOCTYPE = "Archive Card Family"
 
 
+def _next_available_copy_no(family_name: str, exclude_card: str | None = None) -> int:
+	params: dict[str, Any] = {"family": family_name}
+	exclude_sql = ""
+	if exclude_card:
+		exclude_sql = "AND name != %(exclude_card)s"
+		params["exclude_card"] = exclude_card
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT copy_no
+		FROM `tabArchive Card`
+		WHERE card_family = %(family)s
+		  AND IFNULL(is_deleted, 0) = 0
+		  {exclude_sql}
+		""",
+		params,
+		as_dict=True,
+	)
+	used = {cint(r.copy_no) for r in rows if cint(r.copy_no) > 0}
+	candidate = 1
+	while candidate in used:
+		candidate += 1
+	return candidate
+
+
 def inspect_account_family(
 	account_number: str,
+	base_card_name: str | None = None,
+	bank: str | None = None,
 	exclude_card: str | None = None,
 ) -> dict[str, Any]:
 	clean_display = clean_account_number_display(account_number)
 	norm = normalize_account_number(account_number)
-	if not norm:
-		return {
-			"account_number": clean_display,
-			"account_number_normalized": "",
-			"family_exists": False,
-			"family_name": None,
-			"base_card_name": "",
-			"highest_copy_no": 0,
-			"expected_copy_no": 1,
-			"expected_card_name": "",
-			"active_count": 0,
-			"deleted_count": 0,
-			"requires_duplicate_confirmation": False,
-			"existing_cards": [],
-		}
-
-	family_row = frappe.db.get_value(
-		FAMILY_DOCTYPE,
-		{"account_number_normalized": norm},
-		["name", "account_number", "account_number_normalized", "base_card_name", "highest_copy_no"],
-		as_dict=True,
-	)
-
-	if not family_row:
+	clean_base = clean_base_card_name(base_card_name)
+	clean_bank = cstr(bank or "").strip()
+	if not norm or not clean_base or not clean_bank:
 		return {
 			"account_number": clean_display,
 			"account_number_normalized": norm,
 			"family_exists": False,
 			"family_name": None,
-			"base_card_name": "",
+			"base_card_name": clean_base,
+			"bank": clean_bank,
+			"bank_name": "",
 			"highest_copy_no": 0,
 			"expected_copy_no": 1,
 			"expected_card_name": "",
@@ -63,6 +71,47 @@ def inspect_account_family(
 			"requires_duplicate_confirmation": False,
 			"existing_cards": [],
 		}
+
+	family_rows = frappe.db.sql(
+		"""
+		SELECT
+			f.name,
+			f.account_number,
+			f.account_number_normalized,
+			f.base_card_name,
+			f.bank,
+			b.bank_name,
+			f.highest_copy_no
+		FROM `tabArchive Card Family` f
+		LEFT JOIN `tabArchive Bank` b ON b.name = f.bank
+		WHERE f.account_number_normalized = %(norm)s
+		  AND f.bank = %(bank)s
+		  AND LOWER(f.base_card_name) = LOWER(%(base_name)s)
+		LIMIT 1
+		""",
+		{"norm": norm, "bank": clean_bank, "base_name": clean_base},
+		as_dict=True,
+	)
+
+	if not family_rows:
+		return {
+			"account_number": clean_display,
+			"account_number_normalized": norm,
+			"family_exists": False,
+			"family_name": None,
+			"base_card_name": clean_base,
+			"bank": clean_bank,
+			"bank_name": "",
+			"highest_copy_no": 0,
+			"expected_copy_no": 1,
+			"expected_card_name": "",
+			"active_count": 0,
+			"deleted_count": 0,
+			"requires_duplicate_confirmation": False,
+			"existing_cards": [],
+		}
+
+	family_row = family_rows[0]
 
 	cards_rows = frappe.db.sql(
 		"""
@@ -126,22 +175,28 @@ def inspect_account_family(
 			)
 
 	highest_copy_no = cint(family_row.highest_copy_no)
-	expected_copy_no = highest_copy_no + 1
+	used_copies = {cint(c["copy_no"]) for c in active_cards if cint(c["copy_no"]) > 0}
+	expected_copy_no = 1
+	while expected_copy_no in used_copies:
+		expected_copy_no += 1
 	base_name = cstr(family_row.base_card_name or "").strip()
 	expected_card_name = derive_card_display_name(base_name, expected_copy_no)
+	has_active = len(active_cards) > 0
 
 	return {
 		"account_number": family_row.account_number,
 		"account_number_normalized": family_row.account_number_normalized,
-		"family_exists": True,
+		"family_exists": has_active,
 		"family_name": family_row.name,
 		"base_card_name": base_name,
+		"bank": cstr(family_row.bank or clean_bank).strip(),
+		"bank_name": cstr(family_row.bank_name or family_row.bank or clean_bank).strip(),
 		"highest_copy_no": highest_copy_no,
 		"expected_copy_no": expected_copy_no,
 		"expected_card_name": expected_card_name,
 		"active_count": len(active_cards),
 		"deleted_count": deleted_count,
-		"requires_duplicate_confirmation": True,
+		"requires_duplicate_confirmation": has_active,
 		"existing_cards": active_cards,
 	}
 
@@ -149,6 +204,7 @@ def inspect_account_family(
 def acquire_or_create_family_for_new_card(
 	account_number: str,
 	raw_base_card_name: str,
+	bank: str,
 	allow_duplicate_account: bool = False,
 ) -> tuple[Any, int, str, bool]:
 	clean_acc = clean_account_number_display(account_number)
@@ -156,49 +212,60 @@ def acquire_or_create_family_for_new_card(
 	if not clean_acc or not norm_acc:
 		frappe.throw(_("رقم الحساب مطلوب."), frappe.ValidationError)
 
+	clean_base = clean_base_card_name(raw_base_card_name)
+	if not clean_base:
+		frappe.throw(_("اسم البطاقة الأساسي مطلوب."), frappe.ValidationError)
+
+	clean_bank = cstr(bank or "").strip()
+	if not clean_bank:
+		frappe.throw(_("البنك مطلوب."), frappe.ValidationError)
+
 	locked_rows = frappe.db.sql(
 		"""
 		SELECT name
 		FROM `tabArchive Card Family`
 		WHERE account_number_normalized = %(norm)s
+		  AND bank = %(bank)s
+		  AND LOWER(base_card_name) = LOWER(%(base_name)s)
 		FOR UPDATE
 		""",
-		{"norm": norm_acc},
+		{"norm": norm_acc, "bank": clean_bank, "base_name": clean_base},
 		as_dict=True,
 	)
 
 	if locked_rows:
-		if not allow_duplicate_account:
-			info = inspect_account_family(clean_acc)
+		info = inspect_account_family(
+			clean_acc, base_card_name=clean_base, bank=clean_bank
+		)
+		if info.get("active_count", 0) > 0 and not allow_duplicate_account:
 			frappe.throw(
 				_(
-					"رقم الحساب ({0}) مرتبط مسبقاً بعائلة بطاقات ({1}). يجب تأكيد إنشاء نسخة جديدة برقم النسخة ({2})."
+					"عائلة البطاقات ({0} / {1} / {2}) مسجلة مسبقاً. يجب تأكيد إنشاء نسخة جديدة برقم النسخة ({3})."
 				).format(
+					info.get("base_card_name") or clean_base,
 					clean_acc,
-					info.get("base_card_name") or "",
+					info.get("bank_name") or clean_bank,
 					info.get("expected_copy_no") or 2,
 				),
 				frappe.DuplicateEntryError,
 			)
 
 		family_doc = frappe.get_doc(FAMILY_DOCTYPE, locked_rows[0].name)
-		next_copy = cint(family_doc.highest_copy_no) + 1
-		family_doc.highest_copy_no = next_copy
-		family_doc.flags._allow_card_family_mutation = True
-		family_doc.save(ignore_permissions=True)
+		next_copy = _next_available_copy_no(family_doc.name)
+		if next_copy > cint(family_doc.highest_copy_no):
+			family_doc.highest_copy_no = next_copy
+			family_doc.flags._allow_card_family_mutation = True
+			family_doc.save(ignore_permissions=True)
 
 		derived_name = derive_card_display_name(family_doc.base_card_name, next_copy)
-		return family_doc, next_copy, derived_name, True
-
-	clean_base = clean_base_card_name(raw_base_card_name)
-	if not clean_base:
-		frappe.throw(_("اسم البطاقة الأساسي مطلوب."), frappe.ValidationError)
+		return family_doc, next_copy, derived_name, bool(info.get("active_count", 0) > 0)
 
 	try:
 		family_doc = frappe.new_doc(FAMILY_DOCTYPE)
 		family_doc.account_number = clean_acc
 		family_doc.account_number_normalized = norm_acc
 		family_doc.base_card_name = clean_base
+		family_doc.bank = clean_bank
 		family_doc.highest_copy_no = 1
 		family_doc.flags._allow_card_family_mutation = True
 		family_doc.insert(ignore_permissions=True)
@@ -207,6 +274,7 @@ def acquire_or_create_family_for_new_card(
 		return acquire_or_create_family_for_new_card(
 			account_number=account_number,
 			raw_base_card_name=raw_base_card_name,
+			bank=bank,
 			allow_duplicate_account=allow_duplicate_account,
 		)
 
@@ -214,8 +282,9 @@ def acquire_or_create_family_for_new_card(
 @frappe.whitelist()
 def build_account_change_plan(
 	card: str,
-	new_account_number: str,
+	new_account_number: str | None = None,
 	new_base_card_name: str | None = None,
+	new_bank: str | None = None,
 ) -> dict[str, Any]:
 	require_card_permission("edit_card", _("ليست لديك صلاحية لتعديل بيانات البطاقة."))
 
@@ -231,6 +300,7 @@ def build_account_change_plan(
 			"base_card_name",
 			"account_number",
 			"account_number_normalized",
+			"bank",
 			"is_deleted",
 		],
 		as_dict=True,
@@ -238,13 +308,16 @@ def build_account_change_plan(
 	if not card_row or cint(card_row.is_deleted):
 		frappe.throw(_("البطاقة المطلوبة غير موجودة."), frappe.DoesNotExistError)
 
-	clean_new_acc = clean_account_number_display(new_account_number)
-	norm_new_acc = normalize_account_number(new_account_number)
+	raw_acc_input = new_account_number if new_account_number is not None else card_row.account_number
+	clean_new_acc = clean_account_number_display(raw_acc_input)
+	norm_new_acc = normalize_account_number(raw_acc_input)
 	if not clean_new_acc or not norm_new_acc:
 		frappe.throw(_("رقم الحساب الجديد مطلوب."), frappe.ValidationError)
 
 	source_family = frappe.get_doc(FAMILY_DOCTYPE, card_row.card_family)
+	source_bank = cstr(getattr(source_family, "bank", None) or card_row.bank or "").strip()
 	proposed_base = clean_base_card_name(new_base_card_name) or source_family.base_card_name
+	proposed_bank = cstr(new_bank or "").strip() or source_bank
 
 	source_cards = frappe.get_all(
 		CARD_DOCTYPE,
@@ -255,7 +328,13 @@ def build_account_change_plan(
 	active_source_cards = [c for c in source_cards if not cint(c.is_deleted)]
 	deleted_source_cards = [c for c in source_cards if cint(c.is_deleted)]
 
-	if norm_new_acc == source_family.account_number_normalized:
+	same_triplet = (
+		norm_new_acc == source_family.account_number_normalized
+		and proposed_base.casefold() == cstr(source_family.base_card_name or "").strip().casefold()
+		and proposed_bank == source_bank
+	)
+
+	if same_triplet:
 		if clean_new_acc == source_family.account_number:
 			return {
 				"no_change": True,
@@ -273,6 +352,7 @@ def build_account_change_plan(
 			"current_copy_no": cint(card_row.copy_no),
 			"new_account_number": clean_new_acc,
 			"new_account_number_normalized": norm_new_acc,
+			"new_bank": proposed_bank,
 			"case": "SAME_NORMALIZED",
 			"allowed_modes": ["sync_family_raw_account"],
 			"recommended_mode": "sync_family_raw_account",
@@ -283,7 +363,12 @@ def build_account_change_plan(
 			"source_deleted_count": len(deleted_source_cards),
 		}
 
-	target_info = inspect_account_family(clean_new_acc, exclude_card=card_row.name)
+	target_info = inspect_account_family(
+		clean_new_acc,
+		base_card_name=proposed_base,
+		bank=proposed_bank,
+		exclude_card=card_row.name,
+	)
 
 	if target_info["family_exists"]:
 		return {
@@ -294,6 +379,7 @@ def build_account_change_plan(
 			"current_copy_no": cint(card_row.copy_no),
 			"new_account_number": target_info["account_number"],
 			"new_account_number_normalized": norm_new_acc,
+			"new_bank": proposed_bank,
 			"case": "TARGET_FAMILY_EXISTS",
 			"allowed_modes": ["move_card_to_target_family"],
 			"recommended_mode": "move_card_to_target_family",
@@ -313,6 +399,7 @@ def build_account_change_plan(
 		"current_copy_no": cint(card_row.copy_no),
 		"new_account_number": clean_new_acc,
 		"new_account_number_normalized": norm_new_acc,
+		"new_bank": proposed_bank,
 		"case": "NEW_TARGET_FAMILY",
 		"allowed_modes": ["move_card_to_new_family"],
 		"recommended_mode": "move_card_to_new_family",
@@ -324,31 +411,47 @@ def build_account_change_plan(
 	}
 
 
-def _lock_families_sorted(normalized_accounts: list[str]) -> dict[str, Any]:
-	unique_norms = sorted({n for n in normalized_accounts if n})
-	locked: dict[str, Any] = {}
-	for norm in unique_norms:
-		rows = frappe.db.sql(
-			"""
-			SELECT name, account_number_normalized
-			FROM `tabArchive Card Family`
-			WHERE account_number_normalized = %(norm)s
-			FOR UPDATE
-			""",
-			{"norm": norm},
-			as_dict=True,
-		)
-		if rows:
-			locked[norm] = frappe.get_doc(FAMILY_DOCTYPE, rows[0].name)
-	return locked
+def _lock_family_by_name(family_name: str) -> Any | None:
+	if not family_name:
+		return None
+	rows = frappe.db.sql(
+		"""
+		SELECT name
+		FROM `tabArchive Card Family`
+		WHERE name = %(name)s
+		FOR UPDATE
+		""",
+		{"name": family_name},
+		as_dict=True,
+	)
+	return frappe.get_doc(FAMILY_DOCTYPE, rows[0].name) if rows else None
+
+
+def _lock_family_by_triplet(norm_acc: str, base_name: str, bank: str) -> Any | None:
+	if not norm_acc or not base_name or not bank:
+		return None
+	rows = frappe.db.sql(
+		"""
+		SELECT name
+		FROM `tabArchive Card Family`
+		WHERE account_number_normalized = %(norm)s
+		  AND bank = %(bank)s
+		  AND LOWER(base_card_name) = LOWER(%(base_name)s)
+		FOR UPDATE
+		""",
+		{"norm": norm_acc, "bank": bank, "base_name": base_name},
+		as_dict=True,
+	)
+	return frappe.get_doc(FAMILY_DOCTYPE, rows[0].name) if rows else None
 
 
 @frappe.whitelist()
 def change_card_account_number(
 	card: str,
-	new_account_number: str,
+	new_account_number: str | None = None,
 	transition_mode: str = "auto",
 	new_base_card_name: str | None = None,
+	new_bank: str | None = None,
 	remarks: str | None = None,
 ) -> dict[str, Any]:
 	require_card_permission("edit_card", _("ليست لديك صلاحية لتعديل رقم حساب البطاقة."))
@@ -357,31 +460,40 @@ def change_card_account_number(
 	if cint(card_doc.is_deleted):
 		frappe.throw(_("لا يمكن تعديل بطاقة محذوفة."), frappe.ValidationError)
 
-	clean_new_acc = clean_account_number_display(new_account_number)
-	norm_new_acc = normalize_account_number(new_account_number)
+	raw_acc_input = new_account_number if new_account_number is not None else card_doc.account_number
+	clean_new_acc = clean_account_number_display(raw_acc_input)
+	norm_new_acc = normalize_account_number(raw_acc_input)
 	if not clean_new_acc or not norm_new_acc:
 		frappe.throw(_("رقم الحساب الجديد مطلوب."), frappe.ValidationError)
 
 	old_family_doc = frappe.get_doc(FAMILY_DOCTYPE, card_doc.card_family)
 	old_norm = old_family_doc.account_number_normalized
+	old_bank = cstr(getattr(old_family_doc, "bank", None) or card_doc.bank or "").strip()
+	explicit_base = clean_base_card_name(new_base_card_name)
+	proposed_base = explicit_base if explicit_base else old_family_doc.base_card_name
+	proposed_bank = cstr(new_bank or "").strip() or old_bank
 	now_ts = now_datetime()
 
-	# SAME_NORMALIZED: raw display changed, normalized identity unchanged
-	if norm_new_acc == old_norm:
+	same_triplet = (
+		norm_new_acc == old_norm
+		and proposed_base.casefold() == cstr(old_family_doc.base_card_name or "").strip().casefold()
+		and proposed_bank == old_bank
+	)
+
+	# SAME_NORMALIZED: raw display changed, triplet identity unchanged
+	if same_triplet:
 		if clean_new_acc == old_family_doc.account_number:
 			return {
 				"changed": False,
 				"card": card_doc.name,
 				"card_family": card_doc.card_family,
 				"account_number": card_doc.account_number,
+				"bank": card_doc.bank,
 				"copy_no": cint(card_doc.copy_no),
 				"card_name": card_doc.card_name,
 			}
 
-		locked_map = _lock_families_sorted([old_norm])
-		source_family = locked_map.get(old_norm) or frappe.get_doc(
-			FAMILY_DOCTYPE, card_doc.card_family
-		)
+		source_family = _lock_family_by_name(old_family_doc.name) or old_family_doc
 		old_raw_acc = source_family.account_number
 
 		source_family.account_number = clean_new_acc
@@ -443,20 +555,21 @@ def change_card_account_number(
 			"card_family": source_family.name,
 			"account_number": clean_new_acc,
 			"base_card_name": source_family.base_card_name,
+			"bank": card_doc.bank,
 			"copy_no": cint(card_doc.copy_no),
 			"card_name": card_doc.card_name,
 			"affected_cards": affected_names,
 		}
 
-	# old_normalized != new_normalized -> ALWAYS a Card Move
-	locked_map = _lock_families_sorted([old_norm, norm_new_acc])
-	source_family = locked_map.get(old_norm) or frappe.get_doc(FAMILY_DOCTYPE, card_doc.card_family)
-	target_family = locked_map.get(norm_new_acc)
+	# Triplet changed -> ALWAYS a Card Move
+	source_family = _lock_family_by_name(old_family_doc.name) or old_family_doc
+	target_family = _lock_family_by_triplet(norm_new_acc, proposed_base, proposed_bank)
 
 	old_snapshot = {
 		"old_card_family": source_family.name,
 		"old_account_number": source_family.account_number,
 		"old_base_card_name": source_family.base_card_name,
+		"old_bank": card_doc.bank,
 		"old_copy_no": cint(card_doc.copy_no),
 		"old_card_name": card_doc.card_name,
 	}
@@ -469,12 +582,14 @@ def change_card_account_number(
 				frappe.ValidationError,
 			)
 
-		next_copy = cint(target_family.highest_copy_no) + 1
-		target_family.highest_copy_no = next_copy
-		target_family.flags._allow_card_family_mutation = True
-		target_family.save(ignore_permissions=True)
+		next_copy = _next_available_copy_no(target_family.name, exclude_card=card_doc.name)
+		if next_copy > cint(target_family.highest_copy_no):
+			target_family.highest_copy_no = next_copy
+			target_family.flags._allow_card_family_mutation = True
+			target_family.save(ignore_permissions=True)
 
 		derived_name = derive_card_display_name(target_family.base_card_name, next_copy)
+		resolved_target_bank = cstr(getattr(target_family, "bank", None) or proposed_bank).strip()
 
 		card_doc.card_family = target_family.name
 		card_doc.copy_no = next_copy
@@ -482,6 +597,7 @@ def change_card_account_number(
 		card_doc.card_name = derived_name
 		card_doc.account_number = target_family.account_number
 		card_doc.account_number_normalized = target_family.account_number_normalized
+		card_doc.bank = resolved_target_bank
 		set_card_search_text(card_doc)
 		card_doc.flags._allow_card_service_mutation = True
 		card_doc.save(ignore_permissions=True)
@@ -497,6 +613,7 @@ def change_card_account_number(
 				"new_card_family": target_family.name,
 				"new_account_number": target_family.account_number,
 				"new_base_card_name": target_family.base_card_name,
+				"new_bank": resolved_target_bank,
 				"new_copy_no": next_copy,
 				"new_card_name": derived_name,
 			},
@@ -511,6 +628,7 @@ def change_card_account_number(
 			"card_family": target_family.name,
 			"account_number": target_family.account_number,
 			"base_card_name": target_family.base_card_name,
+			"bank": resolved_target_bank,
 			"copy_no": next_copy,
 			"card_name": derived_name,
 			"affected_cards": [card_doc.name],
@@ -523,13 +641,11 @@ def change_card_account_number(
 			frappe.ValidationError,
 		)
 
-	explicit_base = clean_base_card_name(new_base_card_name)
-	proposed_base = explicit_base if explicit_base else source_family.base_card_name
-
 	new_family = frappe.new_doc(FAMILY_DOCTYPE)
 	new_family.account_number = clean_new_acc
 	new_family.account_number_normalized = norm_new_acc
 	new_family.base_card_name = proposed_base
+	new_family.bank = proposed_bank
 	new_family.highest_copy_no = 1
 	new_family.flags._allow_card_family_mutation = True
 	new_family.insert(ignore_permissions=True)
@@ -541,6 +657,7 @@ def change_card_account_number(
 	card_doc.card_name = derived_name
 	card_doc.account_number = clean_new_acc
 	card_doc.account_number_normalized = norm_new_acc
+	card_doc.bank = proposed_bank
 	set_card_search_text(card_doc)
 	card_doc.flags._allow_card_service_mutation = True
 	card_doc.save(ignore_permissions=True)
@@ -556,6 +673,7 @@ def change_card_account_number(
 			"new_card_family": new_family.name,
 			"new_account_number": clean_new_acc,
 			"new_base_card_name": proposed_base,
+			"new_bank": proposed_bank,
 			"new_copy_no": 1,
 			"new_card_name": derived_name,
 		},
@@ -570,6 +688,7 @@ def change_card_account_number(
 		"card_family": new_family.name,
 		"account_number": clean_new_acc,
 		"base_card_name": proposed_base,
+		"bank": proposed_bank,
 		"copy_no": 1,
 		"card_name": derived_name,
 		"affected_cards": [card_doc.name],

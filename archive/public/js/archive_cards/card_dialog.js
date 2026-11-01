@@ -370,11 +370,13 @@
 				controls: {
 					base_card_name: this.controls.base_card_name,
 					account_number: this.controls.account_number,
+					bank: this.controls.bank,
 				},
 				enabled_provider: () => !this.is_submitting,
 				initial_values: {
 					base_card_name: "",
 					account_number: "",
+					bank: "",
 				},
 				on_account_changed: (acc, meta = {}) => {
 					this.schedule_account_family_check(acc, meta);
@@ -530,16 +532,23 @@
 			}
 		}
 
-		schedule_account_family_check(acc, meta = {}) {
+		schedule_account_family_check(_acc, meta = {}) {
 			clearTimeout(this._dup_check_timer);
-			const clean_acc = String(acc || "").trim();
-			if (!clean_acc) {
+			const clean_acc = String(this.controls.account_number?.get_value() || "").trim();
+			const clean_base = String(this.controls.base_card_name?.get_value() || "").trim();
+			const clean_bank = String(this.controls.bank?.get_value() || "").trim();
+			if (!clean_acc || !clean_base || !clean_bank) {
 				this._dup_check_seq += 1;
 				this.reset_duplicate_ui();
 				return;
 			}
 
-			if (this.family_autocomplete?.loaded && !meta.matched_family) {
+			const local_match = this.family_autocomplete?.find_by_triplet(
+				clean_base,
+				clean_acc,
+				clean_bank
+			);
+			if (this.family_autocomplete?.loaded && !local_match) {
 				this._dup_check_seq += 1;
 				this.reset_duplicate_ui();
 				return;
@@ -557,14 +566,20 @@
 
 		async check_account_family(opts = {}) {
 			const acc = String(this.controls.account_number?.get_value() || "").trim();
-			if (!acc) {
+			const base_name = String(this.controls.base_card_name?.get_value() || "").trim();
+			const bank = String(this.controls.bank?.get_value() || "").trim();
+			if (!acc || !base_name || !bank) {
 				this.reset_duplicate_ui();
 				return null;
 			}
 
-			const norm_acc = ArchiveCardFamilyAutocomplete.normalize_account(acc);
-			if (!opts.force_remote && norm_acc && this._dup_info_cache.has(norm_acc)) {
-				const cached = this._dup_info_cache.get(norm_acc);
+			const triplet_key = ArchiveCardFamilyAutocomplete.make_triplet_key(
+				base_name,
+				acc,
+				bank
+			);
+			if (!opts.force_remote && triplet_key && this._dup_info_cache.has(triplet_key)) {
+				const cached = this._dup_info_cache.get(triplet_key);
 				this.apply_duplicate_ui(cached);
 				return cached;
 			}
@@ -573,16 +588,22 @@
 			try {
 				const res = await frappe.call({
 					method: "archive.api.cards.check_duplicate_account",
-					args: { account_number: acc },
+					args: {
+						account_number: acc,
+						base_card_name: base_name,
+						bank: bank,
+					},
 				});
 				const info = res?.message || null;
-				if (norm_acc && info) {
-					this._dup_info_cache.set(norm_acc, info);
+				if (triplet_key && info) {
+					this._dup_info_cache.set(triplet_key, info);
 				}
-				const latest_norm = ArchiveCardFamilyAutocomplete.normalize_account(
-					this.controls.account_number?.get_value() || ""
+				const latest_key = ArchiveCardFamilyAutocomplete.make_triplet_key(
+					this.controls.base_card_name?.get_value() || "",
+					this.controls.account_number?.get_value() || "",
+					this.controls.bank?.get_value() || ""
 				);
-				if (seq === this._dup_check_seq && latest_norm === norm_acc) {
+				if (seq === this._dup_check_seq && latest_key === triplet_key) {
 					this.apply_duplicate_ui(info);
 				}
 				return info;
@@ -682,6 +703,27 @@
 			try {
 				const dup_info = await this.check_account_family({ force_remote: true });
 				if (dup_info && dup_info.family_exists) {
+					const norm_cnum = ArchiveCardFamilyAutocomplete.normalize_account(
+						payload.card_number
+					);
+					const sibling_dup = (dup_info.existing_cards || []).some(
+						(c) =>
+							norm_cnum &&
+							ArchiveCardFamilyAutocomplete.normalize_account(c.card_number) ===
+								norm_cnum
+					);
+					if (sibling_dup) {
+						this.is_submitting = false;
+						this.dialog.get_primary_btn().prop("disabled", false);
+						frappe.msgprint({
+							title: "رقم البطاقة مكرر",
+							message: `رقم البطاقة (<strong>${frappe.utils.escape_html(
+								payload.card_number
+							)}</strong>) مستخدم مسبقاً في بطاقة أخرى ولا يمكن تكراره.`,
+							indicator: "red",
+						});
+						return;
+					}
 					if (dup_info.base_card_name) {
 						payload.base_card_name = dup_info.base_card_name;
 					}
@@ -1057,6 +1099,14 @@
 				.trim();
 		}
 
+		static make_triplet_key(base_name, acc, bank) {
+			const n_base = this.normalize_exact_name(base_name);
+			const n_acc = this.normalize_account(acc);
+			const n_bank = this.normalize_exact_name(bank);
+			if (!n_base || !n_acc || !n_bank) return "";
+			return `${n_base}||${n_acc}||${n_bank}`;
+		}
+
 		constructor(options = {}) {
 			this.dialog = options.dialog || null;
 			this.controls = options.controls || {};
@@ -1068,22 +1118,30 @@
 
 			const init_base = String(options.initial_values?.base_card_name || "").trim();
 			const init_acc = String(options.initial_values?.account_number || "").trim();
+			const init_bank = String(options.initial_values?.bank || "").trim();
 			this.initial_values = {
 				base_card_name: init_base,
 				account_number: init_acc,
+				bank: init_bank,
 			};
 			this.fallback_base_card_name = init_base;
 			this.fallback_account_number = init_acc;
+			this.fallback_bank = init_bank;
 			this.last_account_raw = init_acc;
+			this.last_bank_raw = init_bank;
 			this.is_base_autofilled = false;
 			this.is_acc_autofilled = false;
+			this.is_bank_autofilled = false;
+			this.selected_family = null;
 			this.is_applying = false;
 			this.is_destroyed = false;
 
 			this.loaded = false;
 			this._load_promise = null;
 			this.families = [];
+			this.by_triplet = new Map();
 			this.by_norm_account = new Map();
+			this.by_norm_account_list = new Map();
 			this.unique_name_items = [];
 			this.unique_account_items = [];
 
@@ -1135,12 +1193,13 @@
 
 		build_indexes(list) {
 			this.families = list;
+			this.by_triplet.clear();
 			this.by_norm_account.clear();
+			this.by_norm_account_list.clear();
 			this.unique_name_items = [];
 			this.unique_account_items = [];
 
-			const seen_names = new Set();
-			const seen_accounts = new Set();
+			const seen_triplets = new Set();
 
 			for (const fam of list) {
 				const base_name = String(fam.base_card_name || "").trim();
@@ -1148,39 +1207,80 @@
 				const norm_acc =
 					String(fam.account_number_normalized || "").trim() ||
 					ArchiveCardFamilyAutocomplete.normalize_account(acc_num);
-				if (!base_name || !acc_num || !norm_acc) continue;
+				const bank = String(fam.bank || "").trim();
+				const bank_label = String(fam.bank_name || bank).trim();
+				if (!base_name || !acc_num || !norm_acc || !bank) continue;
+
+				const t_key = ArchiveCardFamilyAutocomplete.make_triplet_key(
+					base_name,
+					norm_acc,
+					bank
+				);
+				if (!t_key || seen_triplets.has(t_key)) continue;
+				seen_triplets.add(t_key);
+				this.by_triplet.set(t_key, fam);
+
+				if (!this.by_norm_account_list.has(norm_acc)) {
+					this.by_norm_account_list.set(norm_acc, []);
+				}
+				this.by_norm_account_list.get(norm_acc).push(fam);
 
 				if (!this.by_norm_account.has(norm_acc)) {
 					this.by_norm_account.set(norm_acc, fam);
 				}
 
 				const exact_name_key = ArchiveCardFamilyAutocomplete.normalize_exact_name(base_name);
-				if (exact_name_key && !seen_names.has(exact_name_key)) {
-					seen_names.add(exact_name_key);
-					this.unique_name_items.push({
-						value: base_name,
-						exact_key: exact_name_key,
-						search_key: ArchiveCardFamilyAutocomplete.normalize_search_text(base_name),
-						family: fam,
-					});
-				}
+				this.unique_name_items.push({
+					value: base_name,
+					secondary_text: bank_label,
+					exact_key: exact_name_key,
+					search_key: ArchiveCardFamilyAutocomplete.normalize_search_text(base_name),
+					bank_search_key: ArchiveCardFamilyAutocomplete.normalize_search_text(bank_label),
+					triplet_key: t_key,
+					family: fam,
+				});
 
-				if (!seen_accounts.has(norm_acc)) {
-					seen_accounts.add(norm_acc);
-					this.unique_account_items.push({
-						value: acc_num,
-						norm_acc,
-						raw_lower: acc_num.toLocaleLowerCase(),
-						family: fam,
-					});
-				}
+				this.unique_account_items.push({
+					value: acc_num,
+					secondary_text: bank_label ? `${base_name} — ${bank_label}` : base_name,
+					norm_acc,
+					raw_lower: acc_num.toLocaleLowerCase(),
+					triplet_key: t_key,
+					family: fam,
+				});
 			}
 		}
 
-		find_by_account(raw_acc) {
+		find_by_triplet(base_name, raw_acc, bank) {
+			const key = ArchiveCardFamilyAutocomplete.make_triplet_key(base_name, raw_acc, bank);
+			if (!key) return null;
+			return this.by_triplet.get(key) || null;
+		}
+
+		find_unique_by_account(raw_acc) {
 			const norm = ArchiveCardFamilyAutocomplete.normalize_account(raw_acc);
 			if (!norm) return null;
-			return this.by_norm_account.get(norm) || null;
+			const list = this.by_norm_account_list.get(norm) || [];
+			return list.length === 1 ? list[0] : null;
+		}
+
+		find_by_account(raw_acc) {
+			return this.find_unique_by_account(raw_acc);
+		}
+
+		notify_triplet_changed(meta = {}) {
+			if (!this.on_account_changed) return;
+			const cur_acc = String(this.controls.account_number?.get_value() || "").trim();
+			const cur_base = String(this.controls.base_card_name?.get_value() || "").trim();
+			const cur_bank = String(this.controls.bank?.get_value() || "").trim();
+			const matched =
+				meta.matched_family !== undefined
+					? meta.matched_family
+					: this.find_by_triplet(cur_base, cur_acc, cur_bank);
+			this.on_account_changed(cur_acc, {
+				immediate: Boolean(meta.immediate),
+				matched_family: matched,
+			});
 		}
 
 		attach_fields() {
@@ -1259,6 +1359,19 @@
 						this.select_item(state, idx);
 					});
 			}
+
+			const $bank_input = this.controls.bank?.$input;
+			if ($bank_input && $bank_input.length) {
+				$bank_input
+					.off(this.ns)
+					.on(
+						`input${this.ns} change${this.ns} blur${this.ns} awesomplete-selectcomplete${this.ns}`,
+						() => {
+							if (this.is_applying || !this.is_enabled()) return;
+							this.handle_bank_changed();
+						}
+					);
+			}
 		}
 
 		bind_global_events() {
@@ -1294,16 +1407,18 @@
 		async set_control_value(ctrl, val) {
 			if (!ctrl) return;
 			const str_val = String(val ?? "");
+			let res;
 			this.is_applying = true;
 			try {
 				ctrl.value = str_val;
 				if (ctrl.$input && ctrl.$input.length && ctrl.$input.val() !== str_val) {
 					ctrl.$input.val(str_val);
 				}
-				await Promise.resolve(ctrl.set_value(str_val, true));
+				res = ctrl.set_value(str_val, true);
 			} finally {
 				this.is_applying = false;
 			}
+			await Promise.resolve(res);
 		}
 
 		sync_from_account_lookup(base_card_name) {
@@ -1318,33 +1433,45 @@
 			this.set_control_value(this.controls.base_card_name, clean_name);
 		}
 
+		handle_bank_changed() {
+			const cur_bank = String(this.controls.bank?.get_value() || "").trim();
+			if (cur_bank === this.last_bank_raw) return;
+			this.last_bank_raw = cur_bank;
+			this.is_bank_autofilled = false;
+			this.fallback_bank = cur_bank;
+			this.notify_triplet_changed({ immediate: false });
+		}
+
 		async handle_base_name_typed(state) {
 			const cur_base = String(this.controls.base_card_name?.get_value() || "").trim();
 			this.is_base_autofilled = false;
 			this.fallback_base_card_name = cur_base;
 
-			if (this.is_acc_autofilled) {
-				const cur_acc = String(this.controls.account_number?.get_value() || "").trim();
-				const linked_fam = this.find_by_account(cur_acc);
+			if (this.is_acc_autofilled || this.is_bank_autofilled) {
 				const still_same =
-					linked_fam &&
-					ArchiveCardFamilyAutocomplete.normalize_exact_name(linked_fam.base_card_name) ===
-						ArchiveCardFamilyAutocomplete.normalize_exact_name(cur_base);
+					this.selected_family &&
+					ArchiveCardFamilyAutocomplete.normalize_exact_name(
+						this.selected_family.base_card_name
+					) === ArchiveCardFamilyAutocomplete.normalize_exact_name(cur_base);
 
 				if (!still_same) {
-					const restore_acc = this.fallback_account_number;
-					this.is_acc_autofilled = false;
-					this.last_account_raw = restore_acc;
-					await this.set_control_value(this.controls.account_number, restore_acc);
-					if (this.on_account_changed) {
-						this.on_account_changed(restore_acc, {
-							immediate: true,
-							matched_family: this.find_by_account(restore_acc),
-						});
+					this.selected_family = null;
+					if (this.is_acc_autofilled) {
+						const restore_acc = this.fallback_account_number;
+						this.is_acc_autofilled = false;
+						this.last_account_raw = restore_acc;
+						await this.set_control_value(this.controls.account_number, restore_acc);
+					}
+					if (this.is_bank_autofilled && this.controls.bank) {
+						const restore_bank = this.fallback_bank;
+						this.is_bank_autofilled = false;
+						this.last_bank_raw = restore_bank;
+						await this.set_control_value(this.controls.bank, restore_bank);
 					}
 				}
 			}
 
+			this.notify_triplet_changed({ immediate: false });
 			this.open_suggestions(state, { show_all_if_exact: false });
 		}
 
@@ -1366,8 +1493,9 @@
 				if (latest_acc !== raw_acc) return;
 			}
 
-			const matched = this.find_by_account(raw_acc);
+			const matched = this.find_unique_by_account(raw_acc);
 			if (matched) {
+				this.selected_family = matched;
 				const is_same_initial_norm =
 					Boolean(this.initial_values.account_number) &&
 					ArchiveCardFamilyAutocomplete.normalize_account(raw_acc) ===
@@ -1386,20 +1514,30 @@
 						matched.base_card_name
 					);
 				}
-			} else if (this.is_base_autofilled) {
-				this.is_base_autofilled = false;
-				await this.set_control_value(
-					this.controls.base_card_name,
-					this.fallback_base_card_name
-				);
+
+				if (matched.bank && this.controls.bank) {
+					this.is_bank_autofilled = true;
+					this.last_bank_raw = matched.bank;
+					await this.set_control_value(this.controls.bank, matched.bank);
+				}
+			} else {
+				this.selected_family = null;
+				if (this.is_base_autofilled) {
+					this.is_base_autofilled = false;
+					await this.set_control_value(
+						this.controls.base_card_name,
+						this.fallback_base_card_name
+					);
+				}
+				if (this.is_bank_autofilled && this.controls.bank) {
+					const restore_bank = this.fallback_bank;
+					this.is_bank_autofilled = false;
+					this.last_bank_raw = restore_bank;
+					await this.set_control_value(this.controls.bank, restore_bank);
+				}
 			}
 
-			if (this.on_account_changed) {
-				this.on_account_changed(raw_acc, {
-					immediate: false,
-					matched_family: matched,
-				});
-			}
+			this.notify_triplet_changed({ immediate: false });
 		}
 
 		filter_items(fieldname, raw_query, show_all_if_exact = false) {
@@ -1424,7 +1562,10 @@
 				for (const item of this.unique_name_items) {
 					if (item.search_key.startsWith(q_search)) {
 						prefix.push(item);
-					} else if (item.search_key.includes(q_search)) {
+					} else if (
+						item.search_key.includes(q_search) ||
+						(item.bank_search_key && item.bank_search_key.includes(q_search))
+					) {
 						sub.push(item);
 					}
 				}
@@ -1441,7 +1582,7 @@
 			const matches_known_acc =
 				show_all_if_exact &&
 				q_norm &&
-				(q_norm === init_acc_norm || this.by_norm_account.has(q_norm));
+				(q_norm === init_acc_norm || this.by_norm_account_list.has(q_norm));
 
 			if (!q_norm || matches_known_acc) {
 				return this.unique_account_items.slice(0, this.limit);
@@ -1510,6 +1651,13 @@
 							<span class="acd-ac-primary" ${is_acc ? 'dir="ltr"' : 'dir="rtl"'}>${frappe.utils.escape_html(
 								item.value
 							)}</span>
+							${
+								item.secondary_text
+									? `<span class="acd-ac-secondary" dir="rtl">${frappe.utils.escape_html(
+											item.secondary_text
+									  )}</span>`
+									: ""
+							}
 						</button>
 					`
 					)
@@ -1595,31 +1743,37 @@
 
 			this.hide_menu(state);
 			state.edited_since_focus = false;
+			this.selected_family = fam;
 
 			if (state.fieldname === "base_card_name") {
 				this.fallback_base_card_name = fam.base_card_name;
 				this.is_base_autofilled = false;
 				this.is_acc_autofilled = true;
+				this.is_bank_autofilled = true;
 				this.last_account_raw = fam.account_number;
+				this.last_bank_raw = fam.bank || "";
 
 				await this.set_control_value(this.controls.base_card_name, fam.base_card_name);
 				await this.set_control_value(this.controls.account_number, fam.account_number);
+				if (fam.bank && this.controls.bank) {
+					await this.set_control_value(this.controls.bank, fam.bank);
+				}
 			} else {
 				this.fallback_account_number = fam.account_number;
 				this.last_account_raw = fam.account_number;
+				this.last_bank_raw = fam.bank || "";
 				this.is_acc_autofilled = false;
 				this.is_base_autofilled = true;
+				this.is_bank_autofilled = true;
 
 				await this.set_control_value(this.controls.account_number, fam.account_number);
 				await this.set_control_value(this.controls.base_card_name, fam.base_card_name);
+				if (fam.bank && this.controls.bank) {
+					await this.set_control_value(this.controls.bank, fam.bank);
+				}
 			}
 
-			if (this.on_account_changed) {
-				this.on_account_changed(fam.account_number, {
-					immediate: true,
-					matched_family: fam,
-				});
-			}
+			this.notify_triplet_changed({ immediate: true, matched_family: fam });
 		}
 
 		hide_menu(state) {
@@ -1643,6 +1797,7 @@
 				state.$menu.off(this.ns).remove();
 			}
 			this.states.clear();
+			this.controls.bank?.$input?.off(this.ns);
 
 			$(document).off(this.ns);
 			$(window).off(this.ns);
