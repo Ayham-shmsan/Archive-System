@@ -56,7 +56,19 @@
 				front: null,
 				back: null,
 			};
+			this.original_staged_files = {
+				front: null,
+				back: null,
+			};
 			this.preview_urls = {
+				front: null,
+				back: null,
+			};
+			this.original_preview_urls = {
+				front: null,
+				back: null,
+			};
+			this.edit_metas = {
 				front: null,
 				back: null,
 			};
@@ -195,6 +207,9 @@
 						<div class="acd-image-slot-actions">
 							<button type="button" class="btn btn-xs btn-default" data-action="pick-image" data-side="${side}">
 								<i class="fa fa-upload"></i> اختيار صورة
+							</button>
+							<button type="button" class="btn btn-xs btn-default acd-slot-preview-edit-btn" data-action="preview-edit-image" data-side="${side}" hidden>
+								<i class="fa fa-sliders"></i> معاينة
 							</button>
 							<button type="button" class="btn btn-xs btn-default" data-action="zoom-staged" data-side="${side}" hidden>
 								<i class="fa fa-search-plus"></i> تكبير
@@ -434,6 +449,40 @@
 				}
 			});
 
+			$body.on("click", '[data-action="preview-edit-image"]', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				const side = $(e.currentTarget).attr("data-side") || "front";
+				const orig_url = this.original_preview_urls[side] || this.preview_urls[side];
+				if (!orig_url || !window.ArchiveCardImageEditor) return;
+				window.ArchiveCardImageEditor.open({
+					side,
+					side_label: side === "back" ? "الوجه الخلفي" : "الوجه الأمامي",
+					original_url: orig_url,
+					initial_meta: this.edit_metas[side] || null,
+					saved_meta: this.edit_metas[side] || null,
+					on_apply: ({ staged, blob_url, edit_meta }) => {
+						this.staged_files[side] = staged;
+						if (staged?.file_id) {
+							this.all_staged_file_ids.add(staged.file_id);
+						}
+						if (
+							this.preview_urls[side] &&
+							this.preview_urls[side] !== this.original_preview_urls[side]
+						) {
+							URL.revokeObjectURL(this.preview_urls[side]);
+						}
+						this.preview_urls[side] = blob_url;
+						this.edit_metas[side] = edit_meta || null;
+						$body
+							.find(`[data-role="preview-${side}"]`)
+							.attr("src", blob_url)
+							.addClass("is-processed")
+							.prop("hidden", false);
+					},
+				});
+			});
+
 			["front", "back"].forEach((side) => {
 				$body.on("change", `[data-role="file-input-${side}"]`, async (e) => {
 					const file = e.target.files && e.target.files[0];
@@ -450,24 +499,35 @@
 			const $empty = $body.find(`[data-role="empty-${side}"]`);
 			const $preview = $body.find(`[data-role="preview-${side}"]`);
 			const $zoomBtn = $body.find(`[data-action="zoom-staged"][data-side="${side}"]`);
+			const $editBtn = $body.find(`[data-action="preview-edit-image"][data-side="${side}"]`);
 
 			$uploading.prop("hidden", false);
 			try {
 				const staged = await upload_staged_card_image(file, side);
 				this.staged_files[side] = staged;
+				this.original_staged_files[side] = staged;
+				this.edit_metas[side] = null;
 				if (staged.file_id) {
 					this.all_staged_file_ids.add(staged.file_id);
 				}
 
-				if (this.preview_urls[side]) {
+				if (
+					this.preview_urls[side] &&
+					this.preview_urls[side] !== this.original_preview_urls[side]
+				) {
 					URL.revokeObjectURL(this.preview_urls[side]);
 				}
+				if (this.original_preview_urls[side]) {
+					URL.revokeObjectURL(this.original_preview_urls[side]);
+				}
 				const blob_url = URL.createObjectURL(file);
+				this.original_preview_urls[side] = blob_url;
 				this.preview_urls[side] = blob_url;
 
 				$empty.prop("hidden", true);
-				$preview.attr("src", blob_url).prop("hidden", false);
+				$preview.attr("src", blob_url).removeClass("is-processed").prop("hidden", false);
 				$zoomBtn.prop("hidden", false);
+				$editBtn.prop("hidden", false);
 			} catch (err) {
 				frappe.msgprint({
 					title: "خطأ في رفع الصورة",
@@ -631,6 +691,16 @@
 				pin,
 				front_image: this.staged_files.front?.file_id || this.staged_files.front?.file_url || "",
 				back_image: this.staged_files.back?.file_id || this.staged_files.back?.file_url || "",
+				front_original_image:
+					this.original_staged_files.front?.file_id ||
+					this.original_staged_files.front?.file_url ||
+					"",
+				back_original_image:
+					this.original_staged_files.back?.file_id ||
+					this.original_staged_files.back?.file_url ||
+					"",
+				front_edit_meta: this.edit_metas.front || null,
+				back_edit_meta: this.edit_metas.back || null,
 			};
 		}
 
@@ -824,6 +894,8 @@
 				const used_ids = new Set([
 					this.staged_files.front?.file_id,
 					this.staged_files.back?.file_id,
+					this.original_staged_files.front?.file_id,
+					this.original_staged_files.back?.file_id,
 				]);
 				const unused_ids = [...this.all_staged_file_ids].filter((id) => id && !used_ids.has(id));
 				if (unused_ids.length) {
@@ -851,10 +923,15 @@
 		}
 
 		cleanup_unused_staged_files() {
-			Object.values(this.preview_urls).forEach((u) => {
+			const urls = new Set([
+				...Object.values(this.preview_urls),
+				...Object.values(this.original_preview_urls),
+			]);
+			urls.forEach((u) => {
 				if (u) URL.revokeObjectURL(u);
 			});
 			this.preview_urls = { front: null, back: null };
+			this.original_preview_urls = { front: null, back: null };
 
 			if (this.saved_successfully) return;
 			const ids = [...this.all_staged_file_ids].filter(Boolean);
@@ -1805,8 +1882,978 @@
 		}
 	}
 
+	const CARD_ASPECT_RATIO = 1.586;
+
+	class ArchiveCardImageEditor {
+		static open(options = {}) {
+			const instance = new ArchiveCardImageEditor(options);
+			instance.show();
+			return instance;
+		}
+
+		static default_meta() {
+			return {
+				angle: 0,
+				quarter_turns: 0,
+				zoom: 1,
+				pan_x: 0,
+				pan_y: 0,
+			};
+		}
+
+		static normalize_meta(raw) {
+			if (!raw || typeof raw !== "object") {
+				return ArchiveCardImageEditor.default_meta();
+			}
+			const angle_num = Number(raw.angle);
+			const angle = Number.isFinite(angle_num)
+				? Math.max(-45, Math.min(45, Math.round(angle_num * 10) / 10))
+				: 0;
+			const qt_num = Number(raw.quarter_turns);
+			const quarter_turns = Number.isFinite(qt_num)
+				? ((Math.round(qt_num) % 4) + 4) % 4
+				: 0;
+			const zoom_num = Number(raw.zoom);
+			const zoom = Number.isFinite(zoom_num)
+				? Math.max(1, Math.min(4, Math.round(zoom_num * 1000) / 1000))
+				: 1;
+			const pan_x_num = Number(raw.pan_x);
+			const pan_y_num = Number(raw.pan_y);
+			return {
+				angle,
+				quarter_turns,
+				zoom,
+				pan_x: Number.isFinite(pan_x_num) ? pan_x_num : 0,
+				pan_y: Number.isFinite(pan_y_num) ? pan_y_num : 0,
+			};
+		}
+
+		static is_default_meta(meta) {
+			const m = ArchiveCardImageEditor.normalize_meta(meta);
+			return (
+				Math.abs(m.angle) < 0.05 &&
+				m.quarter_turns === 0 &&
+				Math.abs(m.zoom - 1) < 0.005 &&
+				Math.abs(m.pan_x) < 0.001 &&
+				Math.abs(m.pan_y) < 0.001
+			);
+		}
+
+		static is_same_meta(a, b) {
+			if (!a || !b) return false;
+			const ma = ArchiveCardImageEditor.normalize_meta(a);
+			const mb = ArchiveCardImageEditor.normalize_meta(b);
+			return (
+				Math.abs(ma.angle - mb.angle) < 0.05 &&
+				ma.quarter_turns === mb.quarter_turns &&
+				Math.abs(ma.zoom - mb.zoom) < 0.005 &&
+				Math.abs(ma.pan_x - mb.pan_x) < 0.002 &&
+				Math.abs(ma.pan_y - mb.pan_y) < 0.002
+			);
+		}
+
+		static compute_cover_transform(img_w, img_h, frame_w, frame_h, raw_state) {
+			const w_i = Math.max(1, Number(img_w) || 1);
+			const h_i = Math.max(1, Number(img_h) || 1);
+			const w_f = Math.max(1, Number(frame_w) || CARD_ASPECT_RATIO);
+			const h_f = Math.max(1, Number(frame_h) || 1);
+			const st = ArchiveCardImageEditor.normalize_meta(raw_state);
+
+			const total_deg = st.quarter_turns * 90 + st.angle;
+			const theta = (total_deg * Math.PI) / 180;
+			const cos_t = Math.cos(theta);
+			const sin_t = Math.sin(theta);
+			const abs_cos = Math.abs(cos_t);
+			const abs_sin = Math.abs(sin_t);
+
+			const p_x = (w_f / 2) * abs_cos + (h_f / 2) * abs_sin;
+			const p_y = (w_f / 2) * abs_sin + (h_f / 2) * abs_cos;
+
+			const min_scale = Math.max((2 * p_x) / w_i, (2 * p_y) / h_i);
+			const scale = st.zoom * min_scale;
+
+			const half_scaled_w = (scale * w_i) / 2;
+			const half_scaled_h = (scale * h_i) / 2;
+			const max_u_x = Math.max(0, half_scaled_w - p_x);
+			const max_u_y = Math.max(0, half_scaled_h - p_y);
+
+			const raw_dx = st.pan_x * w_f;
+			const raw_dy = st.pan_y * h_f;
+
+			const u_x = -raw_dx * cos_t - raw_dy * sin_t;
+			const u_y = raw_dx * sin_t - raw_dy * cos_t;
+
+			const clamped_u_x = Math.max(-max_u_x, Math.min(max_u_x, u_x));
+			const clamped_u_y = Math.max(-max_u_y, Math.min(max_u_y, u_y));
+
+			const dx = -clamped_u_x * cos_t + clamped_u_y * sin_t;
+			const dy = -clamped_u_x * sin_t - clamped_u_y * cos_t;
+
+			const clamped_pan_x = Math.round((dx / w_f) * 100000) / 100000;
+			const clamped_pan_y = Math.round((dy / h_f) * 100000) / 100000;
+
+			// Compute native output resolution (1:1 pixel density on original image, no artificial upscaling)
+			const unit_px = 0.5 * abs_cos + (0.5 / CARD_ASPECT_RATIO) * abs_sin;
+			const unit_py = 0.5 * abs_sin + (0.5 / CARD_ASPECT_RATIO) * abs_cos;
+			const unit_min_scale = Math.max((2 * unit_px) / w_i, (2 * unit_py) / h_i);
+			const unit_scale = st.zoom * unit_min_scale;
+			const native_w = Math.max(64, Math.min(3200, Math.round(1 / unit_scale)));
+			const native_h = Math.max(40, Math.round(native_w / CARD_ASPECT_RATIO));
+
+			return {
+				angle: st.angle,
+				quarter_turns: st.quarter_turns,
+				total_deg,
+				theta,
+				zoom: st.zoom,
+				min_scale,
+				scale,
+				dx,
+				dy,
+				pan_x: clamped_pan_x,
+				pan_y: clamped_pan_y,
+				native_w,
+				native_h,
+			};
+		}
+
+		constructor(options = {}) {
+			this.side = options.side || "front";
+			this.side_label =
+				options.side_label || (this.side === "back" ? "الوجه الخلفي" : "الوجه الأمامي");
+			this.original_url = options.original_url || "";
+			this.saved_meta = options.saved_meta
+				? ArchiveCardImageEditor.normalize_meta(options.saved_meta)
+				: null;
+			this.state = ArchiveCardImageEditor.normalize_meta(
+				options.initial_meta || options.saved_meta || ArchiveCardImageEditor.default_meta()
+			);
+			this.on_apply = options.on_apply || null;
+
+			this.dialog = null;
+			this.image = null;
+			this.is_loaded = false;
+			this.is_applying = false;
+			this.mode = "edit"; // "edit" | "preview"
+			this.show_grid = true;
+
+			this._is_dragging = false;
+			this._drag_start_x = 0;
+			this._drag_start_y = 0;
+			this._drag_start_pan_x = 0;
+			this._drag_start_pan_y = 0;
+			this._ns = `.acie_${Math.random().toString(36).slice(2, 9)}`;
+		}
+
+		show() {
+			this.dialog = new frappe.ui.Dialog({
+				title: `معاينة وضبط صورة البطاقة — ${this.side_label}`,
+				size: "extra-large",
+				primary_action_label: "اعتماد التعديل",
+				primary_action: () => {
+					this.handle_apply();
+				},
+				secondary_action_label: "إلغاء",
+				secondary_action: () => {
+					this.dialog.hide();
+				},
+			});
+
+			this.dialog.$wrapper.addClass("archive-card-image-editor-modal");
+			this.render_shell();
+			this.bind_events();
+
+			this.dialog.onhide = () => {
+				$(window).off(this._ns);
+				$(document).off(this._ns);
+			};
+
+			this.dialog.show();
+			this.load_original_image();
+		}
+
+		render_shell() {
+			const $body = $(this.dialog.body);
+			$body.attr("dir", "rtl").html(`
+				<div class="acie-workspace" dir="rtl" data-mode="edit">
+					<div class="acie-topbar">
+						<div class="acie-topbar-identity">
+							<span class="acie-side-pill">
+								<i class="fa fa-id-card-o"></i>
+								<span>${frappe.utils.escape_html(this.side_label)}</span>
+							</span>
+							<span class="acie-meta-chip" data-role="orig-dims-chip">
+								<i class="fa fa-picture-o"></i>
+								<span data-role="orig-dims-text">جاري تحميل الأصل...</span>
+							</span>
+							<span class="acie-meta-chip is-aspect" dir="ltr">
+								<i class="fa fa-crop"></i> 1.586 : 1
+							</span>
+						</div>
+
+						<div class="acie-topbar-actions">
+							<div class="acie-mode-segmented" role="tablist">
+								<button
+									type="button"
+									class="acie-mode-tab is-active"
+									data-action="editor-switch-mode"
+									data-target-mode="edit"
+								>
+									<i class="fa fa-sliders"></i> وضع التحرير
+								</button>
+								<button
+									type="button"
+									class="acie-mode-tab"
+									data-action="editor-switch-mode"
+									data-target-mode="preview"
+								>
+									<i class="fa fa-eye"></i> معاينة النتيجة
+								</button>
+							</div>
+						</div>
+					</div>
+
+					<div class="acie-main-grid">
+						<!-- Visual Stage -->
+						<div class="acie-stage-panel">
+							<div class="acie-stage-header-bar">
+								<div class="acie-stage-status" data-role="stage-status-badge">
+									<span class="acie-status-dot"></span>
+									<span data-role="stage-status-text">اسحب الصورة داخل الإطار لضبط التموضع • عجلة الفأرة للتكبير</span>
+								</div>
+								<button
+									type="button"
+									class="acie-grid-toggle-btn is-active"
+									data-action="editor-toggle-grid"
+									title="إظهار / إخفاء شبكة المحاذاة"
+								>
+									<i class="fa fa-th"></i>
+									<span>شبكة المحاذاة</span>
+								</button>
+							</div>
+
+							<div class="acie-stage-viewport">
+								<div class="acie-crop-frame" data-role="crop-frame">
+									<canvas class="acie-canvas" data-role="editor-canvas"></canvas>
+
+									<div class="acie-alignment-grid" data-role="alignment-grid">
+										<span class="acie-grid-line is-v is-v1"></span>
+										<span class="acie-grid-line is-v is-v2"></span>
+										<span class="acie-grid-line is-h is-h1"></span>
+										<span class="acie-grid-line is-h is-h2"></span>
+										<span class="acie-grid-center-v"></span>
+										<span class="acie-grid-center-h"></span>
+										<span class="acie-corner is-tl"></span>
+										<span class="acie-corner is-tr"></span>
+										<span class="acie-corner is-bl"></span>
+										<span class="acie-corner is-br"></span>
+									</div>
+
+									<div class="acie-preview-clean-badge" data-role="clean-preview-badge" hidden>
+										<i class="fa fa-check-circle"></i>
+										<span>معاينة النتيجة النهائية المعتمدة للبطاقة</span>
+									</div>
+
+									<div class="acie-stage-loading" data-role="stage-loading">
+										<i class="fa fa-spinner fa-spin"></i>
+										<span>جاري تحميل الصورة الأصلية بأعلى دقة...</span>
+									</div>
+								</div>
+							</div>
+
+							<div class="acie-stage-hud">
+								<div class="acie-hud-metrics">
+									<span class="acie-hud-pill">
+										<small>زاوية التدوير:</small>
+										<strong dir="ltr" data-role="hud-angle">0.0°</strong>
+									</span>
+									<span class="acie-hud-pill">
+										<small>مستوى التكبير:</small>
+										<strong dir="ltr" data-role="hud-zoom">100%</strong>
+									</span>
+									<span class="acie-hud-pill">
+										<small>دقة الإخراج الفعلية:</small>
+										<strong dir="ltr" data-role="hud-out-dims">—</strong>
+									</span>
+								</div>
+								<div class="acie-hud-guarantee">
+									<i class="fa fa-shield"></i>
+									<span>ملء تلقائي كامل بدون فراغات أو مطّ</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- Control Dock -->
+						<div class="acie-controls-dock">
+							<!-- Edit Mode Controls -->
+							<div class="acie-dock-edit-stack" data-role="dock-edit-stack">
+								<!-- Card 1: Rotation -->
+								<div class="acie-control-card">
+									<div class="acie-card-head">
+										<div class="acie-card-title">
+											<i class="fa fa-repeat"></i>
+											<span>التدوير والمحاذاة</span>
+										</div>
+										<span class="acie-value-badge" dir="ltr" data-role="angle-badge">0.0°</span>
+									</div>
+
+									<div class="acie-quarter-row">
+										<button
+											type="button"
+											class="acie-tool-btn"
+											data-action="editor-rotate-90"
+											data-dir="-1"
+											title="تدوير 90 درجة لليسار"
+										>
+											<i class="fa fa-undo"></i>
+											<span dir="ltr">-90°</span>
+										</button>
+										<button
+											type="button"
+											class="acie-tool-btn"
+											data-action="editor-rotate-90"
+											data-dir="1"
+											title="تدوير 90 درجة لليمين"
+										>
+											<i class="fa fa-repeat"></i>
+											<span dir="ltr">+90°</span>
+										</button>
+										<button
+											type="button"
+											class="acie-tool-btn is-subtle"
+											data-action="editor-zero-fine-angle"
+											title="تصفير زاوية الميلان الحر"
+										>
+											<span>تصفير الميلان</span>
+										</button>
+									</div>
+
+									<div class="acie-slider-block">
+										<div class="acie-slider-labels">
+											<span>تدوير حر دقيق</span>
+											<span class="acie-slider-range-hint" dir="ltr">-45° .. +45°</span>
+										</div>
+										<div class="acie-slider-row" dir="ltr">
+											<button
+												type="button"
+												class="acie-step-btn"
+												data-action="editor-step-angle"
+												data-step="-0.5"
+												title="إنقاص 0.5 درجة"
+											>
+												<i class="fa fa-minus"></i>
+											</button>
+											<input
+												type="range"
+												class="acie-range-input"
+												data-role="angle-slider"
+												min="-45"
+												max="45"
+												step="0.5"
+												value="0"
+											/>
+											<button
+												type="button"
+												class="acie-step-btn"
+												data-action="editor-step-angle"
+												data-step="0.5"
+												title="زيادة 0.5 درجة"
+											>
+												<i class="fa fa-plus"></i>
+											</button>
+										</div>
+									</div>
+								</div>
+
+								<!-- Card 2: Zoom -->
+								<div class="acie-control-card">
+									<div class="acie-card-head">
+										<div class="acie-card-title">
+											<i class="fa fa-search-plus"></i>
+											<span>التكبير والامتلاء</span>
+										</div>
+										<div class="acie-head-right-group">
+											<button
+												type="button"
+												class="acie-mini-link-btn"
+												data-action="editor-reset-zoom"
+											>
+												100%
+											</button>
+											<span class="acie-value-badge" dir="ltr" data-role="zoom-badge">100%</span>
+										</div>
+									</div>
+
+									<div class="acie-slider-row" dir="ltr">
+										<button
+											type="button"
+											class="acie-step-btn"
+											data-action="editor-step-zoom"
+											data-step="-0.1"
+											title="تصغير"
+										>
+											<i class="fa fa-search-minus"></i>
+										</button>
+										<input
+											type="range"
+											class="acie-range-input"
+											data-role="zoom-slider"
+											min="1"
+											max="4"
+											step="0.02"
+											value="1"
+										/>
+										<button
+											type="button"
+											class="acie-step-btn"
+											data-action="editor-step-zoom"
+											data-step="0.1"
+											title="تكبير"
+										>
+											<i class="fa fa-search-plus"></i>
+										</button>
+									</div>
+
+									<div class="acie-card-note">
+										<i class="fa fa-arrows"></i>
+										<span>اسحب الصورة بالفأرة أو اللمس لتحريكها بحرية ضمن حدود الإطار.</span>
+									</div>
+								</div>
+
+								<!-- Card 3: State Reset / Restore & Mode Switch -->
+								<div class="acie-control-card acie-actions-card">
+									<div class="acie-card-head">
+										<div class="acie-card-title">
+											<i class="fa fa-history"></i>
+											<span>استعادة الضبط والاعتماد</span>
+										</div>
+									</div>
+
+									<div class="acie-state-btns-grid">
+										<button
+											type="button"
+											class="acie-state-btn"
+											data-action="editor-reset"
+										>
+											<i class="fa fa-refresh"></i>
+											<span>إعادة للأصل</span>
+										</button>
+										<button
+											type="button"
+											class="acie-state-btn"
+											data-action="editor-restore-saved"
+											disabled
+										>
+											<i class="fa fa-undo"></i>
+											<span>آخر حالة محفوظة</span>
+										</button>
+									</div>
+
+									<button
+										type="button"
+										class="acie-preview-cta-btn"
+										data-action="editor-switch-mode"
+										data-target-mode="preview"
+									>
+										<i class="fa fa-eye"></i>
+										<span>معاينة النتيجة النهائية قبل الاعتماد</span>
+									</button>
+								</div>
+							</div>
+
+							<!-- Result Preview Mode Card -->
+							<div class="acie-dock-preview-stack" data-role="dock-preview-stack" hidden>
+								<div class="acie-control-card acie-preview-summary-card">
+									<div class="acie-preview-summary-icon">
+										<i class="fa fa-check-circle"></i>
+									</div>
+									<div class="acie-preview-summary-title">معاينة النتيجة النهائية</div>
+									<p class="acie-preview-summary-desc">
+										تظهر الصورة الآن تماماً كما ستُعرض داخل خانة
+										<strong>${frappe.utils.escape_html(this.side_label)}</strong>
+										بنسبة أبعاد البطاقة القياسية وبدون أي حواف فارغة.
+									</p>
+
+									<div class="acie-preview-specs-box">
+										<div class="acie-spec-row">
+											<span>إجمالي زاوية التدوير:</span>
+											<strong dir="ltr" data-role="summary-angle">0.0°</strong>
+										</div>
+										<div class="acie-spec-row">
+											<span>مستوى التكبير:</span>
+											<strong dir="ltr" data-role="summary-zoom">100%</strong>
+										</div>
+										<div class="acie-spec-row">
+											<span>أبعاد الإخراج من الأصل:</span>
+											<strong dir="ltr" data-role="summary-dims">—</strong>
+										</div>
+									</div>
+
+									<div class="acie-preview-pending-note">
+										<i class="fa fa-info-circle"></i>
+										<span>
+											الضغط على <strong>اعتماد التعديل</strong> يُحدّث الصورة في نافذة البطاقة مؤقتاً، ويتم الحفظ النهائي عند الضغط على زر حفظ البطاقة.
+										</span>
+									</div>
+
+									<div class="acie-preview-action-stack">
+										<button
+											type="button"
+											class="btn btn-primary btn-block acie-confirm-apply-btn"
+											data-action="editor-apply"
+										>
+											<i class="fa fa-check"></i> اعتماد التعديل
+										</button>
+										<button
+											type="button"
+											class="btn btn-default btn-block acie-back-edit-btn"
+											data-action="editor-switch-mode"
+											data-target-mode="edit"
+										>
+											<i class="fa fa-sliders"></i> رجوع للتحرير
+										</button>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			`);
+		}
+
+		load_original_image() {
+			const $body = $(this.dialog.body);
+			const $loading = $body.find('[data-role="stage-loading"]');
+			$loading.prop("hidden", false);
+
+			const img = new Image();
+			img.crossOrigin = "anonymous";
+			img.onload = () => {
+				this.image = img;
+				this.is_loaded = true;
+				$loading.prop("hidden", true);
+				$body
+					.find('[data-role="orig-dims-text"]')
+					.text(`الأصل: ${img.naturalWidth} × ${img.naturalHeight} px`);
+				this.sync_all_ui();
+			};
+			img.onerror = () => {
+				$loading.prop("hidden", true);
+				frappe.msgprint({
+					title: "تعذر تحميل الصورة",
+					message: "تعذر تحميل الصورة الأصلية للمحرر.",
+					indicator: "red",
+				});
+			};
+			img.src = this.original_url;
+		}
+
+		bind_events() {
+			const $body = $(this.dialog.body);
+			const $frame = $body.find('[data-role="crop-frame"]');
+
+			// Mode switch (edit <-> preview)
+			$body.on("click", '[data-action="editor-switch-mode"]', (e) => {
+				e.preventDefault();
+				const target = $(e.currentTarget).attr("data-target-mode") || "edit";
+				this.set_mode(target);
+			});
+
+			// Toggle alignment grid
+			$body.on("click", '[data-action="editor-toggle-grid"]', (e) => {
+				e.preventDefault();
+				this.show_grid = !this.show_grid;
+				this.sync_all_ui();
+			});
+
+			// ±90° rotation shortcuts
+			$body.on("click", '[data-action="editor-rotate-90"]', (e) => {
+				e.preventDefault();
+				if (!this.is_loaded || this.mode !== "edit") return;
+				const dir = Number($(e.currentTarget).attr("data-dir")) || 1;
+				this.state.quarter_turns = (((this.state.quarter_turns + dir) % 4) + 4) % 4;
+				this.sync_all_ui();
+			});
+
+			// Zero fine angle
+			$body.on("click", '[data-action="editor-zero-fine-angle"]', (e) => {
+				e.preventDefault();
+				if (!this.is_loaded || this.mode !== "edit") return;
+				this.state.angle = 0;
+				this.sync_all_ui();
+			});
+
+			// Fine angle slider & step buttons
+			$body.on("input change", '[data-role="angle-slider"]', (e) => {
+				if (!this.is_loaded || this.mode !== "edit") return;
+				const val = Number(e.currentTarget.value);
+				this.state.angle = Number.isFinite(val)
+					? Math.max(-45, Math.min(45, Math.round(val * 10) / 10))
+					: 0;
+				this.sync_all_ui();
+			});
+
+			$body.on("click", '[data-action="editor-step-angle"]', (e) => {
+				e.preventDefault();
+				if (!this.is_loaded || this.mode !== "edit") return;
+				const step = Number($(e.currentTarget).attr("data-step")) || 0;
+				this.state.angle = Math.max(
+					-45,
+					Math.min(45, Math.round((this.state.angle + step) * 10) / 10)
+				);
+				this.sync_all_ui();
+			});
+
+			// Zoom slider, step buttons, & 100% reset
+			$body.on("input change", '[data-role="zoom-slider"]', (e) => {
+				if (!this.is_loaded || this.mode !== "edit") return;
+				const val = Number(e.currentTarget.value);
+				this.state.zoom = Number.isFinite(val)
+					? Math.max(1, Math.min(4, Math.round(val * 1000) / 1000))
+					: 1;
+				this.sync_all_ui();
+			});
+
+			$body.on("click", '[data-action="editor-step-zoom"]', (e) => {
+				e.preventDefault();
+				if (!this.is_loaded || this.mode !== "edit") return;
+				const step = Number($(e.currentTarget).attr("data-step")) || 0;
+				this.state.zoom = Math.max(
+					1,
+					Math.min(4, Math.round((this.state.zoom + step) * 1000) / 1000)
+				);
+				this.sync_all_ui();
+			});
+
+			$body.on("click", '[data-action="editor-reset-zoom"]', (e) => {
+				e.preventDefault();
+				if (!this.is_loaded || this.mode !== "edit") return;
+				this.state.zoom = 1;
+				this.sync_all_ui();
+			});
+
+			// Reset to original
+			$body.on("click", '[data-action="editor-reset"]', (e) => {
+				e.preventDefault();
+				if (!this.is_loaded) return;
+				this.state = ArchiveCardImageEditor.default_meta();
+				this.sync_all_ui();
+			});
+
+			// Restore last saved state
+			$body.on("click", '[data-action="editor-restore-saved"]', (e) => {
+				e.preventDefault();
+				if (!this.is_loaded || !this.saved_meta) return;
+				this.state = ArchiveCardImageEditor.normalize_meta(this.saved_meta);
+				this.sync_all_ui();
+			});
+
+			// Apply button inside preview panel
+			$body.on("click", '[data-action="editor-apply"]', (e) => {
+				e.preventDefault();
+				this.handle_apply();
+			});
+
+			// Mouse wheel zoom on crop frame
+			$frame.on("wheel", (e) => {
+				if (!this.is_loaded || this.mode !== "edit") return;
+				e.preventDefault();
+				const orig = e.originalEvent || e;
+				const delta = orig.deltaY < 0 ? 0.08 : -0.08;
+				this.state.zoom = Math.max(
+					1,
+					Math.min(4, Math.round((this.state.zoom + delta) * 1000) / 1000)
+				);
+				this.sync_all_ui();
+			});
+
+			// Mouse / Touch Drag to Pan
+			const start_drag = (clientX, clientY) => {
+				if (!this.is_loaded || this.mode !== "edit") return;
+				this._is_dragging = true;
+				this._drag_start_x = clientX;
+				this._drag_start_y = clientY;
+				this._drag_start_pan_x = this.state.pan_x;
+				this._drag_start_pan_y = this.state.pan_y;
+				$frame.addClass("is-dragging");
+			};
+
+			const move_drag = (clientX, clientY) => {
+				if (!this._is_dragging || !this.is_loaded || this.mode !== "edit") return;
+				const rect = $frame[0]?.getBoundingClientRect();
+				if (!rect || !rect.width || !rect.height) return;
+				const d_pan_x = (clientX - this._drag_start_x) / rect.width;
+				const d_pan_y = (clientY - this._drag_start_y) / rect.height;
+				this.state.pan_x = this._drag_start_pan_x + d_pan_x;
+				this.state.pan_y = this._drag_start_pan_y + d_pan_y;
+				this.sync_all_ui();
+			};
+
+			const end_drag = () => {
+				if (!this._is_dragging) return;
+				this._is_dragging = false;
+				$frame.removeClass("is-dragging");
+			};
+
+			$frame.on("mousedown", (e) => {
+				if (e.button !== 0) return;
+				e.preventDefault();
+				start_drag(e.clientX, e.clientY);
+			});
+
+			$(document).on(`mousemove${this._ns}`, (e) => {
+				move_drag(e.clientX, e.clientY);
+			});
+
+			$(document).on(`mouseup${this._ns}`, () => {
+				end_drag();
+			});
+
+			$frame.on("touchstart", (e) => {
+				const t = e.originalEvent?.touches?.[0];
+				if (!t) return;
+				start_drag(t.clientX, t.clientY);
+			});
+
+			$(document).on(`touchmove${this._ns}`, (e) => {
+				if (!this._is_dragging) return;
+				const t = e.originalEvent?.touches?.[0];
+				if (!t) return;
+				move_drag(t.clientX, t.clientY);
+			});
+
+			$(document).on(`touchend${this._ns} touchcancel${this._ns}`, () => {
+				end_drag();
+			});
+
+			$(window).on(`resize${this._ns}`, () => {
+				if (this.is_loaded) {
+					this.render_canvas();
+				}
+			});
+		}
+
+		set_mode(mode) {
+			this.mode = mode === "preview" ? "preview" : "edit";
+			this.sync_all_ui();
+		}
+
+		sync_all_ui() {
+			if (!this.dialog) return;
+			const $body = $(this.dialog.body);
+			const is_preview = this.mode === "preview";
+
+			$body.find(".acie-workspace").attr("data-mode", this.mode);
+			$body.find('[data-action="editor-switch-mode"]').each((_, el) => {
+				const $el = $(el);
+				if ($el.hasClass("acie-mode-tab")) {
+					$el.toggleClass("is-active", $el.attr("data-target-mode") === this.mode);
+				}
+			});
+
+			$body.find('[data-role="dock-edit-stack"]').prop("hidden", is_preview);
+			$body.find('[data-role="dock-preview-stack"]').prop("hidden", !is_preview);
+			$body.find('[data-role="clean-preview-badge"]').prop("hidden", !is_preview);
+			$body
+				.find('[data-action="editor-toggle-grid"]')
+				.prop("hidden", is_preview)
+				.toggleClass("is-active", Boolean(this.show_grid));
+			$body
+				.find('[data-role="alignment-grid"]')
+				.prop("hidden", is_preview || !this.show_grid);
+			$body
+				.find('[data-role="stage-status-text"]')
+				.text(
+					is_preview
+						? "معاينة صافية للنتيجة النهائية — يمكنك الرجوع للتحرير أو اعتماد التعديل"
+						: "اسحب الصورة داخل الإطار لضبط التموضع • عجلة الفأرة للتكبير"
+				);
+
+			if (!this.is_loaded || !this.image) return;
+
+			// Clamp pan via cover math
+			const tf = ArchiveCardImageEditor.compute_cover_transform(
+				this.image.naturalWidth,
+				this.image.naturalHeight,
+				CARD_ASPECT_RATIO * 1000,
+				1000,
+				this.state
+			);
+			this.state.pan_x = tf.pan_x;
+			this.state.pan_y = tf.pan_y;
+
+			const total_deg_str = `${tf.total_deg >= 0 ? "+" : ""}${tf.total_deg.toFixed(1)}°`;
+			const fine_deg_str = `${this.state.angle >= 0 ? "+" : ""}${this.state.angle.toFixed(1)}°`;
+			const zoom_pct_str = `${Math.round(this.state.zoom * 100)}%`;
+			const out_dims_str = `${tf.native_w} × ${tf.native_h} px`;
+
+			$body.find('[data-role="angle-slider"]').val(String(this.state.angle));
+			$body.find('[data-role="zoom-slider"]').val(String(this.state.zoom));
+			$body.find('[data-role="angle-badge"]').text(fine_deg_str);
+			$body.find('[data-role="zoom-badge"]').text(zoom_pct_str);
+
+			$body.find('[data-role="hud-angle"]').text(total_deg_str);
+			$body.find('[data-role="hud-zoom"]').text(zoom_pct_str);
+			$body.find('[data-role="hud-out-dims"]').text(out_dims_str);
+
+			$body.find('[data-role="summary-angle"]').text(total_deg_str);
+			$body.find('[data-role="summary-zoom"]').text(zoom_pct_str);
+			$body.find('[data-role="summary-dims"]').text(out_dims_str);
+
+			const is_def = ArchiveCardImageEditor.is_default_meta(this.state);
+			$body.find('[data-action="editor-reset"]').prop("disabled", is_def);
+			$body
+				.find('[data-action="editor-zero-fine-angle"]')
+				.prop("disabled", Math.abs(this.state.angle) < 0.05);
+			$body
+				.find('[data-action="editor-reset-zoom"]')
+				.prop("disabled", Math.abs(this.state.zoom - 1) < 0.005);
+
+			const can_restore =
+				Boolean(this.saved_meta) &&
+				!ArchiveCardImageEditor.is_same_meta(this.state, this.saved_meta);
+			$body.find('[data-action="editor-restore-saved"]').prop("disabled", !can_restore);
+
+			this.render_canvas();
+		}
+
+		draw_to_canvas(canvas, target_w, target_h) {
+			if (!canvas || !this.image) return null;
+			const ctx = canvas.getContext("2d");
+			if (!ctx) return null;
+
+			const tf = ArchiveCardImageEditor.compute_cover_transform(
+				this.image.naturalWidth,
+				this.image.naturalHeight,
+				target_w,
+				target_h,
+				this.state
+			);
+
+			ctx.save();
+			ctx.fillStyle = "#0f172a";
+			ctx.fillRect(0, 0, target_w, target_h);
+			ctx.imageSmoothingEnabled = true;
+			if ("imageSmoothingQuality" in ctx) {
+				ctx.imageSmoothingQuality = "high";
+			}
+
+			ctx.translate(target_w / 2 + tf.dx, target_h / 2 + tf.dy);
+			ctx.rotate(tf.theta);
+			ctx.scale(tf.scale, tf.scale);
+			ctx.drawImage(
+				this.image,
+				-this.image.naturalWidth / 2,
+				-this.image.naturalHeight / 2,
+				this.image.naturalWidth,
+				this.image.naturalHeight
+			);
+			ctx.restore();
+			return tf;
+		}
+
+		render_canvas() {
+			if (!this.dialog || !this.image) return;
+			const $body = $(this.dialog.body);
+			const $frame = $body.find('[data-role="crop-frame"]');
+			const canvas = $body.find('[data-role="editor-canvas"]')[0];
+			if (!canvas || !$frame.length) return;
+
+			const rect = $frame[0].getBoundingClientRect();
+			const css_w = Math.max(320, Math.round(rect.width || 620));
+			const css_h = Math.max(200, Math.round(css_w / CARD_ASPECT_RATIO));
+			const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+			const buf_w = Math.round(css_w * dpr);
+			const buf_h = Math.round(css_h * dpr);
+
+			if (canvas.width !== buf_w || canvas.height !== buf_h) {
+				canvas.width = buf_w;
+				canvas.height = buf_h;
+			}
+			this.draw_to_canvas(canvas, buf_w, buf_h);
+		}
+
+		async export_high_res_file() {
+			const tf = ArchiveCardImageEditor.compute_cover_transform(
+				this.image.naturalWidth,
+				this.image.naturalHeight,
+				CARD_ASPECT_RATIO * 1000,
+				1000,
+				this.state
+			);
+			const out_canvas = document.createElement("canvas");
+			out_canvas.width = tf.native_w;
+			out_canvas.height = tf.native_h;
+			this.draw_to_canvas(out_canvas, tf.native_w, tf.native_h);
+
+			const blob = await new Promise((resolve, reject) => {
+				out_canvas.toBlob(
+					(b) => {
+						if (b) resolve(b);
+						else reject(new Error("تعذر استخراج الصورة المعالجة."));
+					},
+					"image/jpeg",
+					0.95
+				);
+			});
+
+			const file_name = `card_${this.side}_edited_${Date.now()}.jpg`;
+			const file = new File([blob], file_name, { type: "image/jpeg" });
+			return {
+				file,
+				blob,
+				edit_meta: {
+					angle: tf.angle,
+					quarter_turns: tf.quarter_turns,
+					zoom: tf.zoom,
+					pan_x: tf.pan_x,
+					pan_y: tf.pan_y,
+				},
+			};
+		}
+
+		async handle_apply() {
+			if (!this.is_loaded || !this.image || this.is_applying) return;
+			this.is_applying = true;
+			const $primary = this.dialog.get_primary_btn();
+			const $applyBtns = $(this.dialog.body).find('[data-action="editor-apply"]');
+			$primary.prop("disabled", true);
+			$applyBtns.prop("disabled", true);
+
+			try {
+				const { file, blob, edit_meta } = await this.export_high_res_file();
+				const staged = await upload_staged_card_image(file, this.side);
+				const blob_url = URL.createObjectURL(blob);
+
+				if (typeof this.on_apply === "function") {
+					await this.on_apply({
+						staged,
+						blob_url,
+						edit_meta,
+					});
+				}
+				frappe.show_alert({
+					message: `تم اعتماد تعديل صورة ${this.side_label} بانتظار حفظ البطاقة.`,
+					indicator: "blue",
+				});
+				this.dialog.hide();
+			} catch (err) {
+				frappe.msgprint({
+					title: "خطأ أثناء اعتماد الصورة",
+					message: err?.message || "تعذر تجهيز الصورة المعالجة.",
+					indicator: "red",
+				});
+			} finally {
+				this.is_applying = false;
+				$primary.prop("disabled", false);
+				$applyBtns.prop("disabled", false);
+			}
+		}
+	}
+
 	window.ArchiveCardFamilyAutocomplete = ArchiveCardFamilyAutocomplete;
 	window.ArchiveCardDailyLimitInput = ArchiveCardDailyLimitInput;
 	window.ArchiveCardCreateDialog = ArchiveCardCreateDialog;
+	window.ArchiveCardImageEditor = ArchiveCardImageEditor;
 	window.upload_staged_card_image = upload_staged_card_image;
 })();

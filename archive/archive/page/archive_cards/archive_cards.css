@@ -62,7 +62,7 @@
 
 .ac-upper-split-layout {
 	display: grid;
-	grid-template-columns: minmax(360px, 430px) minmax(0, 1fr);
+	grid-template-columns: minmax(360px, 1fr) 690px;
 	gap: 16px;
 	align-items: stretch;
 	height: 100%;
@@ -73,7 +73,7 @@
 		grid-template-columns: minmax(0, 1fr) 195px;
 	}
 	.ac-upper-split-layout {
-		grid-template-columns: minmax(310px, 365px) minmax(0, 1fr);
+		grid-template-columns: minmax(310px, 1fr) 590px;
 		gap: 14px;
 	}
 }
@@ -322,7 +322,6 @@
 .ac-preview-aspect-frame {
 	width: 100%;
 	aspect-ratio: 1.586 / 1;
-	max-height: 235px;
 	margin-top: auto;
 	margin-bottom: auto;
 	border-radius: 9px;

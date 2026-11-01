@@ -30,6 +30,10 @@
     "column_break_security_1",
     "front_image",
     "back_image",
+    "front_original_image",
+    "back_original_image",
+    "front_edit_meta",
+    "back_edit_meta",
     "status_section",
     "status",
     "status_reason",
@@ -225,6 +229,36 @@
       "label": "صورة الوجه الخلفي",
       "read_only": 1,
       "reqd": 0
+    },
+    {
+      "fieldname": "front_original_image",
+      "fieldtype": "Attach Image",
+      "hidden": 1,
+      "label": "صورة الوجه الأمامي الأصلية",
+      "read_only": 1,
+      "reqd": 0
+    },
+    {
+      "fieldname": "back_original_image",
+      "fieldtype": "Attach Image",
+      "hidden": 1,
+      "label": "صورة الوجه الخلفي الأصلية",
+      "read_only": 1,
+      "reqd": 0
+    },
+    {
+      "fieldname": "front_edit_meta",
+      "fieldtype": "Long Text",
+      "hidden": 1,
+      "label": "بيانات تحرير الوجه الأمامي",
+      "read_only": 1
+    },
+    {
+      "fieldname": "back_edit_meta",
+      "fieldtype": "Long Text",
+      "hidden": 1,
+      "label": "بيانات تحرير الوجه الخلفي",
+      "read_only": 1
     },
     {
       "fieldname": "status_section",

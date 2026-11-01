@@ -188,6 +188,7 @@ def remove_unreferenced_card_file_by_url(
 	file_url: str | None,
 	exclude_card_name: str | None = None,
 ) -> None:
+	_ = exclude_card_name
 	clean_url = (file_url or "").strip()
 	if not clean_url or not clean_url.startswith("/private/files/"):
 		return
@@ -196,11 +197,15 @@ def remove_unreferenced_card_file_by_url(
 		"""
 		SELECT name
 		FROM `tabArchive Card`
-		WHERE (front_image = %(url)s OR back_image = %(url)s)
-		  AND (%(exclude)s IS NULL OR name != %(exclude)s)
+		WHERE (
+			front_image = %(url)s
+			OR back_image = %(url)s
+			OR front_original_image = %(url)s
+			OR back_original_image = %(url)s
+		)
 		LIMIT 1
 		""",
-		{"url": clean_url, "exclude": exclude_card_name},
+		{"url": clean_url},
 	)
 	if other_refs:
 		return
@@ -255,7 +260,10 @@ def cleanup_staged_card_files(file_ids: list[str] | None = None) -> dict[str, An
 			"""
 			SELECT name
 			FROM `tabArchive Card`
-			WHERE front_image = %(url)s OR back_image = %(url)s
+			WHERE front_image = %(url)s
+			   OR back_image = %(url)s
+			   OR front_original_image = %(url)s
+			   OR back_original_image = %(url)s
 			LIMIT 1
 			""",
 			{"url": row.get("file_url")},
@@ -274,19 +282,21 @@ def get_card_image_endpoint(
 	side: str,
 	version_token: str | None = None,
 	user: str | None = None,
+	original: bool = False,
 ) -> str | None:
 	if not has_card_permission("view_card_images", user=user):
 		return None
 	if side not in VALID_IMAGE_SIDES:
 		return None
 	ver = quote(str(version_token or "1"))
+	orig_param = "&original=1" if original else ""
 	return (
 		f"/api/method/archive.api.cards.get_card_image"
-		f"?card={quote(card_name)}&side={quote(side)}&v={ver}"
+		f"?card={quote(card_name)}&side={quote(side)}&v={ver}{orig_param}"
 	)
 
 
-def stream_card_image(card_name: str, side: str) -> None:
+def stream_card_image(card_name: str, side: str, original: bool = False) -> None:
 	require_card_permission(
 		"view_card_images",
 		_("ليست لديك صلاحية لعرض صور البطاقات."),
@@ -297,14 +307,24 @@ def stream_card_image(card_name: str, side: str) -> None:
 	card_row = frappe.db.get_value(
 		CARD_DOCTYPE,
 		card_name,
-		["name", "is_deleted", "front_image", "back_image"],
+		["name", "is_deleted", "front_image", "back_image", "front_original_image", "back_original_image"],
 		as_dict=True,
 	)
 	if not card_row or cint(card_row.get("is_deleted")):
 		frappe.throw(_("البطاقة المطلوبة غير موجودة."), frappe.DoesNotExistError)
 
-	fieldname = "front_image" if side == "front" else "back_image"
-	file_url = (card_row.get(fieldname) or "").strip()
+	if side == "front":
+		file_url = (
+			(card_row.get("front_original_image") or card_row.get("front_image") or "")
+			if original
+			else (card_row.get("front_image") or "")
+		).strip()
+	else:
+		file_url = (
+			(card_row.get("back_original_image") or card_row.get("back_image") or "")
+			if original
+			else (card_row.get("back_image") or "")
+		).strip()
 	if not file_url:
 		frappe.throw(_("صورة البطاقة غير متوفرة."), frappe.DoesNotExistError)
 

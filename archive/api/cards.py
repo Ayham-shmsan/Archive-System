@@ -155,6 +155,37 @@ def _validate_unique_card_number(card_number: str, exclude_card: str | None = No
 		)
 
 
+def _normalize_edit_meta_json(raw_meta: Any) -> str | None:
+	if raw_meta is None or raw_meta == "":
+		return None
+	if isinstance(raw_meta, dict):
+		return json.dumps(raw_meta, ensure_ascii=False) if raw_meta else None
+	if isinstance(raw_meta, str):
+		clean_str = raw_meta.strip()
+		if not clean_str:
+			return None
+		try:
+			parsed = json.loads(clean_str)
+			return json.dumps(parsed, ensure_ascii=False) if isinstance(parsed, dict) and parsed else None
+		except Exception:
+			return None
+	return None
+
+
+def _parse_edit_meta_dict(raw_meta: Any) -> dict[str, Any] | None:
+	if not raw_meta:
+		return None
+	if isinstance(raw_meta, dict):
+		return raw_meta or None
+	if isinstance(raw_meta, str):
+		try:
+			parsed = json.loads(raw_meta)
+			return parsed if isinstance(parsed, dict) and parsed else None
+		except Exception:
+			return None
+	return None
+
+
 def _serialize_card_row(
 	row: dict[str, Any],
 	can_view_images: bool,
@@ -173,6 +204,16 @@ def _serialize_card_row(
 	back_url = (
 		get_card_image_endpoint(card_name, "back", version_token=version_token)
 		if can_view_images and row.get("back_image")
+		else None
+	)
+	front_orig_url = (
+		get_card_image_endpoint(card_name, "front", version_token=version_token, original=True)
+		if can_view_images and (row.get("front_original_image") or row.get("front_image"))
+		else None
+	)
+	back_orig_url = (
+		get_card_image_endpoint(card_name, "back", version_token=version_token, original=True)
+		if can_view_images and (row.get("back_original_image") or row.get("back_image"))
 		else None
 	)
 
@@ -209,6 +250,10 @@ def _serialize_card_row(
 		"has_back_image": bool(row.get("back_image")),
 		"front_image_url": front_url,
 		"back_image_url": back_url,
+		"front_original_image_url": front_orig_url,
+		"back_original_image_url": back_orig_url,
+		"front_edit_meta": _parse_edit_meta_dict(row.get("front_edit_meta")),
+		"back_edit_meta": _parse_edit_meta_dict(row.get("back_edit_meta")),
 		"family_cards_count": cint(fam_count or 1),
 		"creation": cstr(row.get("creation") or ""),
 		"modified": cstr(row.get("modified") or ""),
@@ -378,6 +423,10 @@ def get_cards_context(
 			c.has_pin,
 			c.front_image,
 			c.back_image,
+			c.front_original_image,
+			c.back_original_image,
+			c.front_edit_meta,
+			c.back_edit_meta,
 			c.creation,
 			c.modified
 		FROM `tabArchive Card` c
@@ -459,6 +508,10 @@ def _fetch_single_card_row(card_name: str) -> dict[str, Any]:
 			c.has_pin,
 			c.front_image,
 			c.back_image,
+			c.front_original_image,
+			c.back_original_image,
+			c.front_edit_meta,
+			c.back_edit_meta,
 			c.is_deleted,
 			c.creation,
 			c.modified
@@ -709,6 +762,12 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 		data.get("front_image"),
 		_("الوجه الأمامي"),
 	)
+	raw_front_orig = cstr(data.get("front_original_image") or "").strip()
+	front_orig_doc = (
+		resolve_and_validate_card_image_file(raw_front_orig, _("الوجه الأمامي (الأصل)"))
+		if raw_front_orig and raw_front_orig not in (front_file_doc.name, front_file_doc.file_url)
+		else front_file_doc
+	)
 	raw_back = cstr(data.get("back_image") or "").strip()
 	back_file_doc = (
 		resolve_and_validate_card_image_file(
@@ -717,6 +776,14 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 		)
 		if raw_back
 		else None
+	)
+	raw_back_orig = cstr(data.get("back_original_image") or "").strip()
+	back_orig_doc = (
+		resolve_and_validate_card_image_file(raw_back_orig, _("الوجه الخلفي (الأصل)"))
+		if back_file_doc
+		and raw_back_orig
+		and raw_back_orig not in (back_file_doc.name, back_file_doc.file_url)
+		else back_file_doc
 	)
 	if back_file_doc and front_file_doc.name == back_file_doc.name:
 		frappe.throw(
@@ -750,7 +817,17 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 	card_doc.daily_limit = daily_limit if daily_limit is not None else 0.0
 	card_doc.has_pin = 1
 	card_doc.front_image = front_file_doc.file_url
+	card_doc.front_original_image = front_orig_doc.file_url if front_orig_doc else front_file_doc.file_url
+	card_doc.front_edit_meta = _normalize_edit_meta_json(data.get("front_edit_meta"))
 	card_doc.back_image = back_file_doc.file_url if back_file_doc else None
+	card_doc.back_original_image = (
+		back_orig_doc.file_url
+		if back_orig_doc
+		else (back_file_doc.file_url if back_file_doc else None)
+	)
+	card_doc.back_edit_meta = (
+		_normalize_edit_meta_json(data.get("back_edit_meta")) if back_file_doc else None
+	)
 	card_doc.status = status
 	card_doc.status_reason = resolved_status_reason
 	card_doc.status_changed_at = now_ts
@@ -762,8 +839,12 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 
 	save_card_pin(card_doc.name, clean_pin)
 	adopt_card_image(front_file_doc, card_doc.name, "front_image")
+	if front_orig_doc and front_orig_doc.name != front_file_doc.name:
+		adopt_card_image(front_orig_doc, card_doc.name, "front_original_image")
 	if back_file_doc:
 		adopt_card_image(back_file_doc, card_doc.name, "back_image")
+		if back_orig_doc and back_orig_doc.name != back_file_doc.name:
+			adopt_card_image(back_orig_doc, card_doc.name, "back_original_image")
 
 	record_card_transfer_entry(
 		card_name=card_doc.name,
@@ -978,9 +1059,27 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 		front_image_changed = False
 		back_image_changed = False
 		old_front_url = card_doc.front_image
+		old_front_orig_url = card_doc.front_original_image
 		old_back_url = card_doc.back_image
+		old_back_orig_url = card_doc.back_original_image
 		front_file_doc = None
+		front_orig_doc = None
 		back_file_doc = None
+		back_orig_doc = None
+
+		if "front_original_image" in data and data.get("front_original_image"):
+			require_card_permission(
+				"edit_card_images",
+				_("ليست لديك صلاحية لتعديل صور البطاقة."),
+			)
+			front_orig_doc = resolve_and_validate_card_image_file(
+				cstr(data.get("front_original_image")).strip(),
+				_("الوجه الأمامي (الأصل)"),
+				card_name=card_doc.name,
+			)
+			if front_orig_doc.file_url != old_front_orig_url:
+				front_image_changed = True
+				card_doc.front_original_image = front_orig_doc.file_url
 
 		if "front_image" in data and data.get("front_image"):
 			incoming_front = cstr(data.get("front_image")).strip()
@@ -997,6 +1096,36 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 				if front_file_doc.file_url != old_front_url:
 					front_image_changed = True
 					card_doc.front_image = front_file_doc.file_url
+					if "front_original_image" not in data:
+						if "front_edit_meta" in data:
+							card_doc.front_original_image = old_front_orig_url or old_front_url
+						else:
+							card_doc.front_original_image = front_file_doc.file_url
+							card_doc.front_edit_meta = None
+
+		if "front_edit_meta" in data:
+			require_card_permission(
+				"edit_card_images",
+				_("ليست لديك صلاحية لتعديل صور البطاقة."),
+			)
+			new_front_meta = _normalize_edit_meta_json(data.get("front_edit_meta"))
+			if new_front_meta != (card_doc.front_edit_meta or None):
+				card_doc.front_edit_meta = new_front_meta
+				front_image_changed = True
+
+		if "back_original_image" in data and data.get("back_original_image"):
+			require_card_permission(
+				"edit_card_images",
+				_("ليست لديك صلاحية لتعديل صور البطاقة."),
+			)
+			back_orig_doc = resolve_and_validate_card_image_file(
+				cstr(data.get("back_original_image")).strip(),
+				_("الوجه الخلفي (الأصل)"),
+				card_name=card_doc.name,
+			)
+			if back_orig_doc.file_url != old_back_orig_url:
+				back_image_changed = True
+				card_doc.back_original_image = back_orig_doc.file_url
 
 		if "back_image" in data and data.get("back_image"):
 			incoming_back = cstr(data.get("back_image")).strip()
@@ -1013,6 +1142,22 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 				if back_file_doc.file_url != old_back_url:
 					back_image_changed = True
 					card_doc.back_image = back_file_doc.file_url
+					if "back_original_image" not in data:
+						if "back_edit_meta" in data:
+							card_doc.back_original_image = old_back_orig_url or old_back_url
+						else:
+							card_doc.back_original_image = back_file_doc.file_url
+							card_doc.back_edit_meta = None
+
+		if "back_edit_meta" in data:
+			require_card_permission(
+				"edit_card_images",
+				_("ليست لديك صلاحية لتعديل صور البطاقة."),
+			)
+			new_back_meta = _normalize_edit_meta_json(data.get("back_edit_meta"))
+			if new_back_meta != (card_doc.back_edit_meta or None):
+				card_doc.back_edit_meta = new_back_meta
+				back_image_changed = True
 
 		if card_doc.front_image and card_doc.back_image and card_doc.front_image == card_doc.back_image:
 			frappe.throw(
@@ -1026,10 +1171,25 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 			card_doc.flags._allow_card_service_mutation = True
 			card_doc.save(ignore_permissions=True)
 
-		if front_image_changed and front_file_doc:
-			adopt_card_image(front_file_doc, card_doc.name, "front_image")
-			if old_front_url and old_front_url != card_doc.front_image:
-				old_urls_to_cleanup.append(old_front_url)
+		active_card_urls = {
+			u
+			for u in (
+				card_doc.front_image,
+				card_doc.front_original_image,
+				card_doc.back_image,
+				card_doc.back_original_image,
+			)
+			if u
+		}
+
+		if front_image_changed:
+			if front_file_doc:
+				adopt_card_image(front_file_doc, card_doc.name, "front_image")
+			if front_orig_doc and (not front_file_doc or front_orig_doc.name != front_file_doc.name):
+				adopt_card_image(front_orig_doc, card_doc.name, "front_original_image")
+			for cand_url in (old_front_url, old_front_orig_url):
+				if cand_url and cand_url not in active_card_urls:
+					old_urls_to_cleanup.append(cand_url)
 			log_card_event(
 				card_name=card_doc.name,
 				event_type="front_image_updated",
@@ -1039,10 +1199,14 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 				event_datetime=now_ts,
 			)
 
-		if back_image_changed and back_file_doc:
-			adopt_card_image(back_file_doc, card_doc.name, "back_image")
-			if old_back_url and old_back_url != card_doc.back_image:
-				old_urls_to_cleanup.append(old_back_url)
+		if back_image_changed:
+			if back_file_doc:
+				adopt_card_image(back_file_doc, card_doc.name, "back_image")
+			if back_orig_doc and (not back_file_doc or back_orig_doc.name != back_file_doc.name):
+				adopt_card_image(back_orig_doc, card_doc.name, "back_original_image")
+			for cand_url in (old_back_url, old_back_orig_url):
+				if cand_url and cand_url not in active_card_urls:
+					old_urls_to_cleanup.append(cand_url)
 			log_card_event(
 				card_name=card_doc.name,
 				event_type="back_image_updated",
@@ -1321,9 +1485,10 @@ def get_card_image(
 	card: str,
 	side: str = "front",
 	v: str | None = None,
+	original: int | str | None = None,
 ) -> None:
 	_ = v
-	stream_card_image(card_name=card, side=side)
+	stream_card_image(card_name=card, side=side, original=bool(cint(original)))
 
 
 @frappe.whitelist()

@@ -796,6 +796,95 @@ class TestArchiveCard(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			update_card(c2["name"], {"card_number": c1["card_number"]})
 
+	def test_15_card_image_editor_original_processed_and_metadata_lifecycle(self):
+		def _stage_one(label: str, color: tuple[int, int, int]) -> dict:
+			buf = io.BytesIO()
+			Image.new("RGB", (64, 40), color=color).save(buf, format="JPEG")
+			return stage_uploaded_card_image(
+				filename=f"{label}_{uuid.uuid4().hex[:8]}.jpg",
+				content=buf.getvalue(),
+				content_type="image/jpeg",
+				side="front",
+			)
+
+		orig_front = _stage_one("front_orig", (20, 60, 120))
+		proc_front_1 = _stage_one("front_proc_1", (30, 80, 150))
+		meta_1 = {"angle": 3.5, "quarter_turns": 1, "zoom": 1.35, "pan_x": 0.04, "pan_y": -0.02}
+
+		res = create_card(
+			{
+				"account_number": f"ACC-IMG-{uuid.uuid4().hex[:8].upper()}",
+				"base_card_name": "بطاقة اختبار المحرر",
+				"card_number": f"4777{uuid.uuid4().int % 10**12:012d}",
+				"bank": self.bank_1,
+				"card_owner": self.owner_1,
+				"daily_limit": 45000,
+				"region": self.region_1,
+				"representative": self.rep_1,
+				"received_date": "2026-11-01",
+				"pin": "1234",
+				"status": "نشطة",
+				"front_image": proc_front_1["file_id"],
+				"front_original_image": orig_front["file_id"],
+				"front_edit_meta": meta_1,
+			}
+		)
+		card = res["card"]
+		self.assertEqual(card["front_edit_meta"], meta_1)
+		self.assertIn("original=1", card["front_original_image_url"])
+
+		db_row = frappe.db.get_value(
+			"Archive Card",
+			card["name"],
+			["front_image", "front_original_image", "front_edit_meta"],
+			as_dict=True,
+		)
+		self.assertEqual(db_row.front_image, proc_front_1["file_url"])
+		self.assertEqual(db_row.front_original_image, orig_front["file_url"])
+
+		# Re-editing existing image preserves original image and updates processed + metadata
+		proc_front_2 = _stage_one("front_proc_2", (40, 100, 180))
+		meta_2 = {"angle": -2.0, "quarter_turns": 2, "zoom": 1.8, "pan_x": -0.05, "pan_y": 0.03}
+		upd_1 = update_card(
+			card["name"],
+			{
+				"front_image": proc_front_2["file_id"],
+				"front_edit_meta": meta_2,
+			},
+		)["card"]
+		self.assertEqual(upd_1["front_edit_meta"], meta_2)
+		db_row_2 = frappe.db.get_value(
+			"Archive Card",
+			card["name"],
+			["front_image", "front_original_image"],
+			as_dict=True,
+		)
+		self.assertEqual(db_row_2.front_image, proc_front_2["file_url"])
+		self.assertEqual(db_row_2.front_original_image, orig_front["file_url"])
+		self.assertTrue(frappe.db.exists("File", orig_front["file_id"]))
+
+		# Replacing with a brand-new image file updates original and clears edit_meta
+		new_orig_front = _stage_one("front_new_orig", (90, 30, 60))
+		upd_2 = update_card(
+			card["name"],
+			{
+				"front_image": new_orig_front["file_id"],
+				"front_original_image": new_orig_front["file_id"],
+				"front_edit_meta": None,
+			},
+		)["card"]
+		self.assertIsNone(upd_2["front_edit_meta"])
+		db_row_3 = frappe.db.get_value(
+			"Archive Card",
+			card["name"],
+			["front_image", "front_original_image", "front_edit_meta"],
+			as_dict=True,
+		)
+		self.assertEqual(db_row_3.front_image, new_orig_front["file_url"])
+		self.assertEqual(db_row_3.front_original_image, new_orig_front["file_url"])
+		self.assertFalse(db_row_3.front_edit_meta)
+
+
 
 
 
