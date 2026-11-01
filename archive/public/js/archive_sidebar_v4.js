@@ -60,6 +60,7 @@
             routes: [
                 "archive-operations",
                 "archive-pending-operations",
+                "archive-cards",
                 "document-authenticity",
             ],
         },

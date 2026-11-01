@@ -1,0 +1,89 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "CRD-FAM-.#####",
+  "creation": "2026-11-01 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "family_section",
+    "account_number",
+    "account_number_normalized",
+    "column_break_family_1",
+    "base_card_name",
+    "highest_copy_no"
+  ],
+  "fields": [
+    {
+      "fieldname": "family_section",
+      "fieldtype": "Section Break",
+      "label": "بيانات عائلة البطاقات"
+    },
+    {
+      "fieldname": "account_number",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "رقم الحساب",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "account_number_normalized",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "رقم الحساب الموحد",
+      "read_only": 1,
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "column_break_family_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "base_card_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "الاسم الأساسي للعائلة",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "highest_copy_no",
+      "fieldtype": "Int",
+      "in_list_view": 1,
+      "label": "أعلى رقم نسخة",
+      "read_only": 1,
+      "reqd": 1
+    }
+  ],
+  "in_create": 1,
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-11-01 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Card Family",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager"
+    }
+  ],
+  "read_only": 1,
+  "row_format": "Dynamic",
+  "search_fields": "account_number,account_number_normalized,base_card_name",
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
+}

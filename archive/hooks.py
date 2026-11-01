@@ -201,11 +201,23 @@ app_include_js = [
 permission_query_conditions = {
     "Archive Pending Operation":
         "archive.services.pending_operation_permissions.get_permission_query_conditions",
+    "Archive Card":
+        "archive.services.card_permissions.get_permission_query_conditions",
 }
 
 has_permission = {
     "Archive Pending Operation":
         "archive.services.pending_operation_permissions.has_permission",
+    "Archive Card":
+        "archive.services.card_permissions.has_permission",
+    "Archive Card Family":
+        "archive.services.card_permissions.has_family_permission",
+    "Archive Card Transfer":
+        "archive.services.card_permissions.has_transfer_permission",
+    "Archive Card Log":
+        "archive.services.card_permissions.has_log_permission",
+    "File":
+        "archive.services.card_security.has_file_permission",
 }
 # Document Events
 # ---------------
@@ -252,6 +264,11 @@ has_permission = {
 # extend_doctype_class = {
 # 	"Task": "archive.custom.task.CustomTaskMixin"
 # }
+extend_doctype_class = {
+    "File": [
+        "archive.services.card_security.ArchiveFileMixin",
+    ],
+}
 
 # Overriding Methods
 # ------------------------------

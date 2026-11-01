@@ -1,0 +1,173 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "CRD-TRF-.#####",
+  "creation": "2026-11-01 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "transfer_section",
+    "card",
+    "sequence",
+    "event_type",
+    "column_break_transfer_1",
+    "performed_by",
+    "system_datetime",
+    "from_section",
+    "from_region",
+    "from_representative",
+    "from_received_date",
+    "column_break_from_to",
+    "to_region",
+    "to_representative",
+    "new_received_date",
+    "notes_section",
+    "transfer_note"
+  ],
+  "fields": [
+    {
+      "fieldname": "transfer_section",
+      "fieldtype": "Section Break",
+      "label": "بيانات حركة العهدة"
+    },
+    {
+      "fieldname": "card",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "البطاقة",
+      "options": "Archive Card",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "sequence",
+      "fieldtype": "Int",
+      "in_list_view": 1,
+      "label": "التسلسل",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "event_type",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "نوع الحدث",
+      "options": "initial_assignment\nformal_transfer",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_transfer_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "performed_by",
+      "fieldtype": "Link",
+      "label": "تم بواسطة",
+      "options": "User",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "system_datetime",
+      "fieldtype": "Datetime",
+      "label": "وقت التنفيذ الفعلي",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "from_section",
+      "fieldtype": "Section Break",
+      "label": "مسار الانتقال"
+    },
+    {
+      "fieldname": "from_region",
+      "fieldtype": "Link",
+      "label": "من المنطقة",
+      "options": "Archive Region",
+      "read_only": 1
+    },
+    {
+      "fieldname": "from_representative",
+      "fieldtype": "Link",
+      "label": "من المندوب",
+      "options": "Archive Representative",
+      "read_only": 1
+    },
+    {
+      "fieldname": "from_received_date",
+      "fieldtype": "Date",
+      "label": "تاريخ الاستلام السابق",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_from_to",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "to_region",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "إلى المنطقة",
+      "options": "Archive Region",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "to_representative",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "إلى المندوب",
+      "options": "Archive Representative",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "new_received_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "label": "تاريخ الاستلام الجديد",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "notes_section",
+      "fieldtype": "Section Break",
+      "label": "الملاحظات"
+    },
+    {
+      "fieldname": "transfer_note",
+      "fieldtype": "Small Text",
+      "label": "ملاحظات النقل",
+      "read_only": 1
+    }
+  ],
+  "in_create": 1,
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-11-01 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Card Transfer",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager"
+    }
+  ],
+  "read_only": 1,
+  "row_format": "Dynamic",
+  "search_fields": "card,to_representative,to_region",
+  "sort_field": "sequence",
+  "sort_order": "ASC",
+  "states": [],
+  "track_changes": 0
+}
