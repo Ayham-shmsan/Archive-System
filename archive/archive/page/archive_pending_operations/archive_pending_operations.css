@@ -2213,3 +2213,235 @@ p {
     text-align:
         right !important;
 }
+
+/* =========================================================
+   Cards-aligned Filter & Columns Buttons, Popover & Drawer
+   ========================================================= */
+
+.archive-pending-filter-button,
+.archive-pending-columns-button {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    height: 36px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid #d8dce3;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    transition:
+        border-color 0.15s ease,
+        background 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+.archive-pending-search-filter-group .archive-pending-filter-button:hover,
+.archive-pending-search-filter-group .archive-pending-columns-button:hover {
+    border-color: #b8c0cc;
+    background: #f8fafc;
+    color: #111827;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.07);
+}
+
+.archive-pending-search-filter-group .archive-pending-filter-button:active,
+.archive-pending-search-filter-group .archive-pending-columns-button:active {
+    transform: translateY(1px);
+}
+
+.archive-pending-filter-button > i,
+.archive-pending-columns-button > i {
+    flex: 0 0 auto;
+    font-size: 12px;
+    color: #64748b;
+    opacity: 1;
+}
+
+.archive-pending-filter-button.is-open,
+.archive-pending-filter-button.has-active-filters,
+.archive-pending-columns-button.has-hidden-columns {
+    border-color: #9eb9e8;
+    background: #f4f8ff;
+    color: #315b9b;
+}
+
+.archive-pending-filter-button.is-open > i,
+.archive-pending-filter-button.has-active-filters > i,
+.archive-pending-columns-button.has-hidden-columns > i {
+    color: #315b9b;
+}
+
+.archive-pending-operations-page .archive-hidden-columns-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #315b9b;
+    color: #ffffff;
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 17px;
+}
+
+.archive-pending-operations-page .archive-cards-dropdown-wrap {
+    position: relative;
+}
+
+.archive-pending-operations-page .archive-cards-popover-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 100;
+    min-width: 210px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.14);
+    padding: 6px;
+}
+
+.archive-pending-operations-page .archive-cards-popover-menu.is-columns-menu {
+    right: 0;
+    left: auto;
+    min-width: 230px;
+}
+
+.archive-pending-operations-page .ac-columns-menu-header {
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    padding: 6px 8px;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 4px;
+    text-align: right;
+}
+
+.archive-pending-operations-page .ac-columns-menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.archive-pending-operations-page .ac-column-toggle-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #1e293b;
+    margin: 0;
+    cursor: pointer;
+    text-align: right;
+}
+
+.archive-pending-operations-page .ac-column-toggle-item:hover {
+    background: #f8fafc;
+}
+
+.archive-pending-operations-page .archive-pending-filters-drawer {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+}
+
+.archive-pending-operations-page .archive-pending-filters-drawer .ac-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px 12px;
+    direction: rtl;
+    align-items: end;
+}
+
+@media (max-width: 1100px) {
+    .archive-pending-operations-page .archive-pending-filters-drawer .ac-filters-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .archive-pending-operations-page .archive-pending-filters-drawer .ac-filters-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.archive-pending-operations-page .archive-pending-filters-drawer .ac-filter-field {
+    min-width: 0;
+}
+
+.archive-pending-operations-page .archive-pending-filters-drawer .ac-filter-field .form-group {
+    margin-bottom: 0;
+}
+
+.archive-pending-operations-page .archive-pending-filters-drawer .ac-filter-field label,
+.archive-pending-operations-page .archive-pending-filters-drawer .ac-filter-field .control-label,
+.archive-pending-operations-page .archive-pending-filters-drawer .generic-filter-range-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 4px;
+    text-align: right;
+    display: block;
+}
+
+.archive-pending-operations-page .archive-pending-filters-drawer .generic-filter-range-grid .control-label {
+    display: none;
+}
+
+.archive-pending-operations-page .archive-pending-filters-drawer .form-control {
+    min-height: 34px;
+    height: 34px;
+    font-size: 12.5px;
+    border-radius: 8px;
+}
+
+.archive-pending-operations-page .archive-pending-filters-drawer .multiselect-list .dropdown-menu {
+    z-index: 95;
+}
+
+.archive-pending-operations-page .archive-pending-filters-drawer .ac-filters-footer {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.archive-pending-row > td.is-first-visible-column {
+    border-inline-start: 4px solid #d7dce2;
+}
+
+.archive-pending-row.status-under-action > td.is-first-visible-column {
+    border-inline-start-color: #d7dce2;
+}
+
+.archive-pending-row.status-partial > td.is-first-visible-column {
+    border-inline-start-color: #d69e2e;
+}
+
+.archive-pending-row.status-complete > td.is-first-visible-column {
+    border-inline-start-color: #38a169;
+}
+
+.archive-pending-row.status-failed > td.is-first-visible-column {
+    border-inline-start-color: #dc4c4c;
+}
+
+.archive-pending-row.is-closed > td.is-first-visible-column {
+    border-inline-start: 5px solid #3fb4ce !important;
+}

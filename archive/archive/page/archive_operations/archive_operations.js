@@ -719,262 +719,51 @@ class ArchiveOperationsPage {
     }
 
 
-    open_column_visibility_dialog() {
+    render_columns_menu_html() {
         const columns =
             this
                 .get_operation_column_definitions();
 
-        if (!columns.length) {
+        return `
+            <div class="ac-columns-menu-header">إظهار / إخفاء الأعمدة</div>
+            <div class="ac-columns-menu-list">
+                ${columns
+                    .map((col) => {
+                        const is_visible = !this.hidden_columns.has(col.field);
+                        return `
+                            <label class="ac-column-toggle-item">
+                                <input
+                                    type="checkbox"
+                                    data-column-toggle="${frappe.utils.escape_html(col.field)}"
+                                    ${is_visible ? "checked" : ""}
+                                />
+                                <span>${frappe.utils.escape_html(col.label)}</span>
+                            </label>
+                        `;
+                    })
+                    .join("")}
+            </div>
+        `;
+    }
+
+    toggle_columns_menu() {
+        const $menu =
+            $(this.wrapper).find(
+                '[data-role="columns-menu"]'
+            );
+        if (!$menu.length) {
             return;
         }
-
-        const controls =
-            new Map();
-
-        const dialog =
-            new frappe.ui.Dialog({
-
-                title:
-                    __(
-                        "إظهار وإخفاء الأعمدة"
-                    ),
-
-                size:
-                    "extra-large",
-
-                fields: [
-                    {
-                        fieldname:
-                            "archive_column_visibility_layout",
-
-                        fieldtype:
-                            "HTML",
-                    },
-                ],
-
-                primary_action_label:
-                    __(
-                        "حفظ الأعمدة"
-                    ),
-
-                primary_action:
-                    () => {
-
-                        const hidden =
-                            new Set();
-
-                        let visible_count =
-                            0;
-
-                        for (
-                            const column
-                            of columns
-                        ) {
-                            const control =
-                                controls.get(
-                                    column.field
-                                );
-
-                            const is_visible =
-                                Boolean(
-                                    Number(
-                                        control
-                                            ?.get_value()
-                                        || 0
-                                    )
-                                );
-
-                            if (
-                                is_visible
-                            ) {
-                                visible_count += 1;
-
-                            } else {
-                                hidden.add(
-                                    column.field
-                                );
-                            }
-                        }
-
-                        if (
-                            !visible_count
-                        ) {
-                            frappe.msgprint({
-                                title:
-                                    __(
-                                        "الأعمدة"
-                                    ),
-
-                                message:
-                                    __(
-                                        "يجب إبقاء عمود واحد ظاهرًا على الأقل."
-                                    ),
-
-                                indicator:
-                                    "orange",
-                            });
-
-                            return;
-                        }
-
-                        this.hidden_columns =
-                            hidden;
-
-                        this
-                            .save_hidden_columns();
-
-                        this
-                            .apply_column_visibility();
-
-                        dialog.hide();
-
-                        frappe.show_alert({
-                            message:
-                                __(
-                                    "تم تحديث الأعمدة الظاهرة"
-                                ),
-
-                            indicator:
-                                "green",
-                        });
-                    },
-
-                secondary_action_label:
-                    __(
-                        "إظهار الكل"
-                    ),
-
-                secondary_action:
-                    () => {
-
-                        this.hidden_columns =
-                            new Set();
-
-                        this
-                            .save_hidden_columns();
-
-                        this
-                            .apply_column_visibility();
-
-                        dialog.hide();
-                    },
-            });
-
-        dialog.show();
-
-        /*
-        * نستخدم نفس تصميم Dialog الفلاتر الحالي.
-        */
-        dialog.$wrapper
-            .addClass(
-                "generic-filter-dialog archive-column-visibility-dialog"
+        const was_hidden =
+            Boolean($menu.prop("hidden"));
+        if (was_hidden) {
+            $menu.html(
+                this.render_columns_menu_html()
             );
-
-        const field =
-            dialog.fields_dict
-                .archive_column_visibility_layout;
-
-        const $host =
-            field.$wrapper;
-
-        $host.empty();
-
-        const $section =
-            $(`
-                <section
-                    class="generic-filter-section"
-                    dir="rtl"
-                >
-                    <div
-                        class="generic-filter-section-header"
-                    >
-                        <div
-                            class="generic-filter-section-title"
-                        >
-                            أعمدة شاشة العمليات
-                        </div>
-
-                        <div
-                            class="generic-filter-section-subtitle"
-                        >
-                            أزل العلامة لإخفاء العمود،
-                            وأعدها لإظهاره من جديد.
-                        </div>
-                    </div>
-
-                    <div
-                        class="generic-filter-grid"
-                    ></div>
-                </section>
-            `);
-
-        const $grid =
-            $section.find(
-                ".generic-filter-grid"
-            );
-
-        for (
-            const column
-            of columns
-        ) {
-            const $cell =
-                $(`
-                    <div
-                        class="
-                            generic-filter-field
-                            archive-column-visibility-field
-                        "
-                        data-column-field="${frappe.utils.escape_html(
-                            column.field
-                        )}"
-                    ></div>
-                `);
-
-            $grid.append(
-                $cell
-            );
-
-            const control =
-                frappe.ui.form.make_control({
-
-                    parent:
-                        $cell,
-
-                    df: {
-                        fieldname:
-                            `visible_${column.field}`,
-
-                        fieldtype:
-                            "Check",
-
-                        label:
-                            column.label,
-                    },
-
-                    render_input:
-                        true,
-                });
-
-            control.refresh();
-
-            control.set_value(
-                this.hidden_columns
-                    .has(
-                        column.field
-                    )
-                    ? 0
-                    : 1
-            );
-
-            controls.set(
-                column.field,
-                control
-            );
+            $menu.prop("hidden", false);
+        } else {
+            $menu.prop("hidden", true);
         }
-
-        $host.append(
-            $section
-        );
     }
 
     initialize_filters() {
@@ -987,6 +776,12 @@ class ArchiveOperationsPage {
                         $(this.wrapper)
                             .find(
                                 ".archive-filter-button"
+                            ),
+
+                    drawer_container:
+                        $(this.wrapper)
+                            .find(
+                                '[data-role="filters-drawer"]'
                             ),
 
                     summary_container:
@@ -2055,28 +1850,37 @@ class ArchiveOperationsPage {
                         type="button"
                         class="btn btn-default archive-filter-button"
                     >
-                        الفلاتر
+                        <i class="fa fa-filter" aria-hidden="true"></i>
+                        <span>الفلاتر</span>
                     </button>
 
-                    <button
-                        type="button"
-                        class="btn btn-default archive-columns-button"
-                        title="اختيار الأعمدة الظاهرة"
-                    >
-                        <i
-                            class="fa fa-columns"
-                            aria-hidden="true"
-                        ></i>
+                    <div class="archive-cards-dropdown-wrap">
+                        <button
+                            type="button"
+                            class="btn btn-default archive-columns-button"
+                            data-action="toggle-columns-menu"
+                            title="اختيار الأعمدة الظاهرة"
+                        >
+                            <i
+                                class="fa fa-columns"
+                                aria-hidden="true"
+                            ></i>
 
-                        <span>
-                            الأعمدة
-                        </span>
+                            <span>
+                                الأعمدة
+                            </span>
 
-                        <span
-                            class="archive-hidden-columns-count"
-                            style="display: none;"
-                        ></span>
-                    </button>
+                            <span
+                                class="archive-hidden-columns-count"
+                                style="display: none;"
+                            ></span>
+                        </button>
+                        <div
+                            class="archive-cards-popover-menu is-columns-menu"
+                            data-role="columns-menu"
+                            hidden
+                        ></div>
+                    </div>
 
                 </div>
 
@@ -2143,6 +1947,12 @@ class ArchiveOperationsPage {
 
 				</div>
 
+                <!-- Collapsible Advanced Filters Drawer -->
+                <div
+                    class="archive-cards-filters-drawer archive-operations-filters-drawer"
+                    data-role="filters-drawer"
+                    hidden
+                ></div>
 
                 <div
                     class="archive-active-filters"
@@ -3976,11 +3786,86 @@ class ArchiveOperationsPage {
             )
             .on(
                 "click",
-                () => {
+                (event) => {
+                    event.stopPropagation();
                     this
-                        .open_column_visibility_dialog();
+                        .toggle_columns_menu();
                 }
             );
+
+        $wrapper
+            .find(
+                '[data-role="columns-menu"]'
+            )
+            .on(
+                "click",
+                (event) => {
+                    event.stopPropagation();
+                }
+            );
+
+        $wrapper
+            .on(
+                "change",
+                "[data-column-toggle]",
+                (event) => {
+                    const col_field =
+                        String(
+                            $(event.currentTarget).attr(
+                                "data-column-toggle"
+                            ) || ""
+                        ).trim();
+                    const checked =
+                        $(event.currentTarget).is(":checked");
+                    if (!col_field) {
+                        return;
+                    }
+
+                    if (checked) {
+                        this.hidden_columns.delete(
+                            col_field
+                        );
+                    } else {
+                        const columns =
+                            this.get_operation_column_definitions();
+                        const visible_remaining =
+                            columns.filter(
+                                (c) =>
+                                    c.field !== col_field
+                                    && !this.hidden_columns.has(
+                                        c.field
+                                    )
+                            ).length;
+                        if (visible_remaining < 1) {
+                            $(event.currentTarget).prop(
+                                "checked",
+                                true
+                            );
+                            frappe.show_alert({
+                                message: __(
+                                    "يجب إبقاء عمود واحد ظاهرًا على الأقل."
+                                ),
+                                indicator: "orange",
+                            });
+                            return;
+                        }
+                        this.hidden_columns.add(
+                            col_field
+                        );
+                    }
+
+                    this.save_hidden_columns();
+                    this.apply_column_visibility();
+                }
+            );
+
+        $(document)
+            .off("click.archiveOpsColumnsMenu")
+            .on("click.archiveOpsColumnsMenu", () => {
+                $wrapper
+                    .find('[data-role="columns-menu"]')
+                    .prop("hidden", true);
+            });
 
 
         // $wrapper

@@ -40,9 +40,395 @@ class ArchivePendingOperationsPage {
             representative: new Map(),
         };
 
+        this.hidden_columns =
+            this.load_hidden_columns();
+
         this.make_page();
         this.render();
         this.initialize();
+    }
+
+    get_column_visibility_storage_key() {
+        const user = String(
+            frappe.session?.user
+            || "Guest"
+        ).trim();
+
+        return (
+            "archive.pending.hidden_columns.v1:"
+            + user
+        );
+    }
+
+    load_hidden_columns() {
+        try {
+            const raw =
+                window.localStorage.getItem(
+                    this
+                        .get_column_visibility_storage_key()
+                );
+
+            if (!raw) {
+                return new Set();
+            }
+
+            const parsed =
+                JSON.parse(
+                    raw
+                );
+
+            if (!Array.isArray(parsed)) {
+                return new Set();
+            }
+
+            return new Set(
+                parsed
+                    .map(
+                        (field) =>
+                            String(
+                                field || ""
+                            ).trim()
+                    )
+                    .filter(Boolean)
+            );
+
+        } catch (error) {
+            console.warn(
+                "Could not load Archive Pending Operations column preferences:",
+                error
+            );
+
+            return new Set();
+        }
+    }
+
+    save_hidden_columns() {
+        try {
+            window.localStorage.setItem(
+                this
+                    .get_column_visibility_storage_key(),
+
+                JSON.stringify(
+                    Array.from(
+                        this.hidden_columns
+                        || []
+                    )
+                )
+            );
+
+        } catch (error) {
+            console.warn(
+                "Could not save Archive Pending Operations column preferences:",
+                error
+            );
+        }
+    }
+
+    get_pending_column_definitions() {
+        const columns = [];
+
+        $(this.wrapper)
+            .find(
+                ".archive-pending-table thead th[data-sort-field]"
+            )
+            .each(
+                (
+                    index,
+                    element
+                ) => {
+
+                    const $header =
+                        $(element);
+
+                    const field =
+                        String(
+                            $header.attr(
+                                "data-sort-field"
+                            )
+                            || ""
+                        ).trim();
+
+                    if (!field) {
+                        return;
+                    }
+
+                    const $label_source =
+                        $header.clone();
+
+                    $label_source
+                        .find(
+                            ".generic-sort-indicator"
+                        )
+                        .remove();
+
+                    const label =
+                        $label_source
+                            .text()
+                            .replace(
+                                /\s+/g,
+                                " "
+                            )
+                            .trim()
+                        || field;
+
+                    columns.push({
+                        field,
+                        label,
+                        index:
+                            index + 1,
+                    });
+                }
+            );
+
+        return columns;
+    }
+
+    update_column_visibility_button() {
+        const columns =
+            this
+                .get_pending_column_definitions();
+
+        const valid_fields =
+            new Set(
+                columns.map(
+                    (column) =>
+                        column.field
+                )
+            );
+
+        const hidden_count =
+            Array.from(
+                this.hidden_columns
+                || []
+            )
+                .filter(
+                    (field) =>
+                        valid_fields.has(
+                            field
+                        )
+                )
+                .length;
+
+        const $button =
+            $(this.wrapper)
+                .find(
+                    ".archive-pending-columns-button"
+                );
+
+        $button
+            .toggleClass(
+                "has-hidden-columns",
+                hidden_count > 0
+            )
+            .attr(
+                "title",
+                hidden_count
+                    ? `${hidden_count} أعمدة مخفية`
+                    : "اختيار الأعمدة الظاهرة"
+            );
+
+        const $count =
+            $button.find(
+                ".archive-hidden-columns-count"
+            );
+
+        if (hidden_count) {
+            $count
+                .text(
+                    hidden_count
+                )
+                .show();
+
+        } else {
+            $count
+                .text("")
+                .hide();
+        }
+    }
+
+    apply_column_visibility() {
+        const $table =
+            $(this.wrapper)
+                .find(
+                    ".archive-pending-table"
+                );
+
+        if (!$table.length) {
+            return;
+        }
+
+        const columns =
+            this
+                .get_pending_column_definitions();
+
+        if (!columns.length) {
+            return;
+        }
+
+        const valid_fields =
+            new Set(
+                columns.map(
+                    (column) =>
+                        column.field
+                )
+            );
+
+        const hidden =
+            new Set(
+                Array.from(
+                    this.hidden_columns
+                    || []
+                )
+                    .filter(
+                        (field) =>
+                            valid_fields.has(
+                                field
+                            )
+                    )
+            );
+
+        if (
+            hidden.size
+            >= columns.length
+        ) {
+            hidden.delete(
+                columns[0].field
+            );
+        }
+
+        const preferences_changed =
+            hidden.size
+            !== (
+                this.hidden_columns
+                || new Set()
+            ).size;
+
+        this.hidden_columns =
+            hidden;
+
+        if (
+            preferences_changed
+        ) {
+            this.save_hidden_columns();
+        }
+
+        let first_visible_index =
+            null;
+
+        for (
+            const column
+            of columns
+        ) {
+            const is_hidden =
+                hidden.has(
+                    column.field
+                );
+
+            if (
+                !is_hidden
+                &&
+                first_visible_index
+                === null
+            ) {
+                first_visible_index =
+                    column.index;
+            }
+
+            $table
+                .find(
+                    `colgroup col:nth-child(${column.index})`
+                )
+                .toggle(
+                    !is_hidden
+                );
+
+            $table
+                .find(
+                    `thead th:nth-child(${column.index})`
+                )
+                .toggle(
+                    !is_hidden
+                );
+
+            $table
+                .find(
+                    `tbody tr td:nth-child(${column.index})`
+                )
+                .toggle(
+                    !is_hidden
+                );
+        }
+
+        $table
+            .find(
+                "tbody .archive-pending-row > td"
+            )
+            .removeClass(
+                "is-first-visible-column"
+            );
+
+        if (
+            first_visible_index
+            !== null
+        ) {
+            $table
+                .find(
+                    `tbody .archive-pending-row > td:nth-child(${first_visible_index})`
+                )
+                .addClass(
+                    "is-first-visible-column"
+                );
+        }
+
+        this
+            .update_column_visibility_button();
+    }
+
+    render_columns_menu_html() {
+        const columns =
+            this
+                .get_pending_column_definitions();
+
+        return `
+            <div class="ac-columns-menu-header">إظهار / إخفاء الأعمدة</div>
+            <div class="ac-columns-menu-list">
+                ${columns
+                    .map((col) => {
+                        const is_visible = !this.hidden_columns.has(col.field);
+                        return `
+                            <label class="ac-column-toggle-item">
+                                <input
+                                    type="checkbox"
+                                    data-column-toggle="${frappe.utils.escape_html(col.field)}"
+                                    ${is_visible ? "checked" : ""}
+                                />
+                                <span>${frappe.utils.escape_html(col.label)}</span>
+                            </label>
+                        `;
+                    })
+                    .join("")}
+            </div>
+        `;
+    }
+
+    toggle_columns_menu() {
+        const $menu =
+            $(this.wrapper).find(
+                '[data-role="columns-menu"]'
+            );
+        if (!$menu.length) {
+            return;
+        }
+        const was_hidden =
+            Boolean($menu.prop("hidden"));
+        if (was_hidden) {
+            $menu.html(
+                this.render_columns_menu_html()
+            );
+            $menu.prop("hidden", false);
+        } else {
+            $menu.prop("hidden", true);
+        }
     }
 
     async open_operation(
@@ -224,8 +610,34 @@ class ArchivePendingOperationsPage {
                                 archive-pending-filter-button
                             "
                         >
-                            الفلاتر
+                            <i class="fa fa-filter" aria-hidden="true"></i>
+                            <span>الفلاتر</span>
                         </button>
+
+                        <div class="archive-cards-dropdown-wrap">
+                            <button
+                                type="button"
+                                class="
+                                    btn
+                                    btn-default
+                                    archive-pending-columns-button
+                                "
+                                title="اختيار الأعمدة الظاهرة"
+                            >
+                                <i class="fa fa-columns" aria-hidden="true"></i>
+                                <span>الأعمدة</span>
+                                <span
+                                    class="archive-hidden-columns-count"
+                                    style="display: none;"
+                                ></span>
+                            </button>
+
+                            <div
+                                class="archive-cards-popover-menu is-columns-menu"
+                                data-role="columns-menu"
+                                hidden
+                            ></div>
+                        </div>
 
                     </div>
 
@@ -311,6 +723,12 @@ class ArchivePendingOperationsPage {
                     </div>
 
                 </div>
+
+                <div
+                    class="archive-cards-filters-drawer archive-pending-filters-drawer"
+                    data-role="filters-drawer"
+                    hidden
+                ></div>
 
                 <div
                     class="archive-pending-active-filters"
@@ -535,6 +953,7 @@ class ArchivePendingOperationsPage {
         `);
 
         this.bind_events();
+        this.apply_column_visibility();
     }
 
     summary_card(
@@ -813,6 +1232,12 @@ class ArchivePendingOperationsPage {
                         $(this.wrapper)
                             .find(
                                 ".archive-pending-filter-button"
+                            ),
+
+                    drawer_container:
+                        $(this.wrapper)
+                            .find(
+                                '[data-role="filters-drawer"]'
                             ),
 
                     summary_container:
@@ -1228,13 +1653,20 @@ class ArchivePendingOperationsPage {
             .find(
                 `
                     .archive-pending-search,
-                    .archive-pending-filter-button
+                    .archive-pending-filter-button,
+                    .archive-pending-columns-button
                 `
             )
             .prop(
                 "disabled",
                 !query_enabled
             );
+
+        if (!query_enabled) {
+            $(this.wrapper)
+                .find('[data-role="columns-menu"]')
+                .prop("hidden", true);
+        }
 
         $(this.wrapper)
             .find(
@@ -1803,6 +2235,8 @@ class ArchivePendingOperationsPage {
                 "flex"
             );
 
+            this.apply_column_visibility();
+
             return;
         }
 
@@ -1820,6 +2254,8 @@ class ArchivePendingOperationsPage {
                 )
                 .join("")
         );
+
+        this.apply_column_visibility();
     }
 
     update_empty_state() {
@@ -3793,6 +4229,93 @@ class ArchivePendingOperationsPage {
         const $wrapper =
             $(this.wrapper);
         
+        $wrapper
+            .find(
+                ".archive-pending-columns-button"
+            )
+            .on(
+                "click",
+                (event) => {
+                    event.stopPropagation();
+                    this
+                        .toggle_columns_menu();
+                }
+            );
+
+        $wrapper
+            .find(
+                '[data-role="columns-menu"]'
+            )
+            .on(
+                "click",
+                (event) => {
+                    event.stopPropagation();
+                }
+            );
+
+        $wrapper
+            .on(
+                "change",
+                "[data-column-toggle]",
+                (event) => {
+                    const col_field =
+                        String(
+                            $(event.currentTarget).attr(
+                                "data-column-toggle"
+                            ) || ""
+                        ).trim();
+                    const checked =
+                        $(event.currentTarget).is(":checked");
+                    if (!col_field) {
+                        return;
+                    }
+
+                    if (checked) {
+                        this.hidden_columns.delete(
+                            col_field
+                        );
+                    } else {
+                        const columns =
+                            this.get_pending_column_definitions();
+                        const visible_remaining =
+                            columns.filter(
+                                (c) =>
+                                    c.field !== col_field
+                                    && !this.hidden_columns.has(
+                                        c.field
+                                    )
+                            ).length;
+                        if (visible_remaining < 1) {
+                            $(event.currentTarget).prop(
+                                "checked",
+                                true
+                            );
+                            frappe.show_alert({
+                                message: __(
+                                    "يجب إبقاء عمود واحد ظاهرًا على الأقل."
+                                ),
+                                indicator: "orange",
+                            });
+                            return;
+                        }
+                        this.hidden_columns.add(
+                            col_field
+                        );
+                    }
+
+                    this.save_hidden_columns();
+                    this.apply_column_visibility();
+                }
+            );
+
+        $(document)
+            .off("click.archivePendingColumnsMenu")
+            .on("click.archivePendingColumnsMenu", () => {
+                $wrapper
+                    .find('[data-role="columns-menu"]')
+                    .prop("hidden", true);
+            });
+
 
         $wrapper
             .find(

@@ -132,6 +132,10 @@ frappe.provide(
                 options.summary_container
                 || null;
 
+            this.drawer_container =
+                options.drawer_container
+                || null;
+
 
             this.data_source =
                 options.data_source
@@ -165,11 +169,15 @@ frappe.provide(
 
             this.$summary =
                 null;
+            this.$drawer =
+                null;
             this.layout =
                 options.layout
                 || [];
 
             this.controls = {};
+            this._inline_apply_timer = null;
+            this._hydrating = false;
         }
 
 
@@ -192,6 +200,16 @@ frappe.provide(
                     );
             }
 
+            if (
+                this.drawer_container
+            ) {
+                this.$drawer =
+                    $(
+                        this.drawer_container
+                    );
+                this.render_inline_drawer();
+            }
+
 
             this.$button
                 .off(
@@ -200,7 +218,14 @@ frappe.provide(
                 .on(
                     "click.genericFilters",
                     () => {
-                        this.open();
+                        if (
+                            this.$drawer
+                            && this.$drawer.length
+                        ) {
+                            this.toggle_drawer();
+                        } else {
+                            this.open();
+                        }
                     }
                 );
 
@@ -209,6 +234,113 @@ frappe.provide(
 
 
             return this;
+        }
+
+        toggle_drawer(force_open) {
+            if (!this.$drawer || !this.$drawer.length) {
+                return;
+            }
+            const is_hidden = Boolean(this.$drawer.prop("hidden"));
+            const next_open = typeof force_open === "boolean" ? force_open : is_hidden;
+            this.$drawer.prop("hidden", !next_open);
+            if (this.$button && this.$button.length) {
+                this.$button.toggleClass("is-open", next_open);
+            }
+            if (next_open) {
+                this.hydrate_custom_controls();
+            }
+        }
+
+        schedule_inline_apply(delay = 140) {
+            if (this._hydrating) {
+                return;
+            }
+            clearTimeout(this._inline_apply_timer);
+            this._inline_apply_timer = setTimeout(async () => {
+                if (this._hydrating) {
+                    return;
+                }
+                const next_values = this.read_custom_controls();
+                if (JSON.stringify(next_values) === JSON.stringify(this.applied_values)) {
+                    return;
+                }
+                this.applied_values = next_values;
+                await this.emit_apply();
+            }, delay);
+        }
+
+        render_inline_drawer() {
+            if (!this.$drawer || !this.$drawer.length) {
+                return;
+            }
+            this.controls = {};
+            this.$drawer.empty().attr("dir", "rtl").html(`
+                <div class="ac-filters-grid" data-role="inline-filters-grid"></div>
+                <div class="ac-filters-footer">
+                    <button type="button" class="btn btn-xs btn-default" data-action="reset-filters">
+                        ${__("إعادة تعيين الفلاتر")}
+                    </button>
+                </div>
+            `);
+
+            const $grid = this.$drawer.find('[data-role="inline-filters-grid"]');
+            const definitions = new Map(
+                this.schema.map((definition) => [definition.field, definition])
+            );
+
+            const ordered_fields = [];
+            const seen = new Set();
+            for (const section of this.layout || []) {
+                for (const fname of section.fields || []) {
+                    if (definitions.has(fname) && !seen.has(fname)) {
+                        seen.add(fname);
+                        ordered_fields.push(fname);
+                    }
+                }
+            }
+            for (const def of this.schema) {
+                if (!seen.has(def.field)) {
+                    seen.add(def.field);
+                    ordered_fields.push(def.field);
+                }
+            }
+
+            for (const fieldname of ordered_fields) {
+                const definition = definitions.get(fieldname);
+                if (!definition) continue;
+                const $cell = $(`
+                    <div
+                        class="ac-filter-field generic-filter-field"
+                        data-filter-field="${frappe.utils.escape_html(fieldname)}"
+                    ></div>
+                `);
+                $grid.append($cell);
+                this.render_filter_control(definition, $cell, { inline: true });
+            }
+
+            this.$drawer
+                .off(".genericFilters")
+                .on("input.genericFilters", 'input[type="text"], input:not([type])', (e) => {
+                    if ($(e.target).closest(".dropdown-input-wrapper").length) {
+                        return;
+                    }
+                    this.schedule_inline_apply(180);
+                })
+                .on("change.genericFilters", "input, select", (e) => {
+                    if ($(e.target).closest(".dropdown-input-wrapper").length) {
+                        return;
+                    }
+                    this.schedule_inline_apply(60);
+                })
+                .on("click.genericFilters", '[data-action="reset-filters"]', async (e) => {
+                    e.preventDefault();
+                    clearTimeout(this._inline_apply_timer);
+                    this.applied_values = {};
+                    this.hydrate_custom_controls();
+                    await this.emit_apply();
+                });
+
+            this.hydrate_custom_controls();
         }
 
 
@@ -889,11 +1021,19 @@ frappe.provide(
 
         render_filter_control(
             definition,
-            $cell
+            $cell,
+            opts = {}
         ) {
 
             const field =
                 definition.field;
+            const is_inline =
+                Boolean(opts.inline);
+            const on_inline_change = is_inline
+                ? () => {
+                    this.schedule_inline_apply(50);
+                }
+                : undefined;
 
 
             // ====================================================
@@ -917,6 +1057,9 @@ frappe.provide(
 
                             fieldtype:
                                 "Data",
+
+                            onchange:
+                                on_inline_change,
                         }
                     );
 
@@ -946,6 +1089,9 @@ frappe.provide(
 
                             fieldtype:
                                 "MultiSelectList",
+
+                            onchange:
+                                on_inline_change,
 
                             get_data:
                                 (txt) =>
@@ -1011,10 +1157,16 @@ frappe.provide(
                                 `${field}__min`,
 
                             label:
+                                is_inline ? "" : __("من"),
+
+                            placeholder:
                                 __("من"),
 
                             fieldtype:
                                 "Float",
+
+                            onchange:
+                                on_inline_change,
                         }
                     );
 
@@ -1029,10 +1181,16 @@ frappe.provide(
                                 `${field}__max`,
 
                             label:
+                                is_inline ? "" : __("إلى"),
+
+                            placeholder:
                                 __("إلى"),
 
                             fieldtype:
                                 "Float",
+
+                            onchange:
+                                on_inline_change,
                         }
                     );
 
@@ -1096,10 +1254,16 @@ frappe.provide(
                                 `${field}__from`,
 
                             label:
+                                is_inline ? "" : __("من تاريخ"),
+
+                            placeholder:
                                 __("من تاريخ"),
 
                             fieldtype:
                                 "Date",
+
+                            onchange:
+                                on_inline_change,
                         }
                     );
 
@@ -1114,10 +1278,16 @@ frappe.provide(
                                 `${field}__to`,
 
                             label:
+                                is_inline ? "" : __("إلى تاريخ"),
+
+                            placeholder:
                                 __("إلى تاريخ"),
 
                             fieldtype:
                                 "Date",
+
+                            onchange:
+                                on_inline_change,
                         }
                     );
 
@@ -1130,98 +1300,104 @@ frappe.provide(
         }
 
         hydrate_custom_controls() {
-
-            for (
-                const definition
-                of this.schema
-            ) {
-
-                const field =
-                    definition.field;
-
-
-                const control =
-                    this.controls[
-                        field
-                    ];
-
-
-                if (!control) {
-                    continue;
-                }
-
-
-                const value =
-                    this.applied_values[
-                        field
-                    ];
-
-
-                if (
-                    definition.type
-                    === "text"
+            this._hydrating = true;
+            try {
+                for (
+                    const definition
+                    of this.schema
                 ) {
 
-                    control.set_value(
-                        value || ""
-                    );
+                    const field =
+                        definition.field;
 
-                    continue;
+
+                    const control =
+                        this.controls[
+                            field
+                        ];
+
+
+                    if (!control) {
+                        continue;
+                    }
+
+
+                    const value =
+                        this.applied_values[
+                            field
+                        ];
+
+
+                    if (
+                        definition.type
+                        === "text"
+                    ) {
+
+                        control.set_value(
+                            value || ""
+                        );
+
+                        continue;
+                    }
+
+
+                    if (
+                        definition.type
+                        === "multi_select"
+                    ) {
+
+                        control.set_value(
+                            normalize_multi_value(
+                                value
+                            )
+                        );
+
+                        continue;
+                    }
+
+
+                    if (
+                        definition.type
+                        === "number_range"
+                    ) {
+
+                        control.min.set_value(
+                            value?.min
+                            ?? ""
+                        );
+
+
+                        control.max.set_value(
+                            value?.max
+                            ?? ""
+                        );
+
+
+                        continue;
+                    }
+
+
+                    if (
+                        definition.type
+                        === "date_range"
+                    ) {
+
+                        control.from.set_value(
+                            value?.from
+                            || ""
+                        );
+
+
+                        control.to.set_value(
+                            value?.to
+                            || ""
+                        );
+                    }
                 }
-
-
-                if (
-                    definition.type
-                    === "multi_select"
-                ) {
-
-                    control.set_value(
-                        normalize_multi_value(
-                            value
-                        )
-                    );
-
-                    continue;
-                }
-
-
-                if (
-                    definition.type
-                    === "number_range"
-                ) {
-
-                    control.min.set_value(
-                        value?.min
-                        ?? ""
-                    );
-
-
-                    control.max.set_value(
-                        value?.max
-                        ?? ""
-                    );
-
-
-                    continue;
-                }
-
-
-                if (
-                    definition.type
-                    === "date_range"
-                ) {
-
-                    control.from.set_value(
-                        value?.from
-                        || ""
-                    );
-
-
-                    control.to.set_value(
-                        value?.to
-                        || ""
-                    );
-                }
+            } finally {
+                setTimeout(() => {
+                    this._hydrating = false;
+                }, 0);
             }
         }
 
@@ -2143,6 +2319,9 @@ frappe.provide(
                                 field
                             ];
 
+                        if (this.$drawer && this.$drawer.length) {
+                            this.hydrate_custom_controls();
+                        }
 
                         await this
                             .emit_apply();
@@ -2164,6 +2343,9 @@ frappe.provide(
                         this.applied_values =
                             {};
 
+                        if (this.$drawer && this.$drawer.length) {
+                            this.hydrate_custom_controls();
+                        }
 
                         await this
                             .emit_apply();
@@ -2181,6 +2363,9 @@ frappe.provide(
             this.applied_values =
                 {};
 
+            if (this.$drawer && this.$drawer.length) {
+                this.hydrate_custom_controls();
+            }
 
             return this
                 .emit_apply();

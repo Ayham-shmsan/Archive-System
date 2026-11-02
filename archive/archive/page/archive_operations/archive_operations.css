@@ -1462,6 +1462,7 @@
         translateY(1px);
 }
 
+.archive-filter-button > i,
 .archive-columns-button > i {
     flex: 0 0 auto;
 
@@ -1471,6 +1472,7 @@
 
     opacity: 1;
 }
+.archive-filter-button.is-open,
 .archive-columns-button.has-hidden-columns {
     border-color: #9eb9e8;
 
@@ -1480,6 +1482,7 @@
 }
 
 
+.archive-filter-button.is-open > i,
 .archive-columns-button.has-hidden-columns > i {
     color: #315b9b;
 }
@@ -1509,4 +1512,135 @@
     font-weight: 700;
 
     line-height: 17px;
+}
+
+/* =========================================================
+   Cards-aligned Columns Popover & Filters Drawer
+   ========================================================= */
+
+.archive-operations-page .archive-cards-dropdown-wrap {
+    position: relative;
+}
+
+.archive-operations-page .archive-cards-popover-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 100;
+    min-width: 210px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.14);
+    padding: 6px;
+}
+
+.archive-operations-page .archive-cards-popover-menu.is-columns-menu {
+    right: 0;
+    left: auto;
+    min-width: 230px;
+}
+
+.archive-operations-page .ac-columns-menu-header {
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    padding: 6px 8px;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 4px;
+    text-align: right;
+}
+
+.archive-operations-page .ac-columns-menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.archive-operations-page .ac-column-toggle-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #1e293b;
+    margin: 0;
+    cursor: pointer;
+    text-align: right;
+}
+
+.archive-operations-page .ac-column-toggle-item:hover {
+    background: #f8fafc;
+}
+
+.archive-operations-page .archive-operations-filters-drawer {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+}
+
+.archive-operations-page .archive-operations-filters-drawer .ac-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px 12px;
+    direction: rtl;
+    align-items: end;
+}
+
+@media (max-width: 1100px) {
+    .archive-operations-page .archive-operations-filters-drawer .ac-filters-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .archive-operations-page .archive-operations-filters-drawer .ac-filters-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.archive-operations-page .archive-operations-filters-drawer .ac-filter-field {
+    min-width: 0;
+}
+
+.archive-operations-page .archive-operations-filters-drawer .ac-filter-field .form-group {
+    margin-bottom: 0;
+}
+
+.archive-operations-page .archive-operations-filters-drawer .ac-filter-field label,
+.archive-operations-page .archive-operations-filters-drawer .ac-filter-field .control-label,
+.archive-operations-page .archive-operations-filters-drawer .generic-filter-range-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 4px;
+    text-align: right;
+    display: block;
+}
+
+.archive-operations-page .archive-operations-filters-drawer .generic-filter-range-grid .control-label {
+    display: none;
+}
+
+.archive-operations-page .archive-operations-filters-drawer .form-control {
+    min-height: 34px;
+    height: 34px;
+    font-size: 12.5px;
+    border-radius: 8px;
+}
+
+.archive-operations-page .archive-operations-filters-drawer .multiselect-list .dropdown-menu {
+    z-index: 95;
+}
+
+.archive-operations-page .archive-operations-filters-drawer .ac-filters-footer {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
 }
