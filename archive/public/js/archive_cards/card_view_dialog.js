@@ -302,8 +302,22 @@
 			return Boolean(this.permissions.can_edit_images) && !this.is_permanently_stopped();
 		}
 
+		can_preview_card_images() {
+			const has_role =
+				typeof this.permissions.can_preview_card_images === "boolean"
+					? this.permissions.can_preview_card_images
+					: Boolean(frappe?.user?.has_role?.("صلاحية معاينة البطائق"));
+			return Boolean(
+				has_role && this.permissions.can_view_images && !this.is_permanently_stopped()
+			);
+		}
+
 		can_save_any() {
-			return this.can_edit_data() || this.can_edit_card_images();
+			return (
+				this.can_edit_data() ||
+				this.can_edit_card_images() ||
+				this.can_preview_card_images()
+			);
 		}
 
 		sync_dialog_actions() {
@@ -545,6 +559,7 @@
 		render_view_image_slot(side, label, url) {
 			const can_view = Boolean(this.permissions.can_view_images);
 			const can_replace = Boolean(this.can_edit_card_images() && can_view);
+			const can_preview_edit = Boolean(this.can_preview_card_images() && can_view);
 
 			if (!can_view) {
 				return `
@@ -575,11 +590,15 @@
 								<i class="fa fa-search-plus"></i> تكبير
 							</button>
 							${
-								can_replace
+								can_preview_edit
 									? `<button type="button" class="btn btn-xs btn-default acd-slot-preview-edit-btn" data-action="preview-edit-image" data-side="${side}" ${has_img ? "" : "hidden"}>
 										<i class="fa fa-sliders"></i> معاينة
-									</button>
-									<button type="button" class="btn btn-xs btn-default" data-action="replace-image" data-side="${side}">
+									</button>`
+									: ""
+							}
+							${
+								can_replace
+									? `<button type="button" class="btn btn-xs btn-default" data-action="replace-image" data-side="${side}">
 										<i class="fa fa-upload"></i> ${replace_label}
 									</button>`
 									: ""
@@ -852,46 +871,8 @@
 			$body.on("click", '[data-action="preview-edit-image"]', (e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				if (!this.can_edit_card_images() || !window.ArchiveCardImageEditor) return;
 				const side = $(e.currentTarget).attr("data-side") || "front";
-				const orig_url = this._resolve_original_image_url(side);
-				if (!orig_url) return;
-
-				window.ArchiveCardImageEditor.open({
-					side,
-					side_label: side === "back" ? "الوجه الخلفي" : "الوجه الأمامي",
-					original_url: orig_url,
-					initial_meta: this._resolve_current_edit_meta(side),
-					saved_meta: this._resolve_saved_edit_meta(side),
-					on_apply: ({ staged, blob_url, edit_meta }) => {
-						this.staged_images[side] = staged;
-						if (staged?.file_id) {
-							this.all_staged_file_ids.add(staged.file_id);
-						}
-						if (
-							this.preview_urls[side] &&
-							this.preview_urls[side] !== this.original_preview_urls[side]
-						) {
-							URL.revokeObjectURL(this.preview_urls[side]);
-						}
-						this.preview_urls[side] = blob_url;
-						this.edit_metas[side] = edit_meta || null;
-						$body.find(`[data-role="empty-${side}"]`).prop("hidden", true);
-						$body
-							.find(`[data-role="view-img-${side}"]`)
-							.attr("src", blob_url)
-							.addClass("is-processed")
-							.prop("hidden", false);
-						$body
-							.find(`.acd-image-slot-header [data-action="open-viewer"][data-side="${side}"]`)
-							.prop("hidden", false);
-						$body
-							.find(
-								`.acd-image-slot-header [data-action="preview-edit-image"][data-side="${side}"]`
-							)
-							.prop("hidden", false);
-					},
-				});
+				this.open_image_editor(side);
 			});
 
 			["front", "back"].forEach((side) => {
@@ -1021,6 +1002,50 @@
 			}
 		}
 
+		open_image_editor(side) {
+			if (!this.can_preview_card_images() || !window.ArchiveCardImageEditor) return;
+			const orig_url = this._resolve_original_image_url(side);
+			if (!orig_url) return;
+			const $body = $(this.dialog.body);
+
+			window.ArchiveCardImageEditor.open({
+				can_preview: true,
+				side,
+				side_label: side === "back" ? "الوجه الخلفي" : "الوجه الأمامي",
+				original_url: orig_url,
+				initial_meta: this._resolve_current_edit_meta(side),
+				saved_meta: this._resolve_saved_edit_meta(side),
+				on_apply: ({ staged, blob_url, edit_meta }) => {
+					this.staged_images[side] = staged;
+					if (staged?.file_id) {
+						this.all_staged_file_ids.add(staged.file_id);
+					}
+					if (
+						this.preview_urls[side] &&
+						this.preview_urls[side] !== this.original_preview_urls[side]
+					) {
+						URL.revokeObjectURL(this.preview_urls[side]);
+					}
+					this.preview_urls[side] = blob_url;
+					this.edit_metas[side] = edit_meta || null;
+					$body.find(`[data-role="empty-${side}"]`).prop("hidden", true);
+					$body
+						.find(`[data-role="view-img-${side}"]`)
+						.attr("src", blob_url)
+						.addClass("is-processed")
+						.prop("hidden", false);
+					$body
+						.find(`.acd-image-slot-header [data-action="open-viewer"][data-side="${side}"]`)
+						.prop("hidden", false);
+					$body
+						.find(
+							`.acd-image-slot-header [data-action="preview-edit-image"][data-side="${side}"]`
+						)
+						.prop("hidden", false);
+				},
+			});
+		}
+
 		async handle_replace_image(side, file) {
 			if (!this.can_edit_card_images()) return;
 			const $body = $(this.dialog.body);
@@ -1033,7 +1058,7 @@
 				this.staged_images[side] = staged;
 				this.original_staged_images[side] = staged;
 				this.replaced_sides[side] = true;
-				this.edit_metas[side] = null;
+				this.edit_metas[side] = undefined;
 				if (staged.file_id) {
 					this.all_staged_file_ids.add(staged.file_id);
 				}
@@ -1056,11 +1081,16 @@
 					.find(`.acd-image-slot-header [data-action="open-viewer"][data-side="${side}"]`)
 					.prop("hidden", false);
 				$body
-					.find(`.acd-image-slot-header [data-action="preview-edit-image"][data-side="${side}"]`)
-					.prop("hidden", false);
-				$body
 					.find(`[data-action="replace-image"][data-side="${side}"]`)
 					.html('<i class="fa fa-upload"></i> تبديل الصورة');
+				if (this.can_preview_card_images()) {
+					$body
+						.find(
+							`.acd-image-slot-header [data-action="preview-edit-image"][data-side="${side}"]`
+						)
+						.prop("hidden", false);
+					this.open_image_editor(side);
+				}
 			} catch (err) {
 				frappe.msgprint({
 					title: "خطأ في رفع الصورة",
@@ -1075,46 +1105,53 @@
 		collect_edit_payload() {
 			const $body = $(this.dialog.body);
 			const raw_new_pin = String($body.find('[data-role="new-pin-input"]').val() ?? "");
+			const payload = {};
 
-			const payload = {
-				account_number: String(this.controls.account_number?.get_value() || "").trim(),
-				base_card_name: String(this.controls.base_card_name?.get_value() || "").trim(),
-				card_number: String(this.controls.card_number?.get_value() || "").trim(),
-				bank: String(this.controls.bank?.get_value() || "").trim(),
-				card_owner: String(this.controls.card_owner?.get_value() || "").trim(),
-				daily_limit: window.ArchiveCardDailyLimitInput
-					? window.ArchiveCardDailyLimitInput.extract_api_value(this.controls.daily_limit)
-					: String(this.controls.daily_limit?.get_value() || "").replace(/,/g, "").trim(),
-				region: String(this.controls.region?.get_value() || "").trim(),
-				representative: String(this.controls.representative?.get_value() || "").trim(),
-				received_date: String(this.controls.received_date?.get_value() || "").trim(),
-			};
+			if (this.can_edit_data()) {
+				Object.assign(payload, {
+					account_number: String(this.controls.account_number?.get_value() || "").trim(),
+					base_card_name: String(this.controls.base_card_name?.get_value() || "").trim(),
+					card_number: String(this.controls.card_number?.get_value() || "").trim(),
+					bank: String(this.controls.bank?.get_value() || "").trim(),
+					card_owner: String(this.controls.card_owner?.get_value() || "").trim(),
+					daily_limit: window.ArchiveCardDailyLimitInput
+						? window.ArchiveCardDailyLimitInput.extract_api_value(
+								this.controls.daily_limit
+							)
+						: String(this.controls.daily_limit?.get_value() || "")
+								.replace(/,/g, "")
+								.trim(),
+					region: String(this.controls.region?.get_value() || "").trim(),
+					representative: String(this.controls.representative?.get_value() || "").trim(),
+					received_date: String(this.controls.received_date?.get_value() || "").trim(),
+				});
 
-			if (raw_new_pin !== "") {
-				payload.new_pin = raw_new_pin;
+				if (raw_new_pin !== "") {
+					payload.new_pin = raw_new_pin;
+				}
 			}
 			if (this.staged_images.front) {
 				payload.front_image =
 					this.staged_images.front.file_id || this.staged_images.front.file_url;
 			}
-			if (this.original_staged_images.front) {
-				payload.front_original_image =
-					this.original_staged_images.front.file_id ||
-					this.original_staged_images.front.file_url;
-			}
 			if (this.edit_metas.front !== undefined) {
+				if (this.original_staged_images.front) {
+					payload.front_original_image =
+						this.original_staged_images.front.file_id ||
+						this.original_staged_images.front.file_url;
+				}
 				payload.front_edit_meta = this.edit_metas.front;
 			}
 			if (this.staged_images.back) {
 				payload.back_image =
 					this.staged_images.back.file_id || this.staged_images.back.file_url;
 			}
-			if (this.original_staged_images.back) {
-				payload.back_original_image =
-					this.original_staged_images.back.file_id ||
-					this.original_staged_images.back.file_url;
-			}
 			if (this.edit_metas.back !== undefined) {
+				if (this.original_staged_images.back) {
+					payload.back_original_image =
+						this.original_staged_images.back.file_id ||
+						this.original_staged_images.back.file_url;
+				}
 				payload.back_edit_meta = this.edit_metas.back;
 			}
 			return payload;

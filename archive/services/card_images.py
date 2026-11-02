@@ -7,12 +7,15 @@ from urllib.parse import quote
 
 import frappe
 from frappe import _
+from frappe.core.doctype.file.utils import get_content_hash, get_file_name
 from frappe.utils import cint
-from frappe.utils.file_manager import save_file
+from frappe.utils.file_manager import save_file_on_filesystem
 
 from archive.services.card_permissions import (
 	CARD_DOCTYPE,
+	has_card_image_preview_role,
 	has_card_permission,
+	require_card_image_preview_role,
 	require_card_permission,
 )
 
@@ -55,7 +58,11 @@ def stage_uploaded_card_image(
 	content_type: str | None = None,
 	side: str | None = None,
 ) -> dict[str, Any]:
-	if not (has_card_permission("create_card") or has_card_permission("edit_card_images")):
+	if not (
+		has_card_permission("create_card")
+		or has_card_permission("edit_card_images")
+		or has_card_image_preview_role()
+	):
 		frappe.throw(
 			_("ليست لديك صلاحية لرفع صور البطاقات."),
 			frappe.PermissionError,
@@ -74,13 +81,27 @@ def stage_uploaded_card_image(
 			frappe.ValidationError,
 		)
 
-	file_doc = save_file(
-		fname=clean_name,
+	unique_fname = get_file_name(clean_name, frappe.generate_hash(length=10))
+	file_data = save_file_on_filesystem(
+		fname=unique_fname,
 		content=content,
-		dt=None,
-		dn=None,
+		content_type=content_type,
 		is_private=1,
 	)
+
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": file_data["file_name"],
+			"file_url": file_data["file_url"],
+			"file_size": size_bytes,
+			"content_hash": get_content_hash(content),
+			"is_private": 1,
+		}
+	)
+	file_doc.flags.ignore_permissions = True
+	file_doc.flags.ignore_duplicate_entry_error = True
+	file_doc.insert()
 
 	if not cint(file_doc.is_private) or not str(file_doc.file_url or "").startswith("/private/files/"):
 		frappe.throw(_("فشل حفظ صورة البطاقة كملف خاص (Private)."), frappe.ValidationError)
@@ -284,7 +305,10 @@ def get_card_image_endpoint(
 	user: str | None = None,
 	original: bool = False,
 ) -> str | None:
-	if not has_card_permission("view_card_images", user=user):
+	if original:
+		if not has_card_image_preview_role(user=user):
+			return None
+	elif not has_card_permission("view_card_images", user=user):
 		return None
 	if side not in VALID_IMAGE_SIDES:
 		return None
@@ -297,21 +321,38 @@ def get_card_image_endpoint(
 
 
 def stream_card_image(card_name: str, side: str, original: bool = False) -> None:
-	require_card_permission(
-		"view_card_images",
-		_("ليست لديك صلاحية لعرض صور البطاقات."),
-	)
+	if original:
+		require_card_image_preview_role(_("ليست لديك صلاحية معاينة البطائق."))
+	else:
+		require_card_permission(
+			"view_card_images",
+			_("ليست لديك صلاحية لعرض صور البطاقات."),
+		)
 	if side not in VALID_IMAGE_SIDES:
 		frappe.throw(_("جهة الصورة المطلوبة غير صالحة."), frappe.ValidationError)
 
 	card_row = frappe.db.get_value(
 		CARD_DOCTYPE,
 		card_name,
-		["name", "is_deleted", "front_image", "back_image", "front_original_image", "back_original_image"],
+		[
+			"name",
+			"status",
+			"is_deleted",
+			"front_image",
+			"back_image",
+			"front_original_image",
+			"back_original_image",
+		],
 		as_dict=True,
 	)
 	if not card_row or cint(card_row.get("is_deleted")):
 		frappe.throw(_("البطاقة المطلوبة غير موجودة."), frappe.DoesNotExistError)
+
+	if original and (card_row.get("status") or "").strip() == "موقفة نهائياً":
+		frappe.throw(
+			_("لا يمكن معاينة أو تعديل صور البطاقة الموقفة نهائياً إلا بعد تفعيلها."),
+			frappe.ValidationError,
+		)
 
 	if side == "front":
 		file_url = (

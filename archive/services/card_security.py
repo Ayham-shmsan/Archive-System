@@ -114,7 +114,10 @@ def is_archive_card_file_doc(doc_or_name: Any) -> bool:
 			"""
 			SELECT name
 			FROM `tabArchive Card`
-			WHERE front_image = %(url)s OR back_image = %(url)s
+			WHERE front_image = %(url)s
+			   OR back_image = %(url)s
+			   OR front_original_image = %(url)s
+			   OR back_original_image = %(url)s
 			LIMIT 1
 			""",
 			{"url": file_url},

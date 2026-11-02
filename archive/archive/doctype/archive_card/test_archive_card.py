@@ -35,12 +35,13 @@ from archive.patches.v1_0.setup_card_roles_and_permissions import (
 )
 from archive.services.card_images import stage_uploaded_card_image
 from archive.services.card_permissions import (
+	ROLE_CARD_IMAGE_PREVIEW,
 	ROLE_CARD_MANAGER,
 	ROLE_CARD_OFFICER,
 	ROLE_CARD_READER,
 	has_card_permission,
 )
-from archive.services.card_security import is_archive_card_file_doc
+from archive.services.card_security import has_file_permission, is_archive_card_file_doc
 
 FAKE_JPEG_BYTES = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xd9"
 
@@ -841,6 +842,36 @@ class TestArchiveCard(IntegrationTestCase):
 		)
 		self.assertEqual(db_row.front_image, proc_front_1["file_url"])
 		self.assertEqual(db_row.front_original_image, orig_front["file_url"])
+		self.assertTrue(is_archive_card_file_doc(orig_front["file_id"]))
+		self.assertTrue(is_archive_card_file_doc(proc_front_1["file_id"]))
+
+		# User A uploads an image, then User B (`officer_user`) uploads the exact same image byte-for-byte
+		shared_buf = io.BytesIO()
+		Image.new("RGB", (64, 40), color=(111, 222, 133)).save(shared_buf, format="JPEG")
+		identical_bytes = shared_buf.getvalue()
+
+		frappe.set_user("Administrator")
+		staged_user_a = stage_uploaded_card_image(
+			filename="identical_card_scan.jpg",
+			content=identical_bytes,
+			content_type="image/jpeg",
+			side="front",
+		)
+
+		frappe.set_user(self.officer_user)
+		staged_user_b = stage_uploaded_card_image(
+			filename="identical_card_scan.jpg",
+			content=identical_bytes,
+			content_type="image/jpeg",
+			side="front",
+		)
+		self.assertNotEqual(staged_user_a["file_id"], staged_user_b["file_id"])
+		self.assertNotEqual(staged_user_a["file_url"], staged_user_b["file_url"])
+		self.assertEqual(
+			frappe.db.get_value("File", staged_user_b["file_id"], "owner"),
+			self.officer_user,
+		)
+		frappe.set_user("Administrator")
 
 		# Re-editing existing image preserves original image and updates processed + metadata
 		proc_front_2 = _stage_one("front_proc_2", (40, 100, 180))
@@ -883,6 +914,95 @@ class TestArchiveCard(IntegrationTestCase):
 		self.assertEqual(db_row_3.front_image, new_orig_front["file_url"])
 		self.assertEqual(db_row_3.front_original_image, new_orig_front["file_url"])
 		self.assertFalse(db_row_3.front_edit_meta)
+
+		# Role-based control for `صلاحية معاينة البطائق`
+		self.assertTrue(frappe.db.exists("Role", ROLE_CARD_IMAGE_PREVIEW))
+		frappe.set_user(self.officer_user)
+		details_no_role = get_card_details(card["name"])
+		self.assertFalse(details_no_role["permissions"]["can_preview_card_images"])
+		self.assertIsNone(details_no_role["card"]["front_original_image_url"])
+
+		officer_proc = _stage_one("officer_proc", (60, 70, 80))
+		with self.assertRaises(frappe.PermissionError):
+			update_card(
+				card["name"],
+				{
+					"front_image": officer_proc["file_id"],
+					"front_edit_meta": meta_1,
+				},
+			)
+		with self.assertRaises(frappe.PermissionError):
+			get_card_image(card=card["name"], side="front", original=1)
+
+		# Grant `صلاحية معاينة البطائق` to officer_user -> allowed in active & paused states
+		frappe.set_user("Administrator")
+		u_doc = frappe.get_doc("User", self.officer_user)
+		u_doc.append("roles", {"role": ROLE_CARD_IMAGE_PREVIEW})
+		u_doc.save(ignore_permissions=True)
+
+		frappe.set_user(self.officer_user)
+		details_with_role = get_card_details(card["name"])
+		self.assertTrue(details_with_role["permissions"]["can_preview_card_images"])
+		self.assertIn("original=1", details_with_role["card"]["front_original_image_url"])
+		get_card_image(card=card["name"], side="front", original=1)
+
+		# `صلاحية معاينة البطائق` does NOT grant general File permission on card files via `has_file_permission`
+		frappe.set_user("Administrator")
+		reader_doc = frappe.get_doc("User", self.reader_user)
+		reader_doc.append("roles", {"role": ROLE_CARD_IMAGE_PREVIEW})
+		reader_doc.save(ignore_permissions=True)
+		orig_file_doc = frappe.get_doc("File", new_orig_front["file_id"])
+		self.assertFalse(has_file_permission(orig_file_doc, ptype="read", user=self.reader_user))
+		frappe.set_user(self.reader_user)
+		# Even without `view_card_images`, a user with `صلاحية معاينة البطائق` can stage an identical byte-for-byte image and use `original=1`
+		staged_reader_same = stage_uploaded_card_image(
+			filename="identical_card_scan.jpg",
+			content=identical_bytes,
+			content_type="image/jpeg",
+			side="front",
+		)
+		self.assertNotEqual(staged_user_a["file_id"], staged_reader_same["file_id"])
+		self.assertNotEqual(staged_user_a["file_url"], staged_reader_same["file_url"])
+		get_card_image(card=card["name"], side="front", original=1)
+		frappe.set_user("Administrator")
+		reader_doc = frappe.get_doc("User", self.reader_user)
+		reader_doc.roles = [r for r in reader_doc.roles if r.role != ROLE_CARD_IMAGE_PREVIEW]
+		reader_doc.save(ignore_permissions=True)
+		frappe.set_user(self.officer_user)
+
+		# Allowed when card is temporarily paused (`موقفة مؤقتاً`)
+		change_card_status(card["name"], "موقفة مؤقتاً")
+		officer_proc_2 = _stage_one("officer_proc_2", (70, 90, 110))
+		upd_paused = update_card(
+			card["name"],
+			{
+				"front_image": officer_proc_2["file_id"],
+				"front_edit_meta": meta_1,
+			},
+		)["card"]
+		self.assertEqual(upd_paused["front_edit_meta"], meta_1)
+
+		# Forbidden when card is permanently stopped (`موقفة نهائياً`) even with the role
+		change_card_status(card["name"], "موقفة نهائياً", reason="إيقاف نهائي للاختبار")
+		stopped_details = get_card_details(card["name"])
+		self.assertIsNone(stopped_details["card"]["front_original_image_url"])
+		with self.assertRaises(frappe.ValidationError):
+			get_card_image(card=card["name"], side="front", original=1)
+		officer_proc_3 = _stage_one("officer_proc_3", (80, 100, 120))
+		with self.assertRaises(frappe.ValidationError):
+			update_card(
+				card["name"],
+				{
+					"front_image": officer_proc_3["file_id"],
+					"front_edit_meta": meta_2,
+				},
+			)
+
+		# Clean up test role assignment on officer_user
+		frappe.set_user("Administrator")
+		u_doc = frappe.get_doc("User", self.officer_user)
+		u_doc.roles = [r for r in u_doc.roles if r.role != ROLE_CARD_IMAGE_PREVIEW]
+		u_doc.save(ignore_permissions=True)
 
 
 

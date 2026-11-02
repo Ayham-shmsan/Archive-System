@@ -37,7 +37,9 @@ from archive.services.card_images import (
 from archive.services.card_permissions import (
 	CARD_DOCTYPE,
 	get_card_permissions,
+	has_card_image_preview_role,
 	has_card_permission,
+	require_card_image_preview_role,
 	require_card_permission,
 )
 from archive.services.card_security import (
@@ -196,6 +198,7 @@ def _serialize_card_row(
 	version_token = cstr(row.get("modified") or "1")
 	card_name = row["name"]
 
+	is_perm_stopped = cstr(row.get("status") or "").strip() == "موقفة نهائياً"
 	front_url = (
 		get_card_image_endpoint(card_name, "front", version_token=version_token)
 		if can_view_images and row.get("front_image")
@@ -208,12 +211,12 @@ def _serialize_card_row(
 	)
 	front_orig_url = (
 		get_card_image_endpoint(card_name, "front", version_token=version_token, original=True)
-		if can_view_images and (row.get("front_original_image") or row.get("front_image"))
+		if not is_perm_stopped and (row.get("front_original_image") or row.get("front_image"))
 		else None
 	)
 	back_orig_url = (
 		get_card_image_endpoint(card_name, "back", version_token=version_token, original=True)
-		if can_view_images and (row.get("back_original_image") or row.get("back_image"))
+		if not is_perm_stopped and (row.get("back_original_image") or row.get("back_image"))
 		else None
 	)
 
@@ -785,6 +788,14 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 		and raw_back_orig not in (back_file_doc.name, back_file_doc.file_url)
 		else back_file_doc
 	)
+	if (
+		data.get("front_edit_meta") is not None
+		or data.get("back_edit_meta") is not None
+		or (front_orig_doc and front_orig_doc.name != front_file_doc.name)
+		or (back_file_doc and back_orig_doc and back_orig_doc.name != back_file_doc.name)
+	):
+		require_card_image_preview_role(_("ليست لديك صلاحية معاينة البطائق."))
+
 	if back_file_doc and front_file_doc.name == back_file_doc.name:
 		frappe.throw(
 			_("لا يمكن استخدام نفس ملف الصورة للوجهين الأمامي والخلفي."),
@@ -903,7 +914,8 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 
 	has_edit_data_perm = has_card_permission("edit_card")
 	has_edit_images_perm = has_card_permission("edit_card_images")
-	if not has_edit_data_perm and not has_edit_images_perm:
+	has_preview_perm = has_card_image_preview_role()
+	if not has_edit_data_perm and not has_edit_images_perm and not has_preview_perm:
 		require_card_permission("edit_card", _("ليست لديك صلاحية لتعديل البطاقة."))
 
 	now_ts = now_datetime()
@@ -1084,10 +1096,13 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 		if "front_image" in data and data.get("front_image"):
 			incoming_front = cstr(data.get("front_image")).strip()
 			if incoming_front != old_front_url:
-				require_card_permission(
-					"edit_card_images",
-					_("ليست لديك صلاحية لتعديل صور البطاقة."),
-				)
+				if "front_edit_meta" in data and "front_original_image" not in data:
+					require_card_image_preview_role(_("ليست لديك صلاحية معاينة البطائق."))
+				else:
+					require_card_permission(
+						"edit_card_images",
+						_("ليست لديك صلاحية لتعديل صور البطاقة."),
+					)
 				front_file_doc = resolve_and_validate_card_image_file(
 					incoming_front,
 					_("الوجه الأمامي"),
@@ -1104,10 +1119,7 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 							card_doc.front_edit_meta = None
 
 		if "front_edit_meta" in data:
-			require_card_permission(
-				"edit_card_images",
-				_("ليست لديك صلاحية لتعديل صور البطاقة."),
-			)
+			require_card_image_preview_role(_("ليست لديك صلاحية معاينة البطائق."))
 			new_front_meta = _normalize_edit_meta_json(data.get("front_edit_meta"))
 			if new_front_meta != (card_doc.front_edit_meta or None):
 				card_doc.front_edit_meta = new_front_meta
@@ -1130,10 +1142,13 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 		if "back_image" in data and data.get("back_image"):
 			incoming_back = cstr(data.get("back_image")).strip()
 			if incoming_back != old_back_url:
-				require_card_permission(
-					"edit_card_images",
-					_("ليست لديك صلاحية لتعديل صور البطاقة."),
-				)
+				if "back_edit_meta" in data and "back_original_image" not in data:
+					require_card_image_preview_role(_("ليست لديك صلاحية معاينة البطائق."))
+				else:
+					require_card_permission(
+						"edit_card_images",
+						_("ليست لديك صلاحية لتعديل صور البطاقة."),
+					)
 				back_file_doc = resolve_and_validate_card_image_file(
 					incoming_back,
 					_("الوجه الخلفي"),
@@ -1150,14 +1165,17 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 							card_doc.back_edit_meta = None
 
 		if "back_edit_meta" in data:
-			require_card_permission(
-				"edit_card_images",
-				_("ليست لديك صلاحية لتعديل صور البطاقة."),
-			)
+			require_card_image_preview_role(_("ليست لديك صلاحية معاينة البطائق."))
 			new_back_meta = _normalize_edit_meta_json(data.get("back_edit_meta"))
 			if new_back_meta != (card_doc.back_edit_meta or None):
 				card_doc.back_edit_meta = new_back_meta
 				back_image_changed = True
+
+		if (
+			(front_orig_doc and front_file_doc and front_orig_doc.name != front_file_doc.name)
+			or (back_orig_doc and back_file_doc and back_orig_doc.name != back_file_doc.name)
+		):
+			require_card_image_preview_role(_("ليست لديك صلاحية معاينة البطائق."))
 
 		if card_doc.front_image and card_doc.back_image and card_doc.front_image == card_doc.back_image:
 			frappe.throw(

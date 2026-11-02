@@ -6,6 +6,7 @@ from frappe.permissions import reset_perms as frappe_reset_perms, setup_custom_p
 from archive.services.card_permissions import (
 	CARD_DOCTYPE,
 	CARD_PERMISSION_TYPES,
+	ROLE_CARD_IMAGE_PREVIEW,
 	ROLE_CARD_MANAGER,
 	ROLE_CARD_OFFICER,
 	ROLE_CARD_READER,
@@ -136,7 +137,12 @@ def _ensure_permission_type_custom_fields() -> None:
 
 
 def _ensure_roles() -> None:
-	for role_name in (ROLE_CARD_MANAGER, ROLE_CARD_OFFICER, ROLE_CARD_READER):
+	for role_name in (
+		ROLE_CARD_MANAGER,
+		ROLE_CARD_OFFICER,
+		ROLE_CARD_READER,
+		ROLE_CARD_IMAGE_PREVIEW,
+	):
 		if not frappe.db.exists("Role", role_name):
 			role_doc = frappe.get_doc(
 				{

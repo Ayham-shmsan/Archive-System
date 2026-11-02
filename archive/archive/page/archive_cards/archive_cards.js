@@ -10,7 +10,7 @@ frappe.pages["archive-cards"].on_page_show = function () {
 
 const ARCHIVE_CARDS_COLUMNS = [
 	{ key: "serial_no", label: "الرقم", width: "78px", locked: true, sortable: true },
-	{ key: "card_name", label: "اسم البطاقة", width: "175px", locked: true, sortable: true },
+	{ key: "card_name", label: "اسم البطاقة", width: "225px", locked: true, sortable: true },
 	{ key: "account_number", label: "رقم الحساب", width: "155px", locked: false, sortable: true },
 	{ key: "card_number", label: "رقم البطاقة", width: "160px", locked: false, sortable: true },
 	{ key: "bank", label: "البنك", width: "130px", locked: false, sortable: true },
@@ -1199,6 +1199,7 @@ class ArchiveCardsPage {
 			if (!window.ArchiveCardCreateDialog) return;
 			const dlg = new window.ArchiveCardCreateDialog({
 				masters: this.masters,
+				permissions: this.permissions,
 				on_created: async (created_card) => {
 					if (created_card && created_card.name) {
 						this.state.selected_card_name = created_card.name;

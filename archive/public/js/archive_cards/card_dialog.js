@@ -48,6 +48,7 @@
 	class ArchiveCardCreateDialog {
 		constructor(options = {}) {
 			this.masters = options.masters || {};
+			this.permissions = options.permissions || {};
 			this.on_created = options.on_created || null;
 
 			this.dialog = null;
@@ -199,7 +200,15 @@
 			this.make_controls($body);
 		}
 
+		can_preview_images() {
+			if (this.permissions && typeof this.permissions.can_preview_card_images === "boolean") {
+				return this.permissions.can_preview_card_images;
+			}
+			return Boolean(frappe?.user?.has_role?.("صلاحية معاينة البطائق"));
+		}
+
 		render_image_dropzone(side, label, required = true) {
+			const can_preview = this.can_preview_images();
 			return `
 				<div class="acd-image-slot-card" data-image-slot="${side}">
 					<div class="acd-image-slot-header">
@@ -208,9 +217,13 @@
 							<button type="button" class="btn btn-xs btn-default" data-action="pick-image" data-side="${side}">
 								<i class="fa fa-upload"></i> اختيار صورة
 							</button>
-							<button type="button" class="btn btn-xs btn-default acd-slot-preview-edit-btn" data-action="preview-edit-image" data-side="${side}" hidden>
-								<i class="fa fa-sliders"></i> معاينة
-							</button>
+							${
+								can_preview
+									? `<button type="button" class="btn btn-xs btn-default acd-slot-preview-edit-btn" data-action="preview-edit-image" data-side="${side}" hidden>
+										<i class="fa fa-sliders"></i> معاينة
+									</button>`
+									: ""
+							}
 							<button type="button" class="btn btn-xs btn-default" data-action="zoom-staged" data-side="${side}" hidden>
 								<i class="fa fa-search-plus"></i> تكبير
 							</button>
@@ -453,34 +466,7 @@
 				e.preventDefault();
 				e.stopPropagation();
 				const side = $(e.currentTarget).attr("data-side") || "front";
-				const orig_url = this.original_preview_urls[side] || this.preview_urls[side];
-				if (!orig_url || !window.ArchiveCardImageEditor) return;
-				window.ArchiveCardImageEditor.open({
-					side,
-					side_label: side === "back" ? "الوجه الخلفي" : "الوجه الأمامي",
-					original_url: orig_url,
-					initial_meta: this.edit_metas[side] || null,
-					saved_meta: this.edit_metas[side] || null,
-					on_apply: ({ staged, blob_url, edit_meta }) => {
-						this.staged_files[side] = staged;
-						if (staged?.file_id) {
-							this.all_staged_file_ids.add(staged.file_id);
-						}
-						if (
-							this.preview_urls[side] &&
-							this.preview_urls[side] !== this.original_preview_urls[side]
-						) {
-							URL.revokeObjectURL(this.preview_urls[side]);
-						}
-						this.preview_urls[side] = blob_url;
-						this.edit_metas[side] = edit_meta || null;
-						$body
-							.find(`[data-role="preview-${side}"]`)
-							.attr("src", blob_url)
-							.addClass("is-processed")
-							.prop("hidden", false);
-					},
-				});
+				this.open_image_editor(side);
 			});
 
 			["front", "back"].forEach((side) => {
@@ -490,6 +476,40 @@
 					await this.handle_file_selected(side, file);
 					e.target.value = "";
 				});
+			});
+		}
+
+		open_image_editor(side) {
+			if (!this.can_preview_images() || !window.ArchiveCardImageEditor) return;
+			const orig_url = this.original_preview_urls[side] || this.preview_urls[side];
+			if (!orig_url) return;
+			const $body = $(this.dialog.body);
+			window.ArchiveCardImageEditor.open({
+				can_preview: true,
+				side,
+				side_label: side === "back" ? "الوجه الخلفي" : "الوجه الأمامي",
+				original_url: orig_url,
+				initial_meta: this.edit_metas[side] || null,
+				saved_meta: this.edit_metas[side] || null,
+				on_apply: ({ staged, blob_url, edit_meta }) => {
+					this.staged_files[side] = staged;
+					if (staged?.file_id) {
+						this.all_staged_file_ids.add(staged.file_id);
+					}
+					if (
+						this.preview_urls[side] &&
+						this.preview_urls[side] !== this.original_preview_urls[side]
+					) {
+						URL.revokeObjectURL(this.preview_urls[side]);
+					}
+					this.preview_urls[side] = blob_url;
+					this.edit_metas[side] = edit_meta || null;
+					$body
+						.find(`[data-role="preview-${side}"]`)
+						.attr("src", blob_url)
+						.addClass("is-processed")
+						.prop("hidden", false);
+				},
 			});
 		}
 
@@ -527,7 +547,10 @@
 				$empty.prop("hidden", true);
 				$preview.attr("src", blob_url).removeClass("is-processed").prop("hidden", false);
 				$zoomBtn.prop("hidden", false);
-				$editBtn.prop("hidden", false);
+				if (this.can_preview_images()) {
+					$editBtn.prop("hidden", false);
+					this.open_image_editor(side);
+				}
 			} catch (err) {
 				frappe.msgprint({
 					title: "خطأ في رفع الصورة",
@@ -676,7 +699,7 @@
 			const $body = $(this.dialog.body);
 			const pin = String($body.find('[data-role="pin-input"]').val() ?? "");
 
-			return {
+			const payload = {
 				account_number: String(this.controls.account_number?.get_value() || "").trim(),
 				base_card_name: String(this.controls.base_card_name?.get_value() || "").trim(),
 				card_number: String(this.controls.card_number?.get_value() || "").trim(),
@@ -691,17 +714,22 @@
 				pin,
 				front_image: this.staged_files.front?.file_id || this.staged_files.front?.file_url || "",
 				back_image: this.staged_files.back?.file_id || this.staged_files.back?.file_url || "",
-				front_original_image:
+			};
+			if (this.edit_metas.front) {
+				payload.front_original_image =
 					this.original_staged_files.front?.file_id ||
 					this.original_staged_files.front?.file_url ||
-					"",
-				back_original_image:
+					"";
+				payload.front_edit_meta = this.edit_metas.front;
+			}
+			if (this.edit_metas.back) {
+				payload.back_original_image =
 					this.original_staged_files.back?.file_id ||
 					this.original_staged_files.back?.file_url ||
-					"",
-				front_edit_meta: this.edit_metas.front || null,
-				back_edit_meta: this.edit_metas.back || null,
-			};
+					"";
+				payload.back_edit_meta = this.edit_metas.back;
+			}
+			return payload;
 		}
 
 		validate_client_payload(payload) {
@@ -1886,6 +1914,14 @@
 
 	class ArchiveCardImageEditor {
 		static open(options = {}) {
+			if (options.can_preview === false) return null;
+			if (
+				options.can_preview === undefined &&
+				typeof frappe?.user?.has_role === "function" &&
+				!frappe.user.has_role("صلاحية معاينة البطائق")
+			) {
+				return null;
+			}
 			const instance = new ArchiveCardImageEditor(options);
 			instance.show();
 			return instance;

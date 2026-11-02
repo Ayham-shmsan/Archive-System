@@ -26,6 +26,25 @@ CARD_PERMISSION_TYPES = (
 ROLE_CARD_MANAGER = "مدير البطاقات"
 ROLE_CARD_OFFICER = "موظف البطاقات"
 ROLE_CARD_READER = "قارئ البطاقات"
+ROLE_CARD_IMAGE_PREVIEW = "صلاحية معاينة البطائق"
+
+
+def has_card_image_preview_role(user: str | None = None) -> bool:
+	resolved_user = _resolve_user(user)
+	if not resolved_user or resolved_user == "Guest":
+		return False
+	return ROLE_CARD_IMAGE_PREVIEW in frappe.get_roles(resolved_user)
+
+
+def require_card_image_preview_role(
+	message: str | None = None,
+	user: str | None = None,
+) -> None:
+	if not has_card_image_preview_role(user=user):
+		frappe.throw(
+			message or _("ليست لديك صلاحية معاينة البطائق."),
+			frappe.PermissionError,
+		)
 
 
 def _resolve_user(user: str | None = None) -> str:
@@ -102,6 +121,7 @@ def get_card_permissions(user: str | None = None) -> dict[str, bool]:
 			"can_delete": False,
 			"can_view_images": False,
 			"can_edit_images": False,
+			"can_preview_card_images": False,
 			"can_view_pin": False,
 			"can_view_activity_timeline": False,
 			"can_view_transfer_timeline": False,
@@ -119,6 +139,9 @@ def get_card_permissions(user: str | None = None) -> dict[str, bool]:
 		"can_delete": flags["delete_card"],
 		"can_view_images": flags["view_card_images"],
 		"can_edit_images": flags["edit_card_images"],
+		"can_preview_card_images": bool(
+			flags["view_card_images"] and has_card_image_preview_role(user=resolved_user)
+		),
 		"can_view_pin": flags["view_card_pin"],
 		"can_view_activity_timeline": flags["view_card_activity_timeline"],
 		"can_view_transfer_timeline": flags["view_card_transfer_timeline"],
