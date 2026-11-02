@@ -18,3 +18,4 @@ archive.patches.v1_0.rebuild_operation_search_text
 archive.patches.v1_0.rebuild_operation_search_text_v2
 archive.patches.v1_0.rebuild_operation_search_text_v3
 archive.patches.v1_0.setup_card_roles_and_permissions
+archive.patches.v1_0.setup_card_roles_and_permissions # 2026-11-02

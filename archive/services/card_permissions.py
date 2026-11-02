@@ -33,6 +33,8 @@ def has_card_image_preview_role(user: str | None = None) -> bool:
 	resolved_user = _resolve_user(user)
 	if not resolved_user or resolved_user == "Guest":
 		return False
+	if resolved_user == "Administrator":
+		return True
 	return ROLE_CARD_IMAGE_PREVIEW in frappe.get_roles(resolved_user)
 
 
@@ -139,9 +141,7 @@ def get_card_permissions(user: str | None = None) -> dict[str, bool]:
 		"can_delete": flags["delete_card"],
 		"can_view_images": flags["view_card_images"],
 		"can_edit_images": flags["edit_card_images"],
-		"can_preview_card_images": bool(
-			flags["view_card_images"] and has_card_image_preview_role(user=resolved_user)
-		),
+		"can_preview_card_images": has_card_image_preview_role(user=resolved_user),
 		"can_view_pin": flags["view_card_pin"],
 		"can_view_activity_timeline": flags["view_card_activity_timeline"],
 		"can_view_transfer_timeline": flags["view_card_transfer_timeline"],

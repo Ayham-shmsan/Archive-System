@@ -917,6 +917,32 @@ class TestArchiveCard(IntegrationTestCase):
 
 		# Role-based control for `صلاحية معاينة البطائق`
 		self.assertTrue(frappe.db.exists("Role", ROLE_CARD_IMAGE_PREVIEW))
+		frappe.set_user("Administrator")
+		admin_details = get_card_details(card["name"])
+		self.assertTrue(admin_details["permissions"]["can_preview_card_images"])
+
+		# System Manager without `صلاحية معاينة البطائق` does NOT get preview permission
+		sys_mgr_email = "card_sysmgr_test@example.com"
+		if not frappe.db.exists("User", sys_mgr_email):
+			frappe.get_doc(
+				{
+					"doctype": "User",
+					"email": sys_mgr_email,
+					"first_name": "CardSysMgr",
+					"enabled": 1,
+					"user_type": "System User",
+					"roles": [{"role": "System Manager"}],
+				}
+			).insert(ignore_permissions=True)
+		else:
+			sm_doc = frappe.get_doc("User", sys_mgr_email)
+			sm_doc.roles = [{"role": "System Manager"}]
+			sm_doc.save(ignore_permissions=True)
+
+		frappe.set_user(sys_mgr_email)
+		sysmgr_details = get_card_details(card["name"])
+		self.assertFalse(sysmgr_details["permissions"]["can_preview_card_images"])
+
 		frappe.set_user(self.officer_user)
 		details_no_role = get_card_details(card["name"])
 		self.assertFalse(details_no_role["permissions"]["can_preview_card_images"])
@@ -954,6 +980,9 @@ class TestArchiveCard(IntegrationTestCase):
 		orig_file_doc = frappe.get_doc("File", new_orig_front["file_id"])
 		self.assertFalse(has_file_permission(orig_file_doc, ptype="read", user=self.reader_user))
 		frappe.set_user(self.reader_user)
+		reader_details = get_card_details(card["name"])
+		self.assertFalse(reader_details["permissions"]["can_view_images"])
+		self.assertTrue(reader_details["permissions"]["can_preview_card_images"])
 		# Even without `view_card_images`, a user with `صلاحية معاينة البطائق` can stage an identical byte-for-byte image and use `original=1`
 		staged_reader_same = stage_uploaded_card_image(
 			filename="identical_card_scan.jpg",

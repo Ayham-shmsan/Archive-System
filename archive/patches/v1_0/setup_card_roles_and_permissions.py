@@ -155,6 +155,7 @@ def _ensure_roles() -> None:
 			role_doc.insert(ignore_permissions=True)
 		else:
 			frappe.db.set_value("Role", role_name, "desk_access", 1, update_modified=False)
+	frappe.cache.delete_key("roles")
 
 
 def _sync_custom_docperms() -> None:
