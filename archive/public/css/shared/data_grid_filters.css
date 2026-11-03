@@ -14,8 +14,9 @@
     background: var(--primary);
     color: var(--fg-color);
 
-    font-size: 11px;
-    font-weight: 700;
+    font-size: var(--archive-font-badge-size);
+    font-weight: var(--archive-font-badge-weight);
+    line-height: var(--archive-font-badge-lh);
 }
 
 
@@ -26,7 +27,7 @@
 
     gap: 7px;
 
-    padding: 8px 0;
+    padding: var(--archive-space-2) 0;
 }
 
 
@@ -40,7 +41,7 @@
 
     padding: 5px 9px;
 
-    border: 1px solid var(--border-color);
+    border: var(--archive-border-width-thin) var(--archive-border-style-solid) var(--border-color);
     border-radius: 999px;
 
     background: var(--control-bg);
@@ -48,7 +49,9 @@
 
     cursor: pointer;
 
-    font-size: var(--text-sm);
+    font-size: var(--archive-font-label-size);
+    font-weight: var(--archive-font-label-weight);
+    line-height: var(--archive-font-label-lh);
 }
 
 
@@ -65,7 +68,7 @@
 
 
 .generic-filter-chip-remove {
-    font-size: 16px;
+    font-size: var(--archive-font-size-lg);
     line-height: 1;
 
     color: var(--text-muted);
@@ -88,7 +91,7 @@
 
 
 .generic-filter-dialog .modal-content {
-    border-radius: 12px;
+    border-radius: var(--archive-radius-xl);
     overflow: hidden;
 }
 
@@ -117,11 +120,11 @@
    ========================================================== */
 
 .generic-filter-section {
-    margin-bottom: 12px;
-    padding: 16px 14px 14px;
+    margin-bottom: var(--archive-space-3);
+    padding: var(--archive-space-4) 14px 14px;
 
     border:
-        1px solid
+        var(--archive-border-width-thin) var(--archive-border-style-solid)
         var(--border-color);
 
     border-radius: 10px;
@@ -144,8 +147,9 @@
 
 
 .generic-filter-section-title {
-    font-size: 15px;
-    font-weight: 700;
+    font-size: var(--archive-font-section-title-size);
+    font-weight: var(--archive-font-section-title-weight);
+    line-height: var(--archive-font-section-title-lh);
 
     color:
         var(--text-color);
@@ -153,9 +157,11 @@
 
 
 .generic-filter-section-subtitle {
-    margin-top: 2px;
+    margin-top: var(--archive-space-0-5);
 
-    font-size: 11px;
+    font-size: var(--archive-font-meta-size);
+    font-weight: var(--archive-font-meta-weight);
+    line-height: var(--archive-font-meta-lh);
 
     color:
         var(--text-muted);
@@ -176,7 +182,7 @@
         );
 
     gap:
-        12px 14px;
+        var(--archive-space-3) 14px;
 
     direction: rtl;
 
@@ -197,7 +203,9 @@
 
 .generic-filter-field
 .control-label {
-    font-size: 12px;
+    font-size: var(--archive-font-label-size);
+    font-weight: var(--archive-font-label-weight);
+    line-height: var(--archive-font-label-lh);
     margin-bottom: 5px;
 }
 
@@ -209,7 +217,9 @@
 .generic-filter-range-title {
     margin-bottom: 5px;
 
-    font-size: 12px;
+    font-size: var(--archive-font-label-size);
+    font-weight: var(--archive-font-label-weight);
+    line-height: var(--archive-font-label-lh);
 
     color:
         var(--text-muted);
@@ -223,7 +233,7 @@
         minmax(0, 1fr)
         minmax(0, 1fr);
 
-    gap: 8px;
+    gap: var(--archive-space-2);
 
     direction: rtl;
 }
@@ -263,7 +273,7 @@
         10px 14px;
 
     border-top:
-        1px solid
+        var(--archive-border-width-thin) var(--archive-border-style-solid)
         var(--border-color);
 }
 

@@ -502,17 +502,7 @@ class ArchivePendingOperationsPage {
                 <div class="archive-pending-header">
 
                     <div class="archive-pending-header-text">
-                        <div class="archive-pending-title-row">
-                            <h1>شاشة المعلقات</h1>
-
-                            <span
-                                class="archive-pending-scope-badge"
-                                aria-live="polite"
-                            >
-                                —
-                            </span>
-                        </div>
-
+                        <h1>شاشة المعلقات</h1>
                         <p>
                             إدارة ومتابعة العمليات المعلقة والإرجاعات
                         </p>

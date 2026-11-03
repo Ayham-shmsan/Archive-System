@@ -677,7 +677,7 @@ class ArchiveOperationsPage {
 
             $table
                 .find(
-                    `tbody tr td:nth-child(${column.index})`
+                    `tbody.archive-operation-rows tr td:nth-child(${column.index})`
                 )
                 .toggle(
                     !is_hidden
@@ -1961,26 +1961,6 @@ class ArchiveOperationsPage {
 
 				<!-- Operations -->
 				<div class="archive-operations-card">
-
-					<div class="archive-list-header">
-
-						<div>
-							<div class="archive-list-title">
-								العمليات
-							</div>
-
-							<div class="archive-list-subtitle">
-								عرض وإدارة جميع العمليات المسجلة
-							</div>
-						</div>
-
-						<div class="archive-result-count">
-							0 عملية
-						</div>
-
-					</div>
-
-                    
 					<div
                         class="
                             archive-table-wrapper
@@ -2221,6 +2201,10 @@ class ArchiveOperationsPage {
 							<tbody class="archive-operation-rows">
 							</tbody>
 
+                            <tbody class="archive-operation-fill" aria-hidden="true">
+                                <tr><td colspan="23"></td></tr>
+                            </tbody>
+
                             <tfoot class="archive-operation-total-footer">
                                 <tr class="archive-operation-total-row">
 
@@ -2288,7 +2272,50 @@ class ArchiveOperationsPage {
 
 		this.bind_events();
         this.apply_column_visibility();
+
+        if (this.table_resize_observer) {
+            this.table_resize_observer.disconnect();
+        }
+        const table_wrapper_el = $(this.wrapper)
+            .find(".archive-table-wrapper")
+            .get(0);
+        if (table_wrapper_el && typeof ResizeObserver !== "undefined") {
+            this.table_resize_observer = new ResizeObserver(() => {
+                this.update_table_filler_height();
+            });
+            this.table_resize_observer.observe(table_wrapper_el);
+        }
 	}
+
+    update_table_filler_height() {
+        const $wrapper = $(this.wrapper);
+        const wrapper_el = $wrapper.find(".archive-table-wrapper").get(0);
+        const $table = $wrapper.find(".archive-operations-table");
+        const $fill_tbody = $table.find("tbody.archive-operation-fill");
+        const $fill_cell = $fill_tbody.find("td");
+
+        if (!wrapper_el || !$table.length || !$fill_cell.length || !$table.is(":visible")) {
+            return;
+        }
+
+        const wrapper_height = wrapper_el.clientHeight || 0;
+        const thead_height = $table.find("thead").outerHeight() || 0;
+        const tfoot_height = $table.find("tfoot:visible").outerHeight() || 0;
+        const rows_height = $table.find("tbody.archive-operation-rows").outerHeight() || 0;
+
+        const filler_height = Math.max(
+            0,
+            Math.floor(wrapper_height - thead_height - tfoot_height - rows_height)
+        );
+
+        if (filler_height > 0) {
+            $fill_tbody.show();
+            $fill_cell.show().css("height", `${filler_height}px`);
+        } else {
+            $fill_cell.css("height", "0px");
+            $fill_tbody.hide();
+        }
+    }
 
 	summary_card(status, label, value) {
 		const active =
@@ -2965,6 +2992,7 @@ class ArchiveOperationsPage {
             operations
         );
         this.apply_column_visibility();
+        this.update_table_filler_height();
 
         this.bind_row_events();
     }
@@ -3109,7 +3137,7 @@ class ArchiveOperationsPage {
 
 
                 <!-- العميل -->
-                <td>
+                <td class="archive-customer-name">
                     ${this.escape_value(
                         operation.customer_name || operation.customer
                     )}
@@ -3149,7 +3177,7 @@ class ArchiveOperationsPage {
 
 
                 <!-- اسم المستفيد -->
-                <td>
+                <td class="archive-beneficiary-name">
                     ${this.escape_value(
                         operation.beneficiary_name
                     )}

@@ -1,0 +1,324 @@
+/**
+ * Archive Design System - Design Tokens
+ * Source of Truth: Archive Cards Screen
+ * Namespace: --archive-*
+ */
+
+:root {
+    /* ------------------------------------------------------------
+       1. Primitive Colors (القيم اللونية الأولية)
+       ------------------------------------------------------------ */
+    /* Neutrals / Slate */
+    --archive-slate-50:  #f8fafc;
+    --archive-slate-100: #f1f5f9;
+    --archive-slate-200: #e2e8f0;
+    --archive-slate-300: #cbd5e1;
+    --archive-slate-400: #94a3b8;
+    --archive-slate-500: #64748b;
+    --archive-slate-600: #475569;
+    --archive-slate-700: #334155;
+    --archive-slate-800: #1e293b;
+    --archive-slate-900: #0f172a;
+
+    /* Emerald (Active Status) */
+    --archive-emerald-50:  #f4fbf7;
+    --archive-emerald-100: #ecfdf5;
+    --archive-emerald-200: #d1fae5;
+    --archive-emerald-400: #34d399;
+    --archive-emerald-600: #16a34a;
+    --archive-emerald-700: #15803d;
+
+    /* Amber (Paused / Temporary Status) */
+    --archive-amber-50:  #fffdf0;
+    --archive-amber-100: #fffbeb;
+    --archive-amber-200: #fde7a8;
+    --archive-amber-400: #fbbf24;
+    --archive-amber-600: #d97706;
+    --archive-amber-700: #b45309;
+
+    /* Rose (Stopped / Permanent Status) */
+    --archive-rose-50:  #fff5f5;
+    --archive-rose-100: #fef2f2;
+    --archive-rose-200: #fecaca;
+    --archive-rose-400: #f87171;
+    --archive-rose-600: #dc2626;
+    --archive-rose-700: #b91c1c;
+
+    /* Blue (Primary & Interactive) */
+    --archive-blue-50:   #eff6ff;
+    --archive-blue-100:  #dbeafe;
+    --archive-blue-500:  #2563eb;
+    --archive-blue-600:  #1d4ed8;
+    --archive-blue-700:  #1e40af;
+
+    /* Solid Pure Colors */
+    --archive-white:     #ffffff;
+    --archive-black:     #000000;
+
+    /* ------------------------------------------------------------
+       2. Semantic Colors (الألوان الدلالية العامة)
+       ------------------------------------------------------------ */
+    /* Surfaces & Backgrounds */
+    --archive-color-bg-app:             var(--archive-slate-50);
+    --archive-color-bg-surface:         var(--archive-white);
+    --archive-color-bg-surface-subtle:  var(--archive-slate-100);
+    --archive-color-bg-field-readonly:  #f8fbff;
+    --archive-color-bg-contrast:        var(--archive-slate-900);
+
+    /* Text Colors */
+    --archive-color-text-heading:       var(--archive-slate-900);
+    --archive-color-text-title:         var(--archive-slate-700);
+    --archive-color-text-body:          var(--archive-slate-800);
+    --archive-color-text-muted:         var(--archive-slate-500);
+    --archive-color-text-subtle:        var(--archive-slate-400);
+    --archive-color-text-inverse:       var(--archive-white);
+
+    /* Borders */
+    --archive-color-border-subtle:      var(--archive-slate-200);
+    --archive-color-border-default:     #dbe3ee;
+    --archive-color-border-hover:       var(--archive-slate-300);
+    --archive-color-border-divider:     var(--archive-slate-100);
+
+    /* Interactive & Focus */
+    --archive-color-primary:            var(--archive-blue-500);
+    --archive-color-primary-hover:      var(--archive-blue-600);
+    --archive-color-focus-ring:         rgba(37, 99, 235, 0.25);
+
+    /* ------------------------------------------------------------
+       3. Semantic Status Tokens (حالات النظام - مرجع البطاقات 1:1)
+       ------------------------------------------------------------ */
+    /* نشط / Active */
+    --archive-status-active-bg:         var(--archive-emerald-50);
+    --archive-status-active-border:     var(--archive-emerald-400);
+    --archive-status-active-text:       var(--archive-emerald-700);
+    --archive-status-active-icon:       var(--archive-emerald-600);
+    --archive-status-active-hover:      #e6f6ec;
+    --archive-status-active-selected:   var(--archive-emerald-200);
+
+    /* موقوف مؤقتاً / Paused / Pending */
+    --archive-status-paused-bg:         var(--archive-amber-50);
+    --archive-status-paused-border:     var(--archive-amber-400);
+    --archive-status-paused-text:       var(--archive-amber-700);
+    --archive-status-paused-icon:       var(--archive-amber-600);
+    --archive-status-paused-hover:      #fef5d1;
+    --archive-status-paused-selected:   var(--archive-amber-200);
+
+    /* موقوف نهائياً / Stopped / Failed */
+    --archive-status-stopped-bg:        var(--archive-rose-50);
+    --archive-status-stopped-border:    var(--archive-rose-400);
+    --archive-status-stopped-text:      var(--archive-rose-700);
+    --archive-status-stopped-icon:      var(--archive-rose-600);
+    --archive-status-stopped-hover:     #fee7e7;
+    --archive-status-stopped-selected:  var(--archive-rose-200);
+
+    /* الكل / محايد / Neutral */
+    --archive-status-neutral-bg:        var(--archive-white);
+    --archive-status-neutral-border:    var(--archive-slate-500);
+    --archive-status-neutral-text:      var(--archive-slate-700);
+    --archive-status-neutral-icon-bg:   var(--archive-slate-100);
+    --archive-status-neutral-hover:     var(--archive-slate-50);
+    --archive-status-neutral-selected:  var(--archive-blue-50);
+
+    /* ------------------------------------------------------------
+       4. Typography (الخطوط والطباعة)
+       ------------------------------------------------------------ */
+    /* Font Sizes */
+    --archive-font-size-2xs:  10px;
+    --archive-font-size-xs:   11px;
+    --archive-font-size-sm:   12px;
+    --archive-font-size-base: 13px;
+    --archive-font-size-md:   14px;
+    --archive-font-size-lg:   16px;
+    --archive-font-size-xl:   20px;
+    --archive-font-size-2xl:  24px;
+    --archive-font-size-3xl:  28px;
+
+    /* Font Weights */
+    --archive-font-weight-regular:   400;
+    --archive-font-weight-medium:    500;
+    --archive-font-weight-semibold:  600;
+    --archive-font-weight-bold:      700;
+    --archive-font-weight-extrabold: 800;
+    --archive-font-weight-heavy:     800;
+    --archive-font-weight-black:     900;
+
+    /* Line Heights */
+    --archive-line-height-tight:   1.15;
+    --archive-line-height-snug:    1.3;
+    --archive-line-height-normal:  1.45;
+    --archive-line-height-relaxed: 1.6;
+
+    /* Semantic Typography Roles */
+    --archive-font-page-title-size:         var(--archive-font-size-2xl);
+    --archive-font-page-title-weight:       var(--archive-font-weight-heavy);
+    --archive-font-page-title-lh:           var(--archive-line-height-tight);
+
+    --archive-font-section-title-size:      var(--archive-font-size-lg);
+    --archive-font-section-title-weight:    var(--archive-font-weight-bold);
+    --archive-font-section-title-lh:        var(--archive-line-height-snug);
+
+    --archive-font-stat-value-size:         var(--archive-font-size-3xl);
+    --archive-font-stat-value-weight:       var(--archive-font-weight-black);
+    --archive-font-stat-value-lh:           1;
+
+    --archive-font-stat-label-size:         var(--archive-font-size-base);
+    --archive-font-stat-label-weight:       var(--archive-font-weight-bold);
+    --archive-font-stat-label-lh:           var(--archive-line-height-snug);
+
+    /* Table Header Typography & Responsive Semantics */
+    --archive-font-table-header-size-min:          var(--archive-font-size-base);
+    --archive-font-table-header-size:              max(var(--archive-font-table-header-size-min), var(--archive-font-size-base));
+    --archive-font-table-header-size-responsive:   var(--archive-font-size-base);
+    --archive-font-table-header-weight:            var(--archive-font-weight-bold);
+    --archive-font-table-header-weight-responsive: var(--archive-font-weight-bold);
+    --archive-font-table-header-lh:                normal;
+
+    --archive-font-table-cell-size:         var(--archive-font-size-sm);
+    --archive-font-table-cell-weight:       var(--archive-font-weight-regular);
+    --archive-font-table-cell-lh:           var(--archive-line-height-normal);
+
+    --archive-font-table-cell-bold-size:    var(--archive-font-size-sm);
+    --archive-font-table-cell-bold-weight:  var(--archive-font-weight-bold);
+    --archive-font-table-cell-bold-lh:      var(--archive-line-height-normal);
+
+    --archive-font-label-size:              var(--archive-font-size-sm);
+    --archive-font-label-weight:            var(--archive-font-weight-semibold);
+    --archive-font-label-lh:                var(--archive-line-height-snug);
+
+    --archive-font-body-size:               var(--archive-font-size-base);
+    --archive-font-body-weight:             var(--archive-font-weight-regular);
+    --archive-font-body-lh:                 var(--archive-line-height-normal);
+
+    --archive-font-meta-size:               var(--archive-font-size-xs);
+    --archive-font-meta-weight:             var(--archive-font-weight-medium);
+    --archive-font-meta-lh:                 var(--archive-line-height-snug);
+
+    --archive-font-badge-size:              var(--archive-font-size-2xs);
+    --archive-font-badge-weight:            var(--archive-font-weight-bold);
+    --archive-font-badge-lh:                var(--archive-line-height-tight);
+
+    /* ------------------------------------------------------------
+       5. Spacing Scale (سلم المسافات والحشوات)
+       ------------------------------------------------------------ */
+    --archive-space-0-5: 2px;
+    --archive-space-1:   4px;
+    --archive-space-2:   8px;
+    --archive-space-3:   12px;
+    --archive-space-4:   16px;
+    --archive-space-5:   20px;
+    --archive-space-6:   24px;
+    --archive-space-8:   32px;
+
+    /* ------------------------------------------------------------
+       6. Border Radius (أنصاف الأقطار)
+       ------------------------------------------------------------ */
+    --archive-radius-sm:   4px;
+    --archive-radius-md:   6px;
+    --archive-radius-lg:   8px;
+    --archive-radius-xl:   12px;
+    --archive-radius-full: 9999px;
+
+    /* ------------------------------------------------------------
+       7. Borders (الحدود)
+       ------------------------------------------------------------ */
+    --archive-border-width-thin:     1px;
+    --archive-border-width-regular:  1.5px;
+    --archive-border-width-thick:    2px;
+    --archive-border-style-solid:    solid;
+    --archive-border-subtle:         var(--archive-border-width-thin) var(--archive-border-style-solid) var(--archive-color-border-subtle);
+    --archive-border-default:        var(--archive-border-width-thin) var(--archive-border-style-solid) var(--archive-color-border-default);
+
+    /* ------------------------------------------------------------
+       8. Shadows (الظلال والارتفاعات)
+       ------------------------------------------------------------ */
+    --archive-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+    --archive-shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+    --archive-shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
+
+    /* ------------------------------------------------------------
+       9. Control & Component Sizing (الأبعاد والارتفاعات القياسية)
+       ------------------------------------------------------------ */
+    --archive-control-height:         34px;
+    --archive-control-height-lg:      38px;
+    --archive-stat-card-min-height:   72px;
+    --archive-stat-icon-size:         36px;
+    --archive-table-header-height:    40px;
+    --archive-table-row-height:       44px;
+
+    /* ------------------------------------------------------------
+       10. Z-Index Hierarchy (طبقات التراكب)
+       ------------------------------------------------------------ */
+    --archive-z-base:            1;
+    --archive-z-sticky:          10;
+    --archive-z-dropdown:        100;
+    --archive-z-modal-backdrop:  1040;
+    --archive-z-modal:           1050;
+    --archive-z-tooltip:         1080;
+
+    /* ------------------------------------------------------------
+       11. Motion & Transitions (الحركة والانتقالات)
+       ------------------------------------------------------------ */
+    --archive-transition-fast:   150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --archive-transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* ------------------------------------------------------------
+       12. Shared Component Tokens (الجداول، الفلاتر، بطاقات الإحصائيات)
+       ------------------------------------------------------------ */
+    /* Data Grid */
+    --archive-grid-header-bg:            var(--archive-color-bg-surface-subtle);
+    --archive-grid-header-text:          var(--archive-color-text-title);
+    --archive-grid-row-border:           var(--archive-color-border-divider);
+    --archive-grid-row-hover:            var(--archive-slate-50);
+    --archive-grid-row-selected-outline: 1.5px solid var(--archive-color-text-heading);
+
+    /* Toolbars & Filter Panels */
+    --archive-toolbar-bg:                var(--archive-color-bg-surface);
+    --archive-toolbar-border:            var(--archive-color-border-subtle);
+    --archive-filter-panel-bg:           var(--archive-color-bg-surface);
+    --archive-filter-panel-border:       var(--archive-color-border-subtle);
+
+    /* Summary / Stat Cards */
+    --archive-stat-card-bg:              var(--archive-color-bg-surface);
+    --archive-stat-card-border:          var(--archive-color-border-subtle);
+    --archive-stat-card-radius:          var(--archive-radius-lg);
+}
+
+/* ------------------------------------------------------------
+   13. Responsive Typography Invariants (عناوين الجداول)
+   ضمان بقاء وزن وحجم عناوين الأعمدة ثابتاً ومحافظاً على السماكة والوضوح
+   ------------------------------------------------------------ */
+@media (max-width: 1200px) {
+    :root {
+        --archive-font-table-header-size: max(var(--archive-font-table-header-size-min), var(--archive-font-size-base));
+        --archive-font-table-header-weight: var(--archive-font-weight-bold);
+        --archive-font-table-header-lh: normal;
+        --archive-font-stat-value-size: var(--archive-font-size-3xl);
+        --archive-font-stat-value-weight: var(--archive-font-weight-black);
+        --archive-font-stat-label-size: var(--archive-font-size-base);
+        --archive-font-stat-label-weight: var(--archive-font-weight-bold);
+    }
+}
+
+@media (max-width: 768px) {
+    :root {
+        --archive-font-table-header-size: max(var(--archive-font-table-header-size-min), var(--archive-font-size-base));
+        --archive-font-table-header-weight: var(--archive-font-weight-bold);
+        --archive-font-table-header-lh: normal;
+        --archive-font-stat-value-size: var(--archive-font-size-3xl);
+        --archive-font-stat-value-weight: var(--archive-font-weight-black);
+        --archive-font-stat-label-size: var(--archive-font-size-base);
+        --archive-font-stat-label-weight: var(--archive-font-weight-bold);
+    }
+}
+
+@media (max-width: 480px) {
+    :root {
+        --archive-font-table-header-size: max(var(--archive-font-table-header-size-min), var(--archive-font-size-base));
+        --archive-font-table-header-weight: var(--archive-font-weight-bold);
+        --archive-font-table-header-lh: normal;
+        --archive-font-stat-value-size: var(--archive-font-size-3xl);
+        --archive-font-stat-value-weight: var(--archive-font-weight-black);
+        --archive-font-stat-label-size: var(--archive-font-size-base);
+        --archive-font-stat-label-weight: var(--archive-font-weight-bold);
+    }
+}

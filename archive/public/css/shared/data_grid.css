@@ -3,12 +3,12 @@
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: var(--archive-space-3);
 
-    padding: 12px 14px;
+    padding: var(--archive-space-3) 14px;
 
     background: var(--card-bg);
-    border: 1px solid var(--border-color);
+    border: var(--archive-border-width-thin) var(--archive-border-style-solid) var(--border-color);
     border-radius: var(--border-radius-md);
 
     position: sticky;
@@ -20,14 +20,16 @@
 .generic-pagination-length {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--archive-space-2);
 }
 
 
 .generic-pagination-label {
     white-space: nowrap;
     color: var(--text-muted);
-    font-size: var(--text-sm);
+    font-size: var(--archive-font-label-size);
+    font-weight: var(--archive-font-label-weight);
+    line-height: var(--archive-font-label-lh);
 }
 
 
@@ -42,7 +44,8 @@
 
 .generic-pagination-info {
     color: var(--text-muted);
-    font-size: var(--text-sm);
+    font-size: var(--archive-font-label-size);
+    line-height: var(--archive-font-label-lh);
     text-align: center;
 }
 
@@ -63,9 +66,9 @@
 
 
 .generic-pagination-buttons .btn {
-    min-width: 34px;
+    min-width: var(--archive-control-height);
 
-    font-size: 18px;
+    font-size: var(--archive-font-size-lg);
     line-height: 1;
 }
 
@@ -111,7 +114,7 @@
 .generic-sort-indicator {
     display: inline-block;
     min-width: 12px;
-    margin-inline-start: 4px;
+    margin-inline-start: var(--archive-space-1);
 }
 
 
