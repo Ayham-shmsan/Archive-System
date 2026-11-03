@@ -4,10 +4,75 @@ import json
 from typing import Any
 
 import frappe
-from frappe.utils import cint, now_datetime
+from frappe.utils import cint, cstr, getdate, now_datetime
 
 CARD_LOG_DOCTYPE = "Archive Card Log"
 CARD_TRANSFER_DOCTYPE = "Archive Card Transfer"
+CARD_EVENT_DOCTYPE = "Archive Card Event"
+
+
+def record_card_status_event(
+	card_doc: Any,
+	event_type: str,
+	previous_status: str,
+	new_status: str,
+	event_date: Any,
+	reason: str | None = None,
+	recorded_by: str | None = None,
+	recorded_at: Any | None = None,
+) -> Any:
+	owner_id = cstr(getattr(card_doc, "card_owner", "") or "").strip()
+	owner_name = (
+		cstr(frappe.db.get_value("Archive Account", owner_id, "account_name") or "").strip()
+		if owner_id
+		else ""
+	) or owner_id
+
+	rep_id = cstr(getattr(card_doc, "representative", "") or "").strip()
+	rep_name = (
+		cstr(
+			frappe.db.get_value(
+				"Archive Representative", rep_id, "representative_name"
+			)
+			or ""
+		).strip()
+		if rep_id
+		else ""
+	) or rep_id
+
+	reg_id = cstr(getattr(card_doc, "region", "") or "").strip()
+	reg_name = (
+		cstr(frappe.db.get_value("Archive Region", reg_id, "region_name") or "").strip()
+		if reg_id
+		else ""
+	) or reg_id
+
+	user_id = cstr(recorded_by or frappe.session.user or "Administrator").strip()
+	user_name = (
+		cstr(frappe.db.get_value("User", user_id, "full_name") or "").strip()
+		if user_id
+		else ""
+	) or user_id
+
+	doc = frappe.new_doc(CARD_EVENT_DOCTYPE)
+	doc.card = card_doc.name
+	doc.event_type = event_type
+	doc.previous_status = cstr(previous_status or "").strip()
+	doc.new_status = cstr(new_status or "").strip()
+	doc.event_date = cstr(getdate(event_date))
+	doc.reason = cstr(reason or "").strip() or None
+	doc.card_owner = owner_id or None
+	doc.card_owner_name = owner_name or None
+	doc.representative = rep_id or None
+	doc.representative_name = rep_name or None
+	doc.region = reg_id or None
+	doc.region_name = reg_name or None
+	doc.recorded_by = user_id
+	doc.recorded_by_name = user_name
+	doc.recorded_at = recorded_at or now_datetime()
+	doc.flags._allow_card_event_insert = True
+	doc.insert(ignore_permissions=True)
+	return doc
 
 
 def log_card_event(

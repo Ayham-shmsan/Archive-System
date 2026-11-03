@@ -390,21 +390,31 @@ class TestArchiveCard(IntegrationTestCase):
 
 		# Permanent stop without reason must fail
 		with self.assertRaises(frappe.ValidationError):
-			change_card_status(c["name"], "موقفة نهائياً", reason="")
+			change_card_status(c["name"], "موقفة نهائياً", reason="", event_date="2026-10-10")
 
 		# Temporary stop ignores/clears status_reason
-		st1 = change_card_status(c["name"], "موقفة مؤقتاً", reason="ملاحظة مؤقتة")
+		st1 = change_card_status(
+			c["name"],
+			"موقفة مؤقتاً",
+			reason="ملاحظة مؤقتة",
+			event_date="2026-10-10",
+		)
 		self.assertEqual(st1["card"]["status"], "موقفة مؤقتاً")
 		self.assertFalse(st1["card"]["status_reason"])
 
 		# Permanent stop with reason saves status_reason
-		st2 = change_card_status(c["name"], "موقفة نهائياً", reason="انتهاء صلاحية الحساب")
+		st2 = change_card_status(
+			c["name"],
+			"موقفة نهائياً",
+			reason="انتهاء صلاحية الحساب",
+			event_date="2026-10-12",
+		)
 		self.assertEqual(st2["card"]["status"], "موقفة نهائياً")
 		self.assertEqual(st2["card"]["status_reason"], "انتهاء صلاحية الحساب")
 
 		# Calling permanent stop again without reason (even when already موقفة نهائياً) must fail before no-op
 		with self.assertRaises(frappe.ValidationError):
-			change_card_status(c["name"], "موقفة نهائياً", reason="   ")
+			change_card_status(c["name"], "موقفة نهائياً", reason="   ", event_date="2026-10-12")
 
 		# Transitioning out of permanent stop clears status_reason to None
 		st3 = change_card_status(c["name"], "نشطة", reason="")
@@ -490,7 +500,12 @@ class TestArchiveCard(IntegrationTestCase):
 		frappe.set_user(self.manager_user)
 		self.assertEqual(reveal_card_pin(c["name"])["pin"], "0007")
 		update_card(c["name"], {"daily_limit": 80000})
-		change_card_status(c["name"], "موقفة مؤقتاً")
+		change_card_status(
+			c["name"],
+			"موقفة مؤقتاً",
+			reason="توقيف مؤقت للاختبار",
+			event_date="2026-10-15",
+		)
 		self.assertEqual(reveal_card_pin(c["name"])["pin"], "0007")
 
 		# 6 & 7. Update saved PIN: 4 digits succeeds, invalid PIN fails
@@ -1000,7 +1015,12 @@ class TestArchiveCard(IntegrationTestCase):
 		frappe.set_user(self.officer_user)
 
 		# Allowed when card is temporarily paused (`موقفة مؤقتاً`)
-		change_card_status(card["name"], "موقفة مؤقتاً")
+		change_card_status(
+			card["name"],
+			"موقفة مؤقتاً",
+			reason="توقيف مؤقت للاختبار",
+			event_date="2026-10-20",
+		)
 		officer_proc_2 = _stage_one("officer_proc_2", (70, 90, 110))
 		upd_paused = update_card(
 			card["name"],
@@ -1012,7 +1032,12 @@ class TestArchiveCard(IntegrationTestCase):
 		self.assertEqual(upd_paused["front_edit_meta"], meta_1)
 
 		# Forbidden when card is permanently stopped (`موقفة نهائياً`) even with the role
-		change_card_status(card["name"], "موقفة نهائياً", reason="إيقاف نهائي للاختبار")
+		change_card_status(
+			card["name"],
+			"موقفة نهائياً",
+			reason="إيقاف نهائي للاختبار",
+			event_date="2026-10-22",
+		)
 		stopped_details = get_card_details(card["name"])
 		self.assertIsNone(stopped_details["card"]["front_original_image_url"])
 		with self.assertRaises(frappe.ValidationError):

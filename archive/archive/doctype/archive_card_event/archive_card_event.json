@@ -1,0 +1,189 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "CEV-.#######",
+  "creation": "2026-11-03 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "event_section",
+    "card",
+    "event_type",
+    "previous_status",
+    "new_status",
+    "column_break_event_1",
+    "event_date",
+    "recorded_by",
+    "recorded_by_name",
+    "recorded_at",
+    "snapshot_section",
+    "card_owner",
+    "card_owner_name",
+    "representative",
+    "column_break_snapshot_1",
+    "representative_name",
+    "region",
+    "region_name",
+    "reason_section",
+    "reason"
+  ],
+  "fields": [
+    {
+      "fieldname": "event_section",
+      "fieldtype": "Section Break",
+      "label": "بيانات حدث البطاقة"
+    },
+    {
+      "fieldname": "card",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "البطاقة",
+      "options": "Archive Card",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "event_type",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "نوع الحدث",
+      "options": "temporary_stop\nreactivated\npermanent_stop",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "previous_status",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "الحالة السابقة",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "new_status",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "الحالة الجديدة",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_event_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "event_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "التاريخ الفعلي للحدث",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "recorded_by",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "سجل بواسطة",
+      "options": "User",
+      "read_only": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "recorded_by_name",
+      "fieldtype": "Data",
+      "label": "اسم مسجل الحدث",
+      "read_only": 1
+    },
+    {
+      "fieldname": "recorded_at",
+      "fieldtype": "Datetime",
+      "in_list_view": 1,
+      "label": "وقت تسجيل الحدث في النظام",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "snapshot_section",
+      "fieldtype": "Section Break",
+      "label": "لقطة بيانات البطاقة وقت الحدث (Snapshot)"
+    },
+    {
+      "fieldname": "card_owner",
+      "fieldtype": "Data",
+      "label": "حامل البطاقة وقت الحدث (معرف)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "card_owner_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "حامل البطاقة وقت الحدث",
+      "read_only": 1
+    },
+    {
+      "fieldname": "representative",
+      "fieldtype": "Data",
+      "label": "المندوب وقت الحدث (معرف)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_snapshot_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "representative_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "المندوب وقت الحدث",
+      "read_only": 1
+    },
+    {
+      "fieldname": "region",
+      "fieldtype": "Data",
+      "label": "المدينة/المنطقة وقت الحدث (معرف)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "region_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "المدينة/المنطقة وقت الحدث",
+      "read_only": 1
+    },
+    {
+      "fieldname": "reason_section",
+      "fieldtype": "Section Break",
+      "label": "السبب / الملاحظة"
+    },
+    {
+      "fieldname": "reason",
+      "fieldtype": "Small Text",
+      "in_list_view": 1,
+      "label": "سبب / ملاحظة الحدث",
+      "read_only": 1
+    }
+  ],
+  "in_create": 1,
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-11-03 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Card Event",
+  "owner": "Administrator",
+  "permissions": [],
+  "read_only": 1,
+  "row_format": "Dynamic",
+  "search_fields": "card,event_type,previous_status,new_status",
+  "sort_field": "recorded_at",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}

@@ -1,9 +1,60 @@
 (() => {
 	"use strict";
 
+	function display_status_label(status) {
+		if (typeof window.format_card_status_label === "function") {
+			return window.format_card_status_label(status);
+		}
+		const clean = String(status || "").trim();
+		return clean === "موقفة نهائياً" ? "موقفة نهائياً (متلفة)" : clean;
+	}
+
 	class ArchiveCardStatusDialog {
 		static open(card, on_done) {
 			if (!card || !card.name) return;
+
+			const initial_status = card.status || "نشطة";
+			const is_initial_paused = initial_status === "موقفة مؤقتاً";
+			const is_initial_perm = initial_status === "موقفة نهائياً";
+			const needs_stop_details = is_initial_paused || is_initial_perm;
+
+			const sync_status_fields = (dlg) => {
+				const st = dlg.get_value("new_status") || "نشطة";
+				const is_paused = st === "موقفة مؤقتاً";
+				const is_perm = st === "موقفة نهائياً";
+				const is_stop = is_paused || is_perm;
+
+				dlg.set_df_property("event_date", "hidden", is_stop ? 0 : 1);
+				dlg.set_df_property("event_date", "reqd", is_stop ? 1 : 0);
+				dlg.set_df_property(
+					"event_date",
+					"label",
+					is_paused ? "تاريخ التوقيف المؤقت" : "تاريخ التوقيف النهائي"
+				);
+
+				dlg.set_df_property("reason", "hidden", is_stop ? 0 : 1);
+				dlg.set_df_property("reason", "reqd", is_stop ? 1 : 0);
+				dlg.set_df_property(
+					"reason",
+					"label",
+					is_paused ? "سبب التوقيف المؤقت" : "سبب التوقيف النهائي / الإتلاف"
+				);
+
+				const $reason_input = dlg.fields_dict?.reason?.$input;
+				if ($reason_input && $reason_input.length) {
+					$reason_input.attr(
+						"placeholder",
+						is_paused
+							? "أدخل سبب التوقيف المؤقت للبطاقة..."
+							: "أدخل سبب التوقيف النهائي / إتلاف البطاقة..."
+					);
+				}
+
+				if (!is_stop) {
+					dlg.set_value("event_date", "");
+					dlg.set_value("reason", "");
+				}
+			};
 
 			const dialog = new frappe.ui.Dialog({
 				title: `تغيير حالة البطاقة — ${card.base_card_name || card.name}`,
@@ -14,7 +65,7 @@
 						options: `
 							<div class="acvd-mini-summary" dir="rtl">
 								<div>البطاقة: <strong>${frappe.utils.escape_html(card.base_card_name || "")}</strong> <span class="ac-copy-badge">نسخة ${card.copy_no || 1}</span></div>
-								<div>الحالة الحالية: <span class="acvd-status-pill" data-status="${frappe.utils.escape_html(card.status || "")}">${frappe.utils.escape_html(card.status || "")}</span></div>
+								<div>الحالة الحالية: <span class="acvd-status-pill" data-status="${frappe.utils.escape_html(card.status || "")}">${frappe.utils.escape_html(display_status_label(card.status))}</span></div>
 							</div>
 						`,
 					},
@@ -23,55 +74,93 @@
 						label: "الحالة الجديدة",
 						fieldtype: "Select",
 						options: ["نشطة", "موقفة مؤقتاً", "موقفة نهائياً"].join("\n"),
-						default: card.status || "نشطة",
+						default: initial_status,
 						reqd: 1,
 						onchange: () => {
-							const st = dialog.get_value("new_status");
-							const is_perm_stop = st === "موقفة نهائياً";
-							dialog.set_df_property("reason", "reqd", is_perm_stop ? 1 : 0);
-							dialog.set_df_property(
-								"reason",
-								"label",
-								is_perm_stop
-									? "سبب الإيقاف النهائي (إلزامي)"
-									: "سبب الإيقاف النهائي (يُحفظ فقط عند الإيقاف النهائي)"
-							);
-							if (!is_perm_stop) {
-								dialog.set_value("reason", "");
-							}
+							sync_status_fields(dialog);
 						},
 					},
 					{
+						fieldname: "event_date",
+						label: is_initial_paused ? "تاريخ التوقيف المؤقت" : "تاريخ التوقيف النهائي",
+						fieldtype: "Date",
+						default: "",
+						hidden: needs_stop_details ? 0 : 1,
+						reqd: needs_stop_details ? 1 : 0,
+					},
+					{
 						fieldname: "reason",
-						label:
-							card.status === "موقفة نهائياً"
-								? "سبب الإيقاف النهائي (إلزامي)"
-								: "سبب الإيقاف النهائي (يُحفظ فقط عند الإيقاف النهائي)",
+						label: is_initial_paused
+							? "سبب التوقيف المؤقت"
+							: "سبب التوقيف النهائي / الإتلاف",
 						fieldtype: "Small Text",
-						default: card.status === "موقفة نهائياً" ? card.status_reason || "" : "",
-						reqd: card.status === "موقفة نهائياً" ? 1 : 0,
-						placeholder: "أدخل سبب الإيقاف النهائي للبطاقة...",
+						default: is_initial_perm ? card.status_reason || "" : "",
+						hidden: needs_stop_details ? 0 : 1,
+						reqd: needs_stop_details ? 1 : 0,
+						placeholder: is_initial_paused
+							? "أدخل سبب التوقيف المؤقت للبطاقة..."
+							: "أدخل سبب التوقيف النهائي / إتلاف البطاقة...",
 					},
 				],
 				primary_action_label: "اعتماد الحالة",
-				primary_action: async (values) => {
-					const clean_reason = String(values.reason || "").trim();
-					if (values.new_status === "موقفة نهائياً" && !clean_reason) {
-						frappe.msgprint({
-							title: "سبب الإيقاف النهائي مطلوب",
-							message: "يرجى إدخال سبب الإيقاف النهائي للبطاقة.",
-							indicator: "red",
-						});
-						return;
+				primary_action: async () => {
+					const target_status = String(dialog.get_value("new_status") || "").trim();
+					const clean_date = String(dialog.get_value("event_date") || "").trim();
+					const clean_reason = String(dialog.get_value("reason") || "").trim();
+
+					if (target_status === "موقفة مؤقتاً") {
+						if (!clean_date) {
+							frappe.msgprint({
+								title: "تاريخ التوقيف المؤقت مطلوب",
+								message: "يرجى إدخال تاريخ التوقيف المؤقت للبطاقة.",
+								indicator: "red",
+							});
+							return;
+						}
+						if (!clean_reason) {
+							frappe.msgprint({
+								title: "سبب التوقيف المؤقت مطلوب",
+								message: "يرجى إدخال سبب التوقيف المؤقت للبطاقة.",
+								indicator: "red",
+							});
+							return;
+						}
+					} else if (target_status === "موقفة نهائياً") {
+						if (!clean_date) {
+							frappe.msgprint({
+								title: "تاريخ التوقيف النهائي مطلوب",
+								message: "يرجى إدخال تاريخ التوقيف النهائي للبطاقة.",
+								indicator: "red",
+							});
+							return;
+						}
+						if (!clean_reason) {
+							frappe.msgprint({
+								title: "سبب التوقيف النهائي / الإتلاف مطلوب",
+								message: "يرجى إدخال سبب التوقيف النهائي / إتلاف البطاقة.",
+								indicator: "red",
+							});
+							return;
+						}
 					}
+
 					dialog.get_primary_btn().prop("disabled", true);
 					try {
 						const res = await frappe.call({
 							method: "archive.api.cards.change_card_status",
 							args: {
 								card: card.name,
-								new_status: values.new_status,
-								reason: values.new_status === "موقفة نهائياً" ? clean_reason : "",
+								new_status: target_status,
+								event_date:
+									target_status === "موقفة مؤقتاً" ||
+									target_status === "موقفة نهائياً"
+										? clean_date
+										: "",
+								reason:
+									target_status === "موقفة مؤقتاً" ||
+									target_status === "موقفة نهائياً"
+										? clean_reason
+										: "",
 							},
 						});
 						frappe.show_alert({
@@ -89,6 +178,14 @@
 				secondary_action_label: "إلغاء",
 				secondary_action: () => dialog.hide(),
 			});
+
+			const $status_select = dialog.fields_dict?.new_status?.$input;
+			if ($status_select && $status_select.length) {
+				$status_select
+					.find('option[value="موقفة نهائياً"]')
+					.text("موقفة نهائياً (متلفة)");
+			}
+			sync_status_fields(dialog);
 
 			$(dialog.body).attr("dir", "rtl");
 			dialog.show();
@@ -399,7 +496,7 @@
 								<span class="ac-copy-badge acvd-sib-copy">نسخة ${s.copy_no}</span>
 								<strong>${frappe.utils.escape_html(s.base_card_name || fam.base_card_name || c.base_card_name || "")}</strong>
 								<span class="text-muted" dir="ltr">${frappe.utils.escape_html(s.card_number)}</span>
-								<span class="acvd-status-pill" data-status="${frappe.utils.escape_html(s.status)}">${frappe.utils.escape_html(s.status)}</span>
+								<span class="acvd-status-pill" data-status="${frappe.utils.escape_html(s.status)}">${frappe.utils.escape_html(display_status_label(s.status))}</span>
 							</div>
 						`
 							)
@@ -415,7 +512,7 @@
 						<div class="acvd-identity-badges">
 							<span class="acvd-serial-badge">رقم تسلسلي #${c.serial_no}</span>
 							<span class="ac-copy-badge acd-copy-pill">نسخة ${c.copy_no}</span>
-							<span class="acvd-status-pill" data-status="${frappe.utils.escape_html(c.status)}">${frappe.utils.escape_html(c.status)}</span>
+							<span class="acvd-status-pill" data-status="${frappe.utils.escape_html(c.status)}">${frappe.utils.escape_html(display_status_label(c.status))}</span>
 							${
 								c.status_reason
 									? `<span class="acvd-status-reason" title="سبب الحالة">${frappe.utils.escape_html(c.status_reason)}</span>`
@@ -424,6 +521,13 @@
 						</div>
 
 						<div class="acvd-quick-actions">
+							${
+								p.can_view_card_event_history
+									? `<button type="button" class="btn btn-xs btn-default" data-action="open-card-event-history">
+										<i class="fa fa-list-alt"></i> سجل أحداث البطاقة
+									</button>`
+									: ""
+							}
 							${
 								p.can_view_transfer_timeline
 									? `<button type="button" class="btn btn-xs btn-default" data-action="open-transfer-timeline">
@@ -944,6 +1048,14 @@
 			});
 
 			// Quick action buttons
+			$body.on("click", '[data-action="open-card-event-history"]', () => {
+				if (window.ArchiveCardEventHistoryDialog) {
+					new window.ArchiveCardEventHistoryDialog({
+						card_name: this.card.name,
+					}).show();
+				}
+			});
+
 			$body.on("click", '[data-action="open-transfer-timeline"]', () => {
 				if (window.ArchiveCardTransferTimelineDialog) {
 					new window.ArchiveCardTransferTimelineDialog({

@@ -453,3 +453,606 @@
 	color: #475569;
 	margin-right: -3px;
 }
+
+/* ============================================================
+   Executive Card Event History Table (سجل أحداث البطاقة)
+   ============================================================ */
+.archive-card-event-history-modal .modal-dialog {
+	max-width: min(1480px, 96vw);
+	width: min(1480px, 96vw);
+	margin: 2.5vh auto;
+}
+
+.archive-card-event-history-modal .modal-content {
+	border-radius: var(--archive-radius-xl);
+	border: var(--archive-border-subtle);
+	box-shadow: var(--archive-shadow-md);
+	background: var(--archive-color-bg-surface);
+	overflow: hidden;
+}
+
+/* 1. Dialog Header */
+.archive-card-event-history-modal .modal-header {
+	padding: var(--archive-space-4) var(--archive-space-6);
+	border-bottom: var(--archive-border-subtle);
+	background: var(--archive-color-bg-surface);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.archive-card-event-history-modal .modal-header .modal-title {
+	font-size: var(--archive-font-section-title-size);
+	font-weight: var(--archive-font-weight-extrabold);
+	line-height: var(--archive-font-section-title-lh);
+	color: var(--archive-color-text-heading);
+	letter-spacing: -0.01em;
+}
+
+.archive-card-event-history-modal .modal-header .btn-modal-close,
+.archive-card-event-history-modal .modal-header .close {
+	color: var(--archive-color-text-muted);
+	border-radius: var(--archive-radius-md);
+	transition: background-color var(--archive-transition-fast), color var(--archive-transition-fast);
+	opacity: 0.85;
+}
+
+.archive-card-event-history-modal .modal-header .btn-modal-close:hover,
+.archive-card-event-history-modal .modal-header .close:hover {
+	background: var(--archive-slate-100);
+	color: var(--archive-color-text-heading);
+	opacity: 1;
+}
+
+.archive-card-event-history-modal .modal-body {
+	padding: var(--archive-space-4) var(--archive-space-6);
+	background: var(--archive-color-bg-app);
+}
+
+/* 11. Dialog Footer & Secondary Close Action */
+.archive-card-event-history-modal .modal-footer {
+	padding: var(--archive-space-3) var(--archive-space-6);
+	background: var(--archive-color-bg-surface);
+	border-top: var(--archive-border-subtle);
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+}
+
+.archive-card-event-history-modal .modal-footer .btn-primary {
+	height: var(--archive-control-height);
+	padding: 0 var(--archive-space-5);
+	border-radius: var(--archive-radius-md);
+	background: var(--archive-color-bg-surface) !important;
+	color: var(--archive-color-text-title) !important;
+	border: var(--archive-border-default) !important;
+	box-shadow: var(--archive-shadow-sm) !important;
+	font-size: var(--archive-font-size-base);
+	font-weight: var(--archive-font-weight-semibold);
+	transition: background-color var(--archive-transition-fast), border-color var(--archive-transition-fast), color var(--archive-transition-fast), box-shadow var(--archive-transition-fast);
+}
+
+.archive-card-event-history-modal .modal-footer .btn-primary:hover {
+	background: var(--archive-slate-100) !important;
+	color: var(--archive-color-text-heading) !important;
+	border-color: var(--archive-color-border-hover) !important;
+}
+
+.archive-card-event-history-modal .modal-footer .btn-primary:focus,
+.archive-card-event-history-modal .modal-footer .btn-primary:focus-visible {
+	outline: none !important;
+	border-color: var(--archive-color-primary) !important;
+	box-shadow: 0 0 0 3px var(--archive-color-focus-ring) !important;
+}
+
+.aceh-shell {
+	display: flex;
+	flex-direction: column;
+	gap: var(--archive-space-3);
+	direction: rtl;
+	text-align: right;
+}
+
+/* 2. Card Identity Bar */
+.aceh-header-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: var(--archive-space-3) var(--archive-space-5);
+	padding: var(--archive-space-3) var(--archive-space-4);
+	background: var(--archive-color-bg-surface);
+	border: var(--archive-border-subtle);
+	border-radius: var(--archive-radius-lg);
+}
+
+.aceh-header-primary {
+	display: flex;
+	align-items: center;
+	gap: var(--archive-space-2);
+	flex-wrap: wrap;
+	flex-shrink: 0;
+}
+
+.aceh-header-primary .acvd-serial-badge {
+	font-size: var(--archive-font-size-xs);
+	font-weight: var(--archive-font-weight-bold);
+	padding: 2px var(--archive-space-2);
+	border-radius: var(--archive-radius-full);
+	background: var(--archive-slate-100);
+	color: var(--archive-color-text-title);
+	border: var(--archive-border-subtle);
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.aceh-card-title {
+	font-size: var(--archive-font-size-md);
+	font-weight: var(--archive-font-weight-extrabold);
+	color: var(--archive-color-text-heading);
+	line-height: var(--archive-line-height-snug);
+}
+
+.aceh-header-primary .ac-copy-badge {
+	display: inline-flex;
+	align-items: center;
+	font-size: var(--archive-font-size-xs);
+	font-weight: var(--archive-font-weight-semibold);
+	padding: 2px var(--archive-space-2);
+	border-radius: var(--archive-radius-full);
+	background: var(--archive-blue-50);
+	color: var(--archive-blue-700);
+	border: 1px solid var(--archive-blue-100);
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.aceh-header-meta {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--archive-space-2) var(--archive-space-4);
+	font-size: var(--archive-font-size-sm);
+}
+
+.aceh-meta-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--archive-space-2);
+	min-width: max-content;
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
+.aceh-header-meta .acvd-status-pill {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	white-space: nowrap;
+	flex-shrink: 0;
+	font-size: var(--archive-font-size-xs);
+	font-weight: var(--archive-font-weight-bold);
+	line-height: var(--archive-line-height-tight);
+	padding: 3px var(--archive-space-3);
+	border-radius: var(--archive-radius-full);
+	border: 1px solid var(--archive-color-border-subtle);
+}
+
+.aceh-header-meta .acvd-status-pill[data-status="نشطة"] {
+	background: var(--archive-status-active-bg);
+	color: var(--archive-status-active-text);
+	border-color: var(--archive-emerald-200);
+}
+
+.aceh-header-meta .acvd-status-pill[data-status="موقفة مؤقتاً"] {
+	background: var(--archive-status-paused-bg);
+	color: var(--archive-status-paused-text);
+	border-color: var(--archive-amber-200);
+}
+
+.aceh-header-meta .acvd-status-pill[data-status="موقفة نهائياً"] {
+	background: var(--archive-status-stopped-bg);
+	color: var(--archive-status-stopped-text);
+	border-color: var(--archive-rose-200);
+}
+
+.aceh-meta-label {
+	color: var(--archive-color-text-muted);
+	font-size: var(--archive-font-size-xs);
+	font-weight: var(--archive-font-weight-medium);
+}
+
+.aceh-meta-value {
+	color: var(--archive-color-text-heading);
+	font-size: var(--archive-font-size-sm);
+	font-weight: var(--archive-font-weight-bold);
+}
+
+.aceh-meta-code {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: var(--archive-font-size-xs);
+	font-weight: var(--archive-font-weight-semibold);
+	font-variant-numeric: tabular-nums;
+	padding: 2px 7px;
+	border-radius: var(--archive-radius-sm);
+	background: var(--archive-slate-50);
+	color: var(--archive-color-text-title);
+	border: 1px solid var(--archive-color-border-divider);
+}
+
+.aceh-meta-count {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 24px;
+	height: 20px;
+	padding: 0 var(--archive-space-2);
+	border-radius: var(--archive-radius-full);
+	background: var(--archive-slate-100);
+	color: var(--archive-color-text-heading);
+	border: var(--archive-border-subtle);
+	font-size: var(--archive-font-size-xs);
+	font-weight: var(--archive-font-weight-bold);
+	font-variant-numeric: tabular-nums;
+}
+
+.aceh-meta-divider {
+	width: 1px;
+	height: 14px;
+	background: var(--archive-color-border-divider);
+}
+
+/* 3. Events Table Container & Scrollbar */
+.aceh-table-card {
+	background: var(--archive-color-bg-surface);
+	border: var(--archive-border-subtle);
+	border-radius: var(--archive-radius-lg);
+	overflow: hidden;
+	box-shadow: var(--archive-shadow-sm);
+}
+
+.aceh-table-scroll {
+	max-height: 64vh;
+	overflow: auto;
+	width: 100%;
+	scrollbar-width: thin;
+	scrollbar-color: var(--archive-slate-300) transparent;
+}
+
+.aceh-table-scroll::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+.aceh-table-scroll::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.aceh-table-scroll::-webkit-scrollbar-thumb {
+	background: var(--archive-slate-300);
+	border-radius: var(--archive-radius-full);
+}
+
+.aceh-table-scroll::-webkit-scrollbar-thumb:hover {
+	background: var(--archive-slate-400);
+}
+
+.aceh-events-table {
+	width: 100%;
+	min-width: 1425px;
+	border-collapse: separate;
+	border-spacing: 0;
+	table-layout: fixed;
+	font-size: var(--archive-font-table-cell-size);
+}
+
+/* Column Headers */
+.aceh-events-table thead th {
+	position: sticky;
+	top: 0;
+	z-index: var(--archive-z-sticky);
+	height: var(--archive-table-header-height);
+	padding: 0 var(--archive-space-3);
+	background: var(--archive-grid-header-bg);
+	color: var(--archive-grid-header-text);
+	font-size: var(--archive-font-size-sm);
+	font-weight: var(--archive-font-weight-bold);
+	line-height: var(--archive-line-height-snug);
+	border-bottom: 1.5px solid var(--archive-color-border-subtle);
+	border-left: 1px solid var(--archive-color-border-divider);
+	text-align: right;
+	white-space: nowrap;
+	user-select: none;
+}
+
+.aceh-events-table thead th:last-child {
+	border-left: none;
+}
+
+/* 4. Executive Column Width Distribution */
+.aceh-events-table th.aceh-col-date {
+	width: 96px;
+}
+.aceh-events-table th.aceh-col-type {
+	width: 158px;
+	min-width: 158px;
+}
+.aceh-events-table th.aceh-col-status:nth-child(3) {
+	width: 152px;
+	min-width: 152px;
+}
+.aceh-events-table th.aceh-col-status:nth-child(4) {
+	width: 154px;
+	min-width: 154px;
+}
+.aceh-events-table th.aceh-col-owner {
+	width: 138px;
+}
+.aceh-events-table th.aceh-col-rep {
+	width: 134px;
+}
+.aceh-events-table th.aceh-col-region {
+	width: 110px;
+}
+.aceh-events-table th.aceh-col-reason {
+	width: 245px;
+}
+.aceh-events-table th.aceh-col-user {
+	width: 100px;
+}
+.aceh-events-table th.aceh-col-sysdate {
+	width: 138px;
+}
+
+/* 8. Table Rows & Cells */
+.aceh-events-table tbody tr.aceh-row {
+	background: var(--archive-color-bg-surface);
+	transition: background-color var(--archive-transition-fast);
+}
+
+.aceh-events-table tbody tr.aceh-row:hover {
+	background: var(--archive-grid-row-hover);
+}
+
+.aceh-events-table tbody tr.aceh-row td {
+	height: var(--archive-table-row-height);
+	padding: var(--archive-space-2) var(--archive-space-3);
+	border-bottom: 1px solid var(--archive-grid-row-border);
+	color: var(--archive-color-text-body);
+	font-size: var(--archive-font-table-cell-size);
+	font-weight: var(--archive-font-weight-regular);
+	line-height: var(--archive-font-table-cell-lh);
+	vertical-align: middle;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.aceh-events-table tbody tr.aceh-row td:nth-child(2),
+.aceh-events-table tbody tr.aceh-row td:nth-child(3),
+.aceh-events-table tbody tr.aceh-row td:nth-child(4) {
+	padding-inline: var(--archive-space-2);
+}
+
+.aceh-events-table tbody tr.aceh-row:last-child td {
+	border-bottom: none;
+}
+
+/* 5. Visual Hierarchy Inside Each Row */
+/* Tier 1 (Strongest): Effective Date, Event Type, New Status, Reason */
+.aceh-events-table tbody tr.aceh-row td:nth-child(1) {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-weight: var(--archive-font-weight-bold);
+	font-variant-numeric: tabular-nums;
+	color: var(--archive-color-text-heading);
+	text-align: right;
+}
+
+/* Tier 2 (Medium): Card Owner, Representative, Region */
+.aceh-events-table tbody tr.aceh-row td:nth-child(5),
+.aceh-events-table tbody tr.aceh-row td:nth-child(6) {
+	font-weight: var(--archive-font-weight-medium);
+	color: var(--archive-color-text-body);
+}
+
+.aceh-events-table tbody tr.aceh-row td:nth-child(7) {
+	font-weight: var(--archive-font-weight-medium);
+	color: var(--archive-color-text-title);
+}
+
+/* Tier 3 (Calmest): Previous Status, Recorded By, System Timestamp */
+.aceh-events-table tbody tr.aceh-row td:nth-child(9) {
+	font-size: var(--archive-font-size-xs);
+	font-weight: var(--archive-font-weight-regular);
+	color: var(--archive-color-text-muted);
+}
+
+.aceh-events-table tbody tr.aceh-row td:nth-child(10),
+.aceh-td-timestamp {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: var(--archive-font-size-xs);
+	font-weight: var(--archive-font-weight-regular);
+	font-variant-numeric: tabular-nums;
+	color: var(--archive-color-text-muted);
+	text-align: right;
+}
+
+/* 6. Status & Event Badges */
+.aceh-event-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	max-width: 100%;
+	white-space: nowrap;
+	flex-shrink: 0;
+	padding: 3px var(--archive-space-2);
+	border-radius: var(--archive-radius-full);
+	font-size: var(--archive-font-size-xs);
+	font-weight: var(--archive-font-weight-bold);
+	line-height: var(--archive-line-height-tight);
+	border: 1px solid transparent;
+}
+
+.aceh-event-badge.tone-emerald {
+	background: var(--archive-status-active-bg);
+	color: var(--archive-status-active-text);
+	border-color: var(--archive-emerald-200);
+}
+
+.aceh-event-badge.tone-amber {
+	background: var(--archive-status-paused-bg);
+	color: var(--archive-status-paused-text);
+	border-color: var(--archive-amber-200);
+}
+
+.aceh-event-badge.tone-rose {
+	background: var(--archive-status-stopped-bg);
+	color: var(--archive-status-stopped-text);
+	border-color: var(--archive-rose-200);
+}
+
+.aceh-event-badge.tone-slate {
+	background: var(--archive-slate-100);
+	color: var(--archive-status-neutral-text);
+	border-color: var(--archive-slate-200);
+}
+
+.aceh-status-pill {
+	display: inline-flex;
+	align-items: center;
+	max-width: 100%;
+	white-space: nowrap;
+	flex-shrink: 0;
+	font-size: var(--archive-font-size-xs);
+	font-weight: var(--archive-font-weight-bold);
+	line-height: var(--archive-line-height-tight);
+	padding: 3px var(--archive-space-2);
+	border-radius: var(--archive-radius-full);
+	border: 1px solid var(--archive-color-border-subtle);
+}
+
+.aceh-status-pill[data-status="نشطة"] {
+	background: var(--archive-status-active-bg);
+	color: var(--archive-status-active-text);
+	border-color: var(--archive-emerald-200);
+}
+
+.aceh-status-pill[data-status="موقفة مؤقتاً"] {
+	background: var(--archive-status-paused-bg);
+	color: var(--archive-status-paused-text);
+	border-color: var(--archive-amber-200);
+}
+
+.aceh-status-pill[data-status="موقفة نهائياً"] {
+	background: var(--archive-status-stopped-bg);
+	color: var(--archive-status-stopped-text);
+	border-color: var(--archive-rose-200);
+}
+
+/* Previous Status (Column 3) rendered calmer than New Status (Column 4) */
+.aceh-events-table tbody tr.aceh-row td:nth-child(3) .aceh-status-pill {
+	font-weight: var(--archive-font-weight-medium);
+	opacity: 0.78;
+}
+
+/* 7. Reason / Note Column */
+.aceh-events-table tbody tr.aceh-row td.aceh-td-reason {
+	white-space: normal;
+	overflow: hidden;
+}
+
+.aceh-reason-text {
+	display: -webkit-box;
+	-webkit-line-clamp: 1;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-size: var(--archive-font-size-sm);
+	font-weight: var(--archive-font-weight-semibold);
+	line-height: var(--archive-line-height-normal);
+	color: var(--archive-color-text-heading);
+	word-break: break-word;
+}
+
+.aceh-reason-text.is-expandable {
+	cursor: pointer;
+}
+
+.aceh-reason-text.is-expanded {
+	display: block;
+	-webkit-line-clamp: unset;
+	background: var(--archive-slate-50);
+	padding: var(--archive-space-1) var(--archive-space-2);
+	border-radius: var(--archive-radius-sm);
+	border: var(--archive-border-subtle);
+}
+
+.aceh-muted-dash {
+	color: var(--archive-color-text-subtle);
+	font-weight: var(--archive-font-weight-regular);
+}
+
+/* 10. Executive Empty State */
+.aceh-empty-row td {
+	border-bottom: none;
+	padding: 0;
+}
+
+.aceh-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: var(--archive-space-8) var(--archive-space-4);
+	text-align: center;
+}
+
+.aceh-empty-icon {
+	width: 38px;
+	height: 38px;
+	border-radius: var(--archive-radius-full);
+	background: var(--archive-slate-100);
+	border: var(--archive-border-subtle);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--archive-color-text-muted);
+	margin-bottom: var(--archive-space-1);
+}
+
+.aceh-empty-icon i {
+	font-size: var(--archive-font-size-lg);
+	color: var(--archive-color-text-muted);
+}
+
+.aceh-empty-title {
+	font-size: var(--archive-font-size-md);
+	font-weight: var(--archive-font-weight-bold);
+	color: var(--archive-color-text-title);
+}
+
+.aceh-empty-subtitle {
+	font-size: var(--archive-font-size-sm);
+	font-weight: var(--archive-font-weight-regular);
+	color: var(--archive-color-text-muted);
+}
+
+/* 13. Responsive Adjustments */
+@media (max-width: 992px) {
+	.archive-card-event-history-modal .modal-dialog {
+		max-width: 98vw;
+		width: 98vw;
+		margin: 1.5vh auto;
+	}
+
+	.archive-card-event-history-modal .modal-header,
+	.archive-card-event-history-modal .modal-body,
+	.archive-card-event-history-modal .modal-footer {
+		padding-inline: var(--archive-space-4);
+	}
+
+	.aceh-header-bar {
+		gap: var(--archive-space-2) var(--archive-space-3);
+	}
+}

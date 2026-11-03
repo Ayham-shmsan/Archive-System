@@ -7,7 +7,125 @@ import frappe
 from frappe import _
 from frappe.utils import cint, cstr
 
-from archive.services.card_permissions import CARD_DOCTYPE, require_card_permission
+from archive.api.cards import get_card_status_display_label
+from archive.services.card_permissions import (
+	CARD_DOCTYPE,
+	require_card_event_history_role,
+	require_card_permission,
+)
+
+CARD_EVENT_TYPE_LABELS: dict[str, str] = {
+	"temporary_stop": "توقيف مؤقت",
+	"reactivated": "إعادة تنشيط",
+	"permanent_stop": "توقيف نهائي (متلفة)",
+}
+
+
+@frappe.whitelist()
+def get_card_events(card: str) -> dict[str, Any]:
+	require_card_event_history_role(
+		_("ليست لديك صلاحية عرض سجل أحداث البطاقة."),
+	)
+
+	card_row = frappe.db.get_value(
+		CARD_DOCTYPE,
+		card,
+		[
+			"name",
+			"serial_no",
+			"copy_no",
+			"card_name",
+			"base_card_name",
+			"account_number",
+			"card_number",
+			"bank",
+			"status",
+			"is_deleted",
+		],
+		as_dict=True,
+	)
+	if not card_row or cint(card_row.is_deleted):
+		frappe.throw(_("البطاقة المطلوبة غير موجودة."), frappe.DoesNotExistError)
+
+	bank_name = (
+		cstr(frappe.db.get_value("Archive Bank", card_row.bank, "bank_name") or "").strip()
+		if card_row.bank
+		else ""
+	) or (card_row.bank or "")
+
+	rows = frappe.db.sql(
+		"""
+		SELECT
+			e.name,
+			e.card,
+			e.event_type,
+			e.previous_status,
+			e.new_status,
+			e.event_date,
+			e.reason,
+			e.card_owner,
+			e.card_owner_name,
+			e.representative,
+			e.representative_name,
+			e.region,
+			e.region_name,
+			e.recorded_by,
+			e.recorded_by_name,
+			e.recorded_at
+		FROM `tabArchive Card Event` e
+		WHERE e.card = %(card)s
+		ORDER BY e.recorded_at DESC, e.event_date DESC, e.name DESC
+		""",
+		{"card": card_row.name},
+		as_dict=True,
+	)
+
+	events: list[dict[str, Any]] = []
+	for row in rows:
+		ev_type = cstr(row.event_type or "").strip()
+		prev_st = cstr(row.previous_status or "").strip()
+		new_st = cstr(row.new_status or "").strip()
+		events.append(
+			{
+				"name": row.name,
+				"card": row.card,
+				"event_date": cstr(row.event_date or ""),
+				"event_type": ev_type,
+				"event_type_label": CARD_EVENT_TYPE_LABELS.get(ev_type, ev_type),
+				"previous_status": prev_st,
+				"previous_status_display": get_card_status_display_label(prev_st),
+				"new_status": new_st,
+				"new_status_display": get_card_status_display_label(new_st),
+				"card_owner": row.card_owner or "",
+				"card_owner_name": row.card_owner_name or row.card_owner or "",
+				"representative": row.representative or "",
+				"representative_name": row.representative_name or row.representative or "",
+				"region": row.region or "",
+				"region_name": row.region_name or row.region or "",
+				"reason": row.reason or "",
+				"recorded_by": row.recorded_by or "",
+				"recorded_by_name": row.recorded_by_name or row.recorded_by or "",
+				"recorded_at": cstr(row.recorded_at or ""),
+			}
+		)
+
+	return {
+		"card": {
+			"name": card_row.name,
+			"serial_no": cint(card_row.serial_no),
+			"copy_no": cint(card_row.copy_no or 1),
+			"card_name": card_row.card_name,
+			"base_card_name": card_row.base_card_name,
+			"account_number": card_row.account_number,
+			"card_number": card_row.card_number,
+			"bank": card_row.bank or "",
+			"bank_name": bank_name,
+			"status": card_row.status,
+			"status_display": get_card_status_display_label(card_row.status),
+		},
+		"events": events,
+		"total_events": len(events),
+	}
 
 
 @frappe.whitelist()

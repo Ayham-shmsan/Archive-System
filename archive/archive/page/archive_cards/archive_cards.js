@@ -8,6 +8,19 @@ frappe.pages["archive-cards"].on_page_show = function () {
 	}
 };
 
+const CARD_STATUS_DISPLAY_LABELS = {
+	"نشطة": "نشطة",
+	"موقفة مؤقتاً": "موقفة مؤقتاً",
+	"موقفة نهائياً": "موقفة نهائياً (متلفة)",
+};
+
+function format_card_status_label(status) {
+	const clean = String(status || "").trim();
+	return CARD_STATUS_DISPLAY_LABELS[clean] || clean;
+}
+
+window.format_card_status_label = format_card_status_label;
+
 const ARCHIVE_CARDS_COLUMNS = [
 	{ key: "serial_no", label: "الرقم", width: "78px", locked: true, sortable: true },
 	{ key: "card_name", label: "اسم البطاقة", width: "225px", locked: true, sortable: true },
@@ -199,6 +212,16 @@ class ArchiveCardsPage {
 						<button
 							type="button"
 							class="btn btn-default ac-toolbar-timeline-btn"
+							data-action="open-card-event-history"
+							hidden
+							disabled
+						>
+							<i class="fa fa-list-alt"></i> سجل أحداث البطاقة
+						</button>
+
+						<button
+							type="button"
+							class="btn btn-default ac-toolbar-timeline-btn"
 							data-action="open-transfer-timeline"
 							disabled
 						>
@@ -337,7 +360,7 @@ class ArchiveCardsPage {
 			},
 			{
 				status: "موقفة نهائياً",
-				title: "موقفة نهائياً",
+				title: "موقفة نهائياً (متلفة)",
 				subtitle: "بطاقات ملغاة / متوقفة",
 				count: s.stopped || 0,
 				tone: "rose",
@@ -516,7 +539,7 @@ class ArchiveCardsPage {
 						</div>
 						<div class="ac-info-header-badges">
 							<span class="ac-copy-badge acd-copy-pill">نسخة ${card.copy_no || 1}</span>
-							<span class="acvd-status-pill" data-status="${frappe.utils.escape_html(card.status || "")}">${frappe.utils.escape_html(card.status || "")}</span>
+							<span class="acvd-status-pill" data-status="${frappe.utils.escape_html(card.status || "")}">${frappe.utils.escape_html(format_card_status_label(card.status))}</span>
 						</div>
 					</div>
 
@@ -691,7 +714,7 @@ class ArchiveCardsPage {
 			return `
 				<td>
 					<span class="acvd-status-pill" data-status="${frappe.utils.escape_html(row.status)}">
-						${frappe.utils.escape_html(row.status)}
+						${frappe.utils.escape_html(format_card_status_label(row.status))}
 					</span>
 				</td>
 			`;
@@ -776,6 +799,10 @@ class ArchiveCardsPage {
 		$main.find('[data-action="open-selected-view"]').prop("disabled", !has_sel);
 
 		const perms_loaded = Object.keys(p).length > 0;
+		$main
+			.find('[data-action="open-card-event-history"]')
+			.prop("hidden", !p.can_view_card_event_history)
+			.prop("disabled", !(has_sel && p.can_view_card_event_history));
 		$main
 			.find('[data-action="open-transfer-timeline"]')
 			.prop("hidden", perms_loaded && !p.can_view_transfer_timeline)
@@ -1216,6 +1243,15 @@ class ArchiveCardsPage {
 		});
 
 		// Timeline menu items
+		$main.on("click", '[data-action="open-card-event-history"]', () => {
+			this.close_all_popovers();
+			if (this.state.selected_card_name && window.ArchiveCardEventHistoryDialog) {
+				new window.ArchiveCardEventHistoryDialog({
+					card_name: this.state.selected_card_name,
+				}).show();
+			}
+		});
+
 		$main.on("click", '[data-action="open-transfer-timeline"]', () => {
 			this.close_all_popovers();
 			if (this.state.selected_card_name && window.ArchiveCardTransferTimelineDialog) {

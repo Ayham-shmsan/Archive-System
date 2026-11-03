@@ -24,7 +24,11 @@ from archive.api.card_search import (
 	set_card_search_text,
 )
 from archive.api.operation_search import normalize_search_text
-from archive.services.card_audit import log_card_event, record_card_transfer_entry
+from archive.services.card_audit import (
+	log_card_event,
+	record_card_status_event,
+	record_card_transfer_entry,
+)
 from archive.services.card_images import (
 	adopt_card_image,
 	cleanup_staged_card_files,
@@ -49,6 +53,17 @@ from archive.services.card_security import (
 )
 
 VALID_STATUSES = ("نشطة", "موقفة مؤقتاً", "موقفة نهائياً")
+
+CARD_STATUS_DISPLAY_LABELS: dict[str, str] = {
+	"نشطة": "نشطة",
+	"موقفة مؤقتاً": "موقفة مؤقتاً",
+	"موقفة نهائياً": "موقفة نهائياً (متلفة)",
+}
+
+
+def get_card_status_display_label(status: str | None) -> str:
+	clean = cstr(status or "").strip()
+	return CARD_STATUS_DISPLAY_LABELS.get(clean, clean)
 
 SORTABLE_COLUMNS = {
 	"serial_no": "c.serial_no",
@@ -245,6 +260,7 @@ def _serialize_card_row(
 		"daily_limit_formatted": format_daily_limit(clean_limit) if clean_limit else "",
 		"received_date": cstr(row.get("received_date") or ""),
 		"status": row.get("status") or "نشطة",
+		"status_display": get_card_status_display_label(row.get("status") or "نشطة"),
 		"status_reason": row.get("status_reason") or "",
 		"status_changed_at": cstr(row.get("status_changed_at") or ""),
 		"status_changed_by": row.get("status_changed_by") or "",
@@ -1286,6 +1302,8 @@ def change_card_status(
 	card: str,
 	new_status: str,
 	reason: str | None = None,
+	event_date: str | None = None,
+	stop_date: str | None = None,
 ) -> dict[str, Any]:
 	require_card_permission(
 		"change_card_status",
@@ -1300,42 +1318,90 @@ def change_card_status(
 	if cint(card_doc.is_deleted):
 		frappe.throw(_("لا يمكن تغيير حالة بطاقة محذوفة."), frappe.ValidationError)
 
-	old_status = card_doc.status
+	old_status = cstr(card_doc.status or "نشطة").strip()
 	clean_reason = cstr(reason or "").strip()
+	raw_date = cstr(event_date if event_date is not None else (stop_date or "")).strip()
+	now_ts = now_datetime()
 
-	if target_status == "موقفة نهائياً" and not clean_reason:
-		frappe.throw(
-			_("سبب الإيقاف النهائي للبطاقة مطلوب."),
-			frappe.ValidationError,
+	if target_status == "موقفة مؤقتاً":
+		if not raw_date:
+			frappe.throw(
+				_("تاريخ التوقيف المؤقت للبطاقة مطلوب."),
+				frappe.ValidationError,
+			)
+		resolved_event_date = _validate_date_input(raw_date, _("تاريخ التوقيف المؤقت"))
+		if not clean_reason:
+			frappe.throw(
+				_("سبب التوقيف المؤقت للبطاقة مطلوب."),
+				frappe.ValidationError,
+			)
+		event_type = "temporary_stop"
+		resolved_reason = None
+	elif target_status == "موقفة نهائياً":
+		if not raw_date:
+			frappe.throw(
+				_("تاريخ التوقيف النهائي للبطاقة مطلوب."),
+				frappe.ValidationError,
+			)
+		resolved_event_date = _validate_date_input(raw_date, _("تاريخ التوقيف النهائي"))
+		if not clean_reason:
+			frappe.throw(
+				_("سبب التوقيف النهائي / الإتلاف للبطاقة مطلوب."),
+				frappe.ValidationError,
+			)
+		event_type = "permanent_stop"
+		resolved_reason = clean_reason
+	else:
+		resolved_event_date = (
+			_validate_date_input(raw_date, _("تاريخ إعادة التنشيط"))
+			if raw_date
+			else cstr(getdate(now_ts))
 		)
+		event_type = "reactivated"
+		resolved_reason = None
 
-	resolved_reason = clean_reason if target_status == "موقفة نهائياً" else None
-
-	if old_status == target_status and (card_doc.status_reason or None) == resolved_reason:
+	if old_status == target_status:
 		return get_card_details(card_doc.name)
 
-	now_ts = now_datetime()
-	card_doc.status = target_status
-	card_doc.status_reason = resolved_reason
-	card_doc.status_changed_at = now_ts
-	card_doc.status_changed_by = frappe.session.user
-	set_card_search_text(card_doc)
-	card_doc.flags._allow_card_service_mutation = True
-	card_doc.save(ignore_permissions=True)
+	savepoint_name = "archive_card_status_change_sp"
+	frappe.db.savepoint(savepoint_name)
+	try:
+		card_doc.status = target_status
+		card_doc.status_reason = resolved_reason
+		card_doc.status_changed_at = now_ts
+		card_doc.status_changed_by = frappe.session.user
+		set_card_search_text(card_doc)
+		card_doc.flags._allow_card_service_mutation = True
+		card_doc.save(ignore_permissions=True)
 
-	log_card_event(
-		card_name=card_doc.name,
-		event_type="status_change",
-		event_title=_("تغيير حالة البطاقة من ({0}) إلى ({1})").format(old_status, target_status),
-		remarks=clean_reason or None,
-		details={
-			"old_status": old_status,
-			"new_status": target_status,
-			"reason": resolved_reason or "",
-		},
-		event_source="user",
-		event_datetime=now_ts,
-	)
+		record_card_status_event(
+			card_doc=card_doc,
+			event_type=event_type,
+			previous_status=old_status,
+			new_status=target_status,
+			event_date=resolved_event_date,
+			reason=clean_reason or None,
+			recorded_by=frappe.session.user,
+			recorded_at=now_ts,
+		)
+
+		log_card_event(
+			card_name=card_doc.name,
+			event_type="status_change",
+			event_title=_("تغيير حالة البطاقة من ({0}) إلى ({1})").format(old_status, target_status),
+			remarks=clean_reason or None,
+			details={
+				"old_status": old_status,
+				"new_status": target_status,
+				"event_date": resolved_event_date,
+				"reason": clean_reason or "",
+			},
+			event_source="user",
+			event_datetime=now_ts,
+		)
+	except Exception:
+		frappe.db.rollback(save_point=savepoint_name)
+		raise
 
 	return get_card_details(card_doc.name)
 
@@ -1545,3 +1611,10 @@ def cleanup_staged_card_images(
 		parsed_ids = [cstr(x) for x in file_ids if x]
 
 	return cleanup_staged_card_files(parsed_ids)
+
+
+@frappe.whitelist()
+def get_card_events(card: str) -> dict[str, Any]:
+	from archive.api.card_timeline import get_card_events as _get_card_events
+
+	return _get_card_events(card=card)

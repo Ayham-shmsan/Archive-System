@@ -27,6 +27,34 @@ ROLE_CARD_MANAGER = "مدير البطاقات"
 ROLE_CARD_OFFICER = "موظف البطاقات"
 ROLE_CARD_READER = "قارئ البطاقات"
 ROLE_CARD_IMAGE_PREVIEW = "صلاحية معاينة البطائق"
+ROLE_CARD_EVENT_HISTORY = "صلاحية عرض سجل أحداث البطاقة"
+
+
+def has_card_event_history_role(user: str | None = None) -> bool:
+	resolved_user = _resolve_user(user)
+	if not resolved_user or resolved_user == "Guest":
+		return False
+	return bool(
+		frappe.db.exists(
+			"Has Role",
+			{
+				"parent": resolved_user,
+				"parenttype": "User",
+				"role": ROLE_CARD_EVENT_HISTORY,
+			},
+		)
+	)
+
+
+def require_card_event_history_role(
+	message: str | None = None,
+	user: str | None = None,
+) -> None:
+	if not has_card_event_history_role(user=user):
+		frappe.throw(
+			message or _("ليست لديك صلاحية عرض سجل أحداث البطاقة."),
+			frappe.PermissionError,
+		)
 
 
 def has_card_image_preview_role(user: str | None = None) -> bool:
@@ -127,6 +155,7 @@ def get_card_permissions(user: str | None = None) -> dict[str, bool]:
 			"can_view_pin": False,
 			"can_view_activity_timeline": False,
 			"can_view_transfer_timeline": False,
+			"can_view_card_event_history": has_card_event_history_role(user=resolved_user),
 			**{perm: False for perm in CARD_PERMISSION_TYPES},
 		}
 
@@ -145,6 +174,7 @@ def get_card_permissions(user: str | None = None) -> dict[str, bool]:
 		"can_view_pin": flags["view_card_pin"],
 		"can_view_activity_timeline": flags["view_card_activity_timeline"],
 		"can_view_transfer_timeline": flags["view_card_transfer_timeline"],
+		"can_view_card_event_history": has_card_event_history_role(user=resolved_user),
 		**flags,
 	}
 
@@ -237,4 +267,16 @@ def has_log_permission(
 	perm = ptype or "read"
 	if perm in ("read", "select"):
 		return has_card_permission("view_card_activity_timeline", user=resolved_user)
+	return False
+
+
+def has_card_event_permission(
+	doc: Any,
+	ptype: str | None = None,
+	user: str | None = None,
+) -> bool:
+	resolved_user = _resolve_user(user)
+	perm = ptype or "read"
+	if perm in ("read", "select"):
+		return has_card_event_history_role(user=resolved_user)
 	return False

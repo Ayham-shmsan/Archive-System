@@ -91,6 +91,14 @@
 		status: "الحالة",
 	};
 
+	function display_status_label(status) {
+		if (typeof window.format_card_status_label === "function") {
+			return window.format_card_status_label(status);
+		}
+		const clean = String(status || "").trim();
+		return clean === "موقفة نهائياً" ? "موقفة نهائياً (متلفة)" : clean;
+	}
+
 	function format_event_details_html(ev, card = {}) {
 		const d = ev.details || {};
 		const type = ev.event_type;
@@ -111,12 +119,12 @@
 			if (d.card_owner_name || d.card_owner) {
 				lines.push(`مالك البطاقة: <strong>${frappe.utils.escape_html(d.card_owner_name || d.card_owner)}</strong>`);
 			}
-			if (d.status) lines.push(`الحالة: <strong>${frappe.utils.escape_html(d.status)}</strong>`);
+			if (d.status) lines.push(`الحالة: <strong>${frappe.utils.escape_html(display_status_label(d.status))}</strong>`);
 		} else if (type === "status_change") {
 			lines.push(
-				`من: <span class="actl-chip">${frappe.utils.escape_html(d.old_status || "—")}</span>` +
+				`من: <span class="actl-chip">${frappe.utils.escape_html(display_status_label(d.old_status) || "—")}</span>` +
 					` <i class="fa fa-long-arrow-left"></i> ` +
-					`إلى: <span class="actl-chip is-highlight">${frappe.utils.escape_html(d.new_status || "—")}</span>`
+					`إلى: <span class="actl-chip is-highlight">${frappe.utils.escape_html(display_status_label(d.new_status) || "—")}</span>`
 			);
 		} else if (type === "formal_transfer") {
 			const from_rep = d.from_representative_name || d.from_representative || "—";
@@ -448,6 +456,230 @@
 		}
 	}
 
+	class ArchiveCardEventHistoryDialog {
+		constructor(options = {}) {
+			this.card_name = options.card_name || "";
+			this.dialog = null;
+		}
+
+		static resolve_event_tone(event_type) {
+			if (event_type === "reactivated") {
+				return {
+					tone: "emerald",
+					icon: "fa-check-circle",
+					default_label: "إعادة تنشيط",
+				};
+			}
+			if (event_type === "temporary_stop") {
+				return {
+					tone: "amber",
+					icon: "fa-pause-circle",
+					default_label: "توقيف مؤقت",
+				};
+			}
+			if (event_type === "permanent_stop") {
+				return {
+					tone: "rose",
+					icon: "fa-ban",
+					default_label: "توقيف نهائي (متلفة)",
+				};
+			}
+			return {
+				tone: "slate",
+				icon: "fa-circle-o",
+				default_label: event_type || "حدث",
+			};
+		}
+
+		static format_recorded_at(raw_dt) {
+			const str = String(raw_dt || "").trim();
+			if (!str) return "—";
+			return str.length > 19 ? str.slice(0, 19) : str;
+		}
+
+		async show() {
+			if (!this.card_name) return;
+
+			const res = await frappe.call({
+				method: "archive.api.card_timeline.get_card_events",
+				args: { card: this.card_name },
+			});
+			const data = res?.message || {};
+			const card = data.card || {};
+			const events = Array.isArray(data.events) ? data.events : [];
+
+			this.dialog = new frappe.ui.Dialog({
+				title: `سجل أحداث البطاقة — ${card.base_card_name || this.card_name}`,
+				size: "extra-large",
+				primary_action_label: "إغلاق",
+				primary_action: () => this.dialog.hide(),
+			});
+
+			this.dialog.$wrapper.addClass("archive-card-event-history-modal");
+
+			const current_status_raw = String(card.status || "").trim();
+			const current_status_label =
+				card.status_display || display_status_label(current_status_raw) || "—";
+
+			const rows_html = events.length
+				? events
+						.map((ev) => {
+							const meta = ArchiveCardEventHistoryDialog.resolve_event_tone(
+								ev.event_type
+							);
+							const ev_label = ev.event_type_label || meta.default_label;
+							const prev_raw = String(ev.previous_status || "").trim();
+							const prev_label =
+								ev.previous_status_display ||
+								display_status_label(prev_raw) ||
+								"—";
+							const new_raw = String(ev.new_status || "").trim();
+							const new_label =
+								ev.new_status_display ||
+								display_status_label(new_raw) ||
+								"—";
+							const reason_txt = String(ev.reason || "").trim();
+							const is_long_reason = reason_txt.length > 75;
+
+							return `
+								<tr class="aceh-row tone-${meta.tone}">
+									<td class="aceh-td-mono" dir="ltr">${frappe.utils.escape_html(ev.event_date || "—")}</td>
+									<td>
+										<span class="aceh-event-badge tone-${meta.tone}">
+											<i class="fa ${meta.icon}"></i>
+											<span>${frappe.utils.escape_html(ev_label)}</span>
+										</span>
+									</td>
+									<td>
+										<span class="acvd-status-pill aceh-status-pill" data-status="${frappe.utils.escape_html(prev_raw)}">
+											${frappe.utils.escape_html(prev_label)}
+										</span>
+									</td>
+									<td>
+										<span class="acvd-status-pill aceh-status-pill" data-status="${frappe.utils.escape_html(new_raw)}">
+											${frappe.utils.escape_html(new_label)}
+										</span>
+									</td>
+									<td class="aceh-td-strong" title="${frappe.utils.escape_html(ev.card_owner_name || "—")}">
+										${frappe.utils.escape_html(ev.card_owner_name || "—")}
+									</td>
+									<td class="aceh-td-strong" title="${frappe.utils.escape_html(ev.representative_name || "—")}">
+										${frappe.utils.escape_html(ev.representative_name || "—")}
+									</td>
+									<td title="${frappe.utils.escape_html(ev.region_name || "—")}">
+										${frappe.utils.escape_html(ev.region_name || "—")}
+									</td>
+									<td class="aceh-td-reason">
+										${
+											reason_txt
+												? `
+											<div
+												class="aceh-reason-text ${is_long_reason ? "is-expandable" : ""}"
+												title="${frappe.utils.escape_html(reason_txt)}"
+												${is_long_reason ? 'data-action="toggle-reason-expand"' : ""}
+											>
+												${frappe.utils.escape_html(reason_txt)}
+											</div>
+										`
+												: `<span class="aceh-muted-dash">—</span>`
+										}
+									</td>
+									<td title="${frappe.utils.escape_html(ev.recorded_by_name || ev.recorded_by || "—")}">
+										${frappe.utils.escape_html(ev.recorded_by_name || ev.recorded_by || "—")}
+									</td>
+									<td class="aceh-td-mono aceh-td-timestamp" dir="ltr">
+										${frappe.utils.escape_html(ArchiveCardEventHistoryDialog.format_recorded_at(ev.recorded_at))}
+									</td>
+								</tr>
+							`;
+						})
+						.join("")
+				: `
+					<tr class="aceh-empty-row">
+						<td colspan="10">
+							<div class="aceh-empty-state">
+								<span class="aceh-empty-icon"><i class="fa fa-list-alt"></i></span>
+								<strong class="aceh-empty-title">لا توجد أحداث حالة مسجلة</strong>
+								<span class="aceh-empty-subtitle">لم تسجل هذه البطاقة أي انتقالات حالة حتى الآن.</span>
+							</div>
+						</td>
+					</tr>
+				`;
+
+			const $body = $(this.dialog.body);
+			$body.attr("dir", "rtl").html(`
+				<div class="aceh-shell" dir="rtl">
+					<div class="aceh-header-bar">
+						<div class="aceh-header-group aceh-header-primary">
+							<span class="acvd-serial-badge">#${card.serial_no || "—"}</span>
+							<strong class="aceh-card-title">${frappe.utils.escape_html(card.base_card_name || card.card_name || "")}</strong>
+							<span class="ac-copy-badge">نسخة ${card.copy_no || 1}</span>
+						</div>
+						<div class="aceh-header-meta">
+							<div class="aceh-meta-item">
+								<span class="aceh-meta-label">البنك:</span>
+								<strong class="aceh-meta-value">${frappe.utils.escape_html(card.bank_name || card.bank || "—")}</strong>
+							</div>
+							<span class="aceh-meta-divider"></span>
+							<div class="aceh-meta-item">
+								<span class="aceh-meta-label">رقم الحساب:</span>
+								<code class="aceh-meta-code" dir="ltr">${frappe.utils.escape_html(card.account_number || "—")}</code>
+							</div>
+							<span class="aceh-meta-divider"></span>
+							<div class="aceh-meta-item">
+								<span class="aceh-meta-label">رقم البطاقة:</span>
+								<code class="aceh-meta-code" dir="ltr">${frappe.utils.escape_html(card.card_number || "—")}</code>
+							</div>
+							<span class="aceh-meta-divider"></span>
+							<div class="aceh-meta-item">
+								<span class="aceh-meta-label">الحالة الحالية:</span>
+								<span class="acvd-status-pill" data-status="${frappe.utils.escape_html(current_status_raw)}">
+									${frappe.utils.escape_html(current_status_label)}
+								</span>
+							</div>
+							<span class="aceh-meta-divider"></span>
+							<div class="aceh-meta-item">
+								<span class="aceh-meta-label">عدد الأحداث:</span>
+								<strong class="aceh-meta-count" dir="ltr">${events.length}</strong>
+							</div>
+						</div>
+					</div>
+
+					<div class="aceh-table-card">
+						<div class="aceh-table-scroll">
+							<table class="aceh-events-table">
+								<thead>
+									<tr>
+										<th class="aceh-col-date">التاريخ الفعلي</th>
+										<th class="aceh-col-type">نوع الحدث</th>
+										<th class="aceh-col-status">الحالة السابقة</th>
+										<th class="aceh-col-status">الحالة الجديدة</th>
+										<th class="aceh-col-owner">مالك البطاقة</th>
+										<th class="aceh-col-rep">المندوب</th>
+										<th class="aceh-col-region">المنطقة</th>
+										<th class="aceh-col-reason">السبب / الملاحظة</th>
+										<th class="aceh-col-user">سجل بواسطة</th>
+										<th class="aceh-col-sysdate">وقت التسجيل بالنظام</th>
+									</tr>
+								</thead>
+								<tbody>
+									${rows_html}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			`);
+
+			$body.on("click", '[data-action="toggle-reason-expand"]', (e) => {
+				$(e.currentTarget).toggleClass("is-expanded");
+			});
+
+			this.dialog.show();
+		}
+	}
+
 	window.ArchiveCardActivityTimelineDialog = ArchiveCardActivityTimelineDialog;
 	window.ArchiveCardTransferTimelineDialog = ArchiveCardTransferTimelineDialog;
+	window.ArchiveCardEventHistoryDialog = ArchiveCardEventHistoryDialog;
 })();

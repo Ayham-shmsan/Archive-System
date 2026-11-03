@@ -387,6 +387,11 @@
 				if (df.default) {
 					ctrl.set_value(df.default);
 				}
+				if (df.fieldname === "status" && ctrl.$input) {
+					ctrl.$input
+						.find('option[value="موقفة نهائياً"]')
+						.text("موقفة نهائياً (متلفة)");
+				}
 				this.controls[df.fieldname] = ctrl;
 			});
 
@@ -761,7 +766,7 @@
 			if (payload.status === "موقفة نهائياً" && !payload.status_reason) {
 				frappe.msgprint({
 					title: "سبب الإيقاف النهائي مطلوب",
-					message: "يرجى إدخال سبب الإيقاف النهائي عند اختيار حالة (موقفة نهائياً).",
+					message: "يرجى إدخال سبب الإيقاف النهائي عند اختيار حالة (موقفة نهائياً (متلفة)).",
 					indicator: "red",
 				});
 				return false;

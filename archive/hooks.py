@@ -217,6 +217,8 @@ has_permission = {
         "archive.services.card_permissions.has_transfer_permission",
     "Archive Card Log":
         "archive.services.card_permissions.has_log_permission",
+    "Archive Card Event":
+        "archive.services.card_permissions.has_card_event_permission",
     "File":
         "archive.services.card_security.has_file_permission",
 }
