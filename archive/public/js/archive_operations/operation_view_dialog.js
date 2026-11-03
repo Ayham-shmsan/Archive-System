@@ -1906,7 +1906,7 @@ class OperationViewDialog {
 						"notes",
 
 					label:
-						"ملاحظات",
+						"ملاحظات المرسل",
 
 					fieldtype:
 						"Data",

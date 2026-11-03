@@ -2034,7 +2034,7 @@ archive.ui.OperationDialog = class OperationDialog {
 				},
                 {
                     fieldname: "notes",
-                    label: "ملاحظات التحويل",
+                    label: "ملاحظات المرسل",
                     fieldtype: "Data",
                 },
 			]
