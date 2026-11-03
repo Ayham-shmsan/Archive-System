@@ -141,6 +141,7 @@ class ArchiveCardsPage {
 			);
 		});
 
+		this.mount_pagination();
 		this.bind_events();
 		this._initialized = true;
 		await this.load_context(false);
@@ -209,24 +210,24 @@ class ArchiveCardsPage {
 							<i class="fa fa-eye"></i> عرض
 						</button>
 
-						<button
-							type="button"
-							class="btn btn-default ac-toolbar-timeline-btn"
-							data-action="open-card-event-history"
-							hidden
-							disabled
-						>
-							<i class="fa fa-list-alt"></i> سجل أحداث البطاقة
-						</button>
-
-						<button
-							type="button"
-							class="btn btn-default ac-toolbar-timeline-btn"
-							data-action="open-transfer-timeline"
-							disabled
-						>
-							<i class="fa fa-road"></i> مسار نقل البطاقة
-						</button>
+						<div class="archive-cards-dropdown-wrap" data-role="timeline-events-dropdown-wrap" hidden>
+							<button
+								type="button"
+								class="btn btn-default ac-toolbar-timeline-btn"
+								data-action="toggle-timeline-events-menu"
+								disabled
+							>
+								<i class="fa fa-road"></i> المسار والأحداث <i class="fa fa-caret-down"></i>
+							</button>
+							<div class="archive-cards-popover-menu" data-role="timeline-events-menu" hidden>
+								<button type="button" class="ac-menu-item" data-action="open-transfer-timeline">
+									<i class="fa fa-road"></i> مسار البطاقة
+								</button>
+								<button type="button" class="ac-menu-item" data-action="open-card-event-history">
+									<i class="fa fa-list-alt"></i> أحداث البطاقة
+								</button>
+							</div>
+						</div>
 
 						<button
 							type="button"
@@ -314,7 +315,7 @@ class ArchiveCardsPage {
 						</table>
 					</div>
 
-					<div class="archive-cards-pagination-bar" data-role="pagination-bar"></div>
+					<div class="archive-pagination-host" data-role="pagination-bar"></div>
 				</div>
 
 				<input
@@ -722,48 +723,34 @@ class ArchiveCardsPage {
 		return `<td>${frappe.utils.escape_html(String(row[key] ?? ""))}</td>`;
 	}
 
+	mount_pagination() {
+		const lengths = ["20", "50", "100", "500", "1000"].map((v) => ({
+			label: __("{0} سجل", [v]),
+			value: v,
+		}));
+		lengths.push({ label: __("كل السجلات"), value: "all" });
+
+		this.pagination_bar = new custom.data_grid.PaginationBar({
+			container: $(this.page.main).find('[data-role="pagination-bar"]'),
+			page_length: String(this.state.page_size),
+			allowed_page_lengths: lengths,
+			on_change: async ({ page, page_length }) => {
+				this.state.page = page;
+				this.state.page_size = page_length === "all" ? "all" : Number(page_length) || 50;
+				await this.load_context(true);
+			},
+		});
+		this.pagination_bar.mount();
+	}
+
 	render_pagination() {
 		const p = this.pagination || { page: 1, page_size: 50, total_count: 0, total_pages: 1 };
-		const $bar = $(this.page.main).find('[data-role="pagination-bar"]');
-		const cur_size = String(p.page_size ?? this.state.page_size ?? 50);
-		const is_all = cur_size === "all";
-		const size_options = [
-			{ value: "20", label: "20" },
-			{ value: "50", label: "50" },
-			{ value: "100", label: "100" },
-			{ value: "500", label: "500" },
-			{ value: "1000", label: "1000" },
-			{ value: "all", label: "كل البطاقات" },
-		];
-
-		$bar.html(`
-			<div class="ac-pagination-info">
-				${
-					is_all
-						? `إجمالي السجلات: <strong>${p.total_count}</strong> — عرض <strong>كل البطاقات</strong>`
-						: `إجمالي السجلات: <strong>${p.total_count}</strong> — الصفحة <strong>${p.page}</strong> من <strong>${p.total_pages}</strong>`
-				}
-			</div>
-			<div class="ac-pagination-controls">
-				<label class="ac-page-size-label">
-					<span>حجم الصفحة:</span>
-					<select class="form-control input-xs ac-page-size-select" data-role="page-size-select">
-						${size_options
-							.map(
-								(opt) =>
-									`<option value="${opt.value}" ${cur_size === opt.value ? "selected" : ""}>${opt.label}</option>`
-							)
-							.join("")}
-					</select>
-				</label>
-				<button type="button" class="btn btn-xs btn-default" data-action="page-prev" ${is_all || p.page <= 1 ? "disabled" : ""}>
-					السابق
-				</button>
-				<button type="button" class="btn btn-xs btn-default" data-action="page-next" ${is_all || p.page >= p.total_pages ? "disabled" : ""}>
-					التالي
-				</button>
-			</div>
-		`);
+		this.pagination_bar?.update({
+			page: p.page,
+			page_length: String(p.page_size ?? this.state.page_size ?? 50),
+			total_rows: p.total_count,
+			total_pages: p.total_pages,
+		});
 	}
 
 	populate_master_filters() {
@@ -799,27 +786,59 @@ class ArchiveCardsPage {
 		$main.find('[data-action="open-selected-view"]').prop("disabled", !has_sel);
 
 		const perms_loaded = Object.keys(p).length > 0;
+		const can_view_transfer = Boolean(p.can_view_transfer_timeline);
+		const can_view_events = Boolean(p.can_view_card_event_history);
+		const can_any_timeline_or_events = can_view_transfer || can_view_events;
 		$main
-			.find('[data-action="open-card-event-history"]')
-			.prop("hidden", !p.can_view_card_event_history)
-			.prop("disabled", !(has_sel && p.can_view_card_event_history));
+			.find('[data-role="timeline-events-dropdown-wrap"]')
+			.prop("hidden", !can_any_timeline_or_events);
+		$main
+			.find('[data-action="toggle-timeline-events-menu"]')
+			.prop("hidden", !can_any_timeline_or_events)
+			.prop("disabled", !(has_sel && can_any_timeline_or_events));
+		if (!has_sel || !can_any_timeline_or_events) {
+			$main.find('[data-role="timeline-events-menu"]').prop("hidden", true);
+		}
 		$main
 			.find('[data-action="open-transfer-timeline"]')
-			.prop("hidden", perms_loaded && !p.can_view_transfer_timeline)
-			.prop("disabled", !(has_sel && p.can_view_transfer_timeline));
+			.prop("hidden", !can_view_transfer)
+			.prop("disabled", !(has_sel && can_view_transfer));
+		$main
+			.find('[data-action="open-card-event-history"]')
+			.prop("hidden", !can_view_events)
+			.prop("disabled", !(has_sel && can_view_events));
 		$main
 			.find('[data-action="open-activity-timeline"]')
 			.prop("hidden", perms_loaded && !p.can_view_activity_timeline)
 			.prop("disabled", !(has_sel && p.can_view_activity_timeline));
 
-		const can_any_action = Boolean(p.can_change_status || p.can_transfer || p.can_delete);
+		const selected_card = this.get_selected_card_object();
+		const is_selected_perm_stopped =
+			Boolean(selected_card) &&
+			String(selected_card.status || "").trim() === "موقفة نهائياً";
+		const perm_stopped_allowed =
+			!is_selected_perm_stopped || Boolean(p.can_reactivate_permanently_stopped_card);
+		const can_change_selected_status = Boolean(p.can_change_status && perm_stopped_allowed);
+		const can_transfer_selected = Boolean(p.can_transfer && perm_stopped_allowed);
+		const can_any_action = Boolean(
+			can_change_selected_status || can_transfer_selected || p.can_delete
+		);
 		$main
 			.find('[data-action="toggle-actions-menu"]')
 			.prop("disabled", !(has_sel && can_any_action));
-		$main.find('[data-action="action-change-status"]').prop("hidden", !p.can_change_status);
-		$main.find('[data-action="action-transfer-card"]').prop("hidden", !p.can_transfer);
+		$main
+			.find('[data-action="action-change-status"]')
+			.prop("hidden", !can_change_selected_status);
+		$main
+			.find('[data-action="action-transfer-card"]')
+			.prop("hidden", !can_transfer_selected);
 		$main.find('[data-action="action-delete-card"]').prop("hidden", !p.can_delete);
-		$main.find('[data-role="delete-divider"]').prop("hidden", !p.can_delete);
+		$main
+			.find('[data-role="delete-divider"]')
+			.prop(
+				"hidden",
+				!(p.can_delete && (can_change_selected_status || can_transfer_selected))
+			);
 
 		const active_filter_count = Object.values(this.state.filters).filter(Boolean).length;
 		const $badge = $main.find('[data-role="filter-badge"]');
@@ -942,6 +961,7 @@ class ArchiveCardsPage {
 			if (token !== this.preview_request_token) return;
 			if (res?.message?.card) {
 				this.preview_card = res.message.card;
+				this.update_toolbar_state();
 				this.render_preview_panel();
 			}
 		} catch (_) {
@@ -978,6 +998,7 @@ class ArchiveCardsPage {
 		const $main = $(this.page.main);
 		$main.find('[data-role="columns-menu"]').prop("hidden", true);
 		$main.find('[data-role="actions-menu"]').prop("hidden", true);
+		$main.find('[data-role="timeline-events-menu"]').prop("hidden", true);
 	}
 
 	bind_events() {
@@ -1115,6 +1136,12 @@ class ArchiveCardsPage {
 		});
 
 		// Search input
+		$main.on("click", ".archive-cards-search-box", (e) => {
+			if (!$(e.target).is("input")) {
+				$(e.currentTarget).find("input").focus();
+			}
+		});
+
 		$main.on("input", '[data-role="search-input"]', (e) => {
 			const val = String($(e.currentTarget).val() || "");
 			clearTimeout(this.search_timer);
@@ -1165,6 +1192,14 @@ class ArchiveCardsPage {
 		$main.on("click", '[data-action="toggle-actions-menu"]', (e) => {
 			e.stopPropagation();
 			const $m = $main.find('[data-role="actions-menu"]');
+			const was_hidden = $m.prop("hidden");
+			this.close_all_popovers();
+			$m.prop("hidden", !was_hidden);
+		});
+
+		$main.on("click", '[data-action="toggle-timeline-events-menu"]', (e) => {
+			e.stopPropagation();
+			const $m = $main.find('[data-role="timeline-events-menu"]');
 			const was_hidden = $m.prop("hidden");
 			this.close_all_popovers();
 			$m.prop("hidden", !was_hidden);
@@ -1304,28 +1339,6 @@ class ArchiveCardsPage {
 
 		$main.on("click", '[data-action="refresh-list"]', () => {
 			this.load_context(false);
-		});
-
-		// Pagination
-		$main.on("click", '[data-action="page-prev"]', () => {
-			if (this.state.page > 1) {
-				this.state.page -= 1;
-				this.load_context(true);
-			}
-		});
-
-		$main.on("click", '[data-action="page-next"]', () => {
-			if (this.state.page < (this.pagination.total_pages || 1)) {
-				this.state.page += 1;
-				this.load_context(true);
-			}
-		});
-
-		$main.on("change", '[data-role="page-size-select"]', (e) => {
-			const raw_val = String($(e.currentTarget).val() || "50");
-			this.state.page_size = raw_val === "all" ? "all" : Number(raw_val) || 50;
-			this.state.page = 1;
-			this.load_context(true);
 		});
 
 		// Keyboard navigation (ArrowUp / ArrowDown)

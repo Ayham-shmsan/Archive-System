@@ -24,8 +24,11 @@ from archive.services.card_images import stage_uploaded_card_image
 from archive.services.card_permissions import (
 	ROLE_CARD_EVENT_HISTORY,
 	ROLE_CARD_MANAGER,
+	ROLE_CARD_READER,
+	ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD,
 	get_card_permissions,
 	has_card_event_history_role,
+	has_reactivate_permanently_stopped_card_role,
 )
 
 test_records = []
@@ -120,11 +123,23 @@ class TestArchiveCardEvent(IntegrationTestCase):
 		cls.no_role_user = "card_event_no_role@example.com"
 		cls.with_role_user = "card_event_with_role@example.com"
 		cls.sys_manager_only_user = "card_event_sysmgr_only@example.com"
+		cls.with_reactivate_perm_user = "card_reactivate_perm_manager@example.com"
+		cls.reader_with_reactivate_only_user = "card_reactivate_perm_reader@example.com"
 
 		for email, first_name, roles in (
 			(cls.no_role_user, "NoEventRoleUser", [ROLE_CARD_MANAGER]),
 			(cls.with_role_user, "WithEventRoleUser", [ROLE_CARD_MANAGER, ROLE_CARD_EVENT_HISTORY]),
 			(cls.sys_manager_only_user, "SysMgrOnlyUser", ["System Manager", ROLE_CARD_MANAGER]),
+			(
+				cls.with_reactivate_perm_user,
+				"ReactivatePermManager",
+				[ROLE_CARD_MANAGER, ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD, ROLE_CARD_EVENT_HISTORY],
+			),
+			(
+				cls.reader_with_reactivate_only_user,
+				"ReactivatePermReader",
+				[ROLE_CARD_READER, ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD],
+			),
 		):
 			if not frappe.db.exists("User", email):
 				u = frappe.get_doc(
@@ -434,3 +449,124 @@ class TestArchiveCardEvent(IntegrationTestCase):
 		self.assertFalse(get_card_permissions()["can_view_card_event_history"])
 		with self.assertRaises(frappe.PermissionError):
 			get_card_events(card["name"])
+
+	def test_13_permanently_stopped_card_blocks_status_change_and_transfer_without_role(self):
+		card = self._make_card()
+		frappe.set_user(self.no_role_user)
+		change_card_status(
+			card["name"],
+			"موقفة نهائياً",
+			reason="إتلاف رسمي للبطاقة",
+			event_date="2026-10-29",
+		)
+		self.assertFalse(has_reactivate_permanently_stopped_card_role())
+		self.assertFalse(get_card_permissions()["can_reactivate_permanently_stopped_card"])
+
+		with self.assertRaises(frappe.PermissionError):
+			change_card_status(card["name"], "نشطة")
+
+		with self.assertRaises(frappe.PermissionError):
+			change_card_status(
+				card["name"],
+				"موقفة مؤقتاً",
+				reason="محاولة تحويل إلى مؤقت",
+				event_date="2026-10-30",
+			)
+
+		with self.assertRaises(frappe.PermissionError):
+			transfer_card(
+				card=card["name"],
+				to_region=self.region_aden,
+				to_representative=self.rep_ali,
+				new_received_date="2026-10-30",
+			)
+
+	def test_14_administrator_without_explicit_role_cannot_bypass_permanently_stopped_lock(self):
+		frappe.db.delete(
+			"Has Role",
+			{
+				"parent": "Administrator",
+				"parenttype": "User",
+				"role": ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD,
+			},
+		)
+		card = self._make_card()
+		change_card_status(
+			card["name"],
+			"موقفة نهائياً",
+			reason="إتلاف للاختبار",
+			event_date="2026-10-29",
+		)
+		frappe.set_user("Administrator")
+		self.assertFalse(has_reactivate_permanently_stopped_card_role("Administrator"))
+
+		with self.assertRaises(frappe.PermissionError):
+			change_card_status(card["name"], "نشطة")
+
+		with self.assertRaises(frappe.PermissionError):
+			transfer_card(
+				card=card["name"],
+				to_region=self.region_aden,
+				to_representative=self.rep_ali,
+				new_received_date="2026-10-30",
+			)
+
+	def test_15_authorized_user_with_both_roles_can_reactivate_and_transfer_permanently_stopped_card(self):
+		card = self._make_card()
+		change_card_status(
+			card["name"],
+			"موقفة نهائياً",
+			reason="إتلاف ثم استثناء إداري",
+			event_date="2026-10-29",
+		)
+
+		frappe.set_user(self.with_reactivate_perm_user)
+		self.assertTrue(has_reactivate_permanently_stopped_card_role())
+		self.assertTrue(get_card_permissions()["can_reactivate_permanently_stopped_card"])
+
+		# Can transfer while permanently stopped if holding both transfer_card + new role
+		transferred = transfer_card(
+			card=card["name"],
+			to_region=self.region_aden,
+			to_representative=self.rep_ali,
+			new_received_date="2026-10-30",
+			transfer_note="نقل بموجب صلاحية خاصة",
+		)["card"]
+		self.assertEqual(transferred["representative"], self.rep_ali)
+
+		# Can reactivate from موقفة نهائياً -> نشطة and append event without losing history
+		reactivated = change_card_status(card["name"], "نشطة")["card"]
+		self.assertEqual(reactivated["status"], "نشطة")
+
+		ev_res = get_card_events(card["name"])
+		self.assertEqual(ev_res["total_events"], 2)
+		self.assertEqual(ev_res["events"][0]["event_type"], "reactivated")
+		self.assertEqual(ev_res["events"][0]["previous_status"], "موقفة نهائياً")
+		self.assertEqual(ev_res["events"][0]["new_status"], "نشطة")
+		self.assertEqual(ev_res["events"][1]["event_type"], "permanent_stop")
+
+	def test_16_reactivate_role_alone_does_not_grant_base_status_or_transfer_permission(self):
+		card = self._make_card()
+		change_card_status(
+			card["name"],
+			"موقفة نهائياً",
+			reason="إتلاف لاختبار القارئ",
+			event_date="2026-10-29",
+		)
+
+		frappe.set_user(self.reader_with_reactivate_only_user)
+		self.assertTrue(has_reactivate_permanently_stopped_card_role())
+		perms = get_card_permissions()
+		self.assertFalse(perms["can_change_status"])
+		self.assertFalse(perms["can_transfer"])
+
+		with self.assertRaises(frappe.PermissionError):
+			change_card_status(card["name"], "نشطة")
+
+		with self.assertRaises(frappe.PermissionError):
+			transfer_card(
+				card=card["name"],
+				to_region=self.region_aden,
+				to_representative=self.rep_ali,
+				new_received_date="2026-10-30",
+			)

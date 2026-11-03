@@ -1056,6 +1056,10 @@ class ArchiveOperationsPage {
 
                         customer: {
                             type: "text",
+                            get: (record) =>
+                                record?.customer_name
+                                || record?.customer
+                                || "",
                         },
 
                         amount: {
@@ -1067,7 +1071,22 @@ class ArchiveOperationsPage {
                         },
 
                         customer_rate: {
-                            type: "text",
+                            type: "number",
+                            get: (record) => {
+                                const raw =
+                                    record?.customer_rate;
+                                if (
+                                    raw === null
+                                    || raw === undefined
+                                    || String(raw).trim() === ""
+                                ) {
+                                    return null;
+                                }
+                                const num = Number(raw);
+                                return Number.isFinite(num)
+                                    ? num
+                                    : -1;
+                            },
                         },
 
                         replacement_note: {
@@ -1092,6 +1111,14 @@ class ArchiveOperationsPage {
 
                         country: {
                             type: "text",
+                            get: (record) =>
+                                record?.country
+                                    ? __(
+                                          String(
+                                              record.country
+                                          ).trim()
+                                      )
+                                    : "",
                         },
 
                         sender_name: {
@@ -1104,6 +1131,14 @@ class ArchiveOperationsPage {
 
                         execution_datetime: {
                             type: "datetime",
+                            get: (record) =>
+                                record?.execution_datetime
+                                    ? String(
+                                          record.execution_datetime
+                                      )
+                                          .trim()
+                                          .replace(" ", "T")
+                                    : null,
                         },
 
                         transferring_bank: {
@@ -1116,6 +1151,10 @@ class ArchiveOperationsPage {
 
                         from_account: {
                             type: "text",
+                            get: (record) =>
+                                record?.from_account_name
+                                || record?.from_account
+                                || "",
                         },
 
                         reference_no: {
@@ -2272,6 +2311,7 @@ class ArchiveOperationsPage {
 
 		this.bind_events();
         this.apply_column_visibility();
+        this.update_sort_indicators();
 
         if (this.table_resize_observer) {
             this.table_resize_observer.disconnect();
@@ -2817,7 +2857,20 @@ class ArchiveOperationsPage {
         field
     ) {
 
-        if (!field) {
+        field =
+            String(
+                field || ""
+            ).trim();
+
+        if (
+            !field
+            ||
+            (
+                this.data_source?.sorters
+                &&
+                !this.data_source.sorters[field]
+            )
+        ) {
             return;
         }
 
@@ -2840,7 +2893,7 @@ class ArchiveOperationsPage {
                     field,
 
                 direction:
-                    "asc",
+                    "desc",
             };
         }
 
@@ -2874,9 +2927,12 @@ class ArchiveOperationsPage {
 
 
                 const field =
-                    $header.data(
-                        "sort-field"
-                    );
+                    String(
+                        $header.attr(
+                            "data-sort-field"
+                        )
+                        || ""
+                    ).trim();
 
 
                 const $indicator =
@@ -2898,28 +2954,36 @@ class ArchiveOperationsPage {
 
                     $indicator.text(
                         direction === "asc"
-                            ? "↑"
-                            : "↓"
+                            ? "▲"
+                            : "▼"
                     );
 
 
-                    $header.attr(
-                        "aria-sort",
-                        direction === "asc"
-                            ? "ascending"
-                            : "descending"
-                    );
+                    $header
+                        .addClass(
+                            "is-sorted"
+                        )
+                        .attr(
+                            "aria-sort",
+                            direction === "asc"
+                                ? "ascending"
+                                : "descending"
+                        );
 
                 } else {
 
                     $indicator.text(
-                        "↕"
+                        ""
                     );
 
 
-                    $header.removeAttr(
-                        "aria-sort"
-                    );
+                    $header
+                        .removeClass(
+                            "is-sorted"
+                        )
+                        .removeAttr(
+                            "aria-sort"
+                        );
                 }
             }
         );
@@ -4017,6 +4081,12 @@ class ArchiveOperationsPage {
         //                 this.load_operations();
         //             }, 350);
         //     });
+
+        $wrapper.on("click", ".archive-search-box", (e) => {
+            if (!$(e.target).is("input")) {
+                $(e.currentTarget).find(".archive-operation-search").focus();
+            }
+        });
 
         $wrapper
             .find(

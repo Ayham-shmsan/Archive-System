@@ -322,3 +322,76 @@
         --archive-font-stat-label-weight: var(--archive-font-weight-bold);
     }
 }
+
+/* ------------------------------------------------------------
+   14. Unified Toolbar Search (توحيد حقول البحث بالشاشات الثلاث)
+   ------------------------------------------------------------ */
+.archive-cards-search-box,
+.archive-search-box,
+.archive-pending-search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    cursor: text;
+}
+
+.archive-cards-search-icon,
+.archive-search-box > svg,
+.archive-pending-search-box > svg {
+    position: absolute;
+    right: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    font-size: 14px;
+    line-height: 1;
+    color: var(--archive-color-text-muted);
+    pointer-events: none;
+    z-index: 2;
+}
+
+.archive-cards-search-input,
+.archive-operation-search,
+.archive-pending-search {
+    width: 100%;
+    height: var(--archive-control-height);
+    min-height: var(--archive-control-height);
+    padding: var(--archive-space-1) var(--archive-space-8) var(--archive-space-1) var(--archive-space-3);
+    border: var(--archive-border-width-thin) var(--archive-border-style-solid) var(--archive-color-border-hover);
+    border-radius: var(--archive-radius-lg);
+    font-size: var(--archive-font-body-size);
+    line-height: var(--archive-font-body-lh);
+    background: var(--archive-color-bg-app);
+    color: var(--archive-color-text-heading);
+    direction: rtl !important;
+    text-align: right !important;
+    box-sizing: border-box;
+    cursor: text;
+    transition: border-color 0.14s ease, background-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.archive-cards-search-input::placeholder,
+.archive-operation-search::placeholder,
+.archive-pending-search::placeholder {
+    color: var(--archive-color-text-muted);
+    opacity: 1;
+    direction: rtl !important;
+    text-align: right !important;
+    font-size: var(--archive-font-body-size);
+}
+
+.archive-cards-search-input:hover:not(:focus),
+.archive-operation-search:hover:not(:focus),
+.archive-pending-search:hover:not(:focus) {
+    border-color: var(--archive-slate-400);
+}
+
+.archive-cards-search-input:focus,
+.archive-operation-search:focus,
+.archive-pending-search:focus {
+    outline: none;
+    border-color: var(--archive-color-primary);
+    background: var(--archive-color-bg-surface);
+    box-shadow: 0 0 0 2px var(--archive-color-focus-ring);
+}

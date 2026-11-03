@@ -266,7 +266,7 @@
 							},
 						});
 						frappe.show_alert({
-							message: "تم نقل عهدة البطاقة وتسجيل المحطة بنجاح.",
+							message: "تم نقل عهدة البطاقة وتسجيل الحالة بنجاح.",
 							indicator: "green",
 						});
 						dialog.hide();
@@ -522,17 +522,28 @@
 
 						<div class="acvd-quick-actions">
 							${
-								p.can_view_card_event_history
-									? `<button type="button" class="btn btn-xs btn-default" data-action="open-card-event-history">
-										<i class="fa fa-list-alt"></i> سجل أحداث البطاقة
-									</button>`
-									: ""
-							}
-							${
-								p.can_view_transfer_timeline
-									? `<button type="button" class="btn btn-xs btn-default" data-action="open-transfer-timeline">
-										<i class="fa fa-road"></i> مسار نقل البطاقة
-									</button>`
+								p.can_view_transfer_timeline || p.can_view_card_event_history
+									? `<div class="archive-cards-dropdown-wrap" data-role="view-timeline-events-dropdown-wrap">
+										<button type="button" class="btn btn-xs btn-default" data-action="toggle-view-timeline-events-menu">
+											<i class="fa fa-road"></i> المسار والأحداث <i class="fa fa-caret-down"></i>
+										</button>
+										<div class="archive-cards-popover-menu" data-role="view-timeline-events-menu" hidden>
+											${
+												p.can_view_transfer_timeline
+													? `<button type="button" class="ac-menu-item" data-action="open-transfer-timeline">
+														<i class="fa fa-road"></i> مسار البطاقة
+													</button>`
+													: ""
+											}
+											${
+												p.can_view_card_event_history
+													? `<button type="button" class="ac-menu-item" data-action="open-card-event-history">
+														<i class="fa fa-list-alt"></i> أحداث البطاقة
+													</button>`
+													: ""
+											}
+										</div>
+									</div>`
 									: ""
 							}
 							${
@@ -543,14 +554,18 @@
 									: ""
 							}
 							${
-								p.can_change_status
+								p.can_change_status &&
+								(String(c.status || "").trim() !== "موقفة نهائياً" ||
+									p.can_reactivate_permanently_stopped_card)
 									? `<button type="button" class="btn btn-xs btn-default" data-action="open-status-dialog">
 										<i class="fa fa-refresh"></i> تغيير الحالة
 									</button>`
 									: ""
 							}
 							${
-								p.can_transfer
+								p.can_transfer &&
+								(String(c.status || "").trim() !== "موقفة نهائياً" ||
+									p.can_reactivate_permanently_stopped_card)
 									? `<button type="button" class="btn btn-xs btn-default" data-action="open-transfer-dialog">
 										<i class="fa fa-exchange"></i> نقل البطاقة
 									</button>`
@@ -584,7 +599,7 @@
 							<div class="acd-section-card">
 								<div class="acd-section-header">
 									<span class="acd-section-title">بيانات المندوب والمالك</span>
-									<span class="acd-section-subtitle">لتسجيل محطة انتقال جديدة استخدم زر (نقل البطاقة)</span>
+									<span class="acd-section-subtitle">لتسجيل حالة انتقال جديدة استخدم زر (نقل البطاقة)</span>
 								</div>
 								<div class="acd-fields-grid acd-cols-3">
 									<div class="acd-field-slot" data-field-slot="card_owner"></div>
@@ -1048,7 +1063,19 @@
 			});
 
 			// Quick action buttons
+			$body.on("click", '[data-action="toggle-view-timeline-events-menu"]', (e) => {
+				e.stopPropagation();
+				const $m = $body.find('[data-role="view-timeline-events-menu"]');
+				const was_hidden = $m.prop("hidden");
+				$m.prop("hidden", !was_hidden);
+			});
+
+			this.dialog.$wrapper.on("click", () => {
+				$body.find('[data-role="view-timeline-events-menu"]').prop("hidden", true);
+			});
+
 			$body.on("click", '[data-action="open-card-event-history"]', () => {
+				$body.find('[data-role="view-timeline-events-menu"]').prop("hidden", true);
 				if (window.ArchiveCardEventHistoryDialog) {
 					new window.ArchiveCardEventHistoryDialog({
 						card_name: this.card.name,
@@ -1057,6 +1084,7 @@
 			});
 
 			$body.on("click", '[data-action="open-transfer-timeline"]', () => {
+				$body.find('[data-role="view-timeline-events-menu"]').prop("hidden", true);
 				if (window.ArchiveCardTransferTimelineDialog) {
 					new window.ArchiveCardTransferTimelineDialog({
 						card_name: this.card.name,

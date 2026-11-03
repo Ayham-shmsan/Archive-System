@@ -84,10 +84,15 @@ class ArchivePendingOperationsPage {
             return new Set(
                 parsed
                     .map(
-                        (field) =>
-                            String(
-                                field || ""
-                            ).trim()
+                        (field) => {
+                            const normalized =
+                                String(
+                                    field || ""
+                                ).trim();
+                            return normalized === "remaining-amount"
+                                ? "remaining_amount"
+                                : normalized;
+                        }
                     )
                     .filter(Boolean)
             );
@@ -583,7 +588,7 @@ class ArchivePendingOperationsPage {
                             </svg>
 
                             <input
-                                type="search"
+                                type="text"
                                 class="archive-pending-search"
                                 placeholder="بحث في المعلقات..."
                                 autocomplete="off"
@@ -868,7 +873,7 @@ class ArchivePendingOperationsPage {
                                     )}
 
                                     ${this.sortable_header(
-                                        "remaining-amount",
+                                        "remaining_amount",
                                         "المبلغ المتبقي"
                                     )}
 
@@ -944,6 +949,7 @@ class ArchivePendingOperationsPage {
 
         this.bind_events();
         this.apply_column_visibility();
+        this.update_sort_indicators();
     }
 
     summary_card(
@@ -1080,6 +1086,10 @@ class ArchivePendingOperationsPage {
 
                         bank_name: {
                             type: "text",
+                            get: (record) =>
+                                record?.bank_name
+                                || record?.bank
+                                || "",
                         },
 
                         card_name: {
@@ -1122,14 +1132,26 @@ class ArchivePendingOperationsPage {
 
                         representative_name: {
                             type: "text",
+                            get: (record) =>
+                                record?.representative_name
+                                || record?.representative
+                                || "",
                         },
 
                         card_owner_name: {
                             type: "text",
+                            get: (record) =>
+                                record?.card_owner_name
+                                || record?.card_owner
+                                || "",
                         },
 
                         region_name: {
                             type: "text",
+                            get: (record) =>
+                                record?.region_name
+                                || record?.region
+                                || "",
                         },
 
                         branch_no: {
@@ -1155,6 +1177,10 @@ class ArchivePendingOperationsPage {
 
                         owner_full_name: {
                             type: "text",
+                            get: (record) =>
+                                record?.owner_full_name
+                                || record?.owner
+                                || "",
                         },
 
                         status: {
@@ -4103,7 +4129,20 @@ class ArchivePendingOperationsPage {
     change_sort(
         field
     ) {
-        if (!field) {
+        field =
+            String(
+                field || ""
+            ).trim();
+
+        if (
+            !field
+            ||
+            (
+                this.data_source?.sorters
+                &&
+                !this.data_source.sorters[field]
+            )
+        ) {
             return;
         }
 
@@ -4128,7 +4167,7 @@ class ArchivePendingOperationsPage {
                     field,
 
                 direction:
-                    "asc",
+                    "desc",
             };
         }
 
@@ -4155,9 +4194,12 @@ class ArchivePendingOperationsPage {
                         $(element);
 
                     const field =
-                        $header.data(
-                            "sort-field"
-                        );
+                        String(
+                            $header.attr(
+                                "data-sort-field"
+                            )
+                            || ""
+                        ).trim();
 
                     const $indicator =
                         $header.find(
@@ -4176,25 +4218,33 @@ class ArchivePendingOperationsPage {
 
                         $indicator.text(
                             direction === "asc"
-                                ? "↑"
-                                : "↓"
+                                ? "▲"
+                                : "▼"
                         );
 
-                        $header.attr(
-                            "aria-sort",
-                            direction === "asc"
-                                ? "ascending"
-                                : "descending"
-                        );
+                        $header
+                            .addClass(
+                                "is-sorted"
+                            )
+                            .attr(
+                                "aria-sort",
+                                direction === "asc"
+                                    ? "ascending"
+                                    : "descending"
+                            );
 
                     } else {
                         $indicator.text(
-                            "↕"
+                            ""
                         );
 
-                        $header.removeAttr(
-                            "aria-sort"
-                        );
+                        $header
+                            .removeClass(
+                                "is-sorted"
+                            )
+                            .removeAttr(
+                                "aria-sort"
+                            );
                     }
                 }
             );
@@ -4407,6 +4457,12 @@ class ArchivePendingOperationsPage {
                     this.scroll_grid_to_top();
                 }
             );
+
+        $wrapper.on("click", ".archive-pending-search-box", (e) => {
+            if (!$(e.target).is("input")) {
+                $(e.currentTarget).find(".archive-pending-search").focus();
+            }
+        });
 
         $wrapper
             .find(

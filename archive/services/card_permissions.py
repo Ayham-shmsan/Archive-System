@@ -28,6 +28,35 @@ ROLE_CARD_OFFICER = "موظف البطاقات"
 ROLE_CARD_READER = "قارئ البطاقات"
 ROLE_CARD_IMAGE_PREVIEW = "صلاحية معاينة البطائق"
 ROLE_CARD_EVENT_HISTORY = "صلاحية عرض سجل أحداث البطاقة"
+ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD = "صلاحية إعادة تفعيل البطاقة الموقفة نهائياً"
+
+
+def has_reactivate_permanently_stopped_card_role(user: str | None = None) -> bool:
+	resolved_user = _resolve_user(user)
+	if not resolved_user or resolved_user == "Guest":
+		return False
+	return bool(
+		frappe.db.exists(
+			"Has Role",
+			{
+				"parent": resolved_user,
+				"parenttype": "User",
+				"role": ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD,
+			},
+		)
+	)
+
+
+def require_reactivate_permanently_stopped_card_role(
+	message: str | None = None,
+	user: str | None = None,
+) -> None:
+	if not has_reactivate_permanently_stopped_card_role(user=user):
+		frappe.throw(
+			message
+			or _("ليست لديك صلاحية إعادة تفعيل أو نقل البطاقة الموقفة نهائياً (المتلفة)."),
+			frappe.PermissionError,
+		)
 
 
 def has_card_event_history_role(user: str | None = None) -> bool:
@@ -156,6 +185,9 @@ def get_card_permissions(user: str | None = None) -> dict[str, bool]:
 			"can_view_activity_timeline": False,
 			"can_view_transfer_timeline": False,
 			"can_view_card_event_history": has_card_event_history_role(user=resolved_user),
+			"can_reactivate_permanently_stopped_card": has_reactivate_permanently_stopped_card_role(
+				user=resolved_user
+			),
 			**{perm: False for perm in CARD_PERMISSION_TYPES},
 		}
 
@@ -175,6 +207,9 @@ def get_card_permissions(user: str | None = None) -> dict[str, bool]:
 		"can_view_activity_timeline": flags["view_card_activity_timeline"],
 		"can_view_transfer_timeline": flags["view_card_transfer_timeline"],
 		"can_view_card_event_history": has_card_event_history_role(user=resolved_user),
+		"can_reactivate_permanently_stopped_card": has_reactivate_permanently_stopped_card_role(
+			user=resolved_user
+		),
 		**flags,
 	}
 

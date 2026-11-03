@@ -45,6 +45,7 @@ from archive.services.card_permissions import (
 	has_card_permission,
 	require_card_image_preview_role,
 	require_card_permission,
+	require_reactivate_permanently_stopped_card_role,
 )
 from archive.services.card_security import (
 	get_card_pin,
@@ -1318,7 +1319,15 @@ def change_card_status(
 	if cint(card_doc.is_deleted):
 		frappe.throw(_("لا يمكن تغيير حالة بطاقة محذوفة."), frappe.ValidationError)
 
-	old_status = cstr(card_doc.status or "نشطة").strip()
+	old_status = cstr(
+		frappe.db.get_value(CARD_DOCTYPE, card_doc.name, "status") or card_doc.status or "نشطة"
+	).strip()
+	if old_status == "موقفة نهائياً":
+		require_reactivate_permanently_stopped_card_role(
+			_(
+				"لا يمكن تغيير حالة البطاقة الموقفة نهائياً (المتلفة) إلا لمن يمتلك صلاحية إعادة تفعيل البطاقة الموقفة نهائياً."
+			)
+		)
 	clean_reason = cstr(reason or "").strip()
 	raw_date = cstr(event_date if event_date is not None else (stop_date or "")).strip()
 	now_ts = now_datetime()
@@ -1422,6 +1431,16 @@ def transfer_card(
 	card_doc = frappe.get_doc(CARD_DOCTYPE, card)
 	if cint(card_doc.is_deleted):
 		frappe.throw(_("لا يمكن نقل عهدة بطاقة محذوفة."), frappe.ValidationError)
+
+	current_db_status = cstr(
+		frappe.db.get_value(CARD_DOCTYPE, card_doc.name, "status") or card_doc.status or "نشطة"
+	).strip()
+	if current_db_status == "موقفة نهائياً":
+		require_reactivate_permanently_stopped_card_role(
+			_(
+				"لا يمكن نقل عهدة البطاقة الموقفة نهائياً (المتلفة) إلا لمن يمتلك صلاحية إعادة تفعيل البطاقة الموقفة نهائياً."
+			)
+		)
 
 	clean_to_region = _validate_link_exists("Archive Region", to_region, _("المنطقة الجديدة"))
 	clean_to_rep = _validate_link_exists(

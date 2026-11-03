@@ -592,88 +592,88 @@ body[data-route="archive-pending-operations"] .main-section > #body,
 }
 
 .archive-pending-search-filter-group {
-    display:
-        flex;
-
-    align-items:
-        center;
-
-    gap:
-        var(--archive-space-2);
-
-    flex:
-        1;
-
-    min-width:
-        0;
+    display: flex;
+    align-items: center;
+    gap: var(--archive-space-2);
+    flex: 1 1 520px;
+    min-width: 320px;
+    max-width: 560px;
 }
 
+.archive-pending-search-filter-group .archive-pending-filter-button,
+.archive-pending-search-filter-group .archive-pending-columns-button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.archive-pending-search-filter-group .archive-pending-search-box,
 .archive-pending-search-box {
-    display:
-        flex;
-
-    align-items:
-        center;
-
-    gap:
-        9px;
-
-    flex:
-        1;
-
-    max-width:
-        500px;
-
-    min-width:
-        0;
-
-    min-height:
-        36px;
-
-    padding:
-        0
-        11px;
-
-    border:
-        var(--archive-border-width-thin) var(--archive-border-style-solid)
-        var(--border-color);
-
-    border-radius:
-        var(--archive-radius-lg);
-
-    background:
-        var(--control-bg);
-
-    color:
-        var(--text-muted);
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    cursor: text;
 }
 
-.archive-pending-search-box:focus-within {
-    border-color:
-        var(--primary);
+.archive-pending-search-box svg {
+    position: absolute;
+    right: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    color: var(--archive-color-text-muted);
+    pointer-events: none;
+    z-index: 2;
 }
 
 .archive-pending-search {
-    width:
-        100%;
+    width: 100%;
+    height: var(--archive-control-height);
+    min-height: var(--archive-control-height);
+    padding: var(--archive-space-1) var(--archive-space-8) var(--archive-space-1) var(--archive-space-3);
+    border: var(--archive-border-width-thin) var(--archive-border-style-solid) var(--archive-color-border-hover);
+    border-radius: var(--archive-radius-lg);
+    font-size: var(--archive-font-body-size);
+    line-height: var(--archive-font-body-lh);
+    background: var(--archive-color-bg-app);
+    color: var(--archive-color-text-heading);
+    direction: rtl !important;
+    text-align: right !important;
+    box-sizing: border-box;
+    cursor: text;
+    transition: border-color 0.14s ease, background-color 0.14s ease, box-shadow 0.14s ease;
+}
 
-    border:
-        0;
+.archive-pending-search::placeholder {
+    color: var(--archive-color-text-muted);
+    opacity: 1;
+    direction: rtl !important;
+    text-align: right !important;
+    font-size: var(--archive-font-body-size);
+}
 
-    outline:
-        0;
+.archive-pending-search:hover:not(:focus) {
+    border-color: var(--archive-slate-400);
+}
 
-    background:
-        transparent;
+.archive-pending-search:focus {
+    outline: none;
+    border-color: var(--archive-color-primary);
+    background: var(--archive-color-bg-surface);
+    box-shadow: 0 0 0 2px var(--archive-color-focus-ring);
+}
 
-    color:
-        var(--text-color);
-
-    font-size:
-        var(--archive-font-body-size);
-
-    line-height:
-        var(--archive-font-body-lh);
+@media (max-width: 900px) {
+    .archive-pending-search-filter-group {
+        flex: 1 1 100%;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
 }
 
 .archive-pending-filter-button {
@@ -992,6 +992,37 @@ body[data-route="archive-pending-operations"] .main-section > #body,
 
     white-space:
         nowrap;
+
+    user-select:
+        none;
+}
+
+.archive-pending-operations-page .generic-data-grid-scroll thead th.generic-sortable-column,
+.archive-pending-operations-page .archive-pending-table th.generic-sortable-column,
+.archive-pending-table th.generic-sortable-column {
+    cursor: pointer;
+    user-select: none;
+}
+
+.archive-pending-operations-page .generic-data-grid-scroll thead th.generic-sortable-column:hover,
+.archive-pending-operations-page .archive-pending-table th.generic-sortable-column:hover,
+.archive-pending-table th.generic-sortable-column:hover {
+    background: var(--archive-color-bg-surface-subtle);
+}
+
+.archive-pending-operations-page .archive-pending-table .generic-sort-indicator,
+.archive-pending-table .generic-sort-indicator {
+    display: inline;
+    min-width: 0;
+    font-size: var(--archive-font-badge-size);
+    color: var(--archive-color-primary);
+    margin-right: var(--archive-space-1);
+    margin-inline-start: var(--archive-space-1);
+}
+
+.archive-pending-operations-page .archive-pending-table .generic-sort-indicator:empty,
+.archive-pending-table .generic-sort-indicator:empty {
+    display: none;
 }
 
 [data-theme="dark"]
@@ -1814,9 +1845,9 @@ body[data-route="archive-pending-operations"] .main-section > #body,
         var(--archive-status-stopped-text);
 }
 
-.archive-pending-search-box {
+.archive-pending-search-filter-group .archive-pending-search-box {
     max-width:
-        560px;
+        100%;
 }
 
 .archive-pending-row.status-failed
@@ -2540,7 +2571,7 @@ p {
     flex: 0 0 auto;
     width: auto;
     min-width: 0;
-    height: 36px;
+    height: var(--archive-control-height);
     padding: 0 var(--archive-space-3);
     display: inline-flex;
     align-items: center;

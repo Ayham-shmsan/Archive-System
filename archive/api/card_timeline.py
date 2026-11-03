@@ -452,7 +452,7 @@ def get_card_transfer_timeline(card: str) -> dict[str, Any]:
 		elif is_initial:
 			badge_label = "استلام أولي"
 		else:
-			badge_label = f"محطة #{cint(row.sequence)}"
+			badge_label = f"حالة #{cint(row.sequence)}"
 
 		stations.append(
 			{
