@@ -1,81 +1,118 @@
 /* ==========================================
-   Archive Operation Dialog
+   Archive Operation Dialog — Enterprise UI Polish
    ========================================== */
 
 .archive-operation-dialog .modal-dialog {
 	width: 94vw !important;
-	max-width: 1480px !important;
+	max-width: 1460px !important;
 	margin: 2.5vh auto !important;
 }
 
 .archive-operation-dialog .modal-content {
 	max-height: 95vh;
-	border-radius: 16px;
+	border-radius: var(--archive-radius-2xl, 16px);
+	border: var(--archive-border-subtle, 1px solid var(--border-color));
+	background: var(--archive-color-bg-surface, var(--card-bg));
+	box-shadow:
+		0 20px 45px rgba(15, 23, 42, 0.14),
+		0 4px 12px rgba(15, 23, 42, 0.06);
 	overflow: hidden;
+	direction: rtl;
+	text-align: right;
+}
+
+.archive-operation-dialog .modal-header {
+	padding: 14px 22px;
+	background: var(--archive-color-bg-surface, var(--card-bg));
+	border-bottom: var(--archive-border-subtle, 1px solid var(--border-color));
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.archive-operation-dialog .modal-header .modal-title {
+	font-size: var(--archive-font-page-title-size, 18px);
+	font-weight: var(--archive-font-page-title-weight, 800);
+	line-height: var(--archive-font-page-title-lh, 1.3);
+	color: var(--archive-color-text-heading, #0f172a);
+	margin: 0;
 }
 
 .archive-operation-dialog .modal-body {
 	max-height: calc(95vh - 130px);
 	overflow-y: auto;
 	padding: 0;
+	background: var(--archive-color-bg-app, var(--bg-color));
 }
 
-.archive-operation-dialog .modal-header,
 .archive-operation-dialog .modal-footer {
-	padding-left: 22px;
-	padding-right: 22px;
-}
-
-.archive-operation-dialog .modal-content {
-	direction: rtl;
+	padding: 12px 22px;
+	border-top: var(--archive-border-subtle, 1px solid var(--border-color));
+	background: var(--archive-color-bg-surface, var(--card-bg));
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--archive-space-2, 8px);
 }
 
 .archive-operation-form {
-	padding: 20px;
-	background: var(--bg-color);
+	padding: var(--archive-space-4, 16px) var(--archive-space-5, 20px);
+	background: var(--archive-color-bg-app, var(--bg-color));
+	display: flex;
+	flex-direction: column;
+	gap: var(--archive-space-3, 12px);
 }
 
 
-/* Sections */
+/* ==========================================
+   Sections
+   ========================================== */
 
 .archive-form-section {
-	background: var(--card-bg);
-	border: 1px solid var(--border-color);
-	border-radius: 14px;
-
-	padding: 18px;
-	margin-bottom: 14px;
+	background: var(--archive-color-bg-surface, var(--card-bg));
+	border: var(--archive-border-subtle, 1px solid var(--border-color));
+	border-radius: var(--archive-radius-xl, 14px);
+	padding: 16px 20px;
+	margin-bottom: 0;
+	box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
 }
 
 .archive-section-header {
 	display: flex;
-	align-items: flex-start;
+	align-items: center;
 	justify-content: space-between;
-	gap: 18px;
-
-	margin-bottom: 18px;
+	gap: var(--archive-space-4, 16px);
+	padding-bottom: 11px;
+	margin-bottom: 14px;
+	border-bottom: var(--archive-border-width-thin, 1px) var(--archive-border-style-solid, solid) var(--archive-color-border-divider, #f1f5f9);
 }
 
 .archive-section-header h3 {
-	font-size: 15px;
-	font-weight: 700;
-	margin: 0 0 4px;
+	font-size: var(--archive-font-section-title-size, 15px);
+	font-weight: var(--archive-font-section-title-weight, 700);
+	line-height: var(--archive-font-section-title-lh, 1.35);
+	color: var(--archive-color-text-heading, #0f172a);
+	margin: 0 0 2px;
 }
 
 .archive-section-header p {
-	font-size: 12px;
-	color: var(--text-muted);
+	font-size: var(--archive-font-meta-size, 12px);
+	font-weight: var(--archive-font-meta-weight, 400);
+	line-height: var(--archive-font-meta-lh, 1.4);
+	color: var(--archive-color-text-muted, var(--text-muted));
 	margin: 0;
 }
 
 
-/* Fields */
+/* ==========================================
+   Fields, Labels & Visual Hierarchy
+   ========================================== */
 
 .archive-fields-grid {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
-	column-gap: 18px;
-	row-gap: 8px;
+	column-gap: 16px;
+	row-gap: 12px;
 }
 
 .archive-field-slot {
@@ -83,145 +120,266 @@
 }
 
 .archive-field-slot .form-group,
-.archive-notes-field .form-group {
-	margin-bottom: 8px;
+.archive-notes-field .form-group,
+.archive-operation-number-fields .form-group {
+	margin-bottom: 0;
 }
 
-.archive-notes-field textarea {
-	min-height: 95px;
+.archive-operation-form .frappe-control .control-label {
+	font-size: var(--archive-font-label-size, 12px);
+	font-weight: var(--archive-font-label-weight, 600);
+	line-height: var(--archive-font-label-lh, 1.35);
+	color: var(--archive-slate-600, #475569);
+	margin-bottom: 5px;
+}
+
+/* Read-only values: calm, clear, non-disabled presentation */
+.archive-operation-form .frappe-control .control-value,
+.archive-operation-form .frappe-control .control-value.like-disabled-input,
+.archive-operation-form .frappe-control .form-control[readonly],
+.archive-operation-form .frappe-control .form-control:disabled {
+	min-height: var(--archive-control-height, 36px);
+	padding: 6px 12px;
+	background: var(--archive-color-bg-field-readonly, #f8fafc);
+	border: var(--archive-border-width-thin, 1px) var(--archive-border-style-solid, solid) var(--archive-color-border-subtle, #e2e8f0);
+	border-radius: var(--archive-radius-lg, 8px);
+	font-size: var(--archive-font-body-size, 13px);
+	font-weight: var(--archive-font-weight-semibold, 600);
+	line-height: var(--archive-font-body-lh, 1.45);
+	color: var(--archive-color-text-heading, #0f172a);
+	display: flex;
+	align-items: center;
+	box-shadow: none;
+	opacity: 1 !important;
+	cursor: default;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Editable inputs: crisp surface + clear focus/hover */
+.archive-operation-form .frappe-control .form-control:not([readonly]):not(:disabled) {
+	min-height: var(--archive-control-height, 36px);
+	height: var(--archive-control-height, 36px);
+	padding: 6px 12px;
+	background: var(--archive-color-bg-surface, #ffffff);
+	border: var(--archive-border-width-thin, 1px) var(--archive-border-style-solid, solid) var(--archive-color-border-hover, #cbd5e1);
+	border-radius: var(--archive-radius-lg, 8px);
+	font-size: var(--archive-font-body-size, 13px);
+	font-weight: var(--archive-font-weight-medium, 500);
+	line-height: var(--archive-font-body-lh, 1.45);
+	color: var(--archive-color-text-heading, #0f172a);
+	box-shadow: var(--archive-shadow-xs, 0 1px 2px rgba(15, 23, 42, 0.04));
+	transition:
+		border-color 0.15s ease,
+		box-shadow 0.15s ease,
+		background-color 0.15s ease;
+}
+
+.archive-operation-form .frappe-control .form-control:not([readonly]):not(:disabled):hover {
+	border-color: var(--archive-color-border-input, #94a3b8);
+}
+
+.archive-operation-form .frappe-control .form-control:not([readonly]):not(:disabled):focus {
+	outline: none;
+	border-color: var(--archive-color-primary, #2563eb);
+	background: var(--archive-color-bg-surface, #ffffff);
+	box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.archive-notes-field textarea,
+.archive-operation-form .frappe-control textarea.form-control {
+	height: auto !important;
+	min-height: 92px;
+	padding: 8px 12px;
+}
+
+/* Primary / Important Values Visual Presence */
+.archive-operation-form .frappe-control[data-fieldname="operation_no"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="operation_no"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="customer"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="customer"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="amount"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="amount"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="currency"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="currency"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="beneficiary_name"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="beneficiary_name"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="beneficiary_account"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="beneficiary_account"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="swift_code"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="swift_code"] .form-control {
+	font-weight: var(--archive-font-weight-bold, 700);
+	color: var(--archive-color-text-heading, #0f172a);
+}
+
+.archive-operation-form .frappe-control[data-fieldname="operation_no"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="amount"] .control-value {
+	font-size: var(--archive-font-table-cell-bold-size, 13.5px);
+	background: #f1f5f9;
+	border-color: #cbd5e1;
+}
+
+/* Numeric, Account, SWIFT & Reference Clarity */
+.archive-operation-form .frappe-control[data-fieldname="operation_no"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="operation_no"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="amount"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="amount"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="customer_rate_amount"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="customer_rate_amount"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="bank_transfer_rate"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="bank_transfer_rate"] .form-control {
+	font-variant-numeric: tabular-nums;
+}
+
+.archive-operation-form .frappe-control[data-fieldname="beneficiary_account"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="beneficiary_account"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="sender_account"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="sender_account"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="swift_code"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="swift_code"] .form-control,
+.archive-operation-form .frappe-control[data-fieldname="reference_no"] .control-value,
+.archive-operation-form .frappe-control[data-fieldname="reference_no"] .form-control {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.01em;
 }
 
 
-/* Extraction */
+/* ==========================================
+   Extraction
+   ========================================== */
 
 .archive-extraction-layout {
 	display: grid;
-	grid-template-columns: minmax(280px, 0.8fr) minmax(360px, 1.2fr);
+	grid-template-columns: minmax(280px, 0.85fr) minmax(360px, 1.15fr);
 	gap: 14px;
+	align-items: stretch;
 }
 
 .archive-extraction-dropzone,
 .archive-attachments-dropzone {
-	border: 1px dashed var(--border-color);
-	border-radius: 12px;
-
-	min-height: 104px;
-
+	border: 1.5px dashed var(--archive-color-border-hover, #cbd5e1);
+	border-radius: var(--archive-radius-xl, 12px);
+	min-height: 96px;
+	padding: 12px 16px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 12px;
-
-	text-align: center;
+	text-align: right;
 	cursor: pointer;
-
-	background: var(--control-bg);
-
+	background: var(--archive-color-bg-app, #f8fafc);
 	transition:
 		border-color 0.15s ease,
-		background-color 0.15s ease;
+		background-color 0.15s ease,
+		box-shadow 0.15s ease;
 }
 
 .archive-extraction-dropzone:hover,
 .archive-attachments-dropzone:hover,
 .archive-extraction-dropzone.is-dragging,
 .archive-attachments-dropzone.is-dragging {
-	border-color: var(--primary);
-	background: var(--subtle-fg);
+	border-color: var(--archive-color-primary, var(--primary));
+	background: #f0f7ff;
 }
 
 .archive-upload-icon {
 	width: 38px;
 	height: 38px;
-	border-radius: 10px;
-
+	border-radius: var(--archive-radius-lg, 10px);
 	display: flex;
 	align-items: center;
 	justify-content: center;
-
-	font-size: 20px;
-	font-weight: 600;
-
-	background: var(--subtle-fg);
+	font-size: 18px;
+	font-weight: var(--archive-font-weight-bold, 700);
+	background: var(--archive-color-bg-surface, #ffffff);
+	color: var(--archive-color-primary, #2563eb);
+	border: var(--archive-border-subtle, 1px solid #e2e8f0);
+	box-shadow: var(--archive-shadow-xs, 0 1px 2px rgba(15, 23, 42, 0.04));
+	flex-shrink: 0;
 }
 
 .archive-upload-title {
-	font-size: 13px;
-	font-weight: 600;
+	font-size: var(--archive-font-body-size, 13px);
+	font-weight: var(--archive-font-weight-bold, 700);
+	color: var(--archive-color-text-heading, #0f172a);
 }
 
 .archive-upload-help {
-	font-size: 11px;
-	color: var(--text-muted);
-	margin-top: 3px;
+	font-size: var(--archive-font-meta-size, 11.5px);
+	color: var(--archive-color-text-muted, var(--text-muted));
+	margin-top: 2px;
+	line-height: 1.4;
 }
 
 .archive-extraction-file {
-	min-height: 104px;
+	min-height: 96px;
+	display: flex;
+	flex-direction: column;
 }
 
 .archive-no-extraction,
 .archive-no-attachments {
-	min-height: 104px;
-
+	min-height: 96px;
+	flex: 1;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-
-	border-radius: 12px;
-	background: var(--subtle-fg);
-
-	font-size: 12px;
-	color: var(--text-muted);
+	padding: 14px;
+	border-radius: var(--archive-radius-xl, 12px);
+	border: var(--archive-border-subtle, 1px solid #e2e8f0);
+	background: var(--archive-color-bg-app, #f8fafc);
+	font-size: var(--archive-font-label-size, 12px);
+	font-weight: var(--archive-font-weight-medium, 500);
+	color: var(--archive-color-text-muted, var(--text-muted));
 }
 
 .archive-selected-extraction {
-	min-height: 104px;
-
+	min-height: 96px;
+	flex: 1;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 16px;
-
-	padding: 14px;
-
-	border: 1px solid var(--border-color);
-	border-radius: 12px;
+	padding: 12px 16px;
+	border: var(--archive-border-subtle, 1px solid var(--border-color));
+	border-radius: var(--archive-radius-xl, 12px);
+	background: var(--archive-color-bg-app, #f8fafc);
 }
 
 .archive-extraction-actions {
 	display: flex;
 	align-items: center;
-	gap: 7px;
+	gap: 8px;
+	flex-shrink: 0;
 }
 
 
-/* Files */
+/* ==========================================
+   Files & Attachments
+   ========================================== */
 
 .archive-file-info {
 	min-width: 0;
-
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: 12px;
 }
 
 .archive-file-icon {
 	flex: 0 0 auto;
-
-	width: 42px;
-	height: 42px;
-
+	width: 40px;
+	height: 40px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-
-	border-radius: 9px;
-
-	background: var(--subtle-fg);
-
-	font-size: 10px;
-	font-weight: 700;
+	border-radius: var(--archive-radius-lg, 9px);
+	background: #eff6ff;
+	border: 1px solid #bfdbfe;
+	color: #1d4ed8;
+	font-size: 10.5px;
+	font-weight: var(--archive-font-weight-bold, 700);
+	letter-spacing: 0.02em;
 }
 
 .archive-file-name {
@@ -229,28 +387,24 @@
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-
-	font-size: 12px;
-	font-weight: 600;
+	font-size: var(--archive-font-body-size, 13px);
+	font-weight: var(--archive-font-weight-semibold, 600);
+	color: var(--archive-color-text-heading, #0f172a);
 }
 
 .archive-file-size {
-	font-size: 11px;
-	color: var(--text-muted);
-	margin-top: 3px;
+	font-size: var(--archive-font-meta-size, 11.5px);
+	color: var(--archive-color-text-muted, var(--text-muted));
+	margin-top: 2px;
 }
 
-
-/* Attachments */
-
 .archive-attachments-dropzone {
-	min-height: 90px;
+	min-height: 86px;
 }
 
 .archive-attachments-list {
 	display: grid;
 	gap: 8px;
-
 	margin-top: 12px;
 }
 
@@ -259,19 +413,23 @@
 	align-items: center;
 	justify-content: space-between;
 	gap: 16px;
+	padding: 10px 14px;
+	border: var(--archive-border-subtle, 1px solid var(--border-color));
+	border-radius: var(--archive-radius-lg, 10px);
+	background: var(--archive-color-bg-surface, var(--card-bg));
+	transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
 
-	padding: 10px 12px;
-
-	border: 1px solid var(--border-color);
-	border-radius: 10px;
-
-	background: var(--card-bg);
+.archive-attachment-item:hover {
+	border-color: var(--archive-color-border-hover, #cbd5e1);
+	box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
 }
 
 .archive-attachment-actions {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	flex-shrink: 0;
 }
 
 .archive-source-badge,
@@ -279,20 +437,17 @@
 .archive-status-badge {
 	display: inline-flex;
 	align-items: center;
-
-	min-height: 24px;
-	padding: 3px 9px;
-
+	justify-content: center;
+	min-height: 26px;
+	padding: 3px 12px;
 	border-radius: 999px;
-
-	font-size: 11px;
+	font-size: var(--archive-font-badge-size, 11.5px);
+	font-weight: var(--archive-font-badge-weight, 700);
+	line-height: var(--archive-font-badge-lh, 1.3);
 	white-space: nowrap;
-
-	background: var(--subtle-fg);
-}
-
-.archive-status-badge {
-	font-weight: 600;
+	background: #f1f5f9;
+	color: #334155;
+	border: 1px solid #cbd5e1;
 }
 
 .archive-required-star {
@@ -300,46 +455,57 @@
 }
 
 
-/* Footer */
+/* ==========================================
+   Buttons inside Dialog
+   ========================================== */
 
-.archive-operation-dialog .modal-footer {
-	border-top: 1px solid var(--border-color);
-	background: var(--card-bg);
+.archive-operation-dialog .modal-footer .btn,
+.archive-operation-form .btn {
+	height: var(--archive-control-height, 36px);
+	padding: 0 14px;
+	border-radius: var(--archive-radius-lg, 8px);
+	font-size: var(--archive-font-label-size, 12.5px);
+	font-weight: var(--archive-font-weight-semibold, 600);
+	line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease,
+		box-shadow 0.15s ease,
+		transform 0.1s ease;
 }
 
-
-/* Responsive */
-
-@media (max-width: 1100px) {
-	.archive-fields-grid {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-
-	.archive-extraction-layout {
-		grid-template-columns: 1fr;
-	}
+.archive-operation-form .btn.btn-sm {
+	height: 32px;
+	padding: 0 12px;
+	font-size: var(--archive-font-meta-size, 12px);
 }
 
-@media (max-width: 700px) {
-	.archive-operation-dialog .modal-dialog {
-		width: 98vw !important;
-		margin: 1vh auto !important;
-	}
+.archive-operation-dialog .modal-footer .btn-default,
+.archive-operation-form .btn-default {
+	background: var(--archive-color-bg-surface, #ffffff);
+	border: var(--archive-border-width-thin, 1px) var(--archive-border-style-solid, solid) var(--archive-color-border-hover, #cbd5e1);
+	color: var(--archive-color-text-body, #334155);
+	box-shadow: var(--archive-shadow-xs, 0 1px 2px rgba(15, 23, 42, 0.04));
+}
 
-	.archive-fields-grid {
-		grid-template-columns: 1fr;
-	}
+.archive-operation-dialog .modal-footer .btn-default:hover:not(:disabled),
+.archive-operation-form .btn-default:hover:not(:disabled) {
+	background: var(--archive-color-bg-app, #f8fafc);
+	border-color: #94a3b8;
+	color: var(--archive-color-text-heading, #0f172a);
+}
 
-	.archive-selected-extraction,
-	.archive-attachment-item {
-		align-items: stretch;
-		flex-direction: column;
-	}
-
-	.archive-extraction-actions,
-	.archive-attachment-actions {
-		justify-content: flex-end;
-	}
+.archive-operation-form .archive-remove-pending-extraction:hover:not(:disabled),
+.archive-operation-form .archive-mark-shared-document-delete:hover:not(:disabled),
+.archive-operation-form .archive-remove-pending-shared:hover:not(:disabled),
+.archive-operation-form .archive-mark-final-swift-delete:hover:not(:disabled) {
+	background: #fef2f2;
+	border-color: #fecaca;
+	color: #dc2626;
 }
 
 
@@ -356,229 +522,248 @@
 	align-items: start;
 }
 
-
 .archive-operation-identity-panel,
 .archive-shared-documents-panel {
 	min-width: 0;
 }
 
-
 .archive-operation-number-fields {
+	position: relative;
 	display: grid;
 	grid-template-columns: 1fr;
 	gap: 6px;
 }
 
-
 .archive-shared-documents-panel {
-	border: 1px solid var(--border-color);
-	border-radius: 12px;
-	padding: 12px;
-	background: var(--control-bg);
+	border: var(--archive-border-subtle, 1px solid var(--border-color));
+	border-radius: var(--archive-radius-xl, 12px);
+	padding: 14px 16px;
+	background: var(--archive-color-bg-app, #f8fafc);
 }
-
 
 .archive-shared-documents-header {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 12px;
-	margin-bottom: 10px;
+	margin-bottom: 12px;
 }
-
 
 .archive-shared-documents-title {
-	font-size: 13px;
-	font-weight: 700;
+	font-size: var(--archive-font-body-size, 13.5px);
+	font-weight: var(--archive-font-weight-bold, 700);
+	color: var(--archive-color-text-heading, #0f172a);
 }
-
 
 .archive-shared-documents-help {
-	font-size: 11px;
-	color: var(--text-muted);
-	margin-top: 3px;
+	font-size: var(--archive-font-meta-size, 11.5px);
+	color: var(--archive-color-text-muted, var(--text-muted));
+	margin-top: 2px;
 }
-
 
 .archive-shared-documents-counter {
 	flex: 0 0 auto;
-
-	padding: 4px 9px;
-
+	padding: 4px 10px;
 	border-radius: 999px;
-
-	background: var(--subtle-fg);
-
-	font-size: 11px;
-	font-weight: 600;
+	background: var(--archive-color-bg-surface, #ffffff);
+	border: var(--archive-border-subtle, 1px solid #e2e8f0);
+	color: var(--archive-slate-600, #475569);
+	font-size: var(--archive-font-badge-size, 11.5px);
+	font-weight: var(--archive-font-weight-bold, 700);
+	font-variant-numeric: tabular-nums;
 }
 
-
 .archive-shared-documents-dropzone {
-	border: 1px dashed var(--border-color);
-	border-radius: 10px;
-
-	min-height: 88px;
-
+	border: 1.5px dashed var(--archive-color-border-hover, #cbd5e1);
+	border-radius: var(--archive-radius-lg, 10px);
+	min-height: 84px;
+	padding: 10px 14px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 12px;
-
 	cursor: pointer;
-	text-align: center;
-
-	background: var(--card-bg);
-
+	text-align: right;
+	background: var(--archive-color-bg-surface, var(--card-bg));
 	transition:
 		border-color 0.15s ease,
 		background-color 0.15s ease;
 }
 
-
 .archive-shared-documents-dropzone:hover,
 .archive-shared-documents-dropzone.is-dragging {
-	border-color: var(--primary);
-	background: var(--subtle-fg);
+	border-color: var(--archive-color-primary, var(--primary));
+	background: #f0f7ff;
 }
-
 
 .archive-shared-documents-list {
 	display: grid;
 	gap: 8px;
-
 	margin-top: 10px;
 }
 
-
 .archive-existing-document {
-	background: var(--subtle-fg);
+	background: var(--archive-color-bg-surface, #ffffff);
 }
-
 
 .archive-existing-badge {
 	display: inline-flex;
 	align-items: center;
-
-	padding: 3px 8px;
-
+	padding: 3px 10px;
 	border-radius: 999px;
-
-	font-size: 11px;
-	font-weight: 600;
-
-	color: var(--green-700);
-	background: var(--green-100);
+	font-size: var(--archive-font-badge-size, 11px);
+	font-weight: var(--archive-font-badge-weight, 700);
+	color: #166534;
+	background: #dcfce7;
+	border: 1px solid #bbf7d0;
+	white-space: nowrap;
 }
 
+.archive-final-swift-document .archive-existing-badge {
+	color: #0369a1;
+	background: #e0f2fe;
+	border-color: #bae6fd;
+}
 
 .archive-operation-context-info {
-	margin-top: 8px;
+	margin-top: 10px;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
+.archive-operation-context-info > div {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 11px;
+	border-radius: var(--archive-radius-md, 7px);
+	background: var(--archive-color-bg-app, #f8fafc);
+	border: var(--archive-border-subtle, 1px solid #e2e8f0);
+	font-size: var(--archive-font-meta-size, 11.5px);
+	color: var(--archive-color-text-muted, #64748b);
+}
+
+.archive-operation-context-info > div strong {
+	color: var(--archive-color-text-heading, #0f172a);
+	font-weight: var(--archive-font-weight-bold, 700);
+	font-variant-numeric: tabular-nums;
+}
 
 .archive-existing-operation-info {
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
 	gap: 7px;
-
-	padding: 8px 10px;
-
-	border: 1px solid var(--border-color);
-	border-radius: 9px;
-
-	background: var(--subtle-fg);
-
-	font-size: 11px;
+	padding: 8px 12px;
+	border: var(--archive-border-subtle, 1px solid var(--border-color));
+	border-radius: var(--archive-radius-lg, 9px);
+	background: var(--archive-color-bg-app, #f8fafc);
+	font-size: var(--archive-font-meta-size, 11.5px);
 }
-
 
 .archive-existing-operation-info span {
 	white-space: nowrap;
 }
 
 
-@media (max-width: 1100px) {
-
-	.archive-operation-identity-layout {
-		grid-template-columns: 1fr;
-	}
-}
-
 /* ==========================================
    Operation Number Suggestions
    ========================================== */
 
-.archive-operation-number-fields {
-	position: relative;
-}
-
-
 .archive-operation-number-suggestions {
 	position: relative;
 	z-index: 20;
-
-	margin-top: -6px;
+	margin-top: 4px;
 	margin-bottom: 10px;
-
-	border: 1px solid var(--border-color);
-	border-radius: 10px;
-
-	background: var(--card-bg);
-
-	box-shadow:
-		0 8px 24px rgba(0, 0, 0, 0.08);
-
+	border: var(--archive-border-subtle, 1px solid var(--border-color));
+	border-radius: var(--archive-radius-lg, 10px);
+	background: var(--archive-color-bg-surface, var(--card-bg));
+	box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
 	overflow: hidden;
-
 	max-height: 260px;
 	overflow-y: auto;
 }
 
-
 .archive-operation-number-suggestion {
 	width: 100%;
-
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
-
-	padding: 10px 12px;
-
+	padding: 10px 14px;
 	border: 0;
-	border-bottom: 1px solid var(--border-color);
-
+	border-bottom: var(--archive-border-width-thin, 1px) var(--archive-border-style-solid, solid) var(--archive-color-border-divider, #f1f5f9);
 	background: transparent;
-
 	text-align: right;
-
 	cursor: pointer;
+	transition: background-color 0.12s ease;
 }
-
 
 .archive-operation-number-suggestion:last-child {
 	border-bottom: 0;
 }
 
-
 .archive-operation-number-suggestion:hover,
 .archive-operation-number-suggestion.is-active {
-	background: var(--subtle-fg);
+	background: var(--archive-color-bg-app, #f8fafc);
 }
-
 
 .archive-operation-number-suggestion-value {
-	font-weight: 700;
-	font-size: 13px;
+	font-weight: var(--archive-font-weight-bold, 700);
+	font-size: var(--archive-font-body-size, 13px);
+	color: var(--archive-color-text-heading, #0f172a);
 }
-
 
 .archive-operation-number-suggestion-meta {
 	flex: 0 0 auto;
+	font-size: var(--archive-font-meta-size, 11.5px);
+	color: var(--archive-color-text-muted, var(--text-muted));
+}
 
-	font-size: 11px;
 
-	color: var(--text-muted);
+/* ==========================================
+   Responsive
+   ========================================== */
+
+@media (max-width: 1100px) {
+	.archive-fields-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.archive-extraction-layout,
+	.archive-operation-identity-layout {
+		grid-template-columns: 1fr;
+	}
+}
+
+@media (max-width: 700px) {
+	.archive-operation-dialog .modal-dialog {
+		width: 98vw !important;
+		margin: 1vh auto !important;
+	}
+
+	.archive-operation-form {
+		padding: 12px;
+	}
+
+	.archive-form-section {
+		padding: 14px;
+	}
+
+	.archive-fields-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.archive-selected-extraction,
+	.archive-attachment-item {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.archive-extraction-actions,
+	.archive-attachment-actions {
+		justify-content: flex-end;
+	}
 }
