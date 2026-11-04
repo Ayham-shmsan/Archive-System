@@ -9,10 +9,12 @@ from archive.api.operation_timeline import (
 )
 from archive.services.uploaded_files import (
     delete_temporary_uploaded_files,
+    delete_unattached_file,
     get_unattached_uploaded_file,
 )
 
 from archive.services.operation_permissions import (
+    can_attach_incomplete_invoice,
     can_manage_operation_attachments,
     can_re_extract_operation_data,
 )
@@ -1146,6 +1148,9 @@ def serialize_shared_document_for_view(
         "document_role":
             row.document_role,
 
+        "is_new_invoice":
+            bool(cint(row.get("is_new_invoice"))),
+
         "file":
             row.file,
 
@@ -1164,6 +1169,210 @@ def serialize_shared_document_for_view(
         "creation":
             row.creation,
     }
+
+
+def _is_group_invoice_completed(
+    operation_group: str,
+) -> bool:
+    operation_group = cstr(
+        operation_group
+    ).strip()
+    if not operation_group:
+        return False
+
+    if frappe.db.exists(
+        "Archive Operation Document",
+        {
+            "operation_group":
+                operation_group,
+            "is_new_invoice":
+                1,
+        },
+    ):
+        return True
+
+    completed_log = frappe.db.sql(
+        """
+        SELECT l.name
+        FROM `tabArchive Operation Log` l
+        INNER JOIN `tabArchive Operation` o
+            ON o.name = l.operation
+        WHERE o.operation_group = %s
+          AND l.event_type = 'incomplete_invoice_completed'
+        LIMIT 1
+        """,
+        (operation_group,),
+    )
+    return bool(completed_log)
+
+
+def _validate_and_prepare_incomplete_invoice_update(
+    operation,
+    values: dict[str, Any],
+    received_fields: set[str],
+    target_group: str | None = None,
+) -> tuple[dict[str, Any], bool]:
+    if "is_incomplete_invoice" not in received_fields:
+        return values, False
+
+    values = dict(values)
+    raw_value = values.pop(
+        "is_incomplete_invoice",
+        None,
+    )
+    received_fields.discard(
+        "is_incomplete_invoice"
+    )
+
+    requested_incomplete = bool(
+        cint(raw_value)
+    )
+    group_name = cstr(
+        target_group
+        or operation.operation_group
+    ).strip()
+    if not group_name:
+        return values, False
+
+    locked_group = frappe.db.sql(
+        """
+        SELECT name, is_incomplete_invoice
+        FROM `tabArchive Operation Group`
+        WHERE name = %s
+        FOR UPDATE
+        """,
+        (group_name,),
+        as_dict=True,
+    )
+    if not locked_group:
+        frappe.throw(
+            _("مجموعة العملية غير موجودة.")
+        )
+
+    current_group_incomplete = bool(
+        cint(
+            locked_group[0].get(
+                "is_incomplete_invoice"
+            )
+        )
+    )
+    is_completed = _is_group_invoice_completed(
+        group_name
+    )
+
+    if current_group_incomplete:
+        if not requested_incomplete:
+            frappe.throw(
+                _(
+                    "لا يمكن إلغاء حالة الفاتورة غير المكتملة "
+                    "من نافذة تعديل العملية. يتم استكمال الفاتورة "
+                    "حصراً عبر إجراء إرفاق الفاتورة الجديدة."
+                ),
+                frappe.PermissionError,
+            )
+        return values, False
+
+    if is_completed:
+        if requested_incomplete:
+            frappe.throw(
+                _(
+                    "لا يمكن إعادة تسجيل نقص الفاتورة بعد استكمالها."
+                ),
+                frappe.PermissionError,
+            )
+        return values, False
+
+    if requested_incomplete:
+        return values, True
+
+    return values, False
+
+
+def _apply_incomplete_invoice_registration(
+    operation,
+) -> None:
+    operation_group = cstr(
+        operation.operation_group
+    ).strip()
+    if not operation_group:
+        return
+
+    locked_group = frappe.db.sql(
+        """
+        SELECT name, is_incomplete_invoice
+        FROM `tabArchive Operation Group`
+        WHERE name = %s
+        FOR UPDATE
+        """,
+        (operation_group,),
+        as_dict=True,
+    )
+    if not locked_group:
+        return
+
+    if _is_group_invoice_completed(
+        operation_group
+    ):
+        frappe.throw(
+            _(
+                "لا يمكن إعادة تسجيل نقص الفاتورة بعد استكمالها."
+            ),
+            frappe.PermissionError,
+        )
+
+    already_incomplete = bool(
+        cint(
+            locked_group[0].get(
+                "is_incomplete_invoice"
+            )
+        )
+    )
+
+    frappe.db.set_value(
+        "Archive Operation Group",
+        operation_group,
+        "is_incomplete_invoice",
+        1,
+        update_modified=False,
+    )
+    frappe.db.sql(
+        """
+        UPDATE `tabArchive Operation`
+        SET is_incomplete_invoice = 1
+        WHERE operation_group = %s
+        """,
+        (operation_group,),
+    )
+    operation.is_incomplete_invoice = 1
+
+    if not already_incomplete:
+        existing_reg_log = frappe.db.sql(
+            """
+            SELECT l.name
+            FROM `tabArchive Operation Log` l
+            INNER JOIN `tabArchive Operation` o
+                ON o.name = l.operation
+            WHERE o.operation_group = %s
+              AND l.event_type = 'incomplete_invoice_registered'
+            LIMIT 1
+            """,
+            (operation_group,),
+        )
+        if not existing_reg_log:
+            log_operation_event(
+                operation.name,
+                "incomplete_invoice_registered",
+                "تم تسجيل العملية بفاتورة غير مكتملة",
+                details={
+                    "operation_group":
+                        operation_group,
+                    "operation_no":
+                        operation.operation_no,
+                    "is_incomplete_invoice":
+                        True,
+                },
+                event_source="User",
+            )
 
 
 def get_operation_group_view_context(
@@ -1194,6 +1403,7 @@ def get_operation_group_view_context(
             "name",
             "operation_no",
             "operation_no_normalized",
+            "is_incomplete_invoice",
         ],
 
         as_dict=True,
@@ -1231,6 +1441,7 @@ def get_operation_group_view_context(
             "operation_group",
             "source_operation",
             "document_role",
+            "is_new_invoice",
             "file",
             "file_name",
             "file_extension",
@@ -1256,6 +1467,14 @@ def get_operation_group_view_context(
 
         "operation_no_normalized":
             group.operation_no_normalized,
+
+        "is_incomplete_invoice":
+            bool(cint(group.get("is_incomplete_invoice"))),
+
+        "is_invoice_completed":
+            _is_group_invoice_completed(
+                operation_group
+            ),
 
         "parts_count":
             parts_count,
@@ -1423,6 +1642,25 @@ def serialize_operation_for_view(
         "is_blocked_operation":
             bool(
                 operation.is_blocked_operation
+            ),
+
+        "is_incomplete_invoice":
+            bool(
+                cint(
+                    frappe.db.get_value(
+                        "Archive Operation Group",
+                        operation.operation_group,
+                        "is_incomplete_invoice",
+                    )
+                )
+                if operation.operation_group
+                else cint(
+                    getattr(
+                        operation,
+                        "is_incomplete_invoice",
+                        0,
+                    )
+                )
             ),
 
 
@@ -2015,6 +2253,20 @@ def create_operation(
             "معلقة"
         )
 
+    doc.is_incomplete_invoice = (
+        0
+        if doc.allow_duplicate_operation_no
+        else (
+            1
+            if cint(
+                values.get(
+                    "is_incomplete_invoice"
+                )
+            )
+            else 0
+        )
+    )
+
 
     # ========================================================
     # Extraction source
@@ -2113,6 +2365,11 @@ def create_operation(
                     doc.is_blocked_operation
                 ),
 
+            "is_incomplete_invoice":
+                bool(
+                    cint(doc.is_incomplete_invoice)
+                ),
+
             "customer":
                 doc.customer,
 
@@ -2129,6 +2386,25 @@ def create_operation(
         event_source=
             "User",
     )
+
+    if (
+        not cint(doc.allow_duplicate_operation_no)
+        and cint(doc.is_incomplete_invoice) == 1
+    ):
+        log_operation_event(
+            doc.name,
+            "incomplete_invoice_registered",
+            "تم تسجيل العملية بفاتورة غير مكتملة",
+            details={
+                "operation_group":
+                    doc.operation_group,
+                "operation_no":
+                    doc.operation_no,
+                "is_incomplete_invoice":
+                    True,
+            },
+            event_source="User",
+        )
 
 
     # ========================================================
@@ -2248,6 +2524,11 @@ def create_operation(
         "operation_group":
             doc.operation_group,
 
+        "is_incomplete_invoice":
+            bool(
+                cint(doc.is_incomplete_invoice)
+            ),
+
         "shared_documents_count":
             len(
                 created_shared_documents
@@ -2311,6 +2592,7 @@ def get_operations(
     search: str | None = None,
     status: str | None = None,
     final_swift_pending: int = 0,
+    incomplete_invoice: int = 0,
     start: int = 0,
     page_length: int =100000 ,
 ) -> dict[str, Any]:
@@ -2331,6 +2613,11 @@ def get_operations(
     final_swift_pending = bool(
         int(
             final_swift_pending or 0
+        )
+    )
+    incomplete_invoice = bool(
+        int(
+            incomplete_invoice or 0
         )
     )
 
@@ -2417,6 +2704,11 @@ def get_operations(
         filters[
             "status"
         ] = status
+
+    if incomplete_invoice:
+        filters[
+            "is_incomplete_invoice"
+        ] = 1
 
 
     # ========================================================
@@ -2505,6 +2797,8 @@ def get_operations(
                 "status",
 
                 "final_swift_file",
+                "operation_group",
+                "is_incomplete_invoice",
 
                 "creation",
                 "modified",
@@ -2672,6 +2966,10 @@ def get_operations(
     # Enrich rows
     # ========================================================
 
+    can_attach_incomplete = (
+        can_attach_incomplete_invoice()
+    )
+
     for operation in operations:
 
         operation[
@@ -2745,6 +3043,24 @@ def get_operations(
             )
         )
 
+        is_incomplete = bool(
+            cint(
+                operation.get(
+                    "is_incomplete_invoice"
+                )
+            )
+        )
+        operation[
+            "is_incomplete_invoice"
+        ] = is_incomplete
+        operation[
+            "can_attach_incomplete_invoice"
+        ] = bool(
+            is_incomplete
+            and
+            can_attach_incomplete
+        )
+
     # ========================================================
     # Search-aware status counters
     # ========================================================
@@ -2797,6 +3113,17 @@ def get_operations(
                     base_filters={
                         "status":
                             "محضورة",
+                    },
+                )
+            ),
+
+        "incomplete_invoice":
+            len(
+                search_operation_names(
+                    search,
+                    base_filters={
+                        "is_incomplete_invoice":
+                            1,
                     },
                 )
             ),
@@ -3114,9 +3441,11 @@ def get_operations_context() -> dict[str, Any]:
 
             "search_text",
             "operation_no",
+            "operation_group",
             "operation_no_normalized",
             "allow_duplicate_operation_no",
             "is_blocked_operation",
+            "is_incomplete_invoice",
 
             "owner",
             "creation",
@@ -3329,6 +3658,28 @@ def get_operations_context() -> dict[str, Any]:
         can_attach_final_swift()
     )
 
+    can_attach_incomplete = (
+        can_attach_incomplete_invoice()
+    )
+
+    group_incomplete_map = {}
+    group_ids = {
+        cstr(op.get("operation_group")).strip()
+        for op in operations
+        if cstr(op.get("operation_group")).strip()
+    }
+    if group_ids:
+        group_rows = frappe.get_all(
+            "Archive Operation Group",
+            filters={"name": ["in", list(group_ids)]},
+            fields=["name", "is_incomplete_invoice"],
+            limit_page_length=0,
+        )
+        group_incomplete_map = {
+            row.name: bool(cint(row.is_incomplete_invoice))
+            for row in group_rows
+        }
+
 
     # ========================================================
     # Enrich
@@ -3436,6 +3787,25 @@ def get_operations_context() -> dict[str, Any]:
                 < MAX_FINAL_SWIFT_FILES
             and
             can_attach_swift
+        )
+
+        op_group_name = cstr(
+            operation.get("operation_group")
+        ).strip()
+        is_incomplete = (
+            group_incomplete_map[op_group_name]
+            if op_group_name in group_incomplete_map
+            else bool(cint(operation.get("is_incomplete_invoice")))
+        )
+        operation[
+            "is_incomplete_invoice"
+        ] = is_incomplete
+        operation[
+            "can_attach_incomplete_invoice"
+        ] = bool(
+            is_incomplete
+            and
+            can_attach_incomplete
         )
 
 
@@ -3740,6 +4110,12 @@ def get_operation_for_view(
 
             "can_attach_final_swift":
                 can_add_final_swift,
+
+            "can_attach_incomplete_invoice":
+                bool(
+                    group_data.get("is_incomplete_invoice")
+                    and can_attach_incomplete_invoice(operation)
+                ),
 
             "can_re_extract":
                 can_re_extract_operation_data(
@@ -4935,6 +5311,280 @@ def attach_final_swift(
             in file_docs
         ],
     }
+
+
+@frappe.whitelist(
+    methods=["POST"]
+)
+def attach_incomplete_invoice(
+    operation_name: str,
+    files:
+        list[dict[str, Any]]
+        | str
+        | None = None,
+    file_urls:
+        list[str]
+        | str
+        | None = None,
+) -> dict[str, Any]:
+    """
+    استكمال الفاتورة غير المكتملة على مستوى مجموعة العملية المشتركة.
+    """
+    operation_name = cstr(
+        operation_name
+    ).strip()
+
+    files = _parse(
+        files,
+        [],
+    )
+    file_urls = _parse(
+        file_urls,
+        [],
+    )
+
+    if not operation_name:
+        frappe.throw(
+            _("اسم العملية مطلوب.")
+        )
+
+    if not isinstance(files, list):
+        frappe.throw(
+            _("بيانات ملفات الفاتورة غير صحيحة.")
+        )
+
+    if isinstance(file_urls, str):
+        file_urls = [file_urls]
+
+    if not isinstance(file_urls, list):
+        frappe.throw(
+            _("بيانات ملفات الفاتورة غير صحيحة.")
+        )
+
+    if files and file_urls:
+        frappe.throw(
+            _("لا يمكن إرسال files و file_urls معاً في نفس الطلب.")
+        )
+
+    operation = frappe.get_doc(
+        "Archive Operation",
+        operation_name,
+    )
+    operation.check_permission("read")
+
+    if not can_attach_incomplete_invoice(operation):
+        frappe.throw(
+            _("ليس لديك صلاحية إرفاق الفاتورة غير المكتملة."),
+            frappe.PermissionError,
+        )
+
+    operation_group = cstr(
+        operation.operation_group
+    ).strip()
+    if not operation_group:
+        frappe.throw(
+            _("هذه العملية غير مرتبطة بمجموعة عملية.")
+        )
+
+    # Lock the shared operation group row to prevent concurrent completions
+    locked_group = frappe.db.sql(
+        """
+        SELECT name, is_incomplete_invoice
+        FROM `tabArchive Operation Group`
+        WHERE name = %s
+        FOR UPDATE
+        """,
+        (operation_group,),
+        as_dict=True,
+    )
+    if not locked_group:
+        frappe.throw(
+            _("مجموعة العملية غير موجودة.")
+        )
+
+    if not cint(locked_group[0].get("is_incomplete_invoice")):
+        frappe.throw(
+            _("تم استكمال الفاتورة الخاصة بهذه العملية مسبقاً.")
+        )
+
+    file_docs = []
+    seen_file_ids = set()
+    seen_file_urls = set()
+
+    if files:
+        for item in files:
+            if isinstance(item, str):
+                raw_url = cstr(item).strip()
+                if not raw_url or raw_url in seen_file_urls:
+                    continue
+                seen_file_urls.add(raw_url)
+                file_doc = get_unattached_uploaded_file(file_url=raw_url)
+                file_docs.append(file_doc)
+                continue
+
+            if not isinstance(item, dict):
+                frappe.throw(
+                    _("صيغة أحد ملفات الفاتورة غير صحيحة.")
+                )
+
+            file_id = cstr(item.get("file_id")).strip() or None
+            file_url = cstr(
+                item.get("file_url")
+                or item.get("file")
+            ).strip()
+
+            if not file_url:
+                frappe.throw(
+                    _("يوجد ملف فاتورة بدون رابط ملف.")
+                )
+
+            if file_id:
+                if file_id in seen_file_ids:
+                    continue
+                seen_file_ids.add(file_id)
+            else:
+                if file_url in seen_file_urls:
+                    continue
+                seen_file_urls.add(file_url)
+
+            file_doc = get_unattached_uploaded_file(
+                file_id=file_id,
+                file_url=file_url,
+            )
+            file_docs.append(file_doc)
+    else:
+        for raw_file_url in file_urls:
+            file_url = cstr(raw_file_url).strip()
+            if not file_url or file_url in seen_file_urls:
+                continue
+            seen_file_urls.add(file_url)
+            file_doc = get_unattached_uploaded_file(
+                file_url=file_url,
+            )
+            file_docs.append(file_doc)
+
+    if not file_docs:
+        frappe.throw(
+            _("يجب إرفاق ملف فاتورة جديد واحد على الأقل لاستكمال الفاتورة.")
+        )
+
+    for file_doc in file_docs:
+        if (
+            operation.extraction_source_file
+            and cstr(file_doc.file_url).strip() == cstr(operation.extraction_source_file).strip()
+        ):
+            frappe.throw(
+                _("ملف استخراج البيانات لا يمكن استخدامه كملف فاتورة مشتركة.")
+            )
+
+    created_documents = create_shared_operation_documents(
+        operation=operation,
+        file_docs=file_docs,
+        is_new_invoice=True,
+    )
+
+    created_urls = {
+        doc.file
+        for doc in created_documents
+    }
+    for file_doc in file_docs:
+        if file_doc.file_url in created_urls:
+            continue
+        delete_unattached_file(file_doc)
+
+    if not created_documents:
+        frappe.throw(
+            _("يجب إرفاق ملف فاتورة جديد واحد على الأقل لاستكمال الفاتورة.")
+        )
+
+    uploaded_at = now_datetime()
+    uploaded_by = frappe.session.user
+
+    # Complete the shared invoice state on the group and all linked parts
+    frappe.db.set_value(
+        "Archive Operation Group",
+        operation_group,
+        "is_incomplete_invoice",
+        0,
+        update_modified=False,
+    )
+    frappe.db.sql(
+        """
+        UPDATE `tabArchive Operation`
+        SET is_incomplete_invoice = 0
+        WHERE operation_group = %s
+        """,
+        (operation_group,),
+    )
+
+    operation.reload()
+
+    log_operation_event(
+        operation.name,
+        "incomplete_invoice_completed",
+        "تم استكمال الفاتورة غير المكتملة",
+        details={
+            "operation_group":
+                operation_group,
+            "operation_no":
+                operation.operation_no,
+            "added_count":
+                len(created_documents),
+            "files_count":
+                len(created_documents),
+            "files": [
+                {
+                    "document":
+                        doc.name,
+                    "file_name":
+                        doc.file_name,
+                    "file_url":
+                        doc.file,
+                    "is_new_invoice":
+                        True,
+                }
+                for doc in created_documents
+            ],
+        },
+        event_source="User",
+        event_user=uploaded_by,
+        event_datetime=uploaded_at,
+    )
+
+    group_context = get_operation_group_view_context(operation)
+
+    return {
+        "name":
+            operation.name,
+        "operation_group":
+            operation_group,
+        "is_incomplete_invoice":
+            False,
+        "can_attach_incomplete_invoice":
+            False,
+        "shared_documents_count":
+            group_context["shared_documents_count"],
+        "shared_documents_limit":
+            group_context["shared_documents_limit"],
+        "operation":
+            serialize_operation_for_view(operation),
+        "group":
+            group_context,
+        "files": [
+            {
+                "document":
+                    doc.name,
+                "file_name":
+                    doc.file_name,
+                "file_url":
+                    doc.file,
+                "is_new_invoice":
+                    True,
+            }
+            for doc in created_documents
+        ],
+    }
+
 # ============================================================
 # Change operation status
 # ============================================================
@@ -5562,6 +6212,15 @@ def save_operation_re_extraction(
         )
 
 
+    (
+        values,
+        should_register_incomplete_invoice,
+    ) = _validate_and_prepare_incomplete_invoice_update(
+        operation,
+        values,
+        received_fields,
+    )
+
     forbidden_fields = (
         received_fields
         - MANUAL_EDITABLE_FIELDS
@@ -6096,6 +6755,12 @@ def save_operation_re_extraction(
 
     operation.reload()
 
+    if should_register_incomplete_invoice:
+        _apply_incomplete_invoice_registration(
+            operation
+        )
+        operation.reload()
+
 
     # ========================================================
     # Delete persisted Shared Documents
@@ -6350,6 +7015,12 @@ def save_operation_re_extraction(
 
             "can_manage_attachments":
                 can_manage_attachments,
+
+            "can_attach_incomplete_invoice":
+                bool(
+                    cint(operation.is_incomplete_invoice)
+                    and can_attach_incomplete_invoice(operation)
+                ),
 
             "can_attach_final_swift":
                 bool(
@@ -7942,6 +8613,32 @@ def save_operation_view_changes(
                 )
 
 
+    target_group_for_incomplete = (
+        operation_number_change_plan.get(
+            "target_group"
+        )
+        if (
+            operation_number_change_plan
+            and operation_number_change_plan.get(
+                "changed"
+            )
+            and operation_number_change_plan.get(
+                "target_group"
+            )
+        )
+        else operation.operation_group
+    )
+
+    (
+        values,
+        should_register_incomplete_invoice,
+    ) = _validate_and_prepare_incomplete_invoice_update(
+        operation,
+        values,
+        received_fields,
+        target_group=target_group_for_incomplete,
+    )
+
     forbidden_fields = (
         received_fields
         - MANUAL_EDITABLE_FIELDS
@@ -8800,6 +9497,12 @@ def save_operation_view_changes(
             event_source=
                 "User",
         )
+
+    if should_register_incomplete_invoice:
+        _apply_incomplete_invoice_registration(
+            operation
+        )
+
     # ========================================================
     # Delete persisted Shared Documents
     #
@@ -9121,6 +9824,12 @@ def save_operation_view_changes(
 
             "can_manage_attachments":
                 can_manage_attachments,
+
+            "can_attach_incomplete_invoice":
+                bool(
+                    cint(operation.is_incomplete_invoice)
+                    and can_attach_incomplete_invoice(operation)
+                ),
 
             "editable_fields":
                 (

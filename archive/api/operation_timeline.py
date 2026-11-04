@@ -29,6 +29,8 @@ VALID_EVENT_TYPES = {
     "final_swift_added",
     "final_swift_deleted",
     "attachment_downloaded",
+    "incomplete_invoice_registered",
+    "incomplete_invoice_completed",
 }
 
 
@@ -58,6 +60,12 @@ EVENT_TYPE_LABELS = {
         "حذف السويفت النهائي",
     "attachment_downloaded":
         "تنزيل مرفق",
+
+    "incomplete_invoice_registered":
+        "فاتورة غير مكتملة",
+
+    "incomplete_invoice_completed":
+        "استكمال الفاتورة",
 }
 
 
@@ -505,6 +513,20 @@ def get_operation_timeline(
     # الحماية تمت أعلاه على Archive Operation.
     # ========================================================
 
+    log_fields = [
+        "name",
+        "operation",
+        "event_type",
+        "event_title",
+        "event_datetime",
+        "event_user",
+        "event_source",
+        "effective_date",
+        "remarks",
+        "details_json",
+        "creation",
+    ]
+
     logs = frappe.get_all(
         "Archive Operation Log",
 
@@ -513,18 +535,7 @@ def get_operation_timeline(
                 operation.name,
         },
 
-        fields=[
-            "name",
-            "event_type",
-            "event_title",
-            "event_datetime",
-            "event_user",
-            "event_source",
-            "effective_date",
-            "remarks",
-            "details_json",
-            "creation",
-        ],
+        fields=log_fields,
 
         order_by=
             "event_datetime desc, creation desc",
@@ -532,6 +543,56 @@ def get_operation_timeline(
         limit_page_length=
             0,
     )
+
+    if operation.operation_group:
+        sibling_names = frappe.get_all(
+            "Archive Operation",
+            filters={
+                "operation_group":
+                    operation.operation_group,
+            },
+            pluck="name",
+            limit_page_length=0,
+        )
+        other_siblings = [
+            name
+            for name in sibling_names
+            if name != operation.name
+        ]
+        if other_siblings:
+            shared_invoice_logs = frappe.get_all(
+                "Archive Operation Log",
+                filters={
+                    "operation": [
+                        "in",
+                        other_siblings,
+                    ],
+                    "event_type": [
+                        "in",
+                        [
+                            "incomplete_invoice_registered",
+                            "incomplete_invoice_completed",
+                        ],
+                    ],
+                },
+                fields=log_fields,
+                order_by="event_datetime desc, creation desc",
+                limit_page_length=0,
+            )
+            if shared_invoice_logs:
+                seen_log_names = {row.name for row in logs}
+                for shared_row in shared_invoice_logs:
+                    if shared_row.name not in seen_log_names:
+                        seen_log_names.add(shared_row.name)
+                        logs.append(shared_row)
+                logs.sort(
+                    key=lambda r: (
+                        str(r.event_datetime or ""),
+                        str(r.creation or ""),
+                        str(r.name or ""),
+                    ),
+                    reverse=True,
+                )
 
 
     # ========================================================

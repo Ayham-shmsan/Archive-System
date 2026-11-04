@@ -313,210 +313,157 @@ body[data-route="archive-pending-operations"] .main-section > #body,
 
 .archive-pending-summary-grid {
     display: grid;
-
-    grid-template-columns:
-        repeat(
-            5,
-            minmax(
-                140px,
-                1fr
-            )
-        );
-
-    gap:
-        var(--archive-space-3);
-
-    margin-top:
-        var(--archive-space-3);
-
-    margin-bottom:
-        var(--archive-space-3);
-
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--archive-space-3, 12px);
+    width: 100%;
+    margin-top: var(--archive-space-2, 8px);
+    margin-bottom: var(--archive-space-3, 12px);
     min-width: 0;
     max-width: 100%;
-    overflow-x: auto;
-    scrollbar-width: thin;
-    padding-top: var(--archive-space-1);
-    padding-bottom: 4px;
+    direction: rtl;
 }
 
 .archive-pending-summary-card {
+    --summary-accent: #475569;
+    --summary-soft-bg: #F1F5F9;
+    --summary-border: #CBD5E1;
+
     position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
 
-    display:
-        block;
-
-    width:
-        100%;
-
+    width: 100%;
     min-width: 0;
+    min-height: 118px;
+    padding: 10px 12px;
 
-    min-height:
-        92px;
+    background: linear-gradient(135deg, var(--summary-soft-bg) 0%, color-mix(in srgb, var(--summary-soft-bg) 65%, #ffffff) 100%);
+    border: 1.5px solid var(--summary-border);
+    border-right: 4.5px solid var(--summary-accent);
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 
-    padding:
-        18px
-        18px
-        var(--archive-space-4);
-
-    border:
-        var(--archive-border-width-thin) var(--archive-border-style-solid)
-        var(--border-color);
-
-    border-radius:
-        16px;
-
-    background:
-        var(--card-bg);
-
-    color:
-        var(--text-color);
-
-    text-align:
-        right;
-
-    cursor:
-        pointer;
-
-    appearance:
-        none;
-
-    box-shadow:
-        0 1px 2px rgba(16, 24, 40, 0.04);
+    cursor: pointer;
+    appearance: none;
 
     transition:
-        all 0.18s ease;
+        transform 0.16s ease,
+        box-shadow 0.16s ease,
+        border-color 0.16s ease,
+        background-color 0.16s ease;
+}
+
+.archive-pending-summary-card[data-status="all"] {
+    --summary-accent: #475569;
+    --summary-soft-bg: #EEF2F6;
+    --summary-border: #CBD5E1;
+}
+
+.archive-pending-summary-card[data-status="under_action"] {
+    --summary-accent: #2563EB;
+    --summary-soft-bg: #E8F1FF;
+    --summary-border: #93C5FD;
+}
+
+.archive-pending-summary-card[data-status="partial"] {
+    --summary-accent: #D97706;
+    --summary-soft-bg: #FFF7DC;
+    --summary-border: #F3D078;
+}
+
+.archive-pending-summary-card[data-status="complete"] {
+    --summary-accent: #16A34A;
+    --summary-soft-bg: #E6F9ED;
+    --summary-border: #86EFAC;
+}
+
+.archive-pending-summary-card[data-status="failed"] {
+    --summary-accent: #DC2626;
+    --summary-soft-bg: #FFE8EA;
+    --summary-border: #FCA5A5;
 }
 
 .archive-pending-summary-card:hover:not(:disabled) {
-    transform:
-        translateY(-1px);
-
-    box-shadow:
-        0 8px 18px rgba(16, 24, 40, 0.08);
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--summary-accent) 55%, var(--summary-border));
+    border-right-color: var(--summary-accent);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
 }
 
 .archive-pending-summary-card:focus-visible {
-    outline:
-        var(--archive-border-width-thick) var(--archive-border-style-solid)
-        var(--primary);
-
-    outline-offset:
-        2px;
+    outline: none;
+    border-color: var(--summary-accent);
+    border-right-color: var(--summary-accent);
+    box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--summary-accent) 22%, transparent),
+        0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
 .archive-pending-summary-card:disabled {
-    cursor:
-        not-allowed;
-
-    opacity:
-        0.65;
+    cursor: not-allowed;
+    opacity: 0.65;
 }
 
 .archive-pending-summary-card.is-active {
-    border-color:
-        var(--archive-color-primary, #315b9b);
-
+    background: linear-gradient(135deg, color-mix(in srgb, var(--summary-accent) 14%, var(--summary-soft-bg)) 0%, var(--summary-soft-bg) 100%);
+    border-color: var(--summary-accent);
+    border-right: 5px solid var(--summary-accent);
     box-shadow:
-        0 0 0 2px var(--archive-color-primary, #315b9b),
-        var(--archive-shadow-xs);
-
-    transform:
-        translateY(-1px);
+        0 0 0 2px color-mix(in srgb, var(--summary-accent) 24%, transparent),
+        0 6px 14px rgba(15, 23, 42, 0.08);
 }
 
-.archive-pending-summary-value,
-.archive-pending-summary-label {
-    display:
-        block;
+.archive-pending-summary-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--summary-accent) 15%, #ffffff);
+    color: var(--summary-accent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6px;
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
-.archive-pending-summary-value {
-    margin-bottom:
-        var(--archive-space-2);
-
-    font-size:
-        var(--archive-font-stat-value-size);
-
-    font-weight:
-        var(--archive-font-stat-value-weight);
-
-    line-height:
-        var(--archive-font-stat-value-lh);
+.archive-pending-summary-card.is-active .archive-pending-summary-icon {
+    background: color-mix(in srgb, var(--summary-accent) 22%, #ffffff);
 }
 
 .archive-pending-summary-label {
-    color:
-        var(--text-muted);
-
-    font-size:
-        var(--archive-font-stat-label-size);
-
-    font-weight:
-        var(--archive-font-stat-label-weight);
-
-    line-height:
-        var(--archive-font-stat-label-lh);
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #1e293b;
+    margin-bottom: 3px;
+    max-width: 100%;
 }
 
-.archive-pending-summary-card[
-    data-status="under_action"
-] {
-    border-color:
-        rgba(
-            100,
-            116,
-            139,
-            0.32
-        );
-}
-
-.archive-pending-summary-card[
-    data-status="under_action"
-]
 .archive-pending-summary-value {
-    color:
-        var(--archive-slate-600);
+    display: block;
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1.15;
+    color: var(--summary-accent);
+    margin-bottom: 3px;
+    font-variant-numeric: tabular-nums;
 }
 
-.archive-pending-summary-card[
-    data-status="partial"
-] {
-    border-color:
-        rgba(
-            245,
-            158,
-            11,
-            0.34
-        );
+.archive-pending-summary-card[data-status="all"] .archive-pending-summary-value {
+    color: #475569;
 }
 
-.archive-pending-summary-card[
-    data-status="partial"
-]
-.archive-pending-summary-value {
-    color:
-        var(--archive-status-paused-text);
-}
-
-.archive-pending-summary-card[
-    data-status="complete"
-] {
-    border-color:
-        rgba(
-            22,
-            163,
-            74,
-            0.30
-        );
-}
-
-.archive-pending-summary-card[
-    data-status="complete"
-]
-.archive-pending-summary-value {
-    color:
-        var(--archive-status-active-text);
+.archive-pending-summary-desc {
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: #64748b;
+    max-width: 100%;
 }
 
 
@@ -1739,111 +1686,8 @@ body[data-route="archive-pending-operations"] .main-section > #body,
 }
 
 /* ============================================================
-   Selection / Failed / Colored cards / Wider Search
+   Selection / Failed / Wider Search
    ============================================================ */
-
-.archive-pending-summary-grid {
-    grid-template-columns:
-        repeat(
-            5,
-            minmax(
-                140px,
-                1fr
-            )
-        );
-}
-
-.archive-pending-summary-card[
-    data-status="all"
-] {
-    border-color:
-        rgba(
-            37,
-            99,
-            235,
-            0.30
-        );
-
-    background:
-        rgba(
-            37,
-            99,
-            235,
-            0.045
-        );
-}
-
-.archive-pending-summary-card[
-    data-status="all"
-]
-.archive-pending-summary-value {
-    color:
-        var(--archive-color-primary);
-}
-
-.archive-pending-summary-card[
-    data-status="under_action"
-] {
-    background:
-        rgba(
-            100,
-            116,
-            139,
-            0.055
-        );
-}
-
-.archive-pending-summary-card[
-    data-status="partial"
-] {
-    background:
-        rgba(
-            245,
-            158,
-            11,
-            0.055
-        );
-}
-
-.archive-pending-summary-card[
-    data-status="complete"
-] {
-    background:
-        rgba(
-            22,
-            163,
-            74,
-            0.050
-        );
-}
-
-.archive-pending-summary-card[
-    data-status="failed"
-] {
-    border-color:
-        rgba(
-            220,
-            38,
-            38,
-            0.34
-        );
-
-    background:
-        rgba(
-            220,
-            38,
-            38,
-            0.055
-        );
-}
-
-.archive-pending-summary-card[
-    data-status="failed"
-]
-.archive-pending-summary-value {
-    color:
-        var(--archive-status-stopped-text);
-}
 
 .archive-pending-search-filter-group .archive-pending-search-box {
     max-width:
@@ -2272,205 +2116,6 @@ p {
 
     line-height:
         var(--archive-line-height-relaxed);
-}
-
-
-/* ============================================================
-   SUMMARY CARDS TYPOGRAPHY & ACTIVE STATES
-   تقوية لون وحجم أرقام وعناوين بطاقات الحالات
-   ============================================================ */
-
-
-/* ------------------------------------------------------------
-   الرقم
-   ------------------------------------------------------------ */
-
-.archive-pending-summary-value {
-    font-size:
-        var(--archive-font-stat-value-size) !important;
-
-    font-weight:
-        var(--archive-font-stat-value-weight) !important;
-
-    line-height:
-        var(--archive-font-stat-value-lh) !important;
-
-    letter-spacing:
-        -0.2px;
-}
-
-
-/* ------------------------------------------------------------
-   اسم الحالة
-   ------------------------------------------------------------ */
-
-.archive-pending-summary-label {
-    font-size:
-        var(--archive-font-stat-label-size) !important;
-
-    font-weight:
-        var(--archive-font-stat-label-weight) !important;
-
-    line-height:
-        var(--archive-font-stat-label-lh) !important;
-
-    margin-top:
-        0;
-}
-
-
-/* ============================================================
-   كل العمليات
-   ============================================================ */
-
-.archive-pending-summary-card[
-    data-status="all"
-]
-.archive-pending-summary-value {
-    color:
-        var(--archive-color-primary) !important;
-}
-
-
-.archive-pending-summary-card[
-    data-status="all"
-]
-.archive-pending-summary-label {
-    color:
-        var(--archive-color-text-title) !important;
-}
-
-.archive-pending-summary-card[
-    data-status="all"
-].is-active {
-    border-color: var(--archive-color-primary, #315b9b);
-    box-shadow:
-        0 0 0 2px rgba(49, 91, 155, 0.22),
-        0 4px 12px rgba(49, 91, 155, 0.10);
-}
-
-
-/* ============================================================
-   تحت الإجراء
-   ============================================================ */
-
-.archive-pending-summary-card[
-    data-status="under_action"
-]
-.archive-pending-summary-value {
-    color:
-        var(--archive-color-text-title) !important;
-}
-
-
-.archive-pending-summary-card[
-    data-status="under_action"
-]
-.archive-pending-summary-label {
-    color:
-        var(--archive-slate-600) !important;
-}
-
-.archive-pending-summary-card[
-    data-status="under_action"
-].is-active {
-    border-color: #9ca3af;
-    box-shadow:
-        0 0 0 2px rgba(156, 163, 175, 0.18),
-        0 10px 20px rgba(107, 114, 128, 0.08);
-}
-
-
-/* ============================================================
-   مرتجعة غير مكتملة
-   ============================================================ */
-
-.archive-pending-summary-card[
-    data-status="partial"
-]
-.archive-pending-summary-value {
-    color:
-        var(--archive-status-paused-text) !important;
-}
-
-
-.archive-pending-summary-card[
-    data-status="partial"
-]
-.archive-pending-summary-label {
-    color:
-        #92400e !important;
-}
-
-.archive-pending-summary-card[
-    data-status="partial"
-].is-active {
-    border-color: #f59e0b;
-    box-shadow:
-        0 0 0 2px rgba(245, 158, 11, 0.18),
-        0 10px 20px rgba(245, 158, 11, 0.10);
-}
-
-
-/* ============================================================
-   مرتجعة مكتملة
-   ============================================================ */
-
-.archive-pending-summary-card[
-    data-status="complete"
-]
-.archive-pending-summary-value {
-    color:
-        var(--archive-status-active-text) !important;
-}
-
-
-.archive-pending-summary-card[
-    data-status="complete"
-]
-.archive-pending-summary-label {
-    color:
-        #166534 !important;
-}
-
-.archive-pending-summary-card[
-    data-status="complete"
-].is-active {
-    border-color: #22c55e;
-    box-shadow:
-        0 0 0 2px rgba(34, 197, 94, 0.18),
-        0 10px 20px rgba(34, 197, 94, 0.10);
-}
-
-
-/* ============================================================
-   معلقة فاشلة
-   ============================================================ */
-
-.archive-pending-summary-card[
-    data-status="failed"
-]
-.archive-pending-summary-value {
-    color:
-        var(--archive-status-stopped-icon) !important;
-}
-
-
-.archive-pending-summary-card[
-    data-status="failed"
-]
-.archive-pending-summary-label {
-    color:
-        var(--archive-status-stopped-text) !important;
-}
-
-.archive-pending-summary-card[
-    data-status="failed"
-].is-active {
-    border-color: #ef4444;
-    box-shadow:
-        0 0 0 2px rgba(239, 68, 68, 0.18),
-        0 10px 20px rgba(239, 68, 68, 0.10);
 }
 
 

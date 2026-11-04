@@ -604,6 +604,19 @@ archive.ui.OperationTimelineDialog = class {
                 "attachment_added",
                 "attachment_deleted",
                 "attachment_downloaded",
+                "incomplete_invoice_completed",
+            ].includes(
+                event.event_type
+            );
+        }
+
+
+        if (
+            filter === "created"
+        ) {
+            return [
+                "created",
+                "incomplete_invoice_registered",
             ].includes(
                 event.event_type
             );
@@ -717,6 +730,7 @@ archive.ui.OperationTimelineDialog = class {
                 "final_swift_added",
                 "final_swift_deleted",
                 "attachment_downloaded",
+                "incomplete_invoice_completed",
             ]);
 
 
@@ -1100,6 +1114,28 @@ archive.ui.OperationTimelineDialog = class {
                 class_name:
                     "attachment-downloaded",
             },
+
+            incomplete_invoice_registered: {
+                label:
+                    "فاتورة غير مكتملة",
+
+                icon:
+                    "fa-exclamation-circle",
+
+                class_name:
+                    "event-status",
+            },
+
+            incomplete_invoice_completed: {
+                label:
+                    "استكمال الفاتورة",
+
+                icon:
+                    "fa-check-circle",
+
+                class_name:
+                    "event-attachment",
+            },
         };
 
 
@@ -1157,6 +1193,7 @@ archive.ui.OperationTimelineDialog = class {
             case "attachment_deleted":
             case "final_swift_added":
             case "final_swift_deleted":
+            case "incomplete_invoice_completed":
                 return (
                     this.render_files(
                         details

@@ -327,6 +327,54 @@ class OperationViewDialog {
 		}
 
 
+		const target_document =
+			attachment_name
+				? (
+					(this.existing_attachments || []).find(
+						(item) => item.name === attachment_name
+					)
+					|| (this.final_swift_files || []).find(
+						(item) => item.name === attachment_name
+					)
+				)
+				: (this.shared_documents || []).find(
+					(item) => item.name === shared_document_name
+				);
+
+		const is_previewable_file = (name_or_url) => {
+			const ext = this.file_extension(
+				this.get_file_name(name_or_url)
+			);
+			return [
+				"PDF",
+				"PNG",
+				"JPG",
+				"JPEG",
+				"WEBP",
+				"GIF",
+				"BMP",
+				"AVIF",
+			].includes(ext);
+		};
+
+		let preview_opened = false;
+		const initial_file_url = target_document?.file || "";
+		const initial_file_name =
+			target_document?.file_name || initial_file_url;
+
+		if (
+			initial_file_url
+			&& is_previewable_file(initial_file_name)
+		) {
+			window.open(
+				initial_file_url,
+				"_blank",
+				"noopener,noreferrer"
+			);
+			preview_opened = true;
+		}
+
+
 		const original_html =
 			$button.html();
 
@@ -381,6 +429,19 @@ class OperationViewDialog {
 
 				frappe.throw(
 					"تعذر العثور على رابط الملف."
+				);
+			}
+
+			if (
+				!preview_opened
+				&& is_previewable_file(
+					result.file_name || result.file_url
+				)
+			) {
+				window.open(
+					result.file_url,
+					"_blank",
+					"noopener,noreferrer"
 				);
 			}
 
@@ -627,6 +688,14 @@ class OperationViewDialog {
 		this.group =
 			result.group;
 
+		this.operation.is_incomplete_invoice =
+			Boolean(
+				this.group?.is_incomplete_invoice
+				|| this.operation?.is_incomplete_invoice
+			)
+				? 1
+				: 0;
+
 
 		// ========================================================
 		// Group Shared Documents
@@ -767,6 +836,9 @@ class OperationViewDialog {
 					false,
 
 				can_attach_final_swift:
+					false,
+
+				can_attach_incomplete_invoice:
 					false,
 
 				can_re_extract:
@@ -1232,12 +1304,30 @@ class OperationViewDialog {
 										0 / 10
 									-->
 									<div
-										class="
-											archive-shared-documents-counter
-										"
-										dir="ltr"
+										class="archive-shared-documents-header-actions"
+										style="display:flex; align-items:center; gap:8px;"
 									>
-										0 / 10
+										${
+											this.group?.is_incomplete_invoice
+											&& this.permissions?.can_attach_incomplete_invoice
+												? `
+													<button
+														type="button"
+														class="btn btn-primary btn-sm archive-attach-incomplete-invoice-btn"
+													>
+														إرفاق الفاتورة الجديدة
+													</button>
+												`
+												: ""
+										}
+										<div
+											class="
+												archive-shared-documents-counter
+											"
+											dir="ltr"
+										>
+											0 / 10
+										</div>
 									</div>
 
 								</div>
@@ -1485,6 +1575,31 @@ class OperationViewDialog {
 
 
 		this.render_operation_documents();
+		this.bind_incomplete_invoice_events();
+	}
+
+	bind_incomplete_invoice_events() {
+		this.$body
+			.find(".archive-attach-incomplete-invoice-btn")
+			.off("click.archiveIncompleteInvoice")
+			.on("click.archiveIncompleteInvoice", () => {
+				const dialog = new archive.ui.FinalSwiftDialog(
+					this.operation.name,
+					{
+						mode: "incomplete_invoice",
+						current_count: this.shared_documents.length,
+						max_files: this.shared_documents_limit,
+						on_saved: async () => {
+							await this.load_operation();
+							this.render();
+							if (typeof this.options.on_saved === "function") {
+								await this.options.on_saved(this.operation);
+							}
+						},
+					}
+				);
+				dialog.show();
+			});
 	}
 
 
@@ -1515,6 +1630,17 @@ class OperationViewDialog {
 
 					reqd:
 						1,
+				},
+
+				{
+					fieldname:
+						"is_incomplete_invoice",
+
+					label:
+						"فاتورة غير مكتملة",
+
+					fieldtype:
+						"Check",
 				},
 			]
 		);
@@ -1973,6 +2099,25 @@ class OperationViewDialog {
 	}
 
 
+	can_mark_incomplete_invoice() {
+		const is_currently_incomplete = Boolean(
+			this.group?.is_incomplete_invoice
+			|| this.operation?.is_incomplete_invoice
+		);
+		const is_completed = Boolean(
+			this.group?.is_invoice_completed
+			|| (this.shared_documents || []).some(
+				(doc) => Boolean(doc?.is_new_invoice)
+			)
+		);
+		return (
+			Boolean(this.permissions?.can_edit)
+			&& !is_currently_incomplete
+			&& !is_completed
+		);
+	}
+
+
 	make_control(
 		$parent,
 		df
@@ -1991,6 +2136,10 @@ class OperationViewDialog {
 					?.is_blocked_operation
 			);
 
+		const incomplete_invoice_editable =
+			df.fieldname === "is_incomplete_invoice"
+			&& this.can_mark_incomplete_invoice();
+
 
 		const editable =
 			!df.force_read_only
@@ -2001,6 +2150,8 @@ class OperationViewDialog {
 				)
 				||
 				operation_number_editable
+				||
+				incomplete_invoice_editable
 			);
 
 		const control_df = {
@@ -2041,9 +2192,27 @@ class OperationViewDialog {
 			value !== undefined &&
 			value !== null
 		) {
-			control.set_value(
-				value
-			);
+			Promise.resolve(
+				control.set_value(value)
+			).then(() => {
+				if (control_df.fieldtype === "Check") {
+					const should_disable = Boolean(control_df.read_only);
+					control.$input?.prop("disabled", should_disable);
+					control.$wrapper
+						?.find("input[type='checkbox']")
+						.prop("disabled", should_disable);
+				}
+			});
+		}
+
+		if (
+			control_df.fieldtype === "Check"
+		) {
+			const should_disable = Boolean(control_df.read_only);
+			control.$input?.prop("disabled", should_disable);
+			control.$wrapper
+				?.find("input[type='checkbox']")
+				.prop("disabled", should_disable);
 		}
 
 
@@ -4558,6 +4727,20 @@ class OperationViewDialog {
 							"
 						>
 							${
+								document.is_new_invoice
+									? `
+										<span
+											class="
+												archive-existing-badge
+												archive-new-invoice-badge
+											"
+										>
+											فاتورة جديدة
+										</span>
+									`
+									: ""
+							}
+							${
 								pending_delete
 									? `
 										<span
@@ -6363,6 +6546,19 @@ $list
 				this.controls
 					.operation_no
 					.get_value();
+		}
+
+		if (
+			this.can_mark_incomplete_invoice()
+			&& this.controls.is_incomplete_invoice
+		) {
+			values.is_incomplete_invoice =
+				Number(
+					this.controls.is_incomplete_invoice.get_value()
+					|| 0
+				)
+					? 1
+					: 0;
 		}
 
 

@@ -14,6 +14,14 @@ class FinalSwiftDialog {
 		this.options =
 			options || {};
 
+		this.mode =
+			this.options.mode === "incomplete_invoice"
+				? "incomplete_invoice"
+				: "final_swift";
+
+		this.is_incomplete_invoice_mode =
+			this.mode === "incomplete_invoice";
+
 		// this.file = null;
         this.files = [];
 
@@ -38,14 +46,46 @@ class FinalSwiftDialog {
 
 		this.make_dialog();
 		this.render();
+		if (
+			this.is_incomplete_invoice_mode
+			&& this.options.current_count === undefined
+		) {
+			this.sync_shared_document_counts();
+		}
+	}
+
+	async sync_shared_document_counts() {
+		try {
+			const response = await frappe.call({
+				method: "archive.api.operation_documents.get_operation_documents",
+				type: "GET",
+				args: {
+					operation_name: this.operation_name,
+				},
+			});
+			const state = response?.message;
+			if (state && typeof state.attachment_count === "number") {
+				this.current_count = Number(state.attachment_count || 0);
+				this.remaining_slots = Math.max(
+					this.max_files - this.current_count,
+					0
+				);
+				this.render_files();
+			}
+		} catch (e) {
+			// Fallback to default counts if fetch fails
+		}
 	}
 
 
 	make_dialog() {
+		const dialog_title = this.is_incomplete_invoice_mode
+			? `إرفاق الفاتورة الجديدة - ${this.operation_name}`
+			: `إرفاق السويفت النهائي - ${this.operation_name}`;
+
 		this.dialog =
 			new frappe.ui.Dialog({
-				title:
-					`إرفاق السويفت النهائي - ${this.operation_name}`,
+				title: dialog_title,
 
 				fields: [
 					{
@@ -94,6 +134,13 @@ class FinalSwiftDialog {
 				.final_swift_body
 				.$wrapper;
 
+		const section_title = this.is_incomplete_invoice_mode
+			? "إرفاق الفاتورة الجديدة"
+			: "السويفت النهائي";
+
+		const section_subtitle = this.is_incomplete_invoice_mode
+			? "أرفق ملف أو أكثر للفاتورة الجديدة بصيغة PDF أو صور أو Word أو Excel ليتم حفظها كمستندات مشتركة لجميع أجزاء العملية"
+			: "أرفق ملفات السويفت النهائي بصيغة PDF أو صور أو Word أو Excel";
 
 		this.$body.html(`
 			<div
@@ -107,14 +154,14 @@ class FinalSwiftDialog {
 
 						<div>
 							<h3>
-								السويفت النهائي
+								${section_title}
 								<span class="archive-required-star">
 									*
 								</span>
 							</h3>
 
 							<p>
-                                أرفق ملفات السويفت النهائي بصيغة PDF أو صور أو Word أو Excel
+                                ${section_subtitle}
                             </p>
 						</div>
 
@@ -609,12 +656,16 @@ class FinalSwiftDialog {
                 .join("");
 
 
+        const count_label = this.is_incomplete_invoice_mode
+            ? "سيصبح إجمالي المستندات المشتركة:"
+            : "سيصبح إجمالي ملفات السويفت:";
+
         $container.html(`
             <div
                 class="archive-final-swift-count"
                 style="margin-bottom: 10px;"
             >
-                سيصبح إجمالي ملفات السويفت:
+                ${count_label}
                 <strong>
                     ${this.current_count + this.files.length}
                     /
@@ -909,7 +960,9 @@ class FinalSwiftDialog {
 
             frappe.msgprint({
                 title:
-                    __("السويفت النهائي مطلوب"),
+                    this.is_incomplete_invoice_mode
+                        ? __("الفاتورة الجديدة مطلوبة")
+                        : __("السويفت النهائي مطلوب"),
 
                 message:
                     __(
@@ -938,7 +991,9 @@ class FinalSwiftDialog {
                     __("الحد الأقصى"),
 
                 message:
-                    `الحد الأقصى لملفات السويفت النهائي هو ${this.max_files} ملفات.`,
+                    this.is_incomplete_invoice_mode
+                        ? `الحد الأقصى للمستندات المشتركة للعملية هو ${this.max_files} مستندات.`
+                        : `الحد الأقصى لملفات السويفت النهائي هو ${this.max_files} ملفات.`,
 
                 indicator:
                     "orange",
@@ -1006,10 +1061,14 @@ class FinalSwiftDialog {
             // لا نرسل file_urls بعد الآن.
             // ====================================================
 
+            const api_method = this.is_incomplete_invoice_mode
+                ? "archive.api.operations.attach_incomplete_invoice"
+                : "archive.api.operations.attach_final_swift";
+
             const response =
                 await frappe.call({
                     method:
-                        "archive.api.operations.attach_final_swift",
+                        api_method,
 
                     type:
                         "POST",
@@ -1032,7 +1091,7 @@ class FinalSwiftDialog {
             // ====================================================
             // Success
             //
-            // الملفات أصبحت Final Swift مرتبطة بالعملية.
+            // الملفات أصبحت مرتبطة بالعملية.
             // لا ننظفها هنا.
             // ====================================================
 
@@ -1045,7 +1104,9 @@ class FinalSwiftDialog {
 
             frappe.show_alert({
                 message:
-                    `تم إرفاق ${uploaded.length} ملف سويفت نهائي للعملية ${this.operation_name}`,
+                    this.is_incomplete_invoice_mode
+                        ? `تم إرفاق الفاتورة الجديدة واستكمال حالة الفاتورة للعملية ${this.operation_name}`
+                        : `تم إرفاق ${uploaded.length} ملف سويفت نهائي للعملية ${this.operation_name}`,
 
                 indicator:
                     "green",
@@ -1095,14 +1156,16 @@ class FinalSwiftDialog {
 
             frappe.msgprint({
                 title:
-                    __("تعذر إرفاق السويفت النهائي"),
+                    this.is_incomplete_invoice_mode
+                        ? __("تعذر إرفاق الفاتورة الجديدة")
+                        : __("تعذر إرفاق السويفت النهائي"),
 
                 message:
                     error?.message
                     ||
-                    __(
-                        "حدث خطأ أثناء إرفاق ملفات السويفت النهائي."
-                    ),
+                    (this.is_incomplete_invoice_mode
+                        ? __("حدث خطأ أثناء إرفاق ملفات الفاتورة الجديدة.")
+                        : __("حدث خطأ أثناء إرفاق ملفات السويفت النهائي.")),
 
                 indicator:
                     "red",

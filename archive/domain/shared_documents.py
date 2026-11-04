@@ -129,6 +129,7 @@ def create_shared_operation_documents(
     *,
     operation,
     file_docs,
+    is_new_invoice: bool = False,
 ):
     """
     إنشاء المستندات المشتركة الجديدة
@@ -354,6 +355,10 @@ def create_shared_operation_documents(
 
         document.document_role = (
             DOCUMENT_ROLE_SHARED_ATTACHMENT
+        )
+
+        document.is_new_invoice = (
+            1 if is_new_invoice else 0
         )
 
         document.file = (

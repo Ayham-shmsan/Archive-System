@@ -5,7 +5,8 @@
   "engine": "InnoDB",
   "field_order": [
     "operation_no",
-    "operation_no_normalized"
+    "operation_no_normalized",
+    "is_incomplete_invoice"
   ],
   "fields": [
     {
@@ -24,6 +25,15 @@
       "read_only": 1,
       "search_index": 1,
       "unique": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "is_incomplete_invoice",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "فاتورة غير مكتملة",
+      "read_only": 1
     }
   ],
   "index_web_pages_for_search": 0,

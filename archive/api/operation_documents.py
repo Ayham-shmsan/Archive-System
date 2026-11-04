@@ -4,7 +4,7 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import cstr
+from frappe.utils import cint, cstr
 
 from archive.api.operation_timeline import (
     log_operation_event,
@@ -112,6 +112,9 @@ def _serialize_document(
 
         "document_role":
             document.document_role,
+
+        "is_new_invoice":
+            bool(cint(getattr(document, "is_new_invoice", 0))),
 
         "file":
             document.file,
@@ -781,6 +784,7 @@ def get_operation_number_context(
         [
             "name",
             "operation_no",
+            "is_incomplete_invoice",
         ],
         as_dict=True,
     )
@@ -848,6 +852,9 @@ def get_operation_number_context(
 
         "operation_no_normalized":
             normalized,
+
+        "is_incomplete_invoice":
+            bool(cint(group.get("is_incomplete_invoice"))),
 
         "parts_count":
             parts_count,
@@ -1072,6 +1079,9 @@ def lookup_operation_numbers(
             g.operation_no_normalized
                 AS operation_no_normalized,
 
+            IFNULL(g.is_incomplete_invoice, 0)
+                AS is_incomplete_invoice,
+
             COUNT(
                 DISTINCT o.name
             )
@@ -1122,6 +1132,7 @@ def lookup_operation_numbers(
             g.name,
             g.operation_no,
             g.operation_no_normalized,
+            g.is_incomplete_invoice,
             g.modified
 
         ORDER BY
@@ -1165,6 +1176,9 @@ def lookup_operation_numbers(
 
             "operation_no_normalized":
                 row.operation_no_normalized,
+
+            "is_incomplete_invoice":
+                bool(cint(row.is_incomplete_invoice)),
 
             "parts_count":
                 int(
@@ -1255,6 +1269,7 @@ def lookup_operation_numbers(
                 "operation_group",
                 "source_operation",
                 "document_role",
+                "is_new_invoice",
                 "file",
                 "file_name",
                 "file_extension",
@@ -1267,6 +1282,8 @@ def lookup_operation_numbers(
                 "creation asc",
         )
 
+        for doc_row in documents:
+            doc_row["is_new_invoice"] = bool(cint(doc_row.get("is_new_invoice")))
 
         exact = {
             "exists":
@@ -1283,6 +1300,9 @@ def lookup_operation_numbers(
 
             "operation_group":
                 exact_row.operation_group,
+
+            "is_incomplete_invoice":
+                bool(cint(exact_row.is_incomplete_invoice)),
 
             "parts_count":
                 int(

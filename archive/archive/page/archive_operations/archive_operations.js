@@ -1698,6 +1698,44 @@ class ArchiveOperationsPage {
         );
     }
 
+    open_incomplete_invoice_dialog() {
+        const operation =
+            this.get_selected_operation();
+
+        if (
+            !operation
+            ||
+            !operation.is_incomplete_invoice
+            ||
+            !operation.can_attach_incomplete_invoice
+        ) {
+            return;
+        }
+
+        frappe.require(
+            [
+                "/assets/archive/js/archive_operations/final_swift_dialog.js",
+                "/assets/archive/css/archive_operations/operation_dialog.css",
+            ],
+            () => {
+                const dialog =
+                    new archive.ui.FinalSwiftDialog(
+                        operation.name,
+                        {
+                            mode: "incomplete_invoice",
+                            on_saved:
+                                async () => {
+                                    await this
+                                        .load_operations();
+                                },
+                        }
+                    );
+
+                dialog.show();
+            }
+        );
+    }
+
     async change_operation_status(
         operation_name,
         status,
@@ -1827,6 +1865,12 @@ class ArchiveOperationsPage {
                         "0"
                     )}
 
+                    ${this.summary_card(
+                        "incomplete_invoice",
+                        "الفواتير غير المكتملة",
+                        "0"
+                    )}
+
 					${this.summary_card(
 						"unconfirmed",
 						"غير مؤكدة",
@@ -1839,6 +1883,12 @@ class ArchiveOperationsPage {
 						"0"
 					)}
 
+                    ${this.summary_card(
+                        "final_swift",
+                        "السويفت النهائي",
+                        "0"
+                    )}
+
 					${this.summary_card(
 						"returned",
 						"مرتجعة",
@@ -1850,12 +1900,6 @@ class ArchiveOperationsPage {
 						"محضورة",
 						"0"
 					)}
-
-                    ${this.summary_card(
-                        "final_swift",
-                        "السويفت النهائي",
-                        "0"
-                    )}
 
 				</div>
 
@@ -1963,6 +2007,18 @@ class ArchiveOperationsPage {
                         style="display: none;"
                     >
                         إرفاق الملف النهائي
+                    </button>
+
+                    <button
+                        type="button"
+                        class="
+                            btn
+                            btn-default
+                            archive-incomplete-invoice-button
+                        "
+                        style="display: none;"
+                    >
+                        إرفاق الفاتورة الجديدة
                     </button>
                     
 
@@ -2363,18 +2419,61 @@ class ArchiveOperationsPage {
 				? "is-active"
 				: "";
 
+		const meta = {
+			all: {
+				desc: "جميع العمليات في النظام",
+				icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 12 12 17 22 12"></polyline><polyline points="2 17 12 22 22 17"></polyline></svg>`,
+			},
+			pending: {
+				desc: "عمليات بانتظار الإجراء",
+				icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline></svg>`,
+			},
+			incomplete_invoice: {
+				desc: "عمليات تحتاج استكمال الفاتورة",
+				icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"></rect><line x1="9" y1="8" x2="15" y2="8"></line><line x1="9" y1="12" x2="15" y2="12"></line><line x1="11" y1="16" x2="15" y2="16"></line></svg>`,
+			},
+			unconfirmed: {
+				desc: "عمليات لم يتم تأكيدها من العميل",
+				icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9.75 9.5a2.25 2.25 0 1 1 3.75 1.7c-.9.6-1.5 1.1-1.5 2.05"></path><line x1="12" y1="16.5" x2="12.01" y2="16.5"></line></svg>`,
+			},
+			confirmed: {
+				desc: "عمليات مؤكدة وجاهزة من العميل",
+				icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="8.5 12.5 11 15 15.5 9.5"></polyline></svg>`,
+			},
+			final_swift: {
+				desc: "عمليات لم يتم إرفاق السويفت النهائي",
+				icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4.5"></path><path d="M14 3v5h5"></path><path d="M19 11.5V8l-5-5"></path><line x1="9" y1="12" x2="13" y2="12"></line><polyline points="14 17.5 16.2 19.5 20.5 15"></polyline></svg>`,
+			},
+			returned: {
+				desc: "عمليات تم إرجاعها ",
+				icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-4a7 7 0 0 0-7-7H4"></path></svg>`,
+			},
+			held: {
+				desc: "عمليات محظورة أو مشبوهة",
+				icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><line x1="5.7" y1="5.7" x2="18.3" y2="18.3"></line></svg>`,
+			},
+		}[status] || { desc: "", icon: "" };
+
 		return `
 			<button
 				type="button"
 				class="archive-summary-card ${active}"
 				data-status="${status}"
 			>
-				<div class="archive-summary-value">
-					${value}
+				<div class="archive-summary-icon">
+					${meta.icon}
 				</div>
 
 				<div class="archive-summary-label">
 					${label}
+				</div>
+
+				<div class="archive-summary-value">
+					${value}
+				</div>
+
+				<div class="archive-summary-desc">
+					${meta.desc}
 				</div>
 			</button>
 		`;
@@ -2648,6 +2747,17 @@ class ArchiveOperationsPage {
             return filters;
         }
 
+        if (
+            this.state.status
+            === "incomplete_invoice"
+        ) {
+            filters[
+                "is_incomplete_invoice"
+            ] = true;
+
+            return filters;
+        }
+
 
         const status =
             this.get_status_value(
@@ -2677,6 +2787,7 @@ class ArchiveOperationsPage {
             "محضورة": 0,
 
             final_swift: 0,
+            incomplete_invoice: 0,
         };
 
 
@@ -2717,6 +2828,12 @@ class ArchiveOperationsPage {
                 operation.final_swift_pending
             ) {
                 counts.final_swift += 1;
+            }
+
+            if (
+                operation.is_incomplete_invoice
+            ) {
+                counts.incomplete_invoice += 1;
             }
         }
 
@@ -3521,6 +3638,8 @@ class ArchiveOperationsPage {
                 counts["محضورة"] || 0,
             final_swift:
                 counts.final_swift || 0,
+            incomplete_invoice:
+                counts.incomplete_invoice || 0,
             pending:
                 counts["معلقة"] || 0,
         };
@@ -3773,6 +3892,39 @@ class ArchiveOperationsPage {
 
         } else {
             $final_swift_button
+                .hide()
+                .prop(
+                    "disabled",
+                    true
+                );
+        }
+
+        const can_attach_incomplete_invoice =
+            Boolean(
+                selected
+                &&
+                selected.is_incomplete_invoice
+                &&
+                selected.can_attach_incomplete_invoice
+            );
+
+        const $incomplete_invoice_button =
+            $(this.wrapper)
+                .find(
+                    ".archive-incomplete-invoice-button"
+                );
+
+        if (
+            can_attach_incomplete_invoice
+        ) {
+            $incomplete_invoice_button
+                .show()
+                .prop(
+                    "disabled",
+                    false
+                );
+        } else {
+            $incomplete_invoice_button
                 .hide()
                 .prop(
                     "disabled",
@@ -4049,6 +4201,17 @@ class ArchiveOperationsPage {
                 "click",
                 () => {
                     this.open_final_swift_dialog();
+                }
+            );
+
+        $wrapper
+            .find(
+                ".archive-incomplete-invoice-button"
+            )
+            .on(
+                "click",
+                () => {
+                    this.open_incomplete_invoice_dialog();
                 }
             );
         

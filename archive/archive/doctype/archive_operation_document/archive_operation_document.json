@@ -7,6 +7,7 @@
     "operation_group",
     "source_operation",
     "document_role",
+    "is_new_invoice",
     "file",
     "file_name",
     "file_extension",
@@ -45,6 +46,15 @@
       "read_only": 1,
       "reqd": 1,
       "search_index": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "is_new_invoice",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "فاتورة جديدة",
+      "read_only": 1
     },
     {
       "fieldname": "file",

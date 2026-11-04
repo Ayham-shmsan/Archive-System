@@ -48,6 +48,7 @@ def create_operation_group(
     *,
     operation_no=None,
     operation_no_normalized=None,
+    is_incomplete_invoice=0,
 ):
     """
     إنشاء المجموعة فقط.
@@ -74,11 +75,33 @@ def create_operation_group(
         or None
     )
 
+    group.is_incomplete_invoice = (
+        1 if cint(is_incomplete_invoice) else 0
+    )
+
     group.insert(
         ignore_permissions=True
     )
 
     return group.name
+
+
+def _sync_operation_incomplete_invoice_from_group(
+    operation,
+    group_name,
+):
+    if not group_name:
+        return
+    group_incomplete = cint(
+        frappe.db.get_value(
+            "Archive Operation Group",
+            group_name,
+            "is_incomplete_invoice",
+        )
+    )
+    operation.is_incomplete_invoice = (
+        1 if group_incomplete else 0
+    )
 
 
 def ensure_numbered_operation_group(
@@ -112,6 +135,10 @@ def ensure_numbered_operation_group(
             current_normalized
             == normalized
         ):
+            _sync_operation_incomplete_invoice_from_group(
+                operation,
+                current_group,
+            )
             return current_group
 
     # --------------------------------------------------------
@@ -128,6 +155,10 @@ def ensure_numbered_operation_group(
         operation.operation_group = (
             group_name
         )
+        _sync_operation_incomplete_invoice_from_group(
+            operation,
+            group_name,
+        )
 
         return group_name
 
@@ -140,6 +171,12 @@ def ensure_numbered_operation_group(
     # لذلك نعالج كذلك حالة طلبين متزامنين.
     # --------------------------------------------------------
 
+    is_incomplete = (
+        0
+        if cint(getattr(operation, "allow_duplicate_operation_no", 0))
+        else (1 if cint(getattr(operation, "is_incomplete_invoice", 0)) else 0)
+    )
+
     try:
         group_name = (
             create_operation_group(
@@ -148,6 +185,9 @@ def ensure_numbered_operation_group(
 
                 operation_no_normalized=
                     normalized,
+
+                is_incomplete_invoice=
+                    is_incomplete,
             )
         )
 
@@ -163,6 +203,10 @@ def ensure_numbered_operation_group(
 
     operation.operation_group = (
         group_name
+    )
+    _sync_operation_incomplete_invoice_from_group(
+        operation,
+        group_name,
     )
 
     return group_name
@@ -190,14 +234,29 @@ def ensure_blocked_operation_group(
             current_group,
         )
     ):
+        _sync_operation_incomplete_invoice_from_group(
+            operation,
+            current_group,
+        )
         return current_group
 
+    is_incomplete = (
+        0
+        if cint(getattr(operation, "allow_duplicate_operation_no", 0))
+        else (1 if cint(getattr(operation, "is_incomplete_invoice", 0)) else 0)
+    )
+
     group_name = (
-        create_operation_group()
+        create_operation_group(
+            is_incomplete_invoice=is_incomplete,
+        )
     )
 
     operation.operation_group = (
         group_name
+    )
+    operation.is_incomplete_invoice = (
+        is_incomplete
     )
 
     return group_name

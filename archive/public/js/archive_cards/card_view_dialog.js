@@ -531,7 +531,7 @@
 											${
 												p.can_view_transfer_timeline
 													? `<button type="button" class="ac-menu-item" data-action="open-transfer-timeline">
-														<i class="fa fa-road"></i> مسار البطاقة
+														<i class="fa fa-road"></i> مسار نقل البطاقة 
 													</button>`
 													: ""
 											}

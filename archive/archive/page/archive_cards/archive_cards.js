@@ -221,7 +221,7 @@ class ArchiveCardsPage {
 							</button>
 							<div class="archive-cards-popover-menu" data-role="timeline-events-menu" hidden>
 								<button type="button" class="ac-menu-item" data-action="open-transfer-timeline">
-									<i class="fa fa-road"></i> مسار البطاقة
+									<i class="fa fa-road"></i> مسار نقل البطاقة
 								</button>
 								<button type="button" class="ac-menu-item" data-action="open-card-event-history">
 									<i class="fa fa-list-alt"></i> أحداث البطاقة
@@ -341,7 +341,23 @@ class ArchiveCardsPage {
 				subtitle: "إجمالي البطاقات",
 				count: s.total || 0,
 				tone: "slate",
-				icon: "fa-credit-card",
+				svg: `
+					<svg width="26" height="26" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+						<defs>
+							<linearGradient id="ac-layers-top" x1="4" y1="5" x2="24" y2="14" gradientUnits="userSpaceOnUse">
+								<stop offset="0%" stop-color="#60A5FA"/>
+								<stop offset="100%" stop-color="#1D6FF2"/>
+							</linearGradient>
+							<linearGradient id="ac-layers-mid" x1="4" y1="12" x2="24" y2="19" gradientUnits="userSpaceOnUse">
+								<stop offset="0%" stop-color="#3B82F6"/>
+								<stop offset="100%" stop-color="#155EEF"/>
+							</linearGradient>
+						</defs>
+						<path d="M14 4.5L24.5 9.8L14 15.1L3.5 9.8L14 4.5Z" fill="url(#ac-layers-top)"/>
+						<path d="M4.2 13.7L14 18.7L23.8 13.7" stroke="url(#ac-layers-mid)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+						<path d="M4.2 17.8L14 22.8L23.8 17.8" stroke="#0B5ED7" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+					</svg>
+				`,
 			},
 			{
 				status: "نشطة",
@@ -349,7 +365,21 @@ class ArchiveCardsPage {
 				subtitle: "بطاقات عاملة",
 				count: s.active || 0,
 				tone: "emerald",
-				icon: "fa-check-circle",
+				svg: `
+					<svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+						<defs>
+							<linearGradient id="ac-card-green" x1="3" y1="5" x2="22" y2="20" gradientUnits="userSpaceOnUse">
+								<stop offset="0%" stop-color="#22C55E"/>
+								<stop offset="100%" stop-color="#0D9448"/>
+							</linearGradient>
+						</defs>
+						<rect x="2.5" y="5.5" width="19" height="13.5" rx="2.8" fill="url(#ac-card-green)"/>
+						<rect x="4.5" y="8.2" width="15" height="2.3" rx="1" fill="#D1FAE5"/>
+						<circle cx="6.8" cy="14.5" r="1.3" fill="#ECFDF5"/>
+						<circle cx="20.5" cy="18.5" r="5.5" fill="#16A34A" stroke="#FFFFFF" stroke-width="1.5"/>
+						<path d="M18.2 18.6L19.8 20.2L22.9 17.1" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+					</svg>
+				`,
 			},
 			{
 				status: "موقفة مؤقتاً",
@@ -357,7 +387,19 @@ class ArchiveCardsPage {
 				subtitle: "إيقاف تشغيلي مؤقت",
 				count: s.paused || 0,
 				tone: "amber",
-				icon: "fa-pause-circle",
+				svg: `
+					<svg width="26" height="26" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+						<defs>
+							<linearGradient id="ac-pause-amber" x1="4" y1="4" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+								<stop offset="0%" stop-color="#FBBF24"/>
+								<stop offset="100%" stop-color="#D97706"/>
+							</linearGradient>
+						</defs>
+						<circle cx="14" cy="14" r="10.5" fill="url(#ac-pause-amber)" stroke="#FFFFFF" stroke-width="1.4"/>
+						<rect x="10.6" y="9.5" width="2.3" height="9" rx="1.15" fill="#FFFFFF"/>
+						<rect x="15.1" y="9.5" width="2.3" height="9" rx="1.15" fill="#FFFFFF"/>
+					</svg>
+				`,
 			},
 			{
 				status: "موقفة نهائياً",
@@ -365,7 +407,20 @@ class ArchiveCardsPage {
 				subtitle: "بطاقات ملغاة / متوقفة",
 				count: s.stopped || 0,
 				tone: "rose",
-				icon: "fa-ban",
+				svg: `
+					<svg width="26" height="26" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+						<defs>
+							<linearGradient id="ac-trash-red" x1="6" y1="6" x2="22" y2="24" gradientUnits="userSpaceOnUse">
+								<stop offset="0%" stop-color="#F87171"/>
+								<stop offset="100%" stop-color="#DC2626"/>
+							</linearGradient>
+						</defs>
+						<path d="M11 5.5C11 4.95 11.45 4.5 12 4.5H16C16.55 4.5 17 4.95 17 5.5V6.8H11V5.5Z" fill="#EF4444"/>
+						<rect x="6.5" y="6.5" width="15" height="2.4" rx="1.2" fill="#EF4444" stroke="#FFFFFF" stroke-width="0.6"/>
+						<path d="M8.2 9.5H19.8L18.9 21.3C18.8 22.4 17.9 23.2 16.8 23.2H11.2C10.1 23.2 9.2 22.4 9.1 21.3L8.2 9.5Z" fill="url(#ac-trash-red)" stroke="#FFFFFF" stroke-width="1"/>
+						<path d="M11.6 13.7L16.4 18.5M16.4 13.7L11.6 18.5" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+					</svg>
+				`,
 			},
 		];
 
@@ -381,7 +436,7 @@ class ArchiveCardsPage {
 						data-status="${frappe.utils.escape_html(item.status)}"
 					>
 						<div class="ac-stat-indicator-wrap">
-							<span class="ac-stat-icon"><i class="fa ${item.icon}"></i></span>
+							<span class="ac-stat-icon">${item.svg}</span>
 							<div class="ac-stat-labels">
 								<span class="ac-stat-title">${frappe.utils.escape_html(item.title)}</span>
 								<span class="ac-stat-sub">${frappe.utils.escape_html(item.subtitle)}</span>

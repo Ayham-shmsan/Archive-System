@@ -106,6 +106,8 @@ archive.ui.OperationDialog = class OperationDialog {
 		this.render_operation_context();
 
 		this.render_shared_documents();
+
+		this.sync_incomplete_invoice_control_state();
 	}
 
 	apply_operation_number_lookup(
@@ -152,6 +154,18 @@ archive.ui.OperationDialog = class OperationDialog {
 		// ========================================================
 
 		if (!commit_exact) {
+			if (
+				result.exact
+				&& Boolean(
+					Number(
+						this.controls.allow_duplicate_operation_no?.get_value()
+						|| 0
+					)
+				)
+			) {
+				this.operation_group_context = result.exact;
+				this.sync_incomplete_invoice_control_state();
+			}
 
 			this.render_operation_number_suggestions();
 
@@ -201,6 +215,8 @@ archive.ui.OperationDialog = class OperationDialog {
 
 			this.render_operation_number_suggestions();
 
+			this.sync_incomplete_invoice_control_state();
+
 			return;
 		}
 
@@ -248,6 +264,8 @@ archive.ui.OperationDialog = class OperationDialog {
 		this.render_shared_documents();
 
 		this.render_operation_number_suggestions();
+
+		this.sync_incomplete_invoice_control_state();
 	}
 
 
@@ -775,6 +793,12 @@ archive.ui.OperationDialog = class OperationDialog {
 
 								<div class="archive-attachment-actions">
 
+									${document.is_new_invoice ? `
+										<span class="archive-existing-badge archive-new-invoice-badge">
+											فاتورة جديدة
+										</span>
+									` : ""}
+
 									<span class="archive-existing-badge">
 										✓ محفوظ
 									</span>
@@ -1156,6 +1180,8 @@ archive.ui.OperationDialog = class OperationDialog {
 		operation_no.refresh();
 
 		allow_duplicate.refresh();
+
+		this.sync_incomplete_invoice_control_state();
 		/*
 		* نعيد تطبيق منطق سعر العميل بعد تغيير
 		* وضع العملية.
@@ -1194,12 +1220,49 @@ archive.ui.OperationDialog = class OperationDialog {
 
 
 
+	sync_incomplete_invoice_control_state() {
+		const incomplete_control =
+			this.controls.is_incomplete_invoice;
+		if (!incomplete_control) {
+			return;
+		}
+
+		const allow_duplicate =
+			this.controls.allow_duplicate_operation_no;
+		const is_duplicate = Boolean(
+			Number(allow_duplicate?.get_value() || 0)
+		);
+		const has_existing_group = Boolean(
+			this.operation_group_context?.exists
+		);
+		const should_lock = is_duplicate || has_existing_group;
+
+		if (should_lock) {
+			const inherited_val = has_existing_group
+				? (this.operation_group_context.is_incomplete_invoice ? 1 : 0)
+				: 0;
+			incomplete_control.df.read_only = 1;
+			if (Number(incomplete_control.get_value() || 0) !== inherited_val) {
+				incomplete_control.set_value(inherited_val);
+			}
+			incomplete_control.refresh();
+			incomplete_control.$input?.prop("disabled", true);
+		} else {
+			incomplete_control.df.read_only = 0;
+			incomplete_control.refresh();
+			incomplete_control.$input?.prop("disabled", false);
+		}
+	}
+
 	bind_operation_number_mode() {
 
 		const blocked =
 			this.controls
 				.is_blocked_operation;
 
+		const allow_duplicate =
+			this.controls
+				.allow_duplicate_operation_no;
 
 		if (!blocked) {
 			return;
@@ -1217,6 +1280,23 @@ archive.ui.OperationDialog = class OperationDialog {
 					this.update_operation_number_mode();
 				}
 			);
+
+		if (allow_duplicate?.$input) {
+			allow_duplicate.$input
+				.off(".archiveDuplicateInvoiceMode")
+				.on("change.archiveDuplicateInvoiceMode", () => {
+					const is_dup = Boolean(
+						Number(allow_duplicate.get_value() || 0)
+					);
+					const typed_no = this.get_operation_number_input_value();
+					if (is_dup && typed_no && !this.operation_group_context?.exists) {
+						this.fetch_operation_number_lookup(typed_no, {
+							commit_exact: true,
+						});
+					}
+					this.sync_incomplete_invoice_control_state();
+				});
+		}
 
 
 		this.update_operation_number_mode();
@@ -1808,6 +1888,23 @@ archive.ui.OperationDialog = class OperationDialog {
 
 					description:
 						"عند التفعيل تُنشأ العملية مباشرة بالحالة محضورة بدون رقم عملية.",
+				},
+
+				{
+					fieldname:
+						"is_incomplete_invoice",
+
+					label:
+						"فاتورة غير مكتملة",
+
+					fieldtype:
+						"Check",
+
+					default:
+						0,
+
+					description:
+						"فعّل هذا الخيار إذا كانت الفاتورة المشتركة للعملية غير مكتملة وسيتم إرفاقها لاحقاً.",
 				},
 			]
 		);

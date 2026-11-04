@@ -532,7 +532,7 @@ class ArchivePendingOperationsPage {
 
                     ${this.summary_card(
                         "all",
-                        "كل العمليات",
+                        "كل المعلقات",
                         "0"
                     )}
 
@@ -962,6 +962,29 @@ class ArchivePendingOperationsPage {
                 ? "is-active"
                 : "";
 
+        const meta = {
+            all: {
+                desc: "جميع المعلقات في النظام",
+                icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 12 12 17 22 12"></polyline><polyline points="2 17 12 22 22 17"></polyline></svg>`,
+            },
+            under_action: {
+                desc: "معلقات قيد المعالجة",
+                icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline></svg>`,
+            },
+            partial: {
+                desc: "معلقات تحتاج استكمال البيانات",
+                icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="11" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>`,
+            },
+            complete: {
+                desc: "معلقات مكتملة وجاهزة",
+                icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="8.5 12.5 11 15 15.5 9.5"></polyline></svg>`,
+            },
+            failed: {
+                desc: "معلقات تعذر تنفيذها",
+                icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="12.5"></line><circle cx="12" cy="16" r="0.6" fill="currentColor"></circle></svg>`,
+            },
+        }[status] || { desc: "", icon: "" };
+
         return `
             <button
                 type="button"
@@ -978,13 +1001,9 @@ class ArchivePendingOperationsPage {
                         : "false"
                 }"
             >
-                <span
-                    class="archive-pending-summary-value"
-                >
-                    ${frappe.utils.escape_html(
-                        String(value)
-                    )}
-                </span>
+                <div class="archive-pending-summary-icon">
+                    ${meta.icon}
+                </div>
 
                 <span
                     class="archive-pending-summary-label"
@@ -993,6 +1012,18 @@ class ArchivePendingOperationsPage {
                         label
                     )}
                 </span>
+
+                <span
+                    class="archive-pending-summary-value"
+                >
+                    ${frappe.utils.escape_html(
+                        String(value)
+                    )}
+                </span>
+
+                <div class="archive-pending-summary-desc">
+                    ${meta.desc}
+                </div>
             </button>
         `;
     }

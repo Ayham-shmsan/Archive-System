@@ -13,6 +13,9 @@ from archive.services.card_permissions import (
 	ROLE_CARD_READER,
 	ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD,
 )
+from archive.services.operation_permissions import (
+	ROLE_ATTACH_INCOMPLETE_INVOICE,
+)
 
 ROLE_MATRIX: dict[str, dict[str, int]] = {
 	"System Manager": {
@@ -146,6 +149,7 @@ def _ensure_roles() -> None:
 		ROLE_CARD_IMAGE_PREVIEW,
 		ROLE_CARD_EVENT_HISTORY,
 		ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD,
+		ROLE_ATTACH_INCOMPLETE_INVOICE,
 	):
 		if not frappe.db.exists("Role", role_name):
 			role_doc = frappe.get_doc(
