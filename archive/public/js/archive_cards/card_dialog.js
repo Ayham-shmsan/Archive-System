@@ -80,6 +80,8 @@
 			this._dup_info_cache = new Map();
 			this._dup_check_timer = null;
 			this._dup_check_seq = 0;
+			this._locked_account_limit_norm = null;
+			this._manual_daily_limit_draft = "";
 			this.family_autocomplete = null;
 			this.pin_visible = false;
 		}
@@ -567,6 +569,70 @@
 			}
 		}
 
+		sync_daily_limit_lock(info, raw_acc) {
+			const ctrl = this.controls.daily_limit;
+			const $inp = ctrl?.$input;
+			if (!$inp || !$inp.length) return;
+
+			if (
+				info &&
+				info.account_exists &&
+				!info.has_limit_conflict &&
+				Number(info.shared_daily_limit) > 0
+			) {
+				if (!this._locked_account_limit_norm) {
+					this._manual_daily_limit_draft = String($inp.val() || "");
+				}
+				this._locked_account_limit_norm =
+					ArchiveCardFamilyAutocomplete.normalize_account(raw_acc);
+				const formatted = ArchiveCardDailyLimitInput.format_with_caret(
+					String(info.shared_daily_limit),
+					0
+				).text;
+				ctrl.value = formatted;
+				$inp.val(formatted);
+				$inp
+					.prop("readonly", true)
+					.attr("aria-readonly", "true")
+					.addClass("is-readonly-shared-limit")
+					.css({ backgroundColor: "#f8fafc", cursor: "not-allowed" });
+			} else if (this._locked_account_limit_norm) {
+				this._locked_account_limit_norm = null;
+				$inp
+					.prop("readonly", false)
+					.removeAttr("aria-readonly")
+					.removeClass("is-readonly-shared-limit")
+					.css({ backgroundColor: "", cursor: "" });
+				const restored = this._manual_daily_limit_draft || "";
+				ctrl.value = restored;
+				$inp.val(restored);
+			}
+		}
+
+		render_limit_conflict_banner(info) {
+			if (!this.dialog || !info || !info.has_limit_conflict) return;
+			const $banner = $(this.dialog.body).find('[data-role="duplicate-banner"]');
+			const limits_txt = (info.conflict_limits || [])
+				.map(
+					(v) =>
+						ArchiveCardDailyLimitInput.format_with_caret(String(v), 0).text || String(v)
+				)
+				.join(" / ");
+			$banner.prop("hidden", false).html(`
+				<div class="acd-dup-banner-inner">
+					<i class="fa fa-exclamation-triangle"></i>
+					<div>
+						<strong>تعارض في الحد اليومي للحساب:</strong>
+						توجد بطاقات حالية مرتبطة برقم الحساب <code>${frappe.utils.escape_html(
+							info.account_number || ""
+						)}</code> بحدود يومية مختلفة (${frappe.utils.escape_html(
+				limits_txt
+			)}). يرجى توحيد الحد اليومي للحساب أولاً عبر تعديل إحدى نسخه.
+					</div>
+				</div>
+			`);
+		}
+
 		reset_duplicate_ui() {
 			this.duplicate_family_info = null;
 			if (!this.dialog) return;
@@ -578,11 +644,23 @@
 
 		apply_duplicate_ui(info) {
 			this.duplicate_family_info = info;
+			const cur_acc = String(
+				info?.account_number || this.controls.account_number?.get_value() || ""
+			).trim();
+			this.sync_daily_limit_lock(info, cur_acc);
+
 			if (!this.dialog) return;
 			const $body = $(this.dialog.body);
 			const $banner = $body.find('[data-role="duplicate-banner"]');
 			const $badge = $body.find('[data-role="copy-badge"]');
 			const $hint = $body.find('[data-role="derived-name-hint"]');
+
+			if (info && info.has_limit_conflict) {
+				this.reset_duplicate_ui();
+				this.duplicate_family_info = info;
+				this.render_limit_conflict_banner(info);
+				return;
+			}
 
 			if (info && info.family_exists) {
 				$badge
@@ -625,9 +703,31 @@
 			const clean_acc = String(this.controls.account_number?.get_value() || "").trim();
 			const clean_base = String(this.controls.base_card_name?.get_value() || "").trim();
 			const clean_bank = String(this.controls.bank?.get_value() || "").trim();
-			if (!clean_acc || !clean_base || !clean_bank) {
+
+			if (!clean_acc) {
+				this._dup_check_seq += 1;
+				this.sync_daily_limit_lock(null, "");
+				this.reset_duplicate_ui();
+				return;
+			}
+
+			const local_limit_info = this.family_autocomplete?.loaded
+				? this.family_autocomplete.get_account_limit_info(clean_acc)
+				: null;
+			if (this.family_autocomplete?.loaded) {
+				this.sync_daily_limit_lock(local_limit_info, clean_acc);
+			}
+
+			if (!clean_base || !clean_bank) {
 				this._dup_check_seq += 1;
 				this.reset_duplicate_ui();
+				if (local_limit_info?.has_limit_conflict) {
+					this.render_limit_conflict_banner(local_limit_info);
+				} else if (!this.family_autocomplete?.loaded) {
+					this._dup_check_timer = setTimeout(() => {
+						this.check_account_family();
+					}, 250);
+				}
 				return;
 			}
 
@@ -636,7 +736,7 @@
 				clean_acc,
 				clean_bank
 			);
-			if (this.family_autocomplete?.loaded && !local_match) {
+			if (this.family_autocomplete?.loaded && !local_match && !local_limit_info) {
 				this._dup_check_seq += 1;
 				this.reset_duplicate_ui();
 				return;
@@ -656,16 +756,16 @@
 			const acc = String(this.controls.account_number?.get_value() || "").trim();
 			const base_name = String(this.controls.base_card_name?.get_value() || "").trim();
 			const bank = String(this.controls.bank?.get_value() || "").trim();
-			if (!acc || !base_name || !bank) {
+			if (!acc) {
+				this.sync_daily_limit_lock(null, "");
 				this.reset_duplicate_ui();
 				return null;
 			}
 
-			const triplet_key = ArchiveCardFamilyAutocomplete.make_triplet_key(
-				base_name,
-				acc,
-				bank
-			);
+			const triplet_key =
+				base_name && bank
+					? ArchiveCardFamilyAutocomplete.make_triplet_key(base_name, acc, bank)
+					: "";
 			if (!opts.force_remote && triplet_key && this._dup_info_cache.has(triplet_key)) {
 				const cached = this._dup_info_cache.get(triplet_key);
 				this.apply_duplicate_ui(cached);
@@ -673,6 +773,7 @@
 			}
 
 			const seq = ++this._dup_check_seq;
+			const req_norm_acc = ArchiveCardFamilyAutocomplete.normalize_account(acc);
 			try {
 				const res = await frappe.call({
 					method: "archive.api.cards.check_duplicate_account",
@@ -686,13 +787,22 @@
 				if (triplet_key && info) {
 					this._dup_info_cache.set(triplet_key, info);
 				}
-				const latest_key = ArchiveCardFamilyAutocomplete.make_triplet_key(
-					this.controls.base_card_name?.get_value() || "",
-					this.controls.account_number?.get_value() || "",
-					this.controls.bank?.get_value() || ""
-				);
-				if (seq === this._dup_check_seq && latest_key === triplet_key) {
-					this.apply_duplicate_ui(info);
+				const cur_acc = String(this.controls.account_number?.get_value() || "").trim();
+				const cur_norm = ArchiveCardFamilyAutocomplete.normalize_account(cur_acc);
+				if (seq === this._dup_check_seq && cur_norm === req_norm_acc) {
+					const latest_key = ArchiveCardFamilyAutocomplete.make_triplet_key(
+						this.controls.base_card_name?.get_value() || "",
+						cur_acc,
+						this.controls.bank?.get_value() || ""
+					);
+					if (triplet_key && latest_key === triplet_key) {
+						this.apply_duplicate_ui(info);
+					} else {
+						this.sync_daily_limit_lock(info, cur_acc);
+						if (info?.has_limit_conflict) {
+							this.render_limit_conflict_banner(info);
+						}
+					}
 				}
 				return info;
 			} catch (_) {
@@ -805,6 +915,34 @@
 
 			try {
 				const dup_info = await this.check_account_family({ force_remote: true });
+				if (dup_info && dup_info.has_limit_conflict) {
+					this.is_submitting = false;
+					this.dialog.get_primary_btn().prop("disabled", false);
+					const limits_txt = (dup_info.conflict_limits || [])
+						.map(
+							(v) =>
+								ArchiveCardDailyLimitInput.format_with_caret(String(v), 0).text ||
+								String(v)
+						)
+						.join(" / ");
+					frappe.msgprint({
+						title: "تعارض في الحد اليومي للحساب",
+						message: `يوجد تعارض مسبق في الحد اليومي بين نسخ الحساب (<strong>${frappe.utils.escape_html(
+							payload.account_number
+						)}</strong>): [${frappe.utils.escape_html(
+							limits_txt
+						)}]. يرجى توحيد الحد اليومي للحساب أولاً قبل إنشاء نسخة جديدة.`,
+						indicator: "red",
+					});
+					return;
+				}
+				if (
+					dup_info &&
+					dup_info.account_exists &&
+					Number(dup_info.shared_daily_limit) > 0
+				) {
+					payload.daily_limit = Number(dup_info.shared_daily_limit).toFixed(2);
+				}
 				if (dup_info && dup_info.family_exists) {
 					const norm_cnum = ArchiveCardFamilyAutocomplete.normalize_account(
 						payload.card_number
@@ -1376,6 +1514,21 @@
 
 		find_by_account(raw_acc) {
 			return this.find_unique_by_account(raw_acc);
+		}
+
+		get_account_limit_info(raw_acc) {
+			const norm = ArchiveCardFamilyAutocomplete.normalize_account(raw_acc);
+			if (!norm) return null;
+			const list = this.by_norm_account_list.get(norm) || [];
+			const match = list.find((f) => f.account_exists) || list[0];
+			if (!match || !match.account_exists) return null;
+			return {
+				account_number: match.account_number || raw_acc,
+				account_exists: true,
+				shared_daily_limit: match.shared_daily_limit,
+				has_limit_conflict: Boolean(match.has_limit_conflict),
+				conflict_limits: match.conflict_limits || [],
+			};
 		}
 
 		notify_triplet_changed(meta = {}) {

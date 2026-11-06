@@ -3,6 +3,7 @@ from __future__ import annotations
 import frappe
 from frappe.permissions import reset_perms as frappe_reset_perms, setup_custom_perms
 
+from archive.api.deposits import ROLE_DEPOSITS_SCREEN_ACCESS
 from archive.services.card_permissions import (
 	CARD_DOCTYPE,
 	CARD_PERMISSION_TYPES,
@@ -150,6 +151,7 @@ def _ensure_roles() -> None:
 		ROLE_CARD_EVENT_HISTORY,
 		ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD,
 		ROLE_ATTACH_INCOMPLETE_INVOICE,
+		ROLE_DEPOSITS_SCREEN_ACCESS,
 	):
 		if not frappe.db.exists("Role", role_name):
 			role_doc = frappe.get_doc(
@@ -161,6 +163,15 @@ def _ensure_roles() -> None:
 				}
 			)
 			role_doc.insert(ignore_permissions=True)
+			if role_name == ROLE_DEPOSITS_SCREEN_ACCESS:
+				frappe.db.delete(
+					"Has Role",
+					{
+						"parent": "Administrator",
+						"parenttype": "User",
+						"role": ROLE_DEPOSITS_SCREEN_ACCESS,
+					},
+				)
 		else:
 			frappe.db.set_value("Role", role_name, "desk_access", 1, update_modified=False)
 	frappe.cache.delete_key("roles")

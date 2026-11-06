@@ -199,11 +199,15 @@ app_include_js = [
 # -----------
 # Permissions evaluated in scripted ways
 
+extend_bootinfo = "archive.api.deposits.extend_deposits_bootinfo"
+
 permission_query_conditions = {
     "Archive Pending Operation":
         "archive.services.pending_operation_permissions.get_permission_query_conditions",
     "Archive Card":
         "archive.services.card_permissions.get_permission_query_conditions",
+    "Archive Card Deposit":
+        "archive.api.deposits.get_deposit_permission_query_conditions",
 }
 
 has_permission = {
@@ -219,6 +223,8 @@ has_permission = {
         "archive.services.card_permissions.has_log_permission",
     "Archive Card Event":
         "archive.services.card_permissions.has_card_event_permission",
+    "Archive Card Deposit":
+        "archive.api.deposits.has_deposit_permission",
     "File":
         "archive.services.card_security.has_file_permission",
 }
@@ -226,13 +232,11 @@ has_permission = {
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+    "User": {
+        "validate": "archive.api.deposits.validate_user_deposit_day_limits",
+    },
+}
 
 # Scheduled Tasks
 # ---------------
@@ -298,7 +302,7 @@ extend_doctype_class = {
 
 # Request Events
 # ----------------
-# before_request = ["archive.utils.before_request"]
+before_request = ["archive.api.deposits.enforce_deposits_request_guard"]
 # after_request = ["archive.utils.after_request"]
 
 # Job Events

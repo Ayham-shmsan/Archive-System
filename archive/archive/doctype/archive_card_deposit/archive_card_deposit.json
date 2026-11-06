@@ -1,0 +1,285 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "hash",
+  "creation": "2026-11-06 21:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "deposit_section",
+    "card",
+    "deposit_date",
+    "deposit_amount",
+    "column_break_deposit_1",
+    "daily_limit_snapshot",
+    "previous_amount",
+    "snapshot_section",
+    "card_name_snapshot",
+    "base_card_name_snapshot",
+    "copy_no_snapshot",
+    "card_number_snapshot",
+    "account_number_snapshot",
+    "column_break_snapshot_1",
+    "bank_snapshot",
+    "bank_name_snapshot",
+    "representative_snapshot",
+    "representative_name_snapshot",
+    "region_snapshot",
+    "region_name_snapshot",
+    "audit_section",
+    "recorded_by",
+    "recorded_at",
+    "column_break_audit_1",
+    "last_modified_by",
+    "last_modified_at",
+    "audit_history_section",
+    "audit_history_json"
+  ],
+  "fields": [
+    {
+      "fieldname": "deposit_section",
+      "fieldtype": "Section Break",
+      "label": "بيانات الإيداع اليومي"
+    },
+    {
+      "fieldname": "card",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "البطاقة",
+      "options": "Archive Card",
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "deposit_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "تاريخ الإيداع",
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "deposit_amount",
+      "fieldtype": "Float",
+      "in_list_view": 1,
+      "label": "مبلغ الإيداع",
+      "non_negative": 1,
+      "precision": "2",
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_deposit_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "0",
+      "fieldname": "daily_limit_snapshot",
+      "fieldtype": "Float",
+      "in_list_view": 1,
+      "label": "الحد اليومي وقت التسجيل",
+      "precision": "2",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "previous_amount",
+      "fieldtype": "Float",
+      "label": "المبلغ السابق",
+      "precision": "2",
+      "read_only": 1
+    },
+    {
+      "fieldname": "snapshot_section",
+      "fieldtype": "Section Break",
+      "label": "البيانات المرجعية وقت التسجيل"
+    },
+    {
+      "fieldname": "card_name_snapshot",
+      "fieldtype": "Data",
+      "label": "اسم البطاقة وقت التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "base_card_name_snapshot",
+      "fieldtype": "Data",
+      "label": "الاسم الأساسي للبطاقة وقت التسجيل",
+      "read_only": 1
+    },
+    {
+      "default": "1",
+      "fieldname": "copy_no_snapshot",
+      "fieldtype": "Int",
+      "label": "رقم النسخة وقت التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "card_number_snapshot",
+      "fieldtype": "Data",
+      "label": "رقم البطاقة وقت التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "account_number_snapshot",
+      "fieldtype": "Data",
+      "label": "رقم الحساب وقت التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_snapshot_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "bank_snapshot",
+      "fieldtype": "Link",
+      "label": "البنك وقت التسجيل",
+      "options": "Archive Bank",
+      "read_only": 1
+    },
+    {
+      "fieldname": "bank_name_snapshot",
+      "fieldtype": "Data",
+      "label": "اسم البنك وقت التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "representative_snapshot",
+      "fieldtype": "Link",
+      "label": "المندوب وقت التسجيل",
+      "options": "Archive Representative",
+      "read_only": 1
+    },
+    {
+      "fieldname": "representative_name_snapshot",
+      "fieldtype": "Data",
+      "label": "اسم المندوب وقت التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "region_snapshot",
+      "fieldtype": "Link",
+      "label": "المنطقة وقت التسجيل",
+      "options": "Archive Region",
+      "read_only": 1
+    },
+    {
+      "fieldname": "region_name_snapshot",
+      "fieldtype": "Data",
+      "label": "اسم المنطقة وقت التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "audit_section",
+      "fieldtype": "Section Break",
+      "label": "سجل التسجيل والتعديل"
+    },
+    {
+      "fieldname": "recorded_by",
+      "fieldtype": "Link",
+      "label": "تم التسجيل بواسطة",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "recorded_at",
+      "fieldtype": "Datetime",
+      "label": "وقت التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_audit_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "last_modified_by",
+      "fieldtype": "Link",
+      "label": "آخر تعديل بواسطة",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_modified_at",
+      "fieldtype": "Datetime",
+      "label": "وقت آخر تعديل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "audit_history_section",
+      "fieldtype": "Section Break",
+      "hidden": 1,
+      "label": "سجل التعديلات"
+    },
+    {
+      "fieldname": "audit_history_json",
+      "fieldtype": "Long Text",
+      "hidden": 1,
+      "label": "سجل التعديلات JSON",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-11-06 21:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Card Deposit",
+  "naming_rule": "Random",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 0,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 0,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "مدير البطاقات",
+      "share": 0,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 1,
+      "role": "موظف البطاقات",
+      "share": 0,
+      "write": 1
+    },
+    {
+      "create": 0,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 1,
+      "role": "قارئ البطاقات",
+      "share": 0,
+      "write": 0
+    }
+  ],
+  "row_format": "Dynamic",
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
+}

@@ -74,6 +74,22 @@
    "child": 1,
    "collapsible": 0,
    "hidden": 0,
+   "icon": "dollar-sign",
+   "indent": 0,
+   "is_default_module": 0,
+   "keep_closed": 0,
+   "label": "\u0627\u0644\u0625\u064a\u062f\u0627\u0639\u0627\u062a",
+   "link_to": "archive-deposits",
+   "link_type": "Page",
+   "open_in_new_tab": 0,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "added": 0,
+   "child": 1,
+   "collapsible": 0,
+   "hidden": 0,
    "icon": "scan",
    "indent": 0,
    "is_default_module": 0,
@@ -212,7 +228,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-11-01 04:05:00.000000",
+ "modified": "2026-11-06 21:25:00.000000",
  "modified_by": "Administrator",
  "module": "Archive",
  "name": "\u0623\u0631\u0634\u0641\u0629 \u0648\u062a\u0633\u0647\u064a\u0644",

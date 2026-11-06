@@ -10,10 +10,14 @@ from frappe.utils import cint, cstr, flt, getdate, now_datetime
 
 from archive.api.card_family import (
 	FAMILY_DOCTYPE,
+	_execute_change_card_account_number,
 	acquire_or_create_family_for_new_card,
 	change_card_account_number,
+	get_account_shared_daily_limit_state,
 	inspect_account_family,
 	rename_card_family_base_name,
+	sync_account_daily_limit,
+	validate_account_daily_limit_against_today_deposits,
 )
 from archive.api.card_search import (
 	clean_account_number_display,
@@ -697,6 +701,26 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 		as_dict=True,
 	)
 
+	limit_rows = frappe.db.sql(
+		"""
+		SELECT account_number_normalized, daily_limit
+		FROM `tabArchive Card`
+		WHERE IFNULL(is_deleted, 0) = 0
+		  AND IFNULL(account_number_normalized, '') != ''
+		""",
+		as_dict=True,
+	)
+	limits_by_norm: dict[str, set[float]] = {}
+	cards_exist_by_norm: set[str] = set()
+	for lr in limit_rows:
+		n_acc = cstr(lr.get("account_number_normalized") or "").strip()
+		if not n_acc:
+			continue
+		cards_exist_by_norm.add(n_acc)
+		l_val = flt(lr.get("daily_limit"), 2)
+		if l_val > 0:
+			limits_by_norm.setdefault(n_acc, set()).add(l_val)
+
 	families: list[dict[str, Any]] = []
 	for r in rows:
 		base_name = clean_base_card_name(r.base_card_name)
@@ -706,6 +730,9 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 		bank_label = cstr(r.bank_name or bank_id).strip()
 		if not base_name or not acc_num or not norm_acc or not bank_id:
 			continue
+		distinct_limits = sorted(limits_by_norm.get(norm_acc, set()))
+		has_conflict = len(distinct_limits) > 1
+		shared_limit = distinct_limits[0] if len(distinct_limits) == 1 else None
 		families.append(
 			{
 				"family_name": r.name,
@@ -716,6 +743,10 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 				"bank_name": bank_label,
 				"highest_copy_no": cint(r.highest_copy_no),
 				"active_count": cint(r.active_count),
+				"account_exists": norm_acc in cards_exist_by_norm,
+				"shared_daily_limit": shared_limit,
+				"has_limit_conflict": has_conflict,
+				"conflict_limits": distinct_limits,
 			}
 		)
 
@@ -775,7 +806,25 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 		frappe.throw(_("سبب الإيقاف النهائي للبطاقة مطلوب."), frappe.ValidationError)
 	resolved_status_reason = raw_status_reason if status == "موقفة نهائياً" else None
 
-	daily_limit = _parse_daily_limit_input(data.get("daily_limit"))
+	account_limit_state = get_account_shared_daily_limit_state(norm_account, lock=True)
+	if account_limit_state["exists"]:
+		if account_limit_state["has_conflict"]:
+			conflicts_str = " / ".join(
+				format_daily_limit(v) for v in account_limit_state["distinct_limits"]
+			)
+			frappe.throw(
+				_(
+					"يوجد تعارض مسبق في الحد اليومي بين نسخ الحساب ({0}): [{1}]. يرجى توحيد الحد اليومي للحساب أولاً قبل إنشاء نسخة جديدة."
+				).format(account_number, conflicts_str),
+				frappe.ValidationError,
+			)
+		if account_limit_state["daily_limit"] is not None and account_limit_state["daily_limit"] > 0:
+			daily_limit = flt(account_limit_state["daily_limit"], 2)
+		else:
+			daily_limit = _parse_daily_limit_input(data.get("daily_limit"))
+			sync_account_daily_limit(norm_account, daily_limit)
+	else:
+		daily_limit = _parse_daily_limit_input(data.get("daily_limit"))
 	clean_pin = normalize_and_validate_pin(data.get("pin"), required=True)
 
 	front_file_doc = resolve_and_validate_card_image_file(
@@ -962,6 +1011,15 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 				_validate_unique_card_number(pre_card_number, exclude_card=card_doc.name)
 
 		# 1. Family Identity Transition (if any of account_number, base_card_name, or bank changed)
+		pre_move_norm = cstr(card_doc.account_number_normalized or "").strip()
+		pre_move_limit = flt(card_doc.daily_limit, 2) if flt(card_doc.daily_limit) > 0 else None
+		parsed_incoming_limit = (
+			_parse_daily_limit_input(data.get("daily_limit")) if "daily_limit" in data else None
+		)
+		explicit_limit_edit = parsed_incoming_limit is not None and (
+			pre_move_limit is None or round(parsed_incoming_limit * 100) != round(pre_move_limit * 100)
+		)
+
 		incoming_acc = card_doc.account_number
 		incoming_norm = card_doc.account_number_normalized
 		if "account_number" in data and data.get("account_number") is not None:
@@ -989,13 +1047,14 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 		):
 			require_card_permission("edit_card", _("ليست لديك صلاحية لتعديل بيانات البطاقة."))
 			transition_mode = cstr(data.get("account_transition_mode") or "auto").strip()
-			change_card_account_number(
+			_execute_change_card_account_number(
 				card=card_doc.name,
 				new_account_number=incoming_acc,
 				transition_mode=transition_mode,
 				new_base_card_name=incoming_base,
 				new_bank=incoming_bank,
 				remarks=cstr(data.get("remarks") or "").strip() or None,
+				override_target_limit=parsed_incoming_limit if explicit_limit_edit else None,
 			)
 			card_doc.reload()
 
@@ -1066,23 +1125,62 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 				}
 				card_doc.received_date = new_rec_date
 
-		# 4. Daily limit
+		# 4. Daily limit (unified across all non-deleted cards sharing account_number_normalized)
 		daily_limit_changed = False
 		old_limit = flt(card_doc.daily_limit, 2) if flt(card_doc.daily_limit) > 0 else None
 		new_limit = old_limit
-		if "daily_limit" in data:
-			parsed_limit = _parse_daily_limit_input(data.get("daily_limit"))
-			if parsed_limit != old_limit:
-				daily_limit_changed = True
-				new_limit = parsed_limit
-				card_doc.daily_limit = parsed_limit
-		elif (
-			data_fields_present
-			or "account_number" in data
-			or "base_card_name" in data
-			or "card_name" in data
-		) and flt(card_doc.daily_limit) <= 0:
-			frappe.throw(_("حقل الحد اليومي مطلوب."), frappe.ValidationError)
+		moved_account = cstr(card_doc.account_number_normalized or "").strip() != pre_move_norm
+		acct_state = get_account_shared_daily_limit_state(
+			card_doc.account_number_normalized, lock=True
+		)
+
+		if not moved_account:
+			if parsed_incoming_limit is not None:
+				if parsed_incoming_limit != old_limit or acct_state["has_conflict"]:
+					validate_account_daily_limit_against_today_deposits(
+						card_doc.account_number_normalized, parsed_incoming_limit
+					)
+					sync_account_daily_limit(
+						card_doc.account_number_normalized,
+						parsed_incoming_limit,
+						exclude_card=card_doc.name,
+						triggered_by_card=card_doc.name,
+						now_ts=now_ts,
+					)
+					if parsed_incoming_limit != old_limit:
+						daily_limit_changed = True
+						new_limit = parsed_incoming_limit
+						card_doc.daily_limit = parsed_incoming_limit
+			elif (
+				data_fields_present
+				or "account_number" in data
+				or "base_card_name" in data
+				or "card_name" in data
+			) and flt(card_doc.daily_limit) <= 0:
+				frappe.throw(_("حقل الحد اليومي مطلوب."), frappe.ValidationError)
+		else:
+			if explicit_limit_edit and parsed_incoming_limit is not None:
+				validate_account_daily_limit_against_today_deposits(
+					card_doc.account_number_normalized, parsed_incoming_limit
+				)
+				sync_account_daily_limit(
+					card_doc.account_number_normalized,
+					parsed_incoming_limit,
+					exclude_card=card_doc.name,
+					triggered_by_card=card_doc.name,
+					now_ts=now_ts,
+				)
+				if parsed_incoming_limit != old_limit:
+					daily_limit_changed = True
+					new_limit = parsed_incoming_limit
+					card_doc.daily_limit = parsed_incoming_limit
+			elif flt(card_doc.daily_limit) <= 0:
+				if parsed_incoming_limit is not None:
+					card_doc.daily_limit = parsed_incoming_limit
+					daily_limit_changed = True
+					new_limit = parsed_incoming_limit
+				else:
+					frappe.throw(_("حقل الحد اليومي مطلوب."), frappe.ValidationError)
 
 		# 5. Front & Back Images
 		front_image_changed = False

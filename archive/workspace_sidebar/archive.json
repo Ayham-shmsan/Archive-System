@@ -65,6 +65,20 @@
     "child": 1,
     "collapsible": 0,
     "default_workspace": 0,
+    "icon": "dollar-sign",
+    "indent": 0,
+    "keep_closed": 0,
+    "label": "الإيداعات",
+    "link_to": "archive-deposits",
+    "link_type": "Page",
+    "open_in_new_tab": 0,
+    "show_arrow": 0,
+    "type": "Link"
+  },
+  {
+    "child": 1,
+    "collapsible": 0,
+    "default_workspace": 0,
     "icon": "scan",
     "indent": 0,
     "keep_closed": 0,
@@ -188,7 +202,7 @@
     "type": "Link"
   }
 ],
- "modified": "2026-11-01 04:05:00.000000",
+ "modified": "2026-11-06 21:25:00.000000",
  "modified_by": "Administrator",
  "module": "Archive",
  "name": "Archive",

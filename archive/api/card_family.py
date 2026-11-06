@@ -4,7 +4,7 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import cint, cstr, now_datetime
+from frappe.utils import cint, cstr, flt, now_datetime, today
 
 from archive.api.card_search import (
 	clean_account_number_display,
@@ -17,6 +17,193 @@ from archive.services.card_audit import log_card_event
 from archive.services.card_permissions import CARD_DOCTYPE, require_card_permission
 
 FAMILY_DOCTYPE = "Archive Card Family"
+
+
+def _format_limit_display(val: Any) -> str:
+	num = flt(val, 2)
+	if abs(num - round(num)) < 0.0001:
+		return f"{int(round(num)):,}"
+	return f"{num:,.2f}"
+
+
+def get_account_shared_daily_limit_state(
+	norm_account: str,
+	exclude_card: str | None = None,
+	lock: bool = False,
+) -> dict[str, Any]:
+	clean_norm = cstr(norm_account or "").strip()
+	if not clean_norm:
+		return {
+			"exists": False,
+			"has_conflict": False,
+			"daily_limit": None,
+			"distinct_limits": [],
+			"cards": [],
+		}
+
+	for_update = "FOR UPDATE" if lock else ""
+	rows = frappe.db.sql(
+		f"""
+		SELECT
+			name,
+			card_name,
+			copy_no,
+			account_number,
+			status,
+			daily_limit,
+			IFNULL(is_deleted, 0) AS is_deleted
+		FROM `tabArchive Card`
+		WHERE account_number_normalized = %(norm)s
+		ORDER BY name ASC
+		{for_update}
+		""",
+		{"norm": clean_norm},
+		as_dict=True,
+	)
+
+	non_deleted = [
+		r
+		for r in rows
+		if cint(r.get("is_deleted")) == 0 and (not exclude_card or r.get("name") != exclude_card)
+	]
+	if not non_deleted:
+		return {
+			"exists": False,
+			"has_conflict": False,
+			"daily_limit": None,
+			"distinct_limits": [],
+			"cards": [],
+		}
+
+	distinct_limits = sorted(
+		{flt(r.get("daily_limit"), 2) for r in non_deleted if flt(r.get("daily_limit"), 2) > 0}
+	)
+	if len(distinct_limits) > 1:
+		return {
+			"exists": True,
+			"has_conflict": True,
+			"daily_limit": None,
+			"distinct_limits": distinct_limits,
+			"cards": non_deleted,
+		}
+
+	shared_limit = distinct_limits[0] if len(distinct_limits) == 1 else None
+	return {
+		"exists": True,
+		"has_conflict": False,
+		"daily_limit": shared_limit,
+		"distinct_limits": distinct_limits,
+		"cards": non_deleted,
+	}
+
+
+def get_account_deposited_total_for_date(norm_account: str, target_date: str) -> float:
+	clean_norm = cstr(norm_account or "").strip()
+	if not clean_norm or not target_date:
+		return 0.0
+	rows = frappe.db.sql(
+		"""
+		SELECT COALESCE(SUM(d.deposit_amount), 0) AS total_amount
+		FROM `tabArchive Card Deposit` d
+		INNER JOIN `tabArchive Card` c ON c.name = d.card
+		WHERE c.account_number_normalized = %(norm)s
+		  AND d.deposit_date = %(target_date)s
+		""",
+		{"norm": clean_norm, "target_date": cstr(target_date)},
+		as_dict=True,
+	)
+	return flt(rows[0].get("total_amount") if rows else 0, 2)
+
+
+def validate_account_daily_limit_against_today_deposits(
+	norm_account: str,
+	new_limit: float,
+	extra_card_to_include: str | None = None,
+) -> None:
+	clean_norm = cstr(norm_account or "").strip()
+	if not clean_norm:
+		return
+	today_str = cstr(today())
+	today_total = get_account_deposited_total_for_date(clean_norm, today_str)
+	if extra_card_to_include:
+		card_norm = cstr(
+			frappe.db.get_value(CARD_DOCTYPE, extra_card_to_include, "account_number_normalized") or ""
+		).strip()
+		if card_norm != clean_norm:
+			extra_rows = frappe.db.sql(
+				"""
+				SELECT COALESCE(SUM(deposit_amount), 0) AS extra_amount
+				FROM `tabArchive Card Deposit`
+				WHERE card = %(card)s AND deposit_date = %(target_date)s
+				""",
+				{"card": extra_card_to_include, "target_date": today_str},
+				as_dict=True,
+			)
+			today_total = flt(
+				today_total + flt(extra_rows[0].get("extra_amount") if extra_rows else 0, 2),
+				2,
+			)
+
+	resolved_limit = flt(new_limit, 2)
+	if round(today_total * 100) > round(resolved_limit * 100):
+		frappe.throw(
+			_(
+				"لا يمكن خفض الحد اليومي للحساب إلى ({0}) لأن مجموع إيداعات اليوم المحفوظة على بطاقات هذا الحساب يبلغ ({1})."
+			).format(_format_limit_display(resolved_limit), _format_limit_display(today_total)),
+			frappe.ValidationError,
+		)
+
+
+def sync_account_daily_limit(
+	norm_account: str,
+	new_limit: float,
+	exclude_card: str | None = None,
+	triggered_by_card: str | None = None,
+	now_ts: Any = None,
+) -> list[str]:
+	clean_norm = cstr(norm_account or "").strip()
+	if not clean_norm:
+		return []
+
+	resolved_limit = flt(new_limit, 2)
+	if resolved_limit <= 0:
+		frappe.throw(_("الحد اليومي مطلوب ويجب أن يكون أكبر من صفر."), frappe.ValidationError)
+
+	state = get_account_shared_daily_limit_state(clean_norm, lock=True)
+	validate_account_daily_limit_against_today_deposits(clean_norm, resolved_limit)
+
+	event_ts = now_ts or now_datetime()
+	updated_cards: list[str] = []
+	for row in state["cards"]:
+		card_id = cstr(row.get("name"))
+		if exclude_card and card_id == exclude_card:
+			continue
+		old_member_limit = flt(row.get("daily_limit"), 2) if flt(row.get("daily_limit")) > 0 else None
+		if old_member_limit is not None and round(old_member_limit * 100) == round(resolved_limit * 100):
+			continue
+
+		member_doc = frappe.get_doc(CARD_DOCTYPE, card_id)
+		member_doc.daily_limit = resolved_limit
+		set_card_search_text(member_doc)
+		member_doc.flags._allow_card_service_mutation = True
+		member_doc.save(ignore_permissions=True)
+		updated_cards.append(member_doc.name)
+
+		log_card_event(
+			card_name=member_doc.name,
+			event_type="daily_limit_changed",
+			event_title=_("تحديث الحد اليومي الموحد لنسخ الحساب"),
+			details={
+				"old_daily_limit": old_member_limit,
+				"new_daily_limit": resolved_limit,
+				"account_number_normalized": clean_norm,
+				"triggered_by_card": triggered_by_card or "",
+			},
+			event_source="system",
+			event_datetime=event_ts,
+		)
+
+	return updated_cards
 
 
 def _next_available_copy_no(family_name: str, exclude_card: str | None = None) -> int:
@@ -54,6 +241,13 @@ def inspect_account_family(
 	norm = normalize_account_number(account_number)
 	clean_base = clean_base_card_name(base_card_name)
 	clean_bank = cstr(bank or "").strip()
+	limit_state = get_account_shared_daily_limit_state(norm, exclude_card=exclude_card, lock=False)
+	limit_fields = {
+		"account_exists": bool(limit_state["exists"]),
+		"shared_daily_limit": limit_state["daily_limit"],
+		"has_limit_conflict": bool(limit_state["has_conflict"]),
+		"conflict_limits": limit_state["distinct_limits"],
+	}
 	if not norm or not clean_base or not clean_bank:
 		return {
 			"account_number": clean_display,
@@ -70,6 +264,7 @@ def inspect_account_family(
 			"deleted_count": 0,
 			"requires_duplicate_confirmation": False,
 			"existing_cards": [],
+			**limit_fields,
 		}
 
 	family_rows = frappe.db.sql(
@@ -109,6 +304,7 @@ def inspect_account_family(
 			"deleted_count": 0,
 			"requires_duplicate_confirmation": False,
 			"existing_cards": [],
+			**limit_fields,
 		}
 
 	family_row = family_rows[0]
@@ -198,6 +394,7 @@ def inspect_account_family(
 		"deleted_count": deleted_count,
 		"requires_duplicate_confirmation": has_active,
 		"existing_cards": active_cards,
+		**limit_fields,
 	}
 
 
@@ -454,6 +651,26 @@ def change_card_account_number(
 	new_bank: str | None = None,
 	remarks: str | None = None,
 ) -> dict[str, Any]:
+	return _execute_change_card_account_number(
+		card=card,
+		new_account_number=new_account_number,
+		transition_mode=transition_mode,
+		new_base_card_name=new_base_card_name,
+		new_bank=new_bank,
+		remarks=remarks,
+		override_target_limit=None,
+	)
+
+
+def _execute_change_card_account_number(
+	card: str,
+	new_account_number: str | None = None,
+	transition_mode: str = "auto",
+	new_base_card_name: str | None = None,
+	new_bank: str | None = None,
+	remarks: str | None = None,
+	override_target_limit: float | None = None,
+) -> dict[str, Any]:
 	require_card_permission("edit_card", _("ليست لديك صلاحية لتعديل رقم حساب البطاقة."))
 
 	card_doc = frappe.get_doc(CARD_DOCTYPE, card)
@@ -565,6 +782,40 @@ def change_card_account_number(
 	source_family = _lock_family_by_name(old_family_doc.name) or old_family_doc
 	target_family = _lock_family_by_triplet(norm_new_acc, proposed_base, proposed_bank)
 
+	# Enforce shared daily limit across all copies sharing norm_new_acc
+	adopted_target_limit: float | None = None
+	if norm_new_acc != old_norm:
+		target_limit_state = get_account_shared_daily_limit_state(
+			norm_new_acc, exclude_card=card_doc.name, lock=True
+		)
+		if target_limit_state["exists"]:
+			if override_target_limit is not None:
+				adopted_target_limit = flt(override_target_limit, 2)
+			elif target_limit_state["has_conflict"]:
+				conflicts_str = " / ".join(
+					_format_limit_display(v) for v in target_limit_state["distinct_limits"]
+				)
+				frappe.throw(
+					_(
+						"يوجد تعارض مسبق في الحد اليومي بين بطاقات الحساب المستهدف ({0}): [{1}]. يرجى توحيد الحد اليومي للحساب أولاً قبل نقل البطاقة إليه."
+					).format(clean_new_acc, conflicts_str),
+					frappe.ValidationError,
+				)
+			elif target_limit_state["daily_limit"] is not None:
+				adopted_target_limit = flt(target_limit_state["daily_limit"], 2)
+
+		effective_post_move_limit = (
+			adopted_target_limit
+			if adopted_target_limit is not None
+			else flt(override_target_limit or card_doc.daily_limit, 2)
+		)
+		if effective_post_move_limit > 0:
+			validate_account_daily_limit_against_today_deposits(
+				norm_new_acc,
+				effective_post_move_limit,
+				extra_card_to_include=card_doc.name,
+			)
+
 	old_snapshot = {
 		"old_card_family": source_family.name,
 		"old_account_number": source_family.account_number,
@@ -598,6 +849,8 @@ def change_card_account_number(
 		card_doc.account_number = target_family.account_number
 		card_doc.account_number_normalized = target_family.account_number_normalized
 		card_doc.bank = resolved_target_bank
+		if adopted_target_limit is not None:
+			card_doc.daily_limit = adopted_target_limit
 		set_card_search_text(card_doc)
 		card_doc.flags._allow_card_service_mutation = True
 		card_doc.save(ignore_permissions=True)
@@ -658,6 +911,8 @@ def change_card_account_number(
 	card_doc.account_number = clean_new_acc
 	card_doc.account_number_normalized = norm_new_acc
 	card_doc.bank = proposed_bank
+	if adopted_target_limit is not None:
+		card_doc.daily_limit = adopted_target_limit
 	set_card_search_text(card_doc)
 	card_doc.flags._allow_card_service_mutation = True
 	card_doc.save(ignore_permissions=True)

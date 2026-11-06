@@ -61,6 +61,7 @@
                 "archive-operations",
                 "archive-pending-operations",
                 "archive-cards",
+                "archive-deposits",
                 "document-authenticity",
             ],
         },
@@ -738,6 +739,13 @@
         return "";
     }
 
+    window.sync_archive_deposits_sidebar_visibility = () => {
+        const sb = get_sidebar();
+        if (sb) {
+            hide_utility_items(sb);
+        }
+    };
+
 
     /* =========================================================
        DECORATION
@@ -781,6 +789,53 @@
                                 )
                         );
 
+
+                    const anchor =
+                        item.querySelector(
+                            "a[href]"
+                        );
+
+                    const href =
+                        String(
+                            anchor?.getAttribute(
+                                "href"
+                            )
+                            || ""
+                        ).toLowerCase();
+
+                    const is_deposits_link =
+                        href.includes(
+                            "archive-deposits"
+                        )
+                        ||
+                        label === "الإيداعات";
+
+                    if (is_deposits_link) {
+                        const allowed =
+                            Boolean(
+                                frappe
+                                    ?.boot
+                                    ?.archive_can_access_deposits
+                            );
+
+                        item.classList.toggle(
+                            "archive-sidebar-utility-hidden",
+                            !allowed
+                        );
+                        item.hidden = !allowed;
+                        if (!allowed) {
+                            item.style.setProperty(
+                                "display",
+                                "none",
+                                "important"
+                            );
+                        } else {
+                            item.style.removeProperty(
+                                "display"
+                            );
+                        }
+                        return;
+                    }
 
                     if (
                         hidden_by_class
