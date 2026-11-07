@@ -29,6 +29,7 @@ class ArchiveCardLog(Document):
 			"formal_transfer",
 			"front_image_updated",
 			"back_image_updated",
+			"image_blur_revealed",
 			"daily_limit_changed",
 			"pin_changed",
 			"deleted",

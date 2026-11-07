@@ -12,7 +12,9 @@ from archive.services.card_permissions import (
 	ROLE_CARD_MANAGER,
 	ROLE_CARD_OFFICER,
 	ROLE_CARD_READER,
+	ROLE_ENFORCE_CARD_IMAGE_BLUR,
 	ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD,
+	ROLE_VIEW_CARD_ACTIVITY_TIMELINE,
 )
 from archive.services.operation_permissions import (
 	ROLE_ATTACH_INCOMPLETE_INVOICE,
@@ -37,7 +39,7 @@ ROLE_MATRIX: dict[str, dict[str, int]] = {
 		"view_card_images": 1,
 		"edit_card_images": 1,
 		"view_card_pin": 1,
-		"view_card_activity_timeline": 1,
+		"view_card_activity_timeline": 0,
 		"view_card_transfer_timeline": 1,
 	},
 	ROLE_CARD_MANAGER: {
@@ -58,7 +60,7 @@ ROLE_MATRIX: dict[str, dict[str, int]] = {
 		"view_card_images": 1,
 		"edit_card_images": 1,
 		"view_card_pin": 1,
-		"view_card_activity_timeline": 1,
+		"view_card_activity_timeline": 0,
 		"view_card_transfer_timeline": 1,
 	},
 	ROLE_CARD_OFFICER: {
@@ -100,7 +102,7 @@ ROLE_MATRIX: dict[str, dict[str, int]] = {
 		"view_card_images": 0,
 		"edit_card_images": 0,
 		"view_card_pin": 0,
-		"view_card_activity_timeline": 1,
+		"view_card_activity_timeline": 0,
 		"view_card_transfer_timeline": 1,
 	},
 }
@@ -110,12 +112,28 @@ def execute() -> None:
 	if not frappe.db.exists("DocType", CARD_DOCTYPE):
 		return
 
+	_ensure_system_timezone()
 	_ensure_permission_type_custom_fields()
 	_ensure_roles()
 	_sync_custom_docperms()
 	_ensure_unique_indexes()
 	_sync_sidebar_and_page()
 	frappe.clear_cache(doctype=CARD_DOCTYPE)
+
+
+def _ensure_system_timezone() -> None:
+	country = frappe.db.get_single_value("System Settings", "country")
+	current_tz = frappe.db.get_single_value("System Settings", "time_zone")
+	if country == "Yemen" and current_tz in (None, "", "Asia/Kolkata"):
+		frappe.db.set_single_value(
+			"System Settings",
+			"time_zone",
+			"Asia/Aden",
+			update_modified=False,
+		)
+		frappe.clear_cache(doctype="System Settings")
+		frappe.cache.delete_key("time_zone")
+		frappe.cache.delete_key("bootinfo")
 
 
 def _sync_sidebar_and_page() -> None:
@@ -143,6 +161,13 @@ def _ensure_permission_type_custom_fields() -> None:
 
 
 def _ensure_roles() -> None:
+	old_timeline_role = "صلاحية عرض مسار العملية للبطاقات"
+	if (
+		frappe.db.exists("Role", old_timeline_role)
+		and not frappe.db.exists("Role", ROLE_VIEW_CARD_ACTIVITY_TIMELINE)
+	):
+		frappe.rename_doc("Role", old_timeline_role, ROLE_VIEW_CARD_ACTIVITY_TIMELINE, force=True)
+
 	for role_name in (
 		ROLE_CARD_MANAGER,
 		ROLE_CARD_OFFICER,
@@ -150,6 +175,8 @@ def _ensure_roles() -> None:
 		ROLE_CARD_IMAGE_PREVIEW,
 		ROLE_CARD_EVENT_HISTORY,
 		ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD,
+		ROLE_ENFORCE_CARD_IMAGE_BLUR,
+		ROLE_VIEW_CARD_ACTIVITY_TIMELINE,
 		ROLE_ATTACH_INCOMPLETE_INVOICE,
 		ROLE_DEPOSITS_SCREEN_ACCESS,
 	):
@@ -163,13 +190,17 @@ def _ensure_roles() -> None:
 				}
 			)
 			role_doc.insert(ignore_permissions=True)
-			if role_name == ROLE_DEPOSITS_SCREEN_ACCESS:
+			if role_name in (
+				ROLE_DEPOSITS_SCREEN_ACCESS,
+				ROLE_ENFORCE_CARD_IMAGE_BLUR,
+				ROLE_VIEW_CARD_ACTIVITY_TIMELINE,
+			):
 				frappe.db.delete(
 					"Has Role",
 					{
 						"parent": "Administrator",
 						"parenttype": "User",
-						"role": ROLE_DEPOSITS_SCREEN_ACCESS,
+						"role": role_name,
 					},
 				)
 		else:

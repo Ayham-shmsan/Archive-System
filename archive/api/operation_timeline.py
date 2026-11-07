@@ -2,8 +2,17 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import cstr, get_datetime, now_datetime
 from typing import Any
+
+
+def _format_event_datetime(value: Any) -> str:
+    if not value:
+        return ""
+    try:
+        return get_datetime(value).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return cstr(value).split(".")[0].strip()
 
 
 # ============================================================
@@ -638,7 +647,7 @@ def get_operation_timeline(
                     row.event_title,
 
                 "event_datetime":
-                    row.event_datetime,
+                    _format_event_datetime(row.event_datetime),
 
                 "event_user":
                     row.event_user,

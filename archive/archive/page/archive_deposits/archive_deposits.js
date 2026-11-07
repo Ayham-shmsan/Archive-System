@@ -1352,6 +1352,22 @@ class ArchiveDepositsPage {
 		return ARCHIVE_DEPOSITS_COLUMNS.filter((c) => !this.state.hidden_columns.has(c.key));
 	}
 
+	format_audit_datetime(value) {
+		const clean = String(value || "").trim().replace(/\.\d+$/, "");
+		if (!clean) return "";
+		try {
+			if (frappe?.datetime?.convert_to_user_tz) {
+				const converted = frappe.datetime.convert_to_user_tz(clean, true);
+				if (converted && converted !== "Invalid date") {
+					return String(converted).replace(/\.\d+$/, "");
+				}
+			}
+		} catch (e) {
+			// fallback below
+		}
+		return clean;
+	}
+
 	build_audit_tooltip(row) {
 		const a = row.audit;
 		if (!a || !a.recorded_by) {
@@ -1360,7 +1376,7 @@ class ArchiveDepositsPage {
 		const lines = [];
 		lines.push(`تم التسجيل بواسطة: ${a.recorded_by_name || a.recorded_by}`);
 		if (a.recorded_at) {
-			lines.push(`وقت التسجيل: ${a.recorded_at}`);
+			lines.push(`وقت التسجيل: ${this.format_audit_datetime(a.recorded_at)}`);
 		}
 		if (
 			a.last_modified_by &&
@@ -1368,7 +1384,7 @@ class ArchiveDepositsPage {
 		) {
 			lines.push(`آخر تعديل بواسطة: ${a.last_modified_by_name || a.last_modified_by}`);
 			if (a.last_modified_at) {
-				lines.push(`وقت آخر تعديل: ${a.last_modified_at}`);
+				lines.push(`وقت آخر تعديل: ${this.format_audit_datetime(a.last_modified_at)}`);
 			}
 			if (a.previous_amount !== null && a.previous_amount !== undefined) {
 				lines.push(`المبلغ السابق: ${format_deposit_number(a.previous_amount, false)}`);

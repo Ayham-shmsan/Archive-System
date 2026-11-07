@@ -1352,16 +1352,17 @@ class ArchivePendingOperationTimelineDialog {
             return "—";
         }
 
+        const clean = String(value).trim().replace(/\.\d+$/, "");
         try {
-            return frappe.datetime
-                .str_to_user(
-                    value
-                );
-
+            if (frappe?.datetime?.convert_to_user_tz) {
+                const converted = frappe.datetime.convert_to_user_tz(clean, true);
+                if (converted && converted !== "Invalid date") {
+                    return String(converted).replace(/\.\d+$/, "");
+                }
+            }
+            return frappe.datetime.str_to_user(clean);
         } catch {
-            return this.escape(
-                value
-            );
+            return this.escape(clean);
         }
     }
 

@@ -5,14 +5,25 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import cint, cstr
+from frappe.utils import cint, cstr, get_datetime
 
 from archive.api.cards import get_card_status_display_label
 from archive.services.card_permissions import (
 	CARD_DOCTYPE,
+	has_permission,
 	require_card_event_history_role,
 	require_card_permission,
+	require_view_card_activity_timeline_role,
 )
+
+
+def _format_event_datetime(value: Any) -> str:
+	if not value:
+		return ""
+	try:
+		return get_datetime(value).strftime("%Y-%m-%d %H:%M:%S")
+	except Exception:
+		return cstr(value).split(".")[0].strip()
 
 CARD_EVENT_TYPE_LABELS: dict[str, str] = {
 	"temporary_stop": "توقيف مؤقت",
@@ -105,7 +116,7 @@ def get_card_events(card: str) -> dict[str, Any]:
 				"reason": row.reason or "",
 				"recorded_by": row.recorded_by or "",
 				"recorded_by_name": row.recorded_by_name or row.recorded_by or "",
-				"recorded_at": cstr(row.recorded_at or ""),
+				"recorded_at": _format_event_datetime(row.recorded_at),
 			}
 		)
 
@@ -130,9 +141,12 @@ def get_card_events(card: str) -> dict[str, Any]:
 
 @frappe.whitelist()
 def get_card_activity_timeline(card: str, limit: int | str = 150) -> dict[str, Any]:
+	require_view_card_activity_timeline_role(
+		_("ليست لديك صلاحية عرض سجل مستخدم العملية في البطاقات."),
+	)
 	require_card_permission(
-		"view_card_activity_timeline",
-		_("ليست لديك صلاحية لعرض سجل أحداث البطاقة."),
+		"view_cards",
+		_("ليست لديك صلاحية لعرض البطاقات."),
 	)
 
 	card_row = frappe.db.get_value(
@@ -153,6 +167,8 @@ def get_card_activity_timeline(card: str, limit: int | str = 150) -> dict[str, A
 	)
 	if not card_row or cint(card_row.is_deleted):
 		frappe.throw(_("البطاقة المطلوبة غير موجودة."), frappe.DoesNotExistError)
+	if not has_permission(card_row.name, "read"):
+		frappe.throw(_("ليست لديك صلاحية للوصول إلى هذه البطاقة."), frappe.PermissionError)
 
 	max_rows = max(1, min(cint(limit or 150), 500))
 	rows = frappe.db.sql(
@@ -193,7 +209,7 @@ def get_card_activity_timeline(card: str, limit: int | str = 150) -> dict[str, A
 				"card": row.card,
 				"event_type": row.event_type,
 				"event_title": row.event_title,
-				"event_datetime": cstr(row.event_datetime or ""),
+				"event_datetime": _format_event_datetime(row.event_datetime),
 				"event_user": row.event_user,
 				"event_user_full_name": row.event_user_full_name or row.event_user,
 				"event_source": row.event_source or "user",
@@ -473,7 +489,7 @@ def get_card_transfer_timeline(card: str) -> dict[str, Any]:
 				"transfer_note": row.transfer_note or "",
 				"performed_by": row.performed_by or "",
 				"performed_by_full_name": row.performed_by_full_name or row.performed_by or "",
-				"system_datetime": cstr(row.system_datetime or ""),
+				"system_datetime": _format_event_datetime(row.system_datetime),
 				"is_initial": is_initial,
 				"is_last_formal": is_last_formal,
 				"is_current": is_current,

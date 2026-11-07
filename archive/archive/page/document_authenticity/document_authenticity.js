@@ -3130,16 +3130,17 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             return "-";
         }
 
+        const clean = String(value).trim().replace(/\.\d+$/, "");
         try {
-            return frappe.datetime.str_to_user(
-                value
-            );
+            if (frappe?.datetime?.convert_to_user_tz) {
+                const converted = frappe.datetime.convert_to_user_tz(clean, true);
+                if (converted && converted !== "Invalid date") {
+                    return String(converted).replace(/\.\d+$/, "");
+                }
+            }
+            return frappe.datetime.str_to_user(clean);
         } catch (error) {
-            return frappe.utils.escape_html(
-                String(
-                    value
-                )
-            );
+            return frappe.utils.escape_html(clean);
         }
     }
 

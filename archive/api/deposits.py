@@ -9,7 +9,16 @@ from urllib.parse import unquote
 
 import frappe
 from frappe import _
-from frappe.utils import cint, cstr, flt, getdate, now_datetime, today
+from frappe.utils import cint, cstr, flt, get_datetime, getdate, now_datetime, today
+
+
+def _format_audit_datetime(value: Any) -> str:
+	if not value:
+		return ""
+	try:
+		return get_datetime(value).strftime("%Y-%m-%d %H:%M:%S")
+	except Exception:
+		return cstr(value).split(".")[0].strip()
 
 from archive.api.card_search import normalize_account_number
 from archive.api.operation_search import normalize_search_text
@@ -920,12 +929,12 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 				"audit": {
 					"recorded_by": recorded_by,
 					"recorded_by_name": user_names.get(recorded_by, recorded_by) if recorded_by else "",
-					"recorded_at": cstr(r.get("recorded_at") or ""),
+					"recorded_at": _format_audit_datetime(r.get("recorded_at")),
 					"last_modified_by": last_modified_by,
 					"last_modified_by_name": (
 						user_names.get(last_modified_by, last_modified_by) if last_modified_by else ""
 					),
-					"last_modified_at": cstr(r.get("last_modified_at") or ""),
+					"last_modified_at": _format_audit_datetime(r.get("last_modified_at")),
 					"previous_amount": (
 						flt(r.get("previous_amount"), 2)
 						if r.get("previous_amount") is not None

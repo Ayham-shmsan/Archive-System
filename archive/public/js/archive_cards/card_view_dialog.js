@@ -385,6 +385,59 @@
 			this.all_staged_file_ids = new Set();
 			this.saved_changes = false;
 			this.is_dirty = false;
+			this.revealed_image_sides = { front: false, back: false };
+			this.revealing_image_sides = { front: false, back: false };
+		}
+
+		is_side_image_blurred(side) {
+			if (this.replaced_sides?.[side] || this.preview_urls?.[side]) return false;
+			if (!this.permissions?.enforce_image_blur) return false;
+			return !Boolean(this.revealed_image_sides?.[side]);
+		}
+
+		async reveal_blurred_card_image(side) {
+			const clean_side = side === "back" ? "back" : "front";
+			if (!this.card?.name || !this.permissions.can_view_images) return;
+			if (!this.permissions.enforce_image_blur) return;
+			if (this.revealed_image_sides[clean_side] || this.revealing_image_sides[clean_side]) return;
+
+			const img_url = this._resolve_current_image_url(clean_side);
+			if (!img_url) return;
+
+			const card_name = this.card.name;
+			this.revealing_image_sides[clean_side] = true;
+
+			const $body = $(this.dialog?.body);
+			const $frame = $body.find(`.acd-card-aspect-frame[data-side="${clean_side}"]`);
+			$frame.addClass("is-revealing");
+
+			try {
+				const res = await frappe.call({
+					method: "archive.api.cards.reveal_card_image_blur",
+					args: { card: card_name, side: clean_side },
+				});
+				if (!this.dialog || this.card?.name !== card_name) return;
+				if (res?.message?.revealed) {
+					this.revealed_image_sides[clean_side] = true;
+					const $liveFrame = $body.find(`.acd-card-aspect-frame[data-side="${clean_side}"]`);
+					$liveFrame
+						.removeClass("is-blurred is-revealing")
+						.attr("data-action", "open-viewer");
+					$liveFrame.find('[data-role="blur-overlay"]').remove();
+					$body
+						.find(`.acd-image-slot-header [data-action="open-viewer"][data-side="${clean_side}"]`)
+						.prop("disabled", false);
+				}
+			} catch (_) {
+				// Keep blurred on error
+			} finally {
+				if (this.card?.name === card_name) {
+					this.revealing_image_sides[clean_side] = false;
+					$body
+						.find(`.acd-card-aspect-frame[data-side="${clean_side}"]`)
+						.removeClass("is-revealing");
+				}
+			}
 		}
 
 		is_permanently_stopped() {
@@ -698,6 +751,7 @@
 			}
 
 			const has_img = Boolean(url);
+			const is_blurred = Boolean(has_img && this.is_side_image_blurred(side));
 			const replace_label = has_img ? "تبديل الصورة" : "إضافة صورة";
 
 			return `
@@ -705,7 +759,7 @@
 					<div class="acd-image-slot-header">
 						<span class="acd-image-slot-label">${label}</span>
 						<div class="acd-image-slot-actions">
-							<button type="button" class="btn btn-xs btn-default" data-action="open-viewer" data-side="${side}" ${has_img ? "" : "hidden"}>
+							<button type="button" class="btn btn-xs btn-default" data-action="open-viewer" data-side="${side}" ${has_img ? "" : "hidden"} ${is_blurred ? "disabled" : ""}>
 								<i class="fa fa-search-plus"></i> تكبير
 							</button>
 							${
@@ -725,10 +779,10 @@
 						</div>
 					</div>
 					<div
-						class="acd-card-aspect-frame"
+						class="acd-card-aspect-frame ${is_blurred ? "is-blurred" : ""}"
 						data-card-image-surface="1"
 						data-side="${side}"
-						data-action="open-viewer"
+						data-action="${is_blurred ? "reveal-blurred-image" : "open-viewer"}"
 					>
 						<div class="acd-image-empty-state" data-role="empty-${side}" ${has_img ? "hidden" : ""}>
 							<i class="fa fa-credit-card"></i>
@@ -741,6 +795,21 @@
 							data-role="view-img-${side}"
 							${has_img ? "" : "hidden"}
 						/>
+						${
+							is_blurred
+								? `<div class="ac-image-blur-overlay" data-role="blur-overlay" data-side="${side}">
+									<div class="ac-image-blur-badge">
+										<span class="ac-image-blur-icon" aria-hidden="true">
+											<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+												<line x1="1" y1="1" x2="23" y2="23"></line>
+											</svg>
+										</span>
+										<span class="ac-image-blur-text">اضغط لإظهار الصورة</span>
+									</div>
+								</div>`
+								: ""
+						}
 						<div class="acd-image-uploading" data-role="uploading-${side}" hidden>
 							<i class="fa fa-spinner fa-spin"></i> جاري رفع الصورة...
 						</div>
@@ -938,13 +1007,18 @@
 			if (window.ArchiveCardImageContextMenu) {
 				window.ArchiveCardImageContextMenu.bind($body, ($el) => {
 					const side = $el.attr("data-side") || "front";
+					if (this.is_side_image_blurred(side)) return null;
 					return {
 						can_view_images: Boolean(this.permissions.can_view_images),
 						can_replace: this.can_edit_card_images(),
 						card_name: this.card.name,
 						card_title: `${this.card.base_card_name} (#${this.card.serial_no})`,
-						front_url: this._resolve_current_image_url("front"),
-						back_url: this._resolve_current_image_url("back"),
+						front_url: this.is_side_image_blurred("front")
+							? ""
+							: this._resolve_current_image_url("front"),
+						back_url: this.is_side_image_blurred("back")
+							? ""
+							: this._resolve_current_image_url("back"),
 						image_url: this._resolve_current_image_url(side),
 						side,
 						on_replace: (targetSide) => {
@@ -955,12 +1029,21 @@
 				});
 			}
 
+			// Reveal blurred image
+			$body.on("click", '[data-action="reveal-blurred-image"]', async (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				const side = $(e.currentTarget).attr("data-side") || "front";
+				await this.reveal_blurred_card_image(side);
+			});
+
 			// Open image viewer
 			$body.on("click", '[data-action="open-viewer"]', (e) => {
 				e.preventDefault();
 				e.stopPropagation();
 				if (!this.permissions.can_view_images || !window.ArchiveCardImageViewer) return;
 				const side = $(e.currentTarget).attr("data-side") || "front";
+				if (this.is_side_image_blurred(side)) return;
 				const target_url = this._resolve_current_image_url(side);
 				if (!target_url) {
 					if (this.can_edit_card_images()) {
@@ -971,8 +1054,12 @@
 				window.ArchiveCardImageViewer.open({
 					card_name: this.card.name,
 					card_title: `${this.card.base_card_name} (#${this.card.serial_no})`,
-					front_url: this._resolve_current_image_url("front"),
-					back_url: this._resolve_current_image_url("back"),
+					front_url: this.is_side_image_blurred("front")
+						? ""
+						: this._resolve_current_image_url("front"),
+					back_url: this.is_side_image_blurred("back")
+						? ""
+						: this._resolve_current_image_url("back"),
 					image_url: target_url,
 					initial_side: side,
 				});
@@ -1093,6 +1180,7 @@
 			});
 
 			$body.on("click", '[data-action="open-activity-timeline"]', () => {
+				if (!this.permissions?.can_view_activity_timeline) return;
 				if (window.ArchiveCardActivityTimelineDialog) {
 					new window.ArchiveCardActivityTimelineDialog({
 						card_name: this.card.name,
@@ -1126,6 +1214,8 @@
 		async reload_after_subaction() {
 			this.revealed_pin = null;
 			this.is_pin_shown = false;
+			this.revealed_image_sides = { front: false, back: false };
+			this.revealing_image_sides = { front: false, back: false };
 			const res = await frappe.call({
 				method: "archive.api.cards.get_card_details",
 				args: { card: this.card.name },

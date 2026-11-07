@@ -1,6 +1,23 @@
 (() => {
 	"use strict";
 
+	function format_system_datetime(raw_dt) {
+		const str = String(raw_dt || "").trim();
+		if (!str) return "";
+		const clean = str.replace(/\.\d+$/, "");
+		try {
+			if (frappe?.datetime?.convert_to_user_tz) {
+				const converted = frappe.datetime.convert_to_user_tz(clean, true);
+				if (converted && converted !== "Invalid date") {
+					return String(converted).replace(/\.\d+$/, "");
+				}
+			}
+		} catch (e) {
+			// fallback below
+		}
+		return clean.length > 19 ? clean.slice(0, 19) : clean;
+	}
+
 	const EVENT_TYPE_META = {
 		created: {
 			label: "إنشاء البطاقة",
@@ -40,6 +57,11 @@
 		back_image_updated: {
 			label: "تحديث صورة خلفية",
 			icon: "fa-picture-o",
+			tone: "sky",
+		},
+		image_blur_revealed: {
+			label: "كشف تمويه صورة البطاقة",
+			icon: "fa-eye",
 			tone: "sky",
 		},
 		daily_limit_changed: {
@@ -180,6 +202,12 @@
 						`<strong>${frappe.utils.escape_html(String(new_disp))}</strong>`
 				);
 			});
+		} else if (type === "image_blur_revealed") {
+			const side_ar = d.side_label || (d.side === "back" ? "الخلفي" : "الأمامي");
+			const detail_msg =
+				d.description ||
+				`قام المستخدم بكشف تمويه صورة الوجه ${side_ar} للبطاقة بغرض العرض.`;
+			lines.push(frappe.utils.escape_html(detail_msg));
 		}
 
 		if (!lines.length) return "";
@@ -241,7 +269,7 @@
 											</div>
 											<div class="actl-meta-wrap">
 												${source_badge}
-												<span class="actl-timestamp" dir="ltr">${frappe.utils.escape_html(ev.event_datetime)}</span>
+												<span class="actl-timestamp" dir="ltr">${frappe.utils.escape_html(format_system_datetime(ev.event_datetime) || "—")}</span>
 											</div>
 										</div>
 										${format_event_details_html(ev, card)}
@@ -363,9 +391,9 @@
 		}
 
 		static parse_ts(raw_dt) {
-			const str = String(raw_dt || "").trim();
+			const str = format_system_datetime(raw_dt);
 			if (!str) return NaN;
-			const iso = str.replace(" ", "T").replace(/(\.\d{3})\d+/, "$1");
+			const iso = str.replace(" ", "T");
 			const ms = Date.parse(iso);
 			return Number.isFinite(ms) ? ms : NaN;
 		}
@@ -546,7 +574,7 @@
 						`
 							: "";
 
-					const recorded_time = String(st.system_datetime || "").trim().slice(0, 16) || "—";
+					const recorded_time = format_system_datetime(st.system_datetime).slice(0, 16) || "—";
 
 					return `
 						<div class="actr-station-step actr-transfer-step">
@@ -1099,9 +1127,7 @@
 		}
 
 		static format_recorded_at(raw_dt) {
-			const str = String(raw_dt || "").trim();
-			if (!str) return "—";
-			return str.length > 19 ? str.slice(0, 19) : str;
+			return format_system_datetime(raw_dt) || "—";
 		}
 
 		static build_status_stations(events = [], card = {}) {

@@ -41,7 +41,7 @@
       "in_list_view": 1,
       "in_standard_filter": 1,
       "label": "نوع الحدث",
-      "options": "created\nmanual_edit\naccount_family_changed\nfamily_base_name_changed\nstatus_change\nformal_transfer\nfront_image_updated\nback_image_updated\ndaily_limit_changed\npin_changed\ndeleted",
+      "options": "created\nmanual_edit\naccount_family_changed\nfamily_base_name_changed\nstatus_change\nformal_transfer\nfront_image_updated\nback_image_updated\nimage_blur_revealed\ndaily_limit_changed\npin_changed\ndeleted",
       "read_only": 1,
       "reqd": 1,
       "search_index": 1

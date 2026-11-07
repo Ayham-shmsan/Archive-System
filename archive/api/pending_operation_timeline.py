@@ -4,11 +4,20 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import cstr
+from frappe.utils import cstr, get_datetime
 
 from archive.services.pending_operation_permissions import (
     _require_view_pending_operation,
 )
+
+
+def _format_event_datetime(value: Any) -> str:
+    if not value:
+        return ""
+    try:
+        return get_datetime(value).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return cstr(value).split(".")[0].strip()
 
 
 PENDING_DOCTYPE = "Archive Pending Operation"
@@ -105,7 +114,7 @@ def get_pending_operation_timeline(
                     row.event_title,
 
                 "event_datetime":
-                    row.event_datetime,
+                    _format_event_datetime(row.event_datetime),
 
                 "event_user":
                     event_user,
@@ -122,7 +131,7 @@ def get_pending_operation_timeline(
                     row.event_source,
 
                 "effective_datetime":
-                    row.effective_datetime,
+                    _format_event_datetime(row.effective_datetime),
 
                 "remarks":
                     row.remarks

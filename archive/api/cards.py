@@ -47,6 +47,7 @@ from archive.services.card_permissions import (
 	get_card_permissions,
 	has_card_image_preview_role,
 	has_card_permission,
+	has_enforce_card_image_blur_role,
 	require_card_image_preview_role,
 	require_card_permission,
 	require_reactivate_permanently_stopped_card_role,
@@ -1678,6 +1679,84 @@ def reveal_card_pin(card: str) -> dict[str, Any]:
 		"card": card_row.name,
 		"has_pin": bool(pin_val),
 		"pin": pin_val,
+	}
+
+
+@frappe.whitelist()
+def reveal_card_image_blur(card: str, side: str) -> dict[str, Any]:
+	current_user = cstr(frappe.session.user or "Guest").strip()
+	if not current_user or current_user == "Guest":
+		frappe.throw(_("يجب تسجيل الدخول أولاً."), frappe.PermissionError)
+
+	require_card_permission(
+		"view_cards",
+		_("ليست لديك صلاحية لعرض البطاقة."),
+		user=current_user,
+	)
+	require_card_permission(
+		"view_card_images",
+		_("ليست لديك صلاحية لعرض صور البطاقات."),
+		user=current_user,
+	)
+
+	clean_side = cstr(side or "").strip().lower()
+	if clean_side not in ("front", "back"):
+		frappe.throw(_("جهة الصورة المطلوبة غير صالحة (front أو back)."), frappe.ValidationError)
+
+	card_row = _fetch_single_card_row(card)
+	has_target_image = bool(
+		card_row.get("back_image") if clean_side == "back" else card_row.get("front_image")
+	)
+	if not has_target_image:
+		frappe.throw(_("صورة البطاقة المطلوبة غير متوفرة."), frappe.DoesNotExistError)
+
+	if not has_enforce_card_image_blur_role(user=current_user):
+		return {
+			"revealed": True,
+			"logged": False,
+			"card": card_row.name,
+			"side": clean_side,
+		}
+
+	now_ts = now_datetime()
+	side_label = "الخلفي" if clean_side == "back" else "الأمامي"
+	description = (
+		"قام المستخدم بكشف تمويه صورة الوجه الخلفي للبطاقة بغرض العرض."
+		if clean_side == "back"
+		else "قام المستخدم بكشف تمويه صورة الوجه الأمامي للبطاقة بغرض العرض."
+	)
+	event_title = f"كشف تمويه صورة البطاقة — الوجه {side_label}"
+
+	log_doc = log_card_event(
+		card_name=card_row.name,
+		event_type="image_blur_revealed",
+		event_title=event_title,
+		details={
+			"action_type": "كشف تمويه صورة البطاقة",
+			"card": card_row.name,
+			"card_name": card_row.get("card_name") or "",
+			"base_card_name": card_row.get("base_card_name") or "",
+			"copy_no": cint(card_row.get("copy_no") or 1),
+			"side": clean_side,
+			"side_label": side_label,
+			"revealed_by": current_user,
+			"revealed_at": cstr(now_ts),
+			"description": description,
+		},
+		event_source="user",
+		event_user=current_user,
+		event_datetime=now_ts,
+	)
+
+	return {
+		"revealed": True,
+		"logged": True,
+		"log_name": log_doc.name,
+		"card": card_row.name,
+		"side": clean_side,
+		"side_label": side_label,
+		"revealed_by": current_user,
+		"revealed_at": cstr(now_ts),
 	}
 
 

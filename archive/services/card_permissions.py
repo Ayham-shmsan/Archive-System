@@ -29,6 +29,64 @@ ROLE_CARD_READER = "قارئ البطاقات"
 ROLE_CARD_IMAGE_PREVIEW = "صلاحية معاينة البطائق"
 ROLE_CARD_EVENT_HISTORY = "صلاحية عرض سجل أحداث البطاقة"
 ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD = "صلاحية إعادة تفعيل البطاقة الموقفة نهائياً"
+ROLE_ENFORCE_CARD_IMAGE_BLUR = "صلاحية فرض تمويه صور البطاقات"
+ROLE_VIEW_CARD_ACTIVITY_TIMELINE = "صلاحية عرض سجل مستخدم العملية في البطاقات"
+
+
+def has_view_card_activity_timeline_role(user: str | None = None) -> bool:
+	resolved_user = _resolve_user(user)
+	if not resolved_user or resolved_user == "Guest":
+		return False
+	if not cint(frappe.db.get_value("User", resolved_user, "enabled")):
+		return False
+	return bool(
+		frappe.db.exists(
+			"Has Role",
+			{
+				"parent": resolved_user,
+				"parenttype": "User",
+				"role": ROLE_VIEW_CARD_ACTIVITY_TIMELINE,
+			},
+		)
+	)
+
+
+def require_view_card_activity_timeline_role(
+	message: str | None = None,
+	user: str | None = None,
+) -> None:
+	if not has_view_card_activity_timeline_role(user=user):
+		frappe.throw(
+			message or _("ليست لديك صلاحية عرض سجل مستخدم العملية في البطاقات."),
+			frappe.PermissionError,
+		)
+
+
+def has_enforce_card_image_blur_role(user: str | None = None) -> bool:
+	resolved_user = _resolve_user(user)
+	if not resolved_user or resolved_user == "Guest":
+		return False
+	return bool(
+		frappe.db.exists(
+			"Has Role",
+			{
+				"parent": resolved_user,
+				"parenttype": "User",
+				"role": ROLE_ENFORCE_CARD_IMAGE_BLUR,
+			},
+		)
+	)
+
+
+def require_enforce_card_image_blur_role(
+	message: str | None = None,
+	user: str | None = None,
+) -> None:
+	if not has_enforce_card_image_blur_role(user=user):
+		frappe.throw(
+			message or _("المستخدم الحالي لا يخضع لصلاحية فرض تمويه صور البطاقات."),
+			frappe.PermissionError,
+		)
 
 
 def has_reactivate_permanently_stopped_card_role(user: str | None = None) -> bool:
@@ -127,17 +185,30 @@ def get_role_permission_map(user: str | None = None) -> dict[str, int]:
 		base = {"read": 1, "write": 1, "create": 1, "delete": 0}
 		for perm in CARD_PERMISSION_TYPES:
 			base[perm] = 1
+		base["view_card_activity_timeline"] = int(
+			has_view_card_activity_timeline_role(user=resolved_user)
+		)
 		return base
 
 	meta = frappe.get_meta(CARD_DOCTYPE)
 	role_perms = get_role_permissions(meta, user=resolved_user) or {}
-	return {key: cint(val) for key, val in role_perms.items()}
+	mapped = {key: cint(val) for key, val in role_perms.items()}
+	mapped["view_card_activity_timeline"] = int(
+		bool(cint(mapped.get("view_cards")))
+		and has_view_card_activity_timeline_role(user=resolved_user)
+	)
+	return mapped
 
 
 def has_card_permission(perm_type: str, user: str | None = None) -> bool:
 	resolved_user = _resolve_user(user)
 	if resolved_user == "Guest":
 		return False
+	if perm_type == "view_card_activity_timeline":
+		return bool(
+			has_card_permission("view_cards", user=resolved_user)
+			and has_view_card_activity_timeline_role(user=resolved_user)
+		)
 	if _is_privileged_user(resolved_user):
 		return True
 
@@ -188,6 +259,7 @@ def get_card_permissions(user: str | None = None) -> dict[str, bool]:
 			"can_reactivate_permanently_stopped_card": has_reactivate_permanently_stopped_card_role(
 				user=resolved_user
 			),
+			"enforce_image_blur": False,
 			**{perm: False for perm in CARD_PERMISSION_TYPES},
 		}
 
@@ -210,6 +282,7 @@ def get_card_permissions(user: str | None = None) -> dict[str, bool]:
 		"can_reactivate_permanently_stopped_card": has_reactivate_permanently_stopped_card_role(
 			user=resolved_user
 		),
+		"enforce_image_blur": has_enforce_card_image_blur_role(user=resolved_user),
 		**flags,
 	}
 
@@ -301,7 +374,12 @@ def has_log_permission(
 	resolved_user = _resolve_user(user)
 	perm = ptype or "read"
 	if perm in ("read", "select"):
-		return has_card_permission("view_card_activity_timeline", user=resolved_user)
+		if not has_card_permission("view_card_activity_timeline", user=resolved_user):
+			return False
+		card_name = getattr(doc, "card", None) if doc and not isinstance(doc, str) else None
+		if card_name:
+			return has_permission(card_name, "read", user=resolved_user)
+		return True
 	return False
 
 
