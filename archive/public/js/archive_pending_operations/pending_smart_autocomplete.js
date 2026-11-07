@@ -574,6 +574,17 @@ class ArchivePendingSmartAutocomplete {
             this.hide_menu(
                 state
             );
+
+            return;
+        }
+
+        if (
+            event.key
+            === "Tab"
+        ) {
+            this.hide_menu(
+                state
+            );
         }
     }
 

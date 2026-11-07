@@ -1,51 +1,35 @@
+/* ==========================================
+   Archive Pending Attachment Manager — Enterprise UI Polish
+   (Aligned with Archive Operation Dialog)
+   ========================================== */
+
 .pending-attachment-manager {
     width: 100%;
 }
 
 .pending-attachment-dropzone {
     display: flex;
-
-    min-height: 118px;
-
+    min-height: 96px;
     align-items: center;
     justify-content: center;
-
     flex-direction: column;
-
-    gap: 5px;
-
-    padding: 18px;
-
-    border:
-        1.5px dashed
-        var(--border-color);
-
-    border-radius: 10px;
-
-    background:
-        var(--subtle-fg);
-
+    gap: 6px;
+    padding: 14px 18px;
+    border: 1.5px dashed var(--archive-color-border-hover, #cbd5e1);
+    border-radius: var(--archive-radius-xl, 12px);
+    background: var(--archive-color-bg-app, #f8fafc);
     cursor: pointer;
-
     text-align: center;
-
     transition:
-        border-color 150ms ease,
-        background-color 150ms ease;
+        border-color 0.15s ease,
+        background-color 0.15s ease,
+        box-shadow 0.15s ease;
 }
 
 .pending-attachment-dropzone:hover,
 .pending-attachment-dropzone.is-dragging {
-    border-color:
-        var(--primary);
-
-    background:
-        rgba(
-            59,
-            130,
-            246,
-            0.055
-        );
+    border-color: var(--archive-color-primary, var(--primary));
+    background: #f0f7ff;
 }
 
 .pending-attachment-dropzone.is-disabled {
@@ -55,73 +39,61 @@
 
 .pending-attachment-drop-icon {
     display: flex;
-
-    width: 34px;
-    height: 34px;
-
+    width: 38px;
+    height: 38px;
     align-items: center;
     justify-content: center;
-
-    border-radius: 9px;
-
-    background:
-        var(--card-bg);
-
-    font-size: 19px;
+    border-radius: var(--archive-radius-lg, 10px);
+    background: var(--archive-color-bg-surface, #ffffff);
+    color: var(--archive-color-primary, #2563eb);
+    border: var(--archive-border-subtle, 1px solid #e2e8f0);
+    box-shadow: var(--archive-shadow-xs, 0 1px 2px rgba(15, 23, 42, 0.04));
+    font-size: 18px;
+    font-weight: 700;
 }
 
 .pending-attachment-dropzone strong {
-    font-size: 12px;
+    font-size: var(--archive-font-body-size, 13px);
+    font-weight: var(--archive-font-weight-bold, 700);
+    color: var(--archive-color-text-heading, #0f172a);
 }
 
 .pending-attachment-dropzone span {
-    color:
-        var(--text-muted);
-
-    font-size: 10.5px;
+    color: var(--archive-color-text-muted, var(--text-muted));
+    font-size: var(--archive-font-meta-size, 11.5px);
 }
 
 .pending-attachment-list {
-    margin-top: 10px;
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
 }
 
 .pending-attachment-item {
     display: flex;
-
     align-items: center;
     justify-content: space-between;
+    gap: 16px;
+    min-height: 56px;
+    padding: 10px 14px;
+    margin-bottom: 0;
+    border: var(--archive-border-subtle, 1px solid var(--border-color));
+    border-radius: var(--archive-radius-lg, 10px);
+    background: var(--archive-color-bg-surface, var(--card-bg));
+    transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
 
-    gap: 12px;
-
-    min-height: 55px;
-
-    padding: 9px 11px;
-
-    margin-bottom: 7px;
-
-    border:
-        1px solid
-        var(--border-color);
-
-    border-radius: 8px;
-
-    background:
-        var(--card-bg);
+.pending-attachment-item:hover {
+    border-color: var(--archive-color-border-hover, #cbd5e1);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
 }
 
 .pending-attachment-item.is-local {
-    background:
-        var(--subtle-fg);
+    background: var(--archive-color-bg-app, #f8fafc);
 }
 
 .pending-attachment-item.has-error {
-    border-color:
-        rgba(
-            220,
-            38,
-            38,
-            0.35
-        );
+    border-color: rgba(220, 38, 38, 0.35);
 }
 
 .pending-attachment-file-info {
@@ -131,71 +103,54 @@
 
 .pending-attachment-file-info strong {
     display: block;
-
     overflow: hidden;
-
-    margin-bottom: 3px;
-
+    margin-bottom: 2px;
     text-overflow: ellipsis;
     white-space: nowrap;
-
-    font-size: 12px;
+    font-size: var(--archive-font-body-size, 13px);
+    font-weight: var(--archive-font-weight-semibold, 600);
+    color: var(--archive-color-text-heading, #0f172a);
 }
 
 .pending-attachment-file-info span {
-    color:
-        var(--text-muted);
-
-    font-size: 10px;
+    color: var(--archive-color-text-muted, var(--text-muted));
+    font-size: var(--archive-font-meta-size, 11.5px);
 }
 
 .pending-attachment-actions {
     display: flex;
-
-    gap: 6px;
-
+    align-items: center;
+    gap: 8px;
     flex: 0 0 auto;
 }
 
 .pending-attachment-progress {
     overflow: hidden;
-
     width: 100%;
     height: 4px;
-
     margin-top: 6px;
-
     border-radius: 999px;
-
-    background:
-        var(--border-color);
+    background: var(--border-color);
 }
 
 .pending-attachment-progress > div {
     height: 100%;
-
     border-radius: inherit;
-
-    background:
-        var(--primary);
-
-    transition:
-        width 120ms linear;
+    background: var(--primary);
+    transition: width 120ms linear;
 }
 
 .pending-attachment-empty {
-    padding: 18px;
-
-    border:
-        1px dashed
-        var(--border-color);
-
-    border-radius: 8px;
-
-    color:
-        var(--text-muted);
-
+    min-height: 86px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    border: var(--archive-border-subtle, 1px solid #e2e8f0);
+    border-radius: var(--archive-radius-xl, 12px);
+    background: var(--archive-color-bg-app, #f8fafc);
+    color: var(--archive-color-text-muted, var(--text-muted));
     text-align: center;
-
-    font-size: 11px;
+    font-size: var(--archive-font-label-size, 12px);
+    font-weight: var(--archive-font-weight-medium, 500);
 }

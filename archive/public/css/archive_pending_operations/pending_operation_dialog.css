@@ -1,47 +1,247 @@
-.archive-pending-operation-dialog
-.modal-dialog {
-    width:
-        min(
-            1180px,
-            calc(
-                100vw - 32px
-            )
-        ) !important;
+/* ==========================================
+   Archive Pending Operation Dialog — Enterprise UI Polish
+   (Aligned with Archive Operation Dialog)
+   ========================================== */
 
-    max-width:
-        1180px !important;
+.archive-pending-operation-dialog .modal-dialog {
+    width: 94vw !important;
+    max-width: 1460px !important;
+    margin: 2.5vh auto !important;
 }
 
-.archive-pending-operation-dialog
-.modal-content {
-    border-radius:
-        14px;
-
-    overflow:
-        hidden;
+.archive-pending-operation-dialog .modal-content {
+    max-height: 95vh;
+    border-radius: var(--archive-radius-2xl, 16px);
+    border: var(--archive-border-subtle, 1px solid var(--border-color));
+    background: var(--archive-color-bg-surface, var(--card-bg));
+    box-shadow:
+        0 20px 45px rgba(15, 23, 42, 0.14),
+        0 4px 12px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+    direction: rtl;
+    text-align: right;
 }
 
-.archive-pending-operation-dialog
-.modal-body {
-    max-height:
-        calc(
-            100vh - 180px
-        );
-
-    overflow-y:
-        auto;
+.archive-pending-operation-dialog .modal-header {
+    padding: 14px 22px;
+    background: var(--archive-color-bg-surface, var(--card-bg));
+    border-bottom: var(--archive-border-subtle, 1px solid var(--border-color));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
-.archive-pending-operation-dialog
-.section-head {
-    margin-top:
-        10px;
+.archive-pending-operation-dialog .modal-header .modal-title {
+    font-size: var(--archive-font-page-title-size, 18px);
+    font-weight: var(--archive-font-page-title-weight, 800);
+    line-height: var(--archive-font-page-title-lh, 1.3);
+    color: var(--archive-color-text-heading, #0f172a);
+    margin: 0;
+}
 
-    margin-bottom:
-        12px;
+.archive-pending-operation-dialog .modal-body {
+    max-height: calc(95vh - 130px);
+    overflow-y: auto;
+    padding: var(--archive-space-4, 16px) var(--archive-space-5, 20px);
+    background: var(--archive-color-bg-app, #f8fafc);
+}
 
-    font-weight:
-        700;
+.archive-pending-operation-dialog .modal-footer {
+    padding: 12px 22px;
+    border-top: var(--archive-border-subtle, 1px solid var(--border-color));
+    background: var(--archive-color-bg-surface, var(--card-bg));
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--archive-space-2, 8px);
+}
+
+
+/* ==========================================
+   Form Layout & Sections (Card-Style)
+   ========================================== */
+
+.archive-pending-operation-dialog .form-layout,
+.archive-pending-operation-dialog .form-page {
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    gap: var(--archive-space-3, 12px);
+}
+
+.archive-pending-operation-dialog .form-section {
+    background: var(--archive-color-bg-surface, var(--card-bg));
+    border: var(--archive-border-subtle, 1px solid var(--border-color)) !important;
+    border-radius: var(--archive-radius-xl, 14px);
+    padding: 16px 20px !important;
+    margin: 0 !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+}
+
+.archive-pending-operation-dialog .section-head {
+    font-size: var(--archive-font-section-title-size, 15px);
+    font-weight: var(--archive-font-section-title-weight, 700);
+    line-height: var(--archive-font-section-title-lh, 1.35);
+    color: var(--archive-color-text-heading, #0f172a);
+    padding: 0 0 11px 0 !important;
+    margin: 0 0 14px 0 !important;
+    border-bottom: var(--archive-border-width-thin, 1px) var(--archive-border-style-solid, solid) var(--archive-color-border-divider, #f1f5f9);
+    width: 100%;
+}
+
+.archive-pending-operation-dialog .section-body {
+    width: 100%;
+    margin: 0 -8px;
+}
+
+.archive-pending-operation-dialog .form-column {
+    padding: 0 8px;
+}
+
+
+/* ==========================================
+   Fields, Labels & Visual Hierarchy
+   ========================================== */
+
+.archive-pending-operation-dialog .frappe-control .control-label,
+.archive-pending-operation-dialog .pending-combined-datetime-control .control-label {
+    font-size: var(--archive-font-label-size, 12px);
+    font-weight: var(--archive-font-label-weight, 600);
+    line-height: var(--archive-font-label-lh, 1.35);
+    color: var(--archive-slate-600, #475569);
+    margin-bottom: 5px;
+    display: block;
+}
+
+/* Read-only values */
+.archive-pending-operation-dialog .frappe-control .control-value,
+.archive-pending-operation-dialog .frappe-control .control-value.like-disabled-input,
+.archive-pending-operation-dialog .frappe-control .form-control[readonly],
+.archive-pending-operation-dialog .frappe-control .form-control:disabled,
+.archive-pending-operation-dialog .pending-combined-datetime-inputs .form-control:disabled {
+    min-height: var(--archive-control-height, 36px);
+    padding: 6px 12px;
+    background: var(--archive-color-bg-field-readonly, #f8fafc);
+    border: var(--archive-border-width-thin, 1px) var(--archive-border-style-solid, solid) var(--archive-color-border-subtle, #e2e8f0);
+    border-radius: var(--archive-radius-lg, 8px);
+    font-size: var(--archive-font-body-size, 13px);
+    font-weight: var(--archive-font-weight-semibold, 600);
+    line-height: var(--archive-font-body-lh, 1.45);
+    color: var(--archive-color-text-heading, #0f172a);
+    display: flex;
+    align-items: center;
+    box-shadow: none;
+    opacity: 1 !important;
+    cursor: default;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Editable inputs */
+.archive-pending-operation-dialog .frappe-control .form-control:not([readonly]):not(:disabled),
+.archive-pending-operation-dialog .pending-combined-datetime-inputs .form-control:not([readonly]):not(:disabled),
+.archive-pending-operation-dialog .pending-ledger-table .form-control:not([readonly]):not(:disabled) {
+    min-height: var(--archive-control-height, 36px);
+    height: var(--archive-control-height, 36px);
+    padding: 6px 12px;
+    background: var(--archive-color-bg-surface, #ffffff);
+    border: var(--archive-border-width-thin, 1px) var(--archive-border-style-solid, solid) var(--archive-color-border-hover, #cbd5e1);
+    border-radius: var(--archive-radius-lg, 8px);
+    font-size: var(--archive-font-body-size, 13px);
+    font-weight: var(--archive-font-weight-medium, 500);
+    line-height: var(--archive-font-body-lh, 1.45);
+    color: var(--archive-color-text-heading, #0f172a);
+    box-shadow: var(--archive-shadow-xs, 0 1px 2px rgba(15, 23, 42, 0.04));
+    transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        background-color 0.15s ease;
+}
+
+.archive-pending-operation-dialog .frappe-control .form-control:not([readonly]):not(:disabled):hover,
+.archive-pending-operation-dialog .pending-combined-datetime-inputs .form-control:not([readonly]):not(:disabled):hover,
+.archive-pending-operation-dialog .pending-ledger-table .form-control:not([readonly]):not(:disabled):hover {
+    border-color: var(--archive-color-border-input, #94a3b8);
+}
+
+.archive-pending-operation-dialog .frappe-control .form-control:not([readonly]):not(:disabled):focus,
+.archive-pending-operation-dialog .pending-combined-datetime-inputs .form-control:not([readonly]):not(:disabled):focus,
+.archive-pending-operation-dialog .pending-ledger-table .form-control:not([readonly]):not(:disabled):focus {
+    outline: none;
+    border-color: var(--archive-color-primary, #2563eb);
+    background: var(--archive-color-bg-surface, #ffffff);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.archive-pending-operation-dialog .frappe-control textarea.form-control,
+.archive-pending-operation-dialog [data-fieldname="suspended_note"] textarea,
+.archive-pending-operation-dialog [data-fieldname="notes"] textarea {
+    height: auto !important;
+    min-height: 84px;
+    padding: 8px 12px;
+}
+
+/* Primary / Important Values Visual Presence */
+.archive-pending-operation-dialog .frappe-control[data-fieldname="bank"] .control-value,
+.archive-pending-operation-dialog .frappe-control[data-fieldname="bank"] .form-control,
+.archive-pending-operation-dialog .frappe-control[data-fieldname="card_name"] .control-value,
+.archive-pending-operation-dialog .frappe-control[data-fieldname="card_name"] .form-control,
+.archive-pending-operation-dialog .frappe-control[data-fieldname="account_number"] .control-value,
+.archive-pending-operation-dialog .frappe-control[data-fieldname="account_number"] .form-control,
+.archive-pending-operation-dialog .frappe-control[data-fieldname="card_number"] .control-value,
+.archive-pending-operation-dialog .frappe-control[data-fieldname="card_number"] .form-control,
+.archive-pending-operation-dialog .frappe-control[data-fieldname="suspended_amount_header"] .control-value,
+.archive-pending-operation-dialog .frappe-control[data-fieldname="suspended_amount_header"] .form-control,
+.archive-pending-operation-dialog .frappe-control[data-fieldname="card_owner"] .control-value,
+.archive-pending-operation-dialog .frappe-control[data-fieldname="card_owner"] .form-control {
+    font-weight: var(--archive-font-weight-bold, 700);
+    color: var(--archive-color-text-heading, #0f172a);
+}
+
+
+/* ==========================================
+   Buttons inside Dialog
+   ========================================== */
+
+.archive-pending-operation-dialog .modal-footer .btn,
+.archive-pending-operation-dialog .modal-body .btn {
+    height: var(--archive-control-height, 36px);
+    padding: 0 14px;
+    border-radius: var(--archive-radius-lg, 8px);
+    font-size: var(--archive-font-label-size, 12.5px);
+    font-weight: var(--archive-font-weight-semibold, 600);
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.1s ease;
+}
+
+.archive-pending-operation-dialog .modal-body .btn.btn-sm,
+.archive-pending-operation-dialog .modal-body .btn.btn-xs {
+    height: 32px;
+    padding: 0 12px;
+    font-size: var(--archive-font-meta-size, 12px);
+}
+
+.archive-pending-operation-dialog .modal-footer .btn-default,
+.archive-pending-operation-dialog .modal-body .btn-default {
+    background: var(--archive-color-bg-surface, #ffffff);
+    border: var(--archive-border-width-thin, 1px) var(--archive-border-style-solid, solid) var(--archive-color-border-hover, #cbd5e1);
+    color: var(--archive-color-text-body, #334155);
+    box-shadow: var(--archive-shadow-xs, 0 1px 2px rgba(15, 23, 42, 0.04));
+}
+
+.archive-pending-operation-dialog .modal-footer .btn-default:hover:not(:disabled),
+.archive-pending-operation-dialog .modal-body .btn-default:hover:not(:disabled) {
+    background: var(--archive-color-bg-app, #f8fafc);
+    border-color: #94a3b8;
+    color: var(--archive-color-text-heading, #0f172a);
 }
 
 
@@ -50,596 +250,103 @@
    ============================================================ */
 
 .pending-create-ledger-editor {
-    width:
-        100%;
+    width: 100%;
 }
 
 .pending-ledger-toolbar {
-    display:
-        flex;
-
-    align-items:
-        center;
-
-    justify-content:
-        space-between;
-
-    gap:
-        16px;
-
-    margin-bottom:
-        12px;
-
-    padding:
-        11px
-        12px;
-
-    border:
-        1px solid
-        var(--border-color);
-
-    border-radius:
-        10px;
-
-    background:
-        var(--subtle-fg);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border: var(--archive-border-subtle, 1px solid var(--border-color));
+    border-radius: var(--archive-radius-xl, 12px);
+    background: var(--archive-color-bg-app, #f8fafc);
 }
 
 .pending-ledger-title {
-    margin-bottom:
-        2px;
-
-    font-size:
-        13px;
-
-    font-weight:
-        700;
+    margin-bottom: 2px;
+    font-size: var(--archive-font-body-size, 13.5px);
+    font-weight: var(--archive-font-weight-bold, 700);
+    color: var(--archive-color-text-heading, #0f172a);
 }
 
 .pending-ledger-subtitle {
-    color:
-        var(--text-muted);
-
-    font-size:
-        11px;
-
-    line-height:
-        1.6;
+    color: var(--archive-color-text-muted, var(--text-muted));
+    font-size: var(--archive-font-meta-size, 11.5px);
+    line-height: 1.5;
 }
 
 .pending-ledger-scroll {
-    width:
-        100%;
-
-    overflow-x:
-        auto;
-
-    border:
-        1px solid
-        var(--border-color);
-
-    border-radius:
-        10px;
+    width: 100%;
+    overflow-x: auto;
+    border: var(--archive-border-subtle, 1px solid var(--border-color));
+    border-radius: var(--archive-radius-xl, 12px);
+    background: var(--archive-color-bg-surface, var(--card-bg));
 }
 
 .pending-ledger-table {
-    width:
-        100%;
-
-    min-width:
-        820px;
-
-    border-collapse:
-        separate;
-
-    border-spacing:
-        0;
-
-    table-layout:
-        fixed;
-
-    background:
-        var(--card-bg);
+    width: 100%;
+    min-width: 1040px;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    background: var(--archive-color-bg-surface, var(--card-bg));
 }
 
 .pending-ledger-table th,
 .pending-ledger-table td {
-    padding:
-        9px
-        8px;
-
-    text-align:
-        right;
-
-    vertical-align:
-        middle;
+    padding: 10px 10px;
+    text-align: right;
+    vertical-align: middle;
 }
 
 .pending-ledger-table th {
-    height:
-        42px;
-
-    border-bottom:
-        1px solid
-        var(--border-color);
-
-    background:
-        var(--subtle-fg);
-
-    color:
-        var(--text-muted);
-
-    font-size:
-        11px;
-
-    font-weight:
-        700;
-
-    white-space:
-        nowrap;
+    height: 42px;
+    border-bottom: 1px solid var(--archive-color-border-subtle, #e2e8f0);
+    background: var(--archive-color-bg-app, #f8fafc);
+    color: var(--archive-slate-600, #475569);
+    font-size: var(--archive-font-label-size, 12px);
+    font-weight: var(--archive-font-weight-bold, 700);
+    white-space: nowrap;
 }
 
 .pending-ledger-table td {
-    border-bottom:
-        1px solid
-        var(--border-color);
+    border-bottom: 1px solid var(--archive-color-border-divider, #f1f5f9);
 }
 
-.pending-ledger-table
-tr:last-child
-td {
-    border-bottom:
-        0;
+.pending-ledger-table tr:last-child td {
+    border-bottom: 0;
 }
 
-.pending-ledger-table
-.pending-col-index {
-    width:
-        50px;
-
-    text-align:
-        center;
+.pending-ledger-table .pending-col-index {
+    width: 50px;
+    text-align: center;
 }
 
-.pending-ledger-table
-.pending-col-action {
-    width:
-        48px;
+.pending-ledger-table .pending-col-action {
+    width: 48px;
+    text-align: center;
+}
 
-    text-align:
-        center;
+.pending-ledger-table .pending-col-note {
+    width: 220px;
 }
 
 .pending-ledger-index {
-    color:
-        var(--text-muted);
-
-    font-size:
-        12px;
-
-    font-weight:
-        700;
-}
-
-.pending-ledger-table
-.form-control {
-    min-width:
-        125px;
-
-    font-size:
-        12px;
-}
-
-.pending-ledger-return-datetime {
-    min-width:
-        185px !important;
-}
-
-.pending-ledger-remaining {
-    min-height:
-        34px;
-
-    display:
-        flex;
-
-    align-items:
-        center;
-
-    padding:
-        6px
-        10px;
-
-    border:
-        1px solid
-        var(--border-color);
-
-    border-radius:
-        6px;
-
-    background:
-        var(--subtle-fg);
-
-    direction:
-        ltr;
-
-    unicode-bidi:
-        isolate;
-
-    font-variant-numeric:
-        tabular-nums;
-
-    font-weight:
-        650;
-}
-
-.pending-ledger-row.has-error
-td {
-    background:
-        rgba(
-            220,
-            38,
-            38,
-            0.04
-        );
-}
-
-.pending-ledger-row.has-error
-.form-control {
-    border-color:
-        #dc2626;
-
-    box-shadow:
-        0 0 0 1px
-        rgba(
-            220,
-            38,
-            38,
-            0.12
-        );
-}
-
-.pending-ledger-validation-message {
-    margin:
-        4px
-        0;
-
-    line-height:
-        1.6;
-}
-
-
-/* ============================================================
-   Summary
-   ============================================================ */
-
-.pending-create-summary-grid {
-    display:
-        grid;
-
-    grid-template-columns:
-        repeat(
-            4,
-            minmax(
-                0,
-                1fr
-            )
-        );
-
-    gap:
-        10px;
-
-    width:
-        100%;
-}
-
-.pending-create-summary-card {
-    min-height:
-        88px;
-
-    padding:
-        13px
-        14px;
-
-    border:
-        1px solid
-        var(--border-color);
-
-    border-radius:
-        10px;
-
-    background:
-        var(--card-bg);
-}
-
-.pending-summary-label {
-    display:
-        block;
-
-    margin-bottom:
-        8px;
-
-    color:
-        var(--text-muted);
-
-    font-size:
-        11px;
-}
-
-.pending-create-summary-card
-strong {
-    display:
-        inline-block;
-
-    font-size:
-        20px;
-
-    font-weight:
-        700;
-
-    line-height:
-        1.2;
-
-    direction:
-        ltr;
-
-    unicode-bidi:
-        isolate;
-
-    font-variant-numeric:
-        tabular-nums;
-}
-
-.pending-summary-currency {
-    display:
-        inline-block;
-
-    margin-inline-start:
-        5px;
-
-    color:
-        var(--text-muted);
-
-    font-size:
-        11px;
-
-    font-weight:
-        600;
-}
-
-.pending-summary-status {
-    padding:
-        5px
-        9px;
-
-    border-radius:
-        999px;
-
-    border:
-        1px solid
-        transparent;
-
-    font-size:
-        12px !important;
-
-    direction:
-        rtl !important;
-
-    unicode-bidi:
-        normal !important;
-}
-
-.pending-summary-status.status-under-action {
-    color:
-        #475569;
-
-    background:
-        rgba(
-            100,
-            116,
-            139,
-            0.12
-        );
-
-    border-color:
-        rgba(
-            100,
-            116,
-            139,
-            0.24
-        );
-}
-
-.pending-summary-status.status-partial {
-    color:
-        #b45309;
-
-    background:
-        rgba(
-            245,
-            158,
-            11,
-            0.12
-        );
-
-    border-color:
-        rgba(
-            245,
-            158,
-            11,
-            0.25
-        );
-}
-
-.pending-summary-status.status-complete {
-    color:
-        #15803d;
-
-    background:
-        rgba(
-            22,
-            163,
-            74,
-            0.11
-        );
-
-    border-color:
-        rgba(
-            22,
-            163,
-            74,
-            0.24
-        );
-}
-
-.pending-summary-status.status-invalid {
-    color:
-        #b91c1c;
-
-    background:
-        rgba(
-            220,
-            38,
-            38,
-            0.09
-        );
-
-    border-color:
-        rgba(
-            220,
-            38,
-            38,
-            0.22
-        );
-}
-
-
-/* ============================================================
-   General fields
-   ============================================================ */
-
-.archive-pending-operation-dialog
-input[data-fieldname="card_number"],
-.archive-pending-operation-dialog
-input[data-fieldname="machine_no"],
-.archive-pending-operation-dialog
-input[data-fieldname="branch_no"] {
-    direction:
-        ltr;
-
-    unicode-bidi:
-        isolate;
-
-    text-align:
-        left;
-}
-
-
-/* ============================================================
-   Responsive
-   ============================================================ */
-
-@media (
-    max-width:
-    900px
-) {
-    .pending-create-summary-grid {
-        grid-template-columns:
-            repeat(
-                2,
-                minmax(
-                    0,
-                    1fr
-                )
-            );
-    }
-}
-
-@media (
-    max-width:
-    600px
-) {
-    .archive-pending-operation-dialog
-    .modal-dialog {
-        width:
-            calc(
-                100vw - 16px
-            ) !important;
-
-        margin:
-            8px auto;
-    }
-
-    .pending-ledger-toolbar {
-        align-items:
-            stretch;
-
-        flex-direction:
-            column;
-    }
-
-    .pending-ledger-add-row {
-        width:
-            100%;
-    }
-
-    .pending-create-summary-grid {
-        grid-template-columns:
-            1fr;
-    }
-}
-
-/* ============================================================
-   Pending operation create layout - SAR / combined datetime
-   ============================================================ */
-
-.pending-combined-datetime-control {
-    width: 100%;
-}
-
-.pending-combined-datetime-control
-.control-label {
-    display: block;
-
-    margin-bottom: 6px;
-}
-
-.pending-combined-datetime-inputs {
-    display: grid;
-
-    grid-template-columns:
-        minmax(
-            145px,
-            1.35fr
-        )
-        minmax(
-            105px,
-            0.9fr
-        )
-        72px;
-
-    gap: 6px;
-
-    align-items: center;
-}
-
-.pending-combined-datetime-inputs
-.form-control {
-    min-width: 0;
-}
-
-.pending-operation-period {
-    text-align: center;
-
+    color: var(--archive-color-text-muted, var(--text-muted));
+    font-size: 12px;
     font-weight: 700;
 }
 
-.pending-ledger-table {
-    min-width: 1040px;
+.pending-ledger-table .form-control {
+    min-width: 125px;
+    font-size: 12.5px;
 }
 
-.pending-ledger-table
-.pending-col-note {
-    width: 220px;
+.pending-ledger-return-datetime {
+    min-width: 185px !important;
 }
 
 .pending-ledger-return-date {
@@ -650,23 +357,196 @@ input[data-fieldname="branch_no"] {
     min-width: 190px !important;
 }
 
-.archive-pending-operation-dialog
-[data-fieldname="suspended_note"]
-textarea,
-.archive-pending-operation-dialog
-[data-fieldname="notes"]
-textarea {
-    min-height: 72px;
+.pending-ledger-remaining {
+    min-height: var(--archive-control-height, 36px);
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    border: 1px solid var(--archive-color-border-subtle, #e2e8f0);
+    border-radius: var(--archive-radius-lg, 8px);
+    background: var(--archive-color-bg-field-readonly, #f8fafc);
+    color: var(--archive-color-text-heading, #0f172a);
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
 }
 
-@media (
-    max-width: 680px
-) {
+.pending-ledger-row.has-error td {
+    background: rgba(220, 38, 38, 0.04);
+}
+
+.pending-ledger-row.has-error .form-control {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.12) !important;
+}
+
+.pending-ledger-validation-message {
+    margin: 4px 0;
+    line-height: 1.6;
+}
+
+
+/* ============================================================
+   Summary
+   ============================================================ */
+
+.pending-create-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+    margin-top: 12px;
+}
+
+.pending-create-summary-card {
+    min-height: 88px;
+    padding: 14px 16px;
+    border: var(--archive-border-subtle, 1px solid #e2e8f0);
+    border-radius: var(--archive-radius-xl, 12px);
+    background: var(--archive-color-bg-app, #f8fafc);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+}
+
+.pending-summary-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--archive-slate-600, #475569);
+    font-size: var(--archive-font-label-size, 12px);
+    font-weight: var(--archive-font-weight-semibold, 600);
+}
+
+.pending-create-summary-card strong {
+    display: inline-block;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.2;
+    color: var(--archive-color-text-heading, #0f172a);
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums;
+}
+
+.pending-summary-currency {
+    display: inline-block;
+    margin-inline-start: 5px;
+    color: var(--archive-color-text-muted, var(--text-muted));
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+.pending-summary-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 12px !important;
+    font-weight: 700;
+    direction: rtl !important;
+    unicode-bidi: normal !important;
+}
+
+.pending-summary-status.status-under-action {
+    color: #475569;
+    background: rgba(100, 116, 139, 0.12);
+    border-color: rgba(100, 116, 139, 0.24);
+}
+
+.pending-summary-status.status-partial {
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.25);
+}
+
+.pending-summary-status.status-complete {
+    color: #15803d;
+    background: rgba(22, 163, 74, 0.11);
+    border-color: rgba(22, 163, 74, 0.24);
+}
+
+.pending-summary-status.status-invalid {
+    color: #b91c1c;
+    background: rgba(220, 38, 38, 0.09);
+    border-color: rgba(220, 38, 38, 0.22);
+}
+
+
+/* ============================================================
+   Combined Datetime & General Fields
+   ============================================================ */
+
+.pending-combined-datetime-control {
+    width: 100%;
+}
+
+.pending-combined-datetime-inputs {
+    display: grid;
+    grid-template-columns:
+        minmax(145px, 1.35fr)
+        minmax(105px, 0.9fr)
+        72px;
+    gap: 8px;
+    align-items: center;
+}
+
+.pending-combined-datetime-inputs .form-control {
+    min-width: 0;
+}
+
+.pending-operation-period {
+    text-align: center !important;
+    font-weight: 700 !important;
+}
+
+.archive-pending-operation-dialog input[data-fieldname="card_number"],
+.archive-pending-operation-dialog input[data-fieldname="machine_no"],
+.archive-pending-operation-dialog input[data-fieldname="branch_no"] {
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: left;
+}
+
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 900px) {
+    .pending-create-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .archive-pending-operation-dialog .modal-dialog {
+        width: 98vw !important;
+        margin: 1vh auto !important;
+    }
+
+    .archive-pending-operation-dialog .modal-body {
+        padding: 12px;
+    }
+
+    .archive-pending-operation-dialog .form-section {
+        padding: 14px !important;
+    }
+
     .pending-combined-datetime-inputs {
-        grid-template-columns:
-            1fr
-            1fr
-            64px;
+        grid-template-columns: 1fr 1fr 64px;
+    }
+
+    .pending-ledger-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .pending-ledger-add-row {
+        width: 100%;
+    }
+
+    .pending-create-summary-grid {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -677,83 +557,39 @@ textarea {
    ============================================================ */
 
 .archive-pending-operation-dialog {
-    direction:
-        rtl;
+    direction: rtl;
 }
 
-
-.archive-pending-operation-dialog
-.form-group,
-
-.archive-pending-operation-dialog
-.frappe-control,
-
-.archive-pending-operation-dialog
-.control-input-wrapper,
-
-.archive-pending-operation-dialog
-.control-input {
-    direction:
-        rtl;
+.archive-pending-operation-dialog .form-group,
+.archive-pending-operation-dialog .frappe-control,
+.archive-pending-operation-dialog .control-input-wrapper,
+.archive-pending-operation-dialog .control-input {
+    direction: rtl;
 }
 
-
-.archive-pending-operation-dialog
-input,
-
-.archive-pending-operation-dialog
-textarea,
-
-.archive-pending-operation-dialog
-select,
-
-.archive-pending-operation-dialog
-.form-control {
-    direction:
-        rtl !important;
-
-    text-align:
-        right !important;
+.archive-pending-operation-dialog input,
+.archive-pending-operation-dialog textarea,
+.archive-pending-operation-dialog select,
+.archive-pending-operation-dialog .form-control {
+    direction: rtl !important;
+    text-align: right !important;
 }
 
-
-.archive-pending-operation-dialog
-.awesomplete,
-
-.archive-pending-operation-dialog
-.awesomplete input,
-
-.archive-pending-operation-dialog
-.input-with-feedback {
-    direction:
-        rtl !important;
-
-    text-align:
-        right !important;
+.archive-pending-operation-dialog .awesomplete,
+.archive-pending-operation-dialog .awesomplete input,
+.archive-pending-operation-dialog .input-with-feedback {
+    direction: rtl !important;
+    text-align: right !important;
 }
 
-
-.archive-pending-operation-dialog
-input::placeholder,
-
-.archive-pending-operation-dialog
-textarea::placeholder {
-    direction:
-        rtl;
-
-    text-align:
-        right;
+.archive-pending-operation-dialog input::placeholder,
+.archive-pending-operation-dialog textarea::placeholder {
+    direction: rtl;
+    text-align: right;
 }
 
-
-.archive-pending-operation-dialog
-.control-label,
-
-.archive-pending-operation-dialog
-label {
-    direction:
-        rtl;
-
-    text-align:
-        right;
+.archive-pending-operation-dialog .control-label,
+.archive-pending-operation-dialog label {
+    direction: rtl;
+    text-align: right;
 }

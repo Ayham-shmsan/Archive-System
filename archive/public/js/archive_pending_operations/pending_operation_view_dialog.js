@@ -2097,6 +2097,185 @@ class ArchivePendingOperationViewDialog {
                     }
                 }
             );
+
+        this.dialog
+            .$wrapper
+            .on(
+                "keydown.pending_view_tab_order",
+                (event) => {
+                    this.handle_tab_navigation(
+                        event
+                    );
+                }
+            );
+    }
+
+
+    get_ordered_tab_inputs() {
+        const $wrapper =
+            this.dialog?.$wrapper;
+
+        if (
+            !$wrapper
+            || !$wrapper.length
+        ) {
+            return [];
+        }
+
+        const get_field_input = (
+            fieldname
+        ) => {
+            const control =
+                this.dialog
+                    .fields_dict?.[
+                        fieldname
+                    ];
+
+            if (!control) {
+                return null;
+            }
+
+            if (
+                control.$input
+                && control.$input.length
+            ) {
+                return control.$input.get(
+                    0
+                );
+            }
+
+            const $fallback =
+                control.$wrapper
+                    ?.find(
+                        "input, textarea, select"
+                    )
+                    .first();
+
+            return $fallback?.length
+                ? $fallback.get(0)
+                : null;
+        };
+
+        const candidates = [
+            get_field_input("bank"),
+            get_field_input("card_name"),
+            get_field_input("account_number"),
+            get_field_input("card_number"),
+            this.$datetime_root
+                ?.find(
+                    ".pending-view-operation-date"
+                )
+                .get(0),
+            this.$datetime_root
+                ?.find(
+                    ".pending-view-operation-time"
+                )
+                .get(0),
+            this.$datetime_root
+                ?.find(
+                    ".pending-view-operation-period"
+                )
+                .get(0),
+            get_field_input(
+                "suspended_amount_header"
+            ),
+            get_field_input("suspended_note"),
+            get_field_input("region"),
+            get_field_input(
+                "machine_location"
+            ),
+            get_field_input("branch_no"),
+            get_field_input("machine_no"),
+            get_field_input("representative"),
+            get_field_input("card_owner"),
+        ];
+
+        $wrapper
+            .find(
+                ".pending-view-ledger-edit-row"
+            )
+            .each((_, row) => {
+                $(row)
+                    .find(
+                        "input.form-control, textarea.form-control, select.form-control"
+                    )
+                    .each((__, input) => {
+                        candidates.push(
+                            input
+                        );
+                    });
+            });
+
+        candidates.push(
+            get_field_input("notes")
+        );
+
+        return candidates.filter((el) => {
+            if (!el) {
+                return false;
+            }
+
+            const $el = $(el);
+
+            return (
+                $el.is(":visible")
+                && !el.disabled
+                && !el.readOnly
+            );
+        });
+    }
+
+
+    handle_tab_navigation(event) {
+        if (event.key !== "Tab") {
+            return;
+        }
+
+        const inputs =
+            this.get_ordered_tab_inputs();
+
+        if (!inputs.length) {
+            return;
+        }
+
+        const active =
+            document.activeElement;
+
+        const current_index =
+            inputs.indexOf(active);
+
+        if (current_index === -1) {
+            return;
+        }
+
+        const next_index =
+            event.shiftKey
+                ? current_index - 1
+                : current_index + 1;
+
+        if (
+            next_index >= 0
+            && next_index < inputs.length
+        ) {
+            event.preventDefault();
+
+            const target =
+                inputs[next_index];
+
+            target.focus();
+
+            if (
+                typeof target.select
+                    === "function"
+                && target.tagName
+                    === "INPUT"
+                && target.type !== "date"
+            ) {
+                try {
+                    target.select();
+                } catch (_) {}
+            }
+        }
     }
 
 
