@@ -395,3 +395,297 @@
     background: var(--archive-color-bg-surface);
     box-shadow: 0 0 0 2px var(--archive-color-focus-ring);
 }
+
+/* ------------------------------------------------------------
+   15. Unified Elevated Toolbar Buttons (هوية أزرار شريط الأدوات الموحدة)
+   ------------------------------------------------------------ */
+.btn.ac-tb-btn {
+    position: relative;
+    height: var(--archive-control-height, 36px);
+    min-height: var(--archive-control-height, 36px);
+    padding: 0 12.5px;
+    border-radius: 9px;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1px solid #d5dfec;
+    border-bottom-color: #c3d0e2;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafd 100%);
+    color: #1e293b;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.96),
+        0 1px 2px rgba(15, 23, 42, 0.045),
+        0 2px 5px rgba(15, 23, 42, 0.03);
+    transition:
+        background 0.16s cubic-bezier(0.2, 0, 0, 1),
+        border-color 0.16s cubic-bezier(0.2, 0, 0, 1),
+        color 0.16s cubic-bezier(0.2, 0, 0, 1),
+        box-shadow 0.16s cubic-bezier(0.2, 0, 0, 1),
+        transform 0.14s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.btn.ac-tb-btn .ac-tb-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #2563eb;
+    transition: color 0.16s ease, transform 0.18s ease;
+}
+
+.btn.ac-tb-btn .ac-tb-label {
+    display: inline-block;
+    line-height: 1.2;
+}
+
+.btn.ac-tb-btn .ac-tb-caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-inline-start: 1px;
+    color: #64748b;
+    opacity: 0.88;
+    transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1), color 0.16s ease;
+}
+
+/* Secondary Hover */
+.btn.ac-tb-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #ffffff 0%, #f1f6fd 100%);
+    border-color: #b4c6df;
+    border-bottom-color: #9fb5d4;
+    color: #0f172a;
+    transform: translateY(-1px);
+    box-shadow:
+        inset 0 1px 0 #ffffff,
+        0 2px 4px rgba(15, 23, 42, 0.06),
+        0 5px 12px rgba(37, 99, 235, 0.075);
+}
+
+.btn.ac-tb-btn:hover:not(:disabled) .ac-tb-icon {
+    color: #1d4ed8;
+}
+
+/* Secondary Active / Pressed */
+.btn.ac-tb-btn:active:not(:disabled) {
+    transform: translateY(0.5px);
+    background: #eef3fa;
+    border-color: #b1c3dc;
+    box-shadow:
+        inset 0 1px 2px rgba(15, 23, 42, 0.07),
+        0 1px 1px rgba(15, 23, 42, 0.03);
+}
+
+/* Secondary Open / Active Filter / Hidden Columns State */
+.btn.ac-tb-btn.is-open:not(:disabled),
+.btn.ac-tb-btn.has-active-filters:not(:disabled),
+.btn.ac-tb-btn.has-hidden-columns:not(:disabled),
+.archive-cards-dropdown-wrap:not(.ac-tb-primary-group):has(> .archive-cards-popover-menu:not([hidden])) > .btn.ac-tb-btn:not(:disabled) {
+    background: linear-gradient(180deg, #eff6ff 0%, #e6f0fd 100%);
+    border-color: #93c5fd;
+    color: #1e40af;
+    box-shadow:
+        inset 0 1px 2px rgba(37, 99, 235, 0.08),
+        0 1px 3px rgba(37, 99, 235, 0.08);
+}
+
+.archive-cards-dropdown-wrap:has(> .archive-cards-popover-menu:not([hidden])) > .btn.ac-tb-btn .ac-tb-caret {
+    transform: rotate(180deg);
+}
+
+/* Toolbar Vertical Divider */
+.ac-tb-divider {
+    display: inline-block;
+    width: 1px;
+    height: 20px;
+    margin-inline: 3px;
+    background: linear-gradient(
+        180deg,
+        rgba(203, 213, 225, 0.2) 0%,
+        rgba(148, 163, 184, 0.58) 50%,
+        rgba(203, 213, 225, 0.2) 100%
+    );
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
+/* Counter Badges inside Toolbar Buttons */
+.btn.ac-tb-btn .generic-filter-badge,
+.btn.ac-tb-btn .archive-hidden-columns-count:not([style*="display: none"]) {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    background: #2563eb;
+    color: #ffffff;
+    border-radius: 999px;
+    padding: 0 5.5px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    margin: 0;
+}
+
+/* Tier 1 — Primary Action Button (الإجراءات / إجراء) */
+.btn.ac-tb-btn.ac-tb-btn--primary {
+    min-width: 106px;
+}
+
+.btn.ac-tb-btn.ac-tb-btn--primary:not(:disabled) {
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+    border-color: #1d4ed8;
+    border-bottom-color: #1e3a8a;
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.24),
+        0 1px 2px rgba(15, 23, 42, 0.1),
+        0 3px 9px rgba(29, 78, 216, 0.22);
+}
+
+.btn.ac-tb-btn.ac-tb-btn--primary:not(:disabled) .ac-tb-icon,
+.btn.ac-tb-btn.ac-tb-btn--primary:not(:disabled) .ac-tb-caret {
+    color: #ffffff;
+    opacity: 0.96;
+}
+
+.btn.ac-tb-btn.ac-tb-btn--primary:hover:not(:disabled) {
+    background: linear-gradient(180deg, #2b6df3 0%, #1a46c4 100%);
+    border-color: #1e40af;
+    border-bottom-color: #172554;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.28),
+        0 2px 5px rgba(15, 23, 42, 0.12),
+        0 6px 14px rgba(29, 78, 216, 0.27);
+}
+
+.btn.ac-tb-btn.ac-tb-btn--primary:hover:not(:disabled) .ac-tb-icon {
+    color: #ffffff;
+}
+
+.btn.ac-tb-btn.ac-tb-btn--primary:active:not(:disabled) {
+    transform: translateY(0.5px);
+    background: linear-gradient(180deg, #1d4ed8 0%, #1e3a8a 100%);
+    border-color: #1e3a8a;
+    color: #ffffff;
+    box-shadow:
+        inset 0 1px 3px rgba(15, 23, 42, 0.24),
+        0 1px 3px rgba(29, 78, 216, 0.18);
+}
+
+/* Tier 2 — Positive Sync Action Button (تحديث) */
+.btn.ac-tb-btn.ac-tb-btn--refresh:not(:disabled) {
+    background: linear-gradient(180deg, #f2fcf7 0%, #e5f7ee 100%);
+    border-color: #a6e3c5;
+    border-bottom-color: #7fd4ad;
+    color: #065f46;
+    font-weight: 700;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.92),
+        0 1px 2px rgba(6, 95, 70, 0.06),
+        0 2px 6px rgba(16, 185, 129, 0.09);
+}
+
+.btn.ac-tb-btn.ac-tb-btn--refresh:not(:disabled) .ac-tb-icon {
+    color: #059669;
+}
+
+.btn.ac-tb-btn.ac-tb-btn--refresh:hover:not(:disabled) {
+    background: linear-gradient(180deg, #ecfdf5 0%, #d5f2e4 100%);
+    border-color: #6ee7b7;
+    border-bottom-color: #4ade9d;
+    color: #064e3b;
+    transform: translateY(-1px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        0 2px 4px rgba(6, 95, 70, 0.08),
+        0 5px 12px rgba(16, 185, 129, 0.15);
+}
+
+.btn.ac-tb-btn.ac-tb-btn--refresh:hover:not(:disabled) .ac-tb-icon {
+    color: #047857;
+}
+
+.btn.ac-tb-btn.ac-tb-btn--refresh:active:not(:disabled) {
+    transform: translateY(0.5px);
+    background: #d3efe1;
+    border-color: #6ee7b7;
+    box-shadow:
+        inset 0 1px 2px rgba(6, 95, 70, 0.12),
+        0 1px 2px rgba(16, 185, 129, 0.06);
+}
+
+/* Focus-Visible Indicators */
+.btn.ac-tb-btn:focus {
+    outline: none;
+}
+
+.btn.ac-tb-btn:focus-visible {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow:
+        0 0 0 2px #ffffff,
+        0 0 0 4px rgba(37, 99, 235, 0.42);
+}
+
+.btn.ac-tb-btn.ac-tb-btn--refresh:focus-visible {
+    border-color: #059669;
+    box-shadow:
+        0 0 0 2px #ffffff,
+        0 0 0 4px rgba(5, 150, 105, 0.38);
+}
+
+/* Calm, High-Legibility Disabled State */
+.btn.ac-tb-btn:disabled {
+    opacity: 1;
+    background: linear-gradient(180deg, #f9fbfd 0%, #f3f6fa 100%);
+    border-color: #e2e8f0;
+    border-bottom-color: #dbe3ee;
+    color: #7b8ba1;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    transform: none;
+    cursor: not-allowed;
+}
+
+.btn.ac-tb-btn:disabled .ac-tb-icon,
+.btn.ac-tb-btn:disabled .ac-tb-caret {
+    color: #94a3b8;
+    opacity: 0.85;
+}
+
+.btn.ac-tb-btn.ac-tb-btn--primary:disabled {
+    background: linear-gradient(180deg, #eff4fc 0%, #e7effb 100%);
+    border-color: #cddbef;
+    border-bottom-color: #bfd1ea;
+    color: #556f94;
+}
+
+.btn.ac-tb-btn.ac-tb-btn--primary:disabled .ac-tb-icon,
+.btn.ac-tb-btn.ac-tb-btn--primary:disabled .ac-tb-caret {
+    color: #6482ad;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .btn.ac-tb-btn,
+    .btn.ac-tb-btn .ac-tb-icon,
+    .btn.ac-tb-btn .ac-tb-caret {
+        transition: none;
+    }
+    .btn.ac-tb-btn:hover:not(:disabled),
+    .btn.ac-tb-btn:active:not(:disabled),
+    .btn.ac-tb-btn.ac-tb-btn--primary:hover:not(:disabled),
+    .btn.ac-tb-btn.ac-tb-btn--primary:active:not(:disabled),
+    .btn.ac-tb-btn.ac-tb-btn--refresh:hover:not(:disabled),
+    .btn.ac-tb-btn.ac-tb-btn--refresh:active:not(:disabled) {
+        transform: none;
+    }
+}

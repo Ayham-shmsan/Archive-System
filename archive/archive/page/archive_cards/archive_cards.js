@@ -152,6 +152,16 @@ class ArchiveCardsPage {
 			<div class="archive-cards-shell" dir="rtl">
 				<div class="archive-cards-header">
 					<div class="archive-cards-header-text">
+						<span class="archive-cards-brand-icon" aria-hidden="true">
+							<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M6 8V6a2.4 2.4 0 0 1 2.4-2.4h11.2A2.4 2.4 0 0 1 22 6v7.1a2.4 2.4 0 0 1-2.4 2.4H18"/>
+								<line x1="6" y1="6.6" x2="22" y2="6.6"/>
+								<rect x="2" y="8" width="16" height="12" rx="2.4"/>
+								<line x1="2" y1="11.8" x2="18" y2="11.8"/>
+								<line x1="5.5" y1="16.2" x2="5.6" y2="16.2" stroke-width="2.3"/>
+								<line x1="8.2" y1="16.2" x2="8.3" y2="16.2" stroke-width="2.3"/>
+							</svg>
+						</span>
 						<div class="archive-cards-title-row">
 							<h1>إدارة البطاقات</h1>
 							<span class="archive-cards-subtitle">إدارة البطاقات البنكية، النسخ المتعددة، العهدة، والصور المحمية</span>
@@ -159,7 +169,7 @@ class ArchiveCardsPage {
 					</div>
 					<div class="archive-cards-header-actions">
 						<button type="button" class="btn btn-primary archive-cards-add-btn" data-action="create-card" hidden>
-							<i class="fa fa-plus"></i> إضافة بطاقة
+							إضافة بطاقة
 						</button>
 					</div>
 				</div>
@@ -179,7 +189,7 @@ class ArchiveCardsPage {
 				<div class="archive-cards-toolbar">
 					<div class="archive-cards-search-group">
 						<div class="archive-cards-search-box">
-							<i class="fa fa-search archive-cards-search-icon"></i>
+							<svg class="archive-cards-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
 							<input
 								type="text"
 								class="archive-cards-search-input"
@@ -191,13 +201,15 @@ class ArchiveCardsPage {
 						</div>
 
 						<button type="button" class="btn btn-default archive-cards-filter-toggle" data-action="toggle-filters">
-							<i class="fa fa-filter"></i> الفلاتر
+							<span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></span>
+							<span class="ac-tb-label">الفلاتر</span>
 							<span class="archive-cards-filter-badge" data-role="filter-badge" hidden>0</span>
 						</button>
 
 						<div class="archive-cards-dropdown-wrap">
 							<button type="button" class="btn btn-default" data-action="toggle-columns-menu">
-								<i class="fa fa-columns"></i> الأعمدة
+								<span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></span>
+								<span class="ac-tb-label">الأعمدة</span>
 							</button>
 							<div class="archive-cards-popover-menu is-columns-menu" data-role="columns-menu" hidden>
 								${this.render_columns_menu_html()}
@@ -207,7 +219,8 @@ class ArchiveCardsPage {
 
 					<div class="archive-cards-toolbar-actions">
 						<button type="button" class="btn btn-default" data-action="open-selected-view" disabled>
-							<i class="fa fa-eye"></i> عرض
+							<span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 7.51 7.36 4.5 12 4.5s8.58 3.01 9.94 7.15a1 1 0 0 1 0 .7C20.58 16.49 16.64 19.5 12 19.5s-8.58-3.01-9.94-7.15Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+							<span class="ac-tb-label">عرض</span>
 						</button>
 
 						<div class="archive-cards-dropdown-wrap" data-role="timeline-events-dropdown-wrap" hidden>
@@ -217,7 +230,9 @@ class ArchiveCardsPage {
 								data-action="toggle-timeline-events-menu"
 								disabled
 							>
-								<i class="fa fa-road"></i> المسار والأحداث <i class="fa fa-caret-down"></i>
+								<span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2.5"/><path d="M8.5 19h7a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7h7"/><circle cx="18" cy="5" r="2.5"/></svg></span>
+								<span class="ac-tb-label">المسار والأحداث</span>
+								<span class="ac-tb-caret" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
 							</button>
 							<div class="archive-cards-popover-menu" data-role="timeline-events-menu" hidden>
 								<button type="button" class="ac-menu-item" data-action="open-transfer-timeline">
@@ -235,12 +250,15 @@ class ArchiveCardsPage {
 							data-action="open-activity-timeline"
 							disabled
 						>
-							<i class="fa fa-history"></i> مسار العملية
+							<span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3.5 2"/></svg></span>
+							<span class="ac-tb-label">مسار العملية</span>
 						</button>
 
-						<div class="archive-cards-dropdown-wrap">
+						<div class="archive-cards-dropdown-wrap ac-tb-primary-group">
 							<button type="button" class="btn btn-default" data-action="toggle-actions-menu" disabled>
-								<i class="fa fa-cog"></i> الإجراءات <i class="fa fa-caret-down"></i>
+								<span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="7" y2="6"/><line x1="11" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="13" y2="12"/><line x1="17" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2"/><line x1="4" y1="18" x2="8" y2="18"/><line x1="12" y1="18" x2="20" y2="18"/><circle cx="10" cy="18" r="2"/></svg></span>
+								<span class="ac-tb-label">الإجراءات</span>
+								<span class="ac-tb-caret" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
 							</button>
 							<div class="archive-cards-popover-menu" data-role="actions-menu" hidden>
 								<button type="button" class="ac-menu-item" data-action="action-change-status">
@@ -257,7 +275,8 @@ class ArchiveCardsPage {
 						</div>
 
 						<button type="button" class="btn btn-default" data-action="refresh-list" title="تحديث">
-							<i class="fa fa-refresh"></i> تحديث
+							<span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-15.5-6.36L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 15.5 6.36L21 16"/><path d="M21 21v-5h-5"/></svg></span>
+							<span class="ac-tb-label">تحديث</span>
 						</button>
 					</div>
 				</div>

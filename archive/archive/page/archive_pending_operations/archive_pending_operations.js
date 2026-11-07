@@ -507,10 +507,19 @@ class ArchivePendingOperationsPage {
                 <div class="archive-pending-header">
 
                     <div class="archive-pending-header-text">
-                        <h1>شاشة المعلقات</h1>
-                        <p>
-                            إدارة ومتابعة العمليات المعلقة والإرجاعات
-                        </p>
+                        <span class="archive-pending-brand-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/>
+                                <path d="M3 3v5h5"/>
+                                <path d="M12 7v5l3 2"/>
+                            </svg>
+                        </span>
+                        <div class="archive-pending-title-col">
+                            <h1>شاشة المعلقات</h1>
+                            <p>
+                                إدارة ومتابعة العمليات المعلقة والإرجاعات
+                            </p>
+                        </div>
                     </div>
 
                     <button
@@ -522,7 +531,6 @@ class ArchivePendingOperationsPage {
                         "
                         style="display: none;"
                     >
-                        <span>＋</span>
                         إنشاء عملية معلقة
                     </button>
 
@@ -602,11 +610,12 @@ class ArchivePendingOperationsPage {
                             class="
                                 btn
                                 btn-default
+                                ac-tb-btn
                                 archive-pending-filter-button
                             "
                         >
-                            <i class="fa fa-filter" aria-hidden="true"></i>
-                            <span>الفلاتر</span>
+                            <span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></span>
+                            <span class="ac-tb-label">الفلاتر</span>
                         </button>
 
                         <div class="archive-cards-dropdown-wrap">
@@ -615,12 +624,13 @@ class ArchivePendingOperationsPage {
                                 class="
                                     btn
                                     btn-default
+                                    ac-tb-btn
                                     archive-pending-columns-button
                                 "
                                 title="اختيار الأعمدة الظاهرة"
                             >
-                                <i class="fa fa-columns" aria-hidden="true"></i>
-                                <span>الأعمدة</span>
+                                <span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></span>
+                                <span class="ac-tb-label">الأعمدة</span>
                                 <span
                                     class="archive-hidden-columns-count"
                                     style="display: none;"
@@ -637,19 +647,19 @@ class ArchivePendingOperationsPage {
                     </div>
 
                     <div class="archive-pending-toolbar-actions">
-                        
-
 
                         <button
                             type="button"
                             class="
                                 btn
                                 btn-default
+                                ac-tb-btn
                                 archive-pending-selected-view
                             "
                             disabled
                         >
-                            عرض
+                            <span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 7.51 7.36 4.5 12 4.5s8.58 3.01 9.94 7.15a1 1 0 0 1 0 .7C20.58 16.49 16.64 19.5 12 19.5s-8.58-3.01-9.94-7.15Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                            <span class="ac-tb-label">عرض</span>
                         </button>
 
                         <button
@@ -657,12 +667,30 @@ class ArchivePendingOperationsPage {
                             class="
                                 btn
                                 btn-default
+                                ac-tb-btn
                                 archive-pending-timeline-button
                             "
                             disabled
                         >
-                            <i class="fa fa-history"></i>
-                            مسار العملية
+                            <span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3.5 2"/></svg></span>
+                            <span class="ac-tb-label">مسار العملية</span>
+                        </button>
+
+                        <span class="ac-tb-divider" aria-hidden="true"></span>
+
+                        <button
+                            type="button"
+                            class="
+                                btn
+                                btn-default
+                                ac-tb-btn
+                                ac-tb-btn--primary
+                                archive-pending-selected-actions
+                            "
+                            disabled
+                        >
+                            <span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="7" y2="6"/><line x1="11" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="13" y2="12"/><line x1="17" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2"/><line x1="4" y1="18" x2="8" y2="18"/><line x1="12" y1="18" x2="20" y2="18"/><circle cx="10" cy="18" r="2"/></svg></span>
+                            <span class="ac-tb-label">إجراء</span>
                         </button>
 
                         <button
@@ -670,31 +698,16 @@ class ArchivePendingOperationsPage {
                             class="
                                 btn
                                 btn-default
-                                archive-pending-selected-actions
-                            "
-                            disabled
-                        >
-                            إجراء
-                        </button>
-                        <button
-                            type="button"
-                            class="
-                                btn
-                                btn-default
+                                ac-tb-btn
                                 archive-pending-close-toggle
                             "
                             style="display: none;"
                             disabled
                         >
-                            <i
-                                class="
-                                    fa
-                                    fa-check-circle
-                                "
-                            ></i>
-
+                            <span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg></span>
                             <span
                                 class="
+                                    ac-tb-label
                                     archive-pending-close-toggle-label
                                 "
                             >
@@ -702,17 +715,19 @@ class ArchivePendingOperationsPage {
                             </span>
                         </button>
 
-                        
-
                         <button
                             type="button"
                             class="
                                 btn
                                 btn-default
+                                ac-tb-btn
+                                ac-tb-btn--refresh
                                 archive-pending-refresh-button
                             "
+                            title="تحديث"
                         >
-                            تحديث
+                            <span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-15.5-6.36L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 15.5 6.36L21 16"/><path d="M21 21v-5h-5"/></svg></span>
+                            <span class="ac-tb-label">تحديث</span>
                         </button>
 
                     </div>
@@ -3408,7 +3423,7 @@ class ArchivePendingOperationsPage {
 
         $action_button
             .toggle(
-                show_action_button
+                show_action_button || !has_selected
             )
             .prop(
                 "disabled",
@@ -3426,16 +3441,19 @@ class ArchivePendingOperationsPage {
                     can_revert_failed
                 )
             )
-            .text(
-                is_failed
-                    ? "إلغاء الفشل"
-                    : "إجراء"
-            )
             .attr(
                 "title",
                 is_failed
                     ? "إلغاء تحويل العملية إلى فاشلة"
                     : "إجراء على العملية"
+            );
+
+        $action_button
+            .find(".ac-tb-label")
+            .text(
+                is_failed
+                    ? "إلغاء الفشل"
+                    : "إجراء"
             );
 
 
@@ -3513,13 +3531,12 @@ class ArchivePendingOperationsPage {
 
         $closure_button
             .find(
-                "i"
+                ".ac-tb-icon"
             )
-            .attr(
-                "class",
+            .html(
                 is_closed
-                    ? "fa fa-undo"
-                    : "fa fa-check-circle"
+                    ? '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>'
+                    : '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>'
             );
     }
 
