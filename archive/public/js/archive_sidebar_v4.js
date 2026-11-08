@@ -803,20 +803,29 @@
                             || ""
                         ).toLowerCase();
 
-                    const is_deposits_link =
-                        href.includes(
-                            "archive-deposits"
-                        )
-                        ||
-                        label === "الإيداعات";
+                    const screen_access_map =
+                        frappe?.boot?.archive_screen_access || {};
 
-                    if (is_deposits_link) {
+                    const matched_screen =
+                        href.includes("archive-pending-operations") || label === "العمليات المعلقة"
+                            ? "archive-pending-operations"
+                            : href.includes("archive-operations") || label === "العمليات"
+                            ? "archive-operations"
+                            : href.includes("archive-cards") || label === "البطاقات"
+                            ? "archive-cards"
+                            : href.includes("archive-deposits") || label === "الإيداعات"
+                            ? "archive-deposits"
+                            : href.includes("document-authenticity") || label === "فحص المستندات"
+                            ? "document-authenticity"
+                            : "";
+
+                    if (matched_screen) {
                         const allowed =
-                            Boolean(
-                                frappe
-                                    ?.boot
-                                    ?.archive_can_access_deposits
-                            );
+                            matched_screen in screen_access_map
+                                ? Boolean(screen_access_map[matched_screen])
+                                : matched_screen === "archive-deposits"
+                                ? Boolean(frappe?.boot?.archive_can_access_deposits)
+                                : Boolean(frappe?.boot?.allowed_pages?.[matched_screen]);
 
                         item.classList.toggle(
                             "archive-sidebar-utility-hidden",

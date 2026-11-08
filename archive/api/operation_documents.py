@@ -15,6 +15,7 @@ from archive.services.uploaded_files import (
 )
 from archive.services.operation_permissions import (
     can_manage_operation_attachments,
+    require_operations_screen_access,
 )
 from archive.domain.shared_documents import (
     MAX_SHARED_DOCUMENTS,
@@ -52,6 +53,7 @@ def _parse(
 def _get_operation(
     operation_name: str,
 ):
+    require_operations_screen_access()
     operation_name = cstr(
         operation_name
     ).strip()
@@ -736,6 +738,7 @@ def delete_operation_document(
 def get_operation_number_context(
     operation_no: str | None = None,
 ) -> dict[str, Any]:
+    require_operations_screen_access()
 
     from archive.archive.doctype.archive_operation.archive_operation import (
         normalize_operation_no,
@@ -881,6 +884,7 @@ def get_operation_number_suggestions(
     query: str | None = None,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
+    require_operations_screen_access()
 
     query = cstr(
         query
@@ -978,6 +982,7 @@ def lookup_operation_numbers(
     query: str | None = None,
     limit: int = 8,
 ) -> dict[str, Any]:
+    require_operations_screen_access()
 
     from archive.archive.doctype.archive_operation.archive_operation import (
         normalize_operation_no,

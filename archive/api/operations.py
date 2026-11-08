@@ -17,6 +17,7 @@ from archive.services.operation_permissions import (
     can_attach_incomplete_invoice,
     can_manage_operation_attachments,
     can_re_extract_operation_data,
+    require_operations_screen_access,
 )
 from archive.api.operation_search import (
     search_operation_names,
@@ -1845,6 +1846,7 @@ def create_operation(
     extraction_file_id:
         str | None = None,
 ) -> dict[str, Any]:
+    require_operations_screen_access()
 
     values = _parse(
         values,
@@ -2544,6 +2546,7 @@ def create_operation(
 def delete_temporary_files(
     file_ids: list[str] | str | None = None,
 ) -> dict[str, Any]:
+    require_operations_screen_access()
 
     file_ids = _parse(
         file_ids,
@@ -2596,12 +2599,26 @@ def get_operations(
     start: int = 0,
     page_length: int =100000 ,
 ) -> dict[str, Any]:
+    require_operations_screen_access()
 
-    frappe.has_permission(
+    if not frappe.has_permission(
         "Archive Operation",
         "read",
-        throw=True,
-    )
+    ):
+        return {
+            "operations": [],
+            "total": 0,
+            "counts": {
+                "all": 0,
+                "معلقة": 0,
+                "غير مؤكدة": 0,
+                "مؤكدة": 0,
+                "مرتجعة": 0,
+                "محضورة": 0,
+                "final_swift": 0,
+                "incomplete_invoice": 0,
+            },
+        }
 
     search = (
         search or ""
@@ -3192,6 +3209,7 @@ def get_operations(
 def release_pending_operation(
     operation_name: str,
 ) -> dict[str, Any]:
+    require_operations_screen_access()
 
     operation_name = (
         operation_name or ""
@@ -3383,12 +3401,16 @@ def get_operations_context() -> dict[str, Any]:
     البحث والفلترة والترتيب وPagination
     تتم بعد ذلك داخل المتصفح.
     """
+    require_operations_screen_access()
 
-    frappe.has_permission(
+    if not frappe.has_permission(
         "Archive Operation",
         "read",
-        throw=True,
-    )
+    ):
+        return {
+            "version": 2,
+            "records": [],
+        }
 
 
     configured_final_swift_banks = (
@@ -3921,6 +3943,7 @@ def get_operations_context() -> dict[str, Any]:
 def get_operation_for_view(
     operation_name: str,
 ) -> dict[str, Any]:
+    require_operations_screen_access()
 
     # ========================================================
     # Validate operation identity
@@ -4159,6 +4182,7 @@ def register_attachment_download(
     أو:
         shared_document_name
     """
+    require_operations_screen_access()
 
     operation_name = cstr(
         operation_name
@@ -4650,6 +4674,7 @@ def attach_final_swift(
         | str
         | None = None,
 ) -> dict[str, Any]:
+    require_operations_screen_access()
 
     operation_name = cstr(
         operation_name
@@ -5330,6 +5355,8 @@ def attach_incomplete_invoice(
     """
     استكمال الفاتورة غير المكتملة على مستوى مجموعة العملية المشتركة.
     """
+    require_operations_screen_access()
+
     operation_name = cstr(
         operation_name
     ).strip()
@@ -5598,6 +5625,7 @@ def change_operation_status(
     status_effective_datetime: str,
     remarks: str | None = None,
 ) -> dict[str, Any]:
+    require_operations_screen_access()
 
     operation_name = (
         operation_name or ""
@@ -5933,6 +5961,7 @@ def save_operation_re_extraction(
     - Final Swift لا يتأثر من هذا المسار.
     - Shared Documents يمكن إضافتها أو حذفها عند الحفظ.
     """
+    require_operations_screen_access()
 
     # ========================================================
     # Request payload
@@ -7063,6 +7092,7 @@ def change_operation_number(
     - Shared Documents تتحرك فقط إذا أصبحت
       المجموعة القديمة فارغة.
     """
+    require_operations_screen_access()
 
     operation_name = cstr(
         operation_name
@@ -8085,6 +8115,7 @@ def save_operation_view_changes(
     extraction_file_url:
         str | None = None,
 ) -> dict[str, Any]:
+    require_operations_screen_access()
 
     operation_name = (
         operation_name or ""

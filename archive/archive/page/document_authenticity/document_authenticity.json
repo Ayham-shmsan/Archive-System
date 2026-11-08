@@ -12,16 +12,7 @@
  "page_name": "document-authenticity",
  "roles": [
   {
-   "role": "archive document authenticity check"
-  },
-  {
-   "role": "archive document authenticity history"
-  },
-  {
-   "role": "archive document authenticity manager"
-  },
-  {
-   "role": "archive document authenticity all history"
+   "role": "\u0635\u0644\u0627\u062d\u064a\u0629 \u0627\u0644\u0648\u0635\u0648\u0644 \u0625\u0644\u0649 \u0634\u0627\u0634\u0629 \u0641\u062d\u0635 \u0627\u0644\u0645\u0633\u062a\u0646\u062f\u0627\u062a"
   }
  ],
  "script": null,

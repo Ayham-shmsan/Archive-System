@@ -53,12 +53,18 @@ use_json_request_body = True
 app_include_css = [
     "/assets/archive/css/shared/archive_tokens.css",
     "/assets/archive/css/archive_sidebar_v4.css",
+    "/assets/archive/css/user_archive_roles.css",
 ]
 # app_include_js = "/assets/archive/js/archive.js"
 app_include_js = [
     "/assets/archive/js/country_list.js",
     "/assets/archive/js/archive_sidebar_v4.js",
+    "/assets/archive/js/user_archive_roles.js",
 ]
+
+doctype_js = {
+    "User": "public/js/user_archive_roles.js",
+}
 
 # include js, css files in header of web template
 # web_include_css = "/assets/archive/css/archive.css"

@@ -471,6 +471,8 @@ def _serialize_operation_header(
 def get_operation_timeline(
     operation_name: str,
 ) -> dict[str, Any]:
+    from archive.services.operation_permissions import require_operations_screen_access
+    require_operations_screen_access()
 
     operation_name = (
         operation_name or ""

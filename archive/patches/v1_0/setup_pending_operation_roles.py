@@ -46,22 +46,22 @@ CUSTOM_PERMISSION_FIELDS = (
 ROLE_MATRIX = {
     ROLE_OPERATOR: {
         "create_pending_operation":
-            1,
+            0,
 
         "view_own_pending_operations":
-            1,
+            0,
 
         "view_all_pending_operations":
             0,
 
         "edit_own_pending_operations":
-            1,
+            0,
 
         "edit_all_pending_operations":
             0,
 
         "add_pending_return":
-            1,
+            0,
 
         "correct_pending_ledger":
             0,
@@ -69,22 +69,22 @@ ROLE_MATRIX = {
 
     ROLE_SUPERVISOR: {
         "create_pending_operation":
-            1,
+            0,
 
         "view_own_pending_operations":
-            1,
+            0,
 
         "view_all_pending_operations":
-            1,
+            0,
 
         "edit_own_pending_operations":
-            1,
+            0,
 
         "edit_all_pending_operations":
-            1,
+            0,
 
         "add_pending_return":
-            1,
+            0,
 
         "correct_pending_ledger":
             0,
@@ -98,7 +98,7 @@ ROLE_MATRIX = {
             0,
 
         "view_all_pending_operations":
-            1,
+            0,
 
         "edit_own_pending_operations":
             0,
@@ -110,7 +110,7 @@ ROLE_MATRIX = {
             0,
 
         "correct_pending_ledger":
-            1,
+            0,
     },
 
     ROLE_VIEWER: {
@@ -121,7 +121,7 @@ ROLE_MATRIX = {
             0,
 
         "view_all_pending_operations":
-            1,
+            0,
 
         "edit_own_pending_operations":
             0,

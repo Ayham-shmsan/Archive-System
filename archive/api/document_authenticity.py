@@ -14,9 +14,43 @@ from archive.forensic.snb_pdf_fingerprint import (
 
 CHECK_DOCTYPE = "Archive Document Authenticity Check"
 
+ROLE_AUTHENTICITY_SCREEN_ACCESS = (
+    "صلاحية الوصول إلى شاشة فحص المستندات"
+)
+
 AUTHENTICITY_PERMISSION_TYPE = (
     "use_authenticity_checker"
 )
+
+
+def has_authenticity_screen_access_role(
+    user: str | None = None,
+) -> bool:
+    resolved_user = user or frappe.session.user or "Guest"
+    if not resolved_user or resolved_user == "Guest":
+        return False
+    if not int(frappe.db.get_value("User", resolved_user, "enabled") or 0):
+        return False
+    return bool(
+        frappe.db.exists(
+            "Has Role",
+            {
+                "parent": resolved_user,
+                "parenttype": "User",
+                "role": ROLE_AUTHENTICITY_SCREEN_ACCESS,
+            },
+        )
+    )
+
+
+def require_authenticity_screen_access(
+    user: str | None = None,
+) -> None:
+    if not has_authenticity_screen_access_role(user=user):
+        frappe.throw(
+            _("ليست لديك صلاحية الوصول إلى شاشة فحص المستندات."),
+            frappe.PermissionError,
+        )
 
 def _require_authenticity_checker_permission() -> None:
 
@@ -54,6 +88,8 @@ def _has_authenticity_permission(
     يتحقق من امتلاك المستخدم الحالي
     Permission Type محددة على DocType الفحص.
     """
+    if not has_authenticity_screen_access_role():
+        return False
 
     return bool(
         frappe.has_permission(
@@ -68,6 +104,7 @@ def _require_authenticity_check_permission() -> None:
     """
     يسمح بإجراء فحص مستند جديد.
     """
+    require_authenticity_screen_access()
 
     frappe.has_permission(
         CHECK_DOCTYPE,
@@ -90,6 +127,7 @@ def _get_authenticity_history_scope() -> str:
     بدون أي منهما:
         يمنع الوصول إلى سجل الفحوصات.
     """
+    require_authenticity_screen_access()
 
     if _has_authenticity_permission(
         AUTHENTICITY_VIEW_ALL_PERMISSION
@@ -167,6 +205,8 @@ def get_authenticity_capabilities() -> dict:
             _("يجب تسجيل الدخول."),
             frappe.PermissionError,
         )
+
+    require_authenticity_screen_access()
 
     can_check = (
         _has_authenticity_permission(
@@ -1077,6 +1117,8 @@ def get_check_details(
             ),
             frappe.PermissionError,
         )
+
+    require_authenticity_screen_access()
 
     check_name = (
         check_name

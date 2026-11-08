@@ -32,6 +32,62 @@ ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD = "صلاحية إعادة تفعيل �
 ROLE_ENFORCE_CARD_IMAGE_BLUR = "صلاحية فرض تمويه صور البطاقات"
 ROLE_VIEW_CARD_ACTIVITY_TIMELINE = "صلاحية عرض سجل مستخدم العملية في البطاقات"
 
+ROLE_VIEW_CARDS = "صلاحية عرض البطاقات"
+ROLE_CREATE_CARD = "صلاحية إضافة البطاقات"
+ROLE_EDIT_CARD = "صلاحية تعديل بيانات البطاقات"
+ROLE_CHANGE_CARD_STATUS = "صلاحية تغيير حالة البطاقات"
+ROLE_TRANSFER_CARD = "صلاحية نقل البطاقات"
+ROLE_DELETE_CARD = "صلاحية حذف البطاقات"
+ROLE_VIEW_CARD_IMAGES = "صلاحية عرض صور البطاقات"
+ROLE_EDIT_CARD_IMAGES = "صلاحية تعديل صور البطاقات"
+ROLE_VIEW_CARD_PIN = "صلاحية عرض الرقم السري للبطاقات"
+ROLE_VIEW_CARD_TRANSFER_TIMELINE = "صلاحية عرض سجل انتقالات البطاقات"
+
+NEW_SEPARATED_CARD_ROLES = (
+	ROLE_VIEW_CARDS,
+	ROLE_CREATE_CARD,
+	ROLE_EDIT_CARD,
+	ROLE_CHANGE_CARD_STATUS,
+	ROLE_TRANSFER_CARD,
+	ROLE_DELETE_CARD,
+	ROLE_VIEW_CARD_IMAGES,
+	ROLE_EDIT_CARD_IMAGES,
+	ROLE_VIEW_CARD_PIN,
+	ROLE_VIEW_CARD_TRANSFER_TIMELINE,
+)
+
+CARD_PERMISSION_ROLE_MAP: dict[str, str] = {
+	"view_cards": ROLE_VIEW_CARDS,
+	"create_card": ROLE_CREATE_CARD,
+	"edit_card": ROLE_EDIT_CARD,
+	"change_card_status": ROLE_CHANGE_CARD_STATUS,
+	"transfer_card": ROLE_TRANSFER_CARD,
+	"delete_card": ROLE_DELETE_CARD,
+	"view_card_images": ROLE_VIEW_CARD_IMAGES,
+	"edit_card_images": ROLE_EDIT_CARD_IMAGES,
+	"view_card_pin": ROLE_VIEW_CARD_PIN,
+	"view_card_activity_timeline": ROLE_VIEW_CARD_ACTIVITY_TIMELINE,
+	"view_card_transfer_timeline": ROLE_VIEW_CARD_TRANSFER_TIMELINE,
+}
+
+
+def _has_explicit_card_role(role_name: str, user: str | None = None) -> bool:
+	resolved_user = _resolve_user(user)
+	if not resolved_user or resolved_user == "Guest" or not role_name:
+		return False
+	if not cint(frappe.db.get_value("User", resolved_user, "enabled")):
+		return False
+	return bool(
+		frappe.db.exists(
+			"Has Role",
+			{
+				"parent": resolved_user,
+				"parenttype": "User",
+				"role": role_name,
+			},
+		)
+	)
+
 
 def has_view_card_activity_timeline_role(user: str | None = None) -> bool:
 	resolved_user = _resolve_user(user)
@@ -181,48 +237,44 @@ def get_role_permission_map(user: str | None = None) -> dict[str, int]:
 	if resolved_user == "Guest":
 		return {}
 
-	if _is_privileged_user(resolved_user):
-		base = {"read": 1, "write": 1, "create": 1, "delete": 0}
-		for perm in CARD_PERMISSION_TYPES:
-			base[perm] = 1
-		base["view_card_activity_timeline"] = int(
-			has_view_card_activity_timeline_role(user=resolved_user)
-		)
-		return base
+	mapped: dict[str, int] = {}
+	for perm in CARD_PERMISSION_TYPES:
+		mapped[perm] = int(has_card_permission(perm, user=resolved_user))
 
-	meta = frappe.get_meta(CARD_DOCTYPE)
-	role_perms = get_role_permissions(meta, user=resolved_user) or {}
-	mapped = {key: cint(val) for key, val in role_perms.items()}
-	mapped["view_card_activity_timeline"] = int(
-		bool(cint(mapped.get("view_cards")))
-		and has_view_card_activity_timeline_role(user=resolved_user)
+	mapped["read"] = mapped["view_cards"]
+	mapped["create"] = mapped["create_card"]
+	mapped["write"] = int(
+		any(
+			mapped.get(p)
+			for p in (
+				"edit_card",
+				"edit_card_images",
+				"change_card_status",
+				"transfer_card",
+				"delete_card",
+			)
+		)
 	)
+	mapped["delete"] = 0
 	return mapped
 
 
 def has_card_permission(perm_type: str, user: str | None = None) -> bool:
 	resolved_user = _resolve_user(user)
-	if resolved_user == "Guest":
+	if resolved_user == "Guest" or perm_type not in CARD_PERMISSION_ROLE_MAP:
 		return False
-	if perm_type == "view_card_activity_timeline":
-		return bool(
-			has_card_permission("view_cards", user=resolved_user)
-			and has_view_card_activity_timeline_role(user=resolved_user)
-		)
-	if _is_privileged_user(resolved_user):
-		return True
 
-	perms = get_role_permission_map(resolved_user)
-	if not cint(perms.get("view_cards")):
+	can_view = _has_explicit_card_role(ROLE_VIEW_CARDS, user=resolved_user)
+	if not can_view:
 		return False
 
 	if perm_type == "view_cards":
 		return True
 
-	if perm_type == "edit_card_images":
-		return bool(cint(perms.get("edit_card_images")) and cint(perms.get("view_card_images")))
+	if perm_type == "view_card_activity_timeline":
+		return has_view_card_activity_timeline_role(user=resolved_user)
 
-	return bool(cint(perms.get(perm_type)))
+	return _has_explicit_card_role(CARD_PERMISSION_ROLE_MAP[perm_type], user=resolved_user)
 
 
 def require_card_permission(

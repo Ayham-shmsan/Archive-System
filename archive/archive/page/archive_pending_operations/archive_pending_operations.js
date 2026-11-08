@@ -2843,8 +2843,9 @@ class ArchivePendingOperationsPage {
             return false;
         }
 
-        return this.can_edit_operation(
-            operation
+        return Boolean(
+            this.capabilities
+                ?.can_close_reopen
         );
     }
 
@@ -2862,8 +2863,9 @@ class ArchivePendingOperationsPage {
             return false;
         }
 
-        return this.can_edit_operation(
-            operation
+        return Boolean(
+            this.capabilities
+                ?.can_close_reopen
         );
     }
 
@@ -2888,8 +2890,9 @@ class ArchivePendingOperationsPage {
             return false;
         }
 
-        return this.can_edit_operation(
-            operation
+        return Boolean(
+            this.capabilities
+                ?.can_change_failure_status
         );
     }
 
@@ -2910,8 +2913,9 @@ class ArchivePendingOperationsPage {
             return false;
         }
 
-        return this.can_edit_operation(
-            operation
+        return Boolean(
+            this.capabilities
+                ?.can_change_failure_status
         );
     }
 
@@ -3372,13 +3376,26 @@ class ArchivePendingOperationsPage {
         // مسار العملية
         // ---------------------------------------------------------
 
+        const can_view_timeline =
+            Boolean(
+                this.capabilities
+                    ?.can_view_timeline
+            );
+
         $(this.wrapper)
             .find(
                 ".archive-pending-timeline-button"
             )
+            .toggle(
+                can_view_timeline
+            )
             .prop(
                 "disabled",
-                !has_selected
+                (
+                    !has_selected
+                    ||
+                    !can_view_timeline
+                )
             );
 
 

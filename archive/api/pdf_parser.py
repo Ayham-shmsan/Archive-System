@@ -612,6 +612,9 @@ def _parse_operation_pdf(
 def extract_operation_data(
     file_url: str,
 ) -> dict[str, Any]:
+    from archive.services.operation_permissions import require_operations_screen_access
+    require_operations_screen_access()
+
     file_doc = _get_file_doc(
         file_url
     )

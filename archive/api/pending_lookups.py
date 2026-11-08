@@ -13,6 +13,7 @@ from archive.api.operation_search import (
 
 from archive.services.pending_operation_permissions import (
     get_pending_capabilities as get_pending_capabilities_service,
+    require_pending_screen_access,
 )
 
 
@@ -441,6 +442,7 @@ def get_pending_suggestions(
     context: str | dict[str, Any] | None = None,
     limit: int = DEFAULT_LIMIT,
 ) -> dict[str, Any]:
+    require_pending_screen_access()
     fieldname = _validate_target_field(
         fieldname
     )
@@ -642,6 +644,7 @@ def get_pending_related_fields(
     value: str,
     context: str | dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    require_pending_screen_access()
     fieldname = _validate_target_field(
         fieldname
     )

@@ -24,3 +24,5 @@ archive.patches.v1_0.setup_card_roles_and_permissions # 2026-11-04
 archive.patches.v1_0.setup_deposits_access_role
 archive.patches.v1_0.setup_deposits_temporal_permissions
 archive.patches.v1_0.setup_card_blur_and_activity_timeline_roles
+archive.patches.v1_0.setup_granular_card_and_pending_permissions
+archive.patches.v1_0.setup_five_screens_access_roles

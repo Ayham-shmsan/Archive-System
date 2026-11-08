@@ -344,12 +344,248 @@ def has_deposit_permission(
 	return False
 
 
+def get_all_screens_access_map(user: str | None = None) -> dict[str, bool]:
+	from archive.api.document_authenticity import has_authenticity_screen_access_role
+	from archive.services.card_permissions import has_card_permission
+	from archive.services.operation_permissions import has_operations_screen_access_role
+	from archive.services.pending_operation_permissions import has_pending_screen_access_role
+
+	resolved_user = cstr(user or frappe.session.user or "Guest")
+	return {
+		"archive-cards": has_card_permission("view_cards", user=resolved_user),
+		"archive-pending-operations": has_pending_screen_access_role(user=resolved_user),
+		"archive-operations": has_operations_screen_access_role(user=resolved_user),
+		"archive-deposits": has_deposits_screen_access_role(user=resolved_user),
+		"document-authenticity": has_authenticity_screen_access_role(user=resolved_user),
+	}
+
+
+def get_archive_role_containers_catalog() -> dict[str, Any]:
+	from archive.api.document_authenticity import ROLE_AUTHENTICITY_SCREEN_ACCESS
+	from archive.services.card_permissions import (
+		ROLE_CARD_EVENT_HISTORY,
+		ROLE_CARD_IMAGE_PREVIEW,
+		ROLE_CARD_MANAGER,
+		ROLE_CARD_OFFICER,
+		ROLE_CARD_READER,
+		ROLE_CHANGE_CARD_STATUS,
+		ROLE_CREATE_CARD,
+		ROLE_DELETE_CARD,
+		ROLE_EDIT_CARD,
+		ROLE_EDIT_CARD_IMAGES,
+		ROLE_ENFORCE_CARD_IMAGE_BLUR,
+		ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD,
+		ROLE_TRANSFER_CARD,
+		ROLE_VIEW_CARD_ACTIVITY_TIMELINE,
+		ROLE_VIEW_CARD_IMAGES,
+		ROLE_VIEW_CARD_PIN,
+		ROLE_VIEW_CARD_TRANSFER_TIMELINE,
+		ROLE_VIEW_CARDS,
+	)
+	from archive.services.operation_permissions import (
+		ROLE_ATTACH_INCOMPLETE_INVOICE,
+		ROLE_OPERATIONS_SCREEN_ACCESS,
+	)
+	from archive.services.pending_operation_permissions import (
+		ROLE_ADD_PENDING_RETURN,
+		ROLE_CHANGE_PENDING_FAILURE_STATUS,
+		ROLE_CLOSE_REOPEN_PENDING_OPERATION,
+		ROLE_CORRECT_PENDING_LEDGER,
+		ROLE_CREATE_PENDING_OPERATION,
+		ROLE_EDIT_ALL_PENDING_OPERATIONS,
+		ROLE_EDIT_OWN_PENDING_OPERATIONS,
+		ROLE_PENDING_SCREEN_ACCESS,
+		ROLE_VIEW_ALL_PENDING_OPERATIONS,
+		ROLE_VIEW_OWN_PENDING_OPERATIONS,
+		ROLE_VIEW_PENDING_OPERATION_TIMELINE,
+	)
+
+	deprecated_roles = (
+		ROLE_CARD_MANAGER,
+		ROLE_CARD_OFFICER,
+		ROLE_CARD_READER,
+		"موظف المعلقات",
+		"مشرف المعلقات",
+		"مدقق المعلقات المالي",
+		"قارئ المعلقات",
+	)
+	system_roles = {"System Manager", "Administrator", "All", "Guest", "Desk User"}
+
+	enabled_roles = set(
+		frappe.get_all("Role", filters={"disabled": 0}, pluck="name")
+	)
+
+	raw_containers = [
+		{
+			"id": "cards",
+			"title": "إدارة البطاقات",
+			"icon": "credit-card",
+			"doctype": "Archive Card",
+			"entry_role": ROLE_VIEW_CARDS,
+			"roles": [
+				ROLE_VIEW_CARDS,
+				ROLE_VIEW_CARD_IMAGES,
+				ROLE_CARD_IMAGE_PREVIEW,
+				ROLE_VIEW_CARD_PIN,
+				ROLE_CREATE_CARD,
+				ROLE_EDIT_CARD,
+				ROLE_EDIT_CARD_IMAGES,
+				ROLE_DELETE_CARD,
+				ROLE_CHANGE_CARD_STATUS,
+				ROLE_REACTIVATE_PERMANENTLY_STOPPED_CARD,
+				ROLE_TRANSFER_CARD,
+				ROLE_ENFORCE_CARD_IMAGE_BLUR,
+				ROLE_VIEW_CARD_TRANSFER_TIMELINE,
+				ROLE_CARD_EVENT_HISTORY,
+				ROLE_VIEW_CARD_ACTIVITY_TIMELINE,
+			],
+		},
+		{
+			"id": "pending_operations",
+			"title": "العمليات المعلقة",
+			"icon": "clock",
+			"doctype": "Archive Pending Operation",
+			"entry_role": ROLE_PENDING_SCREEN_ACCESS,
+			"roles": [
+				ROLE_PENDING_SCREEN_ACCESS,
+				ROLE_VIEW_OWN_PENDING_OPERATIONS,
+				ROLE_VIEW_ALL_PENDING_OPERATIONS,
+				ROLE_CREATE_PENDING_OPERATION,
+				ROLE_EDIT_OWN_PENDING_OPERATIONS,
+				ROLE_EDIT_ALL_PENDING_OPERATIONS,
+				ROLE_CHANGE_PENDING_FAILURE_STATUS,
+				ROLE_CLOSE_REOPEN_PENDING_OPERATION,
+				ROLE_ADD_PENDING_RETURN,
+				ROLE_CORRECT_PENDING_LEDGER,
+				ROLE_VIEW_PENDING_OPERATION_TIMELINE,
+			],
+		},
+		{
+			"id": "operations",
+			"title": "إدارة العمليات",
+			"icon": "layers",
+			"doctype": "Archive Operation",
+			"entry_role": ROLE_OPERATIONS_SCREEN_ACCESS,
+			"roles": [
+				ROLE_OPERATIONS_SCREEN_ACCESS,
+				"Archive Viewer",
+				"Archive Creator",
+				"Archive Editor",
+				"Archive Initial Status",
+				"Archive Advanced Status",
+				"Archive Attachment Manager",
+				"Archive Final Swift",
+				ROLE_ATTACH_INCOMPLETE_INVOICE,
+				"Archive Timeline Viewer",
+			],
+		},
+		{
+			"id": "deposits",
+			"title": "الإيداعات",
+			"icon": "wallet",
+			"doctype": "Archive Card Deposit",
+			"entry_role": ROLE_DEPOSITS_VIEW,
+			"roles": [
+				ROLE_DEPOSITS_VIEW,
+				ROLE_DEPOSITS_EDIT_TODAY,
+				ROLE_DEPOSITS_EDIT_PAST,
+				ROLE_DEPOSITS_EDIT_FUTURE,
+			],
+		},
+		{
+			"id": "document_authenticity",
+			"title": "فحص المستندات",
+			"icon": "shield-check",
+			"doctype": "Archive Document Authenticity Check",
+			"entry_role": ROLE_AUTHENTICITY_SCREEN_ACCESS,
+			"roles": [
+				ROLE_AUTHENTICITY_SCREEN_ACCESS,
+				"archive document authenticity history",
+				"archive document authenticity all history",
+				"archive document authenticity check",
+				"archive document authenticity technical details",
+				"archive document authenticity manager",
+			],
+		},
+	]
+
+	doctype_to_container = {c["doctype"]: c for c in raw_containers if c.get("doctype")}
+	archive_doctypes = frappe.get_all("DocType", filters={"module": "Archive"}, pluck="name")
+	other_archive_roles: list[str] = []
+
+	if archive_doctypes:
+		for perm_table in ("DocPerm", "Custom DocPerm"):
+			rows = frappe.get_all(
+				perm_table,
+				filters={"parent": ["in", archive_doctypes]},
+				fields=["parent", "role"],
+				 order_by="idx asc",
+			)
+			for row in rows:
+				role_name = cstr(row.get("role")).strip()
+				if (
+					not role_name
+					or role_name in system_roles
+					or role_name in deprecated_roles
+				):
+					continue
+				target_container = doctype_to_container.get(row.get("parent"))
+				if target_container is not None:
+					if role_name not in target_container["roles"]:
+						target_container["roles"].append(role_name)
+				else:
+					if role_name not in other_archive_roles:
+						other_archive_roles.append(role_name)
+
+	seen_roles: set[str] = set()
+	containers: list[dict[str, Any]] = []
+	for item in raw_containers:
+		filtered_roles: list[str] = []
+		for role_name in item["roles"]:
+			if role_name in enabled_roles and role_name not in seen_roles:
+				filtered_roles.append(role_name)
+				seen_roles.add(role_name)
+		containers.append(
+			{
+				"id": item["id"],
+				"title": item["title"],
+				"icon": item["icon"],
+				"entry_role": item["entry_role"] if item["entry_role"] in filtered_roles else (filtered_roles[0] if filtered_roles else ""),
+				"roles": filtered_roles,
+			}
+		)
+
+	extra_roles = [
+		r for r in other_archive_roles if r in enabled_roles and r not in seen_roles
+	]
+	if extra_roles:
+		containers.append(
+			{
+				"id": "other_archive",
+				"title": "صلاحيات أخرى للأرشفة",
+				"icon": "grid",
+				"entry_role": "",
+				"roles": extra_roles,
+			}
+		)
+
+	return {
+		"containers": containers,
+		"deprecated_roles": [r for r in deprecated_roles if r in enabled_roles],
+	}
+
+
 def extend_deposits_bootinfo(bootinfo: Any) -> None:
 	user = cstr(frappe.session.user or "Guest")
-	has_access = has_deposits_screen_access_role(user=user)
+	screen_access = get_all_screens_access_map(user=user)
+	has_access = screen_access["archive-deposits"]
 	bootinfo["archive_can_access_deposits"] = has_access
-	if not has_access and isinstance(bootinfo.get("allowed_pages"), dict):
-		bootinfo["allowed_pages"].pop("archive-deposits", None)
+	bootinfo["archive_screen_access"] = screen_access
+	bootinfo["archive_role_containers"] = get_archive_role_containers_catalog()
+	if isinstance(bootinfo.get("allowed_pages"), dict):
+		for page_name, allowed in screen_access.items():
+			if not allowed:
+				bootinfo["allowed_pages"].pop(page_name, None)
 
 
 def _extract_request_target_doctypes() -> set[str]:
@@ -409,9 +645,58 @@ def enforce_deposits_request_guard() -> None:
 	http_method = cstr(getattr(req, "method", "GET") or "GET").upper()
 	cmd_name = cstr(form_dict.get("cmd") or "").strip()
 
-	# 1. Direct calls to deposits API
+	# 1. Direct calls to screen APIs
 	if "archive.api.deposits." in raw_path or cmd_name.startswith("archive.api.deposits."):
 		require_deposits_screen_access()
+		return
+
+	if any(
+		prefix in raw_path or cmd_name.startswith(prefix)
+		for prefix in (
+			"archive.api.cards.",
+			"archive.api.card_timeline.",
+			"archive.api.card_family.",
+		)
+	):
+		from archive.services.card_permissions import require_card_permission
+
+		require_card_permission("view_cards")
+		return
+
+	if any(
+		prefix in raw_path or cmd_name.startswith(prefix)
+		for prefix in (
+			"archive.api.pending_operations.",
+			"archive.api.pending_operation_timeline.",
+			"archive.api.pending_operation_attachments.",
+			"archive.api.pending_lookups.",
+		)
+	):
+		from archive.services.pending_operation_permissions import require_pending_screen_access
+
+		require_pending_screen_access()
+		return
+
+	if any(
+		prefix in raw_path or cmd_name.startswith(prefix)
+		for prefix in (
+			"archive.api.operations.",
+			"archive.api.operation_timeline.",
+			"archive.api.operation_documents.",
+			"archive.api.pdf_parser.",
+		)
+	):
+		from archive.services.operation_permissions import require_operations_screen_access
+
+		require_operations_screen_access()
+		return
+
+	if "archive.api.document_authenticity." in raw_path or cmd_name.startswith(
+		"archive.api.document_authenticity."
+	):
+		from archive.api.document_authenticity import require_authenticity_screen_access
+
+		require_authenticity_screen_access()
 		return
 
 	# 2. Direct REST v1/v2 access to Archive Card Deposit
@@ -428,11 +713,31 @@ def enforce_deposits_request_guard() -> None:
 			)
 		return
 
-	# 3. Direct Desk Page loader for archive-deposits
+	# 3. Direct Desk Page loader for the 5 Archive screens
 	if "frappe.desk.desk_page.getpage" in raw_path or cmd_name == "frappe.desk.desk_page.getpage":
 		page_name = cstr(form_dict.get("name") or req_args.get("name") or "").strip()
 		if page_name == "archive-deposits":
 			require_deposits_screen_access()
+			return
+		if page_name == "archive-cards":
+			from archive.services.card_permissions import require_card_permission
+
+			require_card_permission("view_cards")
+			return
+		if page_name == "archive-pending-operations":
+			from archive.services.pending_operation_permissions import require_pending_screen_access
+
+			require_pending_screen_access()
+			return
+		if page_name == "archive-operations":
+			from archive.services.operation_permissions import require_operations_screen_access
+
+			require_operations_screen_access()
+			return
+		if page_name == "document-authenticity":
+			from archive.api.document_authenticity import require_authenticity_screen_access
+
+			require_authenticity_screen_access()
 			return
 
 	# 4. Generic Frappe RPC endpoints querying or mutating Archive Card Deposit or User day limits

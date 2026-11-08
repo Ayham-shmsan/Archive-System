@@ -1,0 +1,395 @@
+/* ============================================================
+   Archive User Roles — 5 Collapsible Screen Permission Containers
+   ============================================================ */
+
+.archive-roles-section {
+	direction: rtl;
+	text-align: right;
+	margin-bottom: 1.5rem;
+	padding: 1.125rem 1.25rem;
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+	border-radius: 12px;
+}
+
+.archive-roles-section__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+	padding-bottom: 0.75rem;
+	border-bottom: 1px solid #e2e8f0;
+}
+
+.archive-roles-section__title-wrap {
+	display: flex;
+	align-items: center;
+	gap: 0.625rem;
+}
+
+.archive-roles-section__title-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 34px;
+	height: 34px;
+	border-radius: 8px;
+	background: #eff6ff;
+	color: #1d4ed8;
+	border: 1px solid #bfdbfe;
+	flex-shrink: 0;
+}
+
+.archive-roles-section__title {
+	margin: 0;
+	font-size: 1.05rem;
+	font-weight: 700;
+	color: #0f172a;
+	line-height: 1.35;
+}
+
+.archive-roles-section__subtitle {
+	margin: 2px 0 0 0;
+	font-size: 0.8rem;
+	color: #64748b;
+}
+
+.archive-roles-section__actions {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.archive-roles-section__summary-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.28rem 0.65rem;
+	border-radius: 999px;
+	font-size: 0.78rem;
+	font-weight: 600;
+	background: #ffffff;
+	color: #334155;
+	border: 1px solid #cbd5e1;
+}
+
+.archive-roles-section__summary-badge.has-active {
+	background: #eff6ff;
+	color: #1d4ed8;
+	border-color: #bfdbfe;
+}
+
+.archive-roles-section__toggle-link {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.25rem 0.6rem;
+	border-radius: 6px;
+	font-size: 0.76rem;
+	font-weight: 600;
+	color: #475569;
+	background: #ffffff;
+	border: 1px solid #e2e8f0;
+	cursor: pointer;
+	user-select: none;
+	transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.archive-roles-section__toggle-link:hover {
+	background: #f1f5f9;
+	color: #0f172a;
+	border-color: #cbd5e1;
+}
+
+.archive-roles-containers {
+	display: flex;
+	flex-direction: column;
+	gap: 0.65rem;
+}
+
+/* Individual Screen Container */
+.archive-role-card {
+	background: #ffffff;
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+	overflow: hidden;
+	transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.archive-role-card:hover {
+	border-color: #cbd5e1;
+}
+
+.archive-role-card.is-expanded {
+	border-color: #93c5fd;
+	background: #ffffff;
+}
+
+.archive-role-card__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	padding: 0.8rem 1rem;
+	cursor: pointer;
+	user-select: none;
+	background: #ffffff;
+	transition: background-color 0.15s ease;
+}
+
+.archive-role-card__header:hover {
+	background: #f8fafc;
+}
+
+.archive-role-card.is-expanded .archive-role-card__header {
+	background: #f0f7ff;
+	border-bottom: 1px solid #dbeafe;
+}
+
+.archive-role-card__header-main {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+	min-width: 0;
+}
+
+.archive-role-card__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	border-radius: 8px;
+	background: #f1f5f9;
+	color: #334155;
+	border: 1px solid #e2e8f0;
+	flex-shrink: 0;
+	transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.archive-role-card.is-expanded .archive-role-card__icon,
+.archive-role-card.has-active-roles .archive-role-card__icon {
+	background: #eff6ff;
+	color: #2563eb;
+	border-color: #bfdbfe;
+}
+
+.archive-role-card__title-group {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.archive-role-card__title {
+	font-size: 0.95rem;
+	font-weight: 700;
+	color: #0f172a;
+	line-height: 1.3;
+}
+
+.archive-role-card__subtitle {
+	font-size: 0.76rem;
+	color: #64748b;
+	margin-top: 2px;
+}
+
+.archive-role-card__header-meta {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
+	flex-shrink: 0;
+}
+
+.archive-role-card__badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.22rem 0.6rem;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	font-weight: 600;
+	line-height: 1.3;
+	white-space: nowrap;
+}
+
+.archive-role-card__badge--total {
+	background: #f8fafc;
+	color: #475569;
+	border: 1px solid #e2e8f0;
+}
+
+.archive-role-card__badge--active {
+	background: #f1f5f9;
+	color: #64748b;
+	border: 1px solid #e2e8f0;
+}
+
+.archive-role-card__badge--active.is-active {
+	background: #ecfdf5;
+	color: #047857;
+	border-color: #a7f3d0;
+}
+
+.archive-role-card__chevron {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border-radius: 6px;
+	color: #64748b;
+	transition: transform 0.18s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.archive-role-card.is-expanded .archive-role-card__chevron {
+	transform: rotate(180deg);
+	color: #1d4ed8;
+	background: #dbeafe;
+}
+
+/* Container Body */
+.archive-role-card__body {
+	display: none;
+	padding: 0.9rem 1rem 1rem;
+	background: #ffffff;
+}
+
+.archive-role-card.is-expanded .archive-role-card__body {
+	display: block;
+}
+
+/* Screen Entry Permission Row (First & Slightly Distinguished) */
+.archive-role-card__entry-wrap {
+	margin-bottom: 0.85rem;
+	padding: 0.65rem 0.85rem;
+	background: #f8fafc;
+	border: 1px solid #cbd5e1;
+	border-right: 3px solid #2563eb;
+	border-radius: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+}
+
+.archive-role-card__entry-wrap.is-checked {
+	background: #eff6ff;
+	border-color: #93c5fd;
+	border-right-color: #1d4ed8;
+}
+
+.archive-role-card__entry-slot {
+	display: flex;
+	align-items: center;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.archive-role-card__entry-tag {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.18rem 0.55rem;
+	border-radius: 6px;
+	font-size: 0.72rem;
+	font-weight: 700;
+	background: #dbeafe;
+	color: #1e40af;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+/* Operational Permissions Grid */
+.archive-role-card__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+	gap: 0.55rem;
+}
+
+/* Styling the moved Frappe .unit-checkbox inside Archive containers */
+.archive-roles-section .unit-checkbox {
+	margin: 0 !important;
+	padding: 0.5rem 0.7rem;
+	border: 1px solid #e2e8f0;
+	border-radius: 8px;
+	background: #ffffff;
+	transition: border-color 0.15s ease, background-color 0.15s ease;
+	display: flex;
+	align-items: center;
+}
+
+.archive-roles-section .unit-checkbox:hover {
+	border-color: #cbd5e1;
+	background: #f8fafc;
+}
+
+.archive-roles-section .unit-checkbox.is-role-checked {
+	background: #f0fdf4;
+	border-color: #86efac;
+}
+
+.archive-role-card__entry-slot .unit-checkbox {
+	border: none !important;
+	background: transparent !important;
+	padding: 0 !important;
+	width: 100%;
+}
+
+.archive-role-card__entry-slot .unit-checkbox .label-area {
+	font-weight: 700;
+	color: #0f172a;
+	font-size: 0.9rem;
+}
+
+.archive-roles-section .unit-checkbox label {
+	display: flex !important;
+	align-items: center !important;
+	gap: 0.55rem;
+	margin: 0 !important;
+	width: 100%;
+	cursor: pointer;
+	font-weight: 500;
+	color: #1e293b;
+	font-size: 0.85rem;
+	line-height: 1.4;
+}
+
+.archive-roles-section .unit-checkbox input[type="checkbox"] {
+	margin: 0 !important;
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+	flex-shrink: 0;
+}
+
+.archive-roles-section .unit-checkbox input[type="checkbox"]:disabled,
+.archive-roles-section .unit-checkbox input[type="checkbox"]:disabled + .label-area {
+	cursor: not-allowed;
+	opacity: 0.7;
+}
+
+.archive-roles-section .unit-checkbox .label-area {
+	cursor: pointer;
+	word-break: break-word;
+	flex: 1 1 auto;
+}
+
+/* General System Roles Section Header */
+.archive-general-roles-header {
+	direction: rtl;
+	text-align: right;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.5rem 0.25rem;
+	margin-top: 0.5rem;
+	margin-bottom: 0.35rem;
+	border-bottom: 1px solid #e2e8f0;
+}
+
+.archive-general-roles-header__title {
+	font-size: 0.92rem;
+	font-weight: 700;
+	color: #334155;
+}

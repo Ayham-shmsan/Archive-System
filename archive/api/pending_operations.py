@@ -42,6 +42,8 @@ from archive.services.pending_operation_audit import (
 
 from archive.services.pending_operation_permissions import (
     _require_add_pending_return,
+    _require_change_pending_failure_status,
+    _require_close_reopen_pending_operation,
     _require_correct_pending_ledger,
     _require_create_pending_operation,
     _require_edit_pending_operation,
@@ -261,7 +263,7 @@ def close_pending_operation(
         for_update=True,
     )
 
-    _require_edit_pending_operation(
+    _require_close_reopen_pending_operation(
         doc
     )
 
@@ -423,7 +425,7 @@ def reopen_pending_operation(
         for_update=True,
     )
 
-    _require_edit_pending_operation(
+    _require_close_reopen_pending_operation(
         doc
     )
 
@@ -1768,7 +1770,7 @@ def mark_pending_operation_failed(
         for_update=True,
     )
 
-    _require_edit_pending_operation(
+    _require_change_pending_failure_status(
         doc
     )
 
@@ -1920,7 +1922,7 @@ def revert_pending_operation_failure(
     )
 
     # نفس صلاحية إجراء تحويل العملية إلى فاشلة.
-    _require_edit_pending_operation(
+    _require_change_pending_failure_status(
         doc
     )
 
@@ -2556,6 +2558,18 @@ def _build_pending_operation_details(
         )
     )
 
+    base_can_change_failure_status = bool(
+        permissions.get(
+            "can_change_failure_status"
+        )
+    )
+
+    base_can_close_reopen = bool(
+        permissions.get(
+            "can_close_reopen"
+        )
+    )
+
 
     # ---------------------------------------------------------
     # Lifecycle capabilities
@@ -2564,7 +2578,7 @@ def _build_pending_operation_details(
     permissions[
         "can_close"
     ] = bool(
-        base_can_edit
+        base_can_close_reopen
         and
         not is_closed
         and
@@ -2574,7 +2588,7 @@ def _build_pending_operation_details(
     permissions[
         "can_reopen"
     ] = bool(
-        base_can_edit
+        base_can_close_reopen
         and
         is_closed
     )
@@ -2607,7 +2621,7 @@ def _build_pending_operation_details(
     permissions[
         "can_mark_failed"
     ] = bool(
-        base_can_edit
+        base_can_change_failure_status
         and
         not is_failed
         and
@@ -2618,7 +2632,7 @@ def _build_pending_operation_details(
     permissions[
         "can_revert_failed"
     ] = bool(
-        base_can_edit
+        base_can_change_failure_status
         and
         is_failed
         and

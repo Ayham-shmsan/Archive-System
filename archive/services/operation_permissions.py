@@ -1,4 +1,6 @@
 import frappe
+from frappe import _
+from frappe.utils import cint
 
 
 MANAGE_ATTACHMENTS_PERMISSION = (
@@ -12,6 +14,44 @@ RE_EXTRACT_OPERATION_DATA_PERMISSION = (
 ROLE_ATTACH_INCOMPLETE_INVOICE = (
     "صلاحية إرفاق الفاتورة غير المكتملة"
 )
+
+ROLE_OPERATIONS_SCREEN_ACCESS = (
+    "صلاحية الوصول إلى شاشة العمليات"
+)
+
+
+def has_operations_screen_access_role(
+    user: str | None = None,
+) -> bool:
+    """
+    بوابة الدخول المستقلة لشاشة العمليات.
+    فحص صريح في Has Role للمستخدم المفعّل دون أي تجاوز لـ Administrator أو System Manager.
+    """
+    resolved_user = user or frappe.session.user or "Guest"
+    if not resolved_user or resolved_user == "Guest":
+        return False
+    if not cint(frappe.db.get_value("User", resolved_user, "enabled")):
+        return False
+    return bool(
+        frappe.db.exists(
+            "Has Role",
+            {
+                "parent": resolved_user,
+                "parenttype": "User",
+                "role": ROLE_OPERATIONS_SCREEN_ACCESS,
+            },
+        )
+    )
+
+
+def require_operations_screen_access(
+    user: str | None = None,
+) -> None:
+    if not has_operations_screen_access_role(user=user):
+        frappe.throw(
+            _("ليست لديك صلاحية الوصول إلى شاشة العمليات."),
+            frappe.PermissionError,
+        )
 
 
 def can_attach_incomplete_invoice(

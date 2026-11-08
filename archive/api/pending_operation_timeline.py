@@ -7,7 +7,7 @@ from frappe import _
 from frappe.utils import cstr, get_datetime
 
 from archive.services.pending_operation_permissions import (
-    _require_view_pending_operation,
+    _require_view_pending_operation_timeline,
 )
 
 
@@ -55,7 +55,7 @@ def get_pending_operation_timeline(
     #  * إذا لم يكن المستخدم يستطيع مشاهدة العملية،
     #  * لا يستطيع مشاهدة Logs الخاصة بها.
     #  */
-    _require_view_pending_operation(
+    _require_view_pending_operation_timeline(
         operation
     )
 

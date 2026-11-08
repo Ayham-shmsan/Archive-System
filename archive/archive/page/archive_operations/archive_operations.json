@@ -4,7 +4,11 @@
   "module": "Archive",
   "name": "archive-operations",
   "page_name": "archive-operations",
-  "roles": [],
+  "roles": [
+    {
+      "role": "صلاحية الوصول إلى شاشة العمليات"
+    }
+  ],
   "standard": "Yes",
   "system_page": 0,
   "title": "شاشة العمليات"
