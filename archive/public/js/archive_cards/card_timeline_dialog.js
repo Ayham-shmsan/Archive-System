@@ -25,7 +25,17 @@
 		if (typeof window.archive_format_datetime === "function") {
 			return window.archive_format_datetime(raw_dt, "");
 		}
-		return resolve_raw_system_datetime(raw_dt);
+		const resolved = resolve_raw_system_datetime(raw_dt);
+		if (!resolved) return "";
+		const m = resolved.match(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{1,2}):(\d{2})/);
+		if (m) {
+			const h24 = parseInt(m[2], 10);
+			const min = String(m[3]).padStart(2, "0");
+			const period = h24 >= 12 ? "م" : "ص";
+			const h12 = String(h24 % 12 || 12).padStart(2, "0");
+			return `${m[1]}، ${h12}:${min} ${period}`;
+		}
+		return resolved;
 	}
 
 	const EVENT_TYPE_META = {

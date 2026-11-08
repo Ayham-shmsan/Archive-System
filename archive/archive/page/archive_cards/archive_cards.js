@@ -810,10 +810,31 @@ class ArchiveCardsPage {
 			return `<td class="ac-td-ltr" dir="ltr">${frappe.utils.escape_html(row.received_date || "—")}</td>`;
 		}
 		if (key === "creation") {
-			const formatted_dt =
-				typeof window.archive_format_datetime === "function"
-					? window.archive_format_datetime(row.creation, "—")
-					: "—";
+			let formatted_dt = "—";
+			if (typeof window.archive_format_datetime === "function") {
+				formatted_dt = window.archive_format_datetime(row.creation, "—");
+			} else if (row.creation) {
+				const clean = String(row.creation).trim().replace(/\.\d+$/, "");
+				let resolved = clean;
+				try {
+					if (frappe?.datetime?.convert_to_user_tz && /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(clean)) {
+						const converted = frappe.datetime.convert_to_user_tz(clean, true);
+						if (converted && converted !== "Invalid date") {
+							resolved = String(converted).trim().replace(/\.\d+$/, "");
+						}
+					}
+				} catch (_) {}
+				const m = resolved.match(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{1,2}):(\d{2})/);
+				if (m) {
+					const h24 = parseInt(m[2], 10);
+					const min = String(m[3]).padStart(2, "0");
+					const period = h24 >= 12 ? "م" : "ص";
+					const h12 = String(h24 % 12 || 12).padStart(2, "0");
+					formatted_dt = `${m[1]}، ${h12}:${min} ${period}`;
+				} else {
+					formatted_dt = resolved || "—";
+				}
+			}
 			return `<td dir="rtl">${frappe.utils.escape_html(formatted_dt)}</td>`;
 		}
 		if (key === "status") {

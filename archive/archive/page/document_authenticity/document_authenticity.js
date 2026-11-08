@@ -3134,17 +3134,26 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
         }
 
         const clean = String(value).trim().replace(/\.\d+$/, "");
+        let resolved = clean;
         try {
-            if (frappe?.datetime?.convert_to_user_tz) {
+            if (frappe?.datetime?.convert_to_user_tz && /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(clean)) {
                 const converted = frappe.datetime.convert_to_user_tz(clean, true);
                 if (converted && converted !== "Invalid date") {
-                    return String(converted).replace(/\.\d+$/, "");
+                    resolved = String(converted).trim().replace(/\.\d+$/, "");
                 }
             }
-            return frappe.datetime.str_to_user(clean);
         } catch (error) {
-            return frappe.utils.escape_html(clean);
+            // fallback
         }
+        const m = resolved.match(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{1,2}):(\d{2})/);
+        if (m) {
+            const h24 = parseInt(m[2], 10);
+            const min = String(m[3]).padStart(2, "0");
+            const period = h24 >= 12 ? "م" : "ص";
+            const h12 = String(h24 % 12 || 12).padStart(2, "0");
+            return frappe.utils.escape_html(`${m[1]}، ${h12}:${min} ${period}`);
+        }
+        return frappe.utils.escape_html(resolved);
     }
 
     function render_result(
