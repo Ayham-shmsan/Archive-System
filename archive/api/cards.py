@@ -83,6 +83,7 @@ SORTABLE_COLUMNS = {
 	"daily_limit": "c.daily_limit",
 	"received_date": "c.received_date",
 	"creation": "c.creation",
+	"owner_full_name": "COALESCE(NULLIF(TRIM(u.full_name), ''), c.owner)",
 	"status": "c.status",
 	"modified": "c.modified",
 }
@@ -281,6 +282,8 @@ def _serialize_card_row(
 		"front_edit_meta": _parse_edit_meta_dict(row.get("front_edit_meta")),
 		"back_edit_meta": _parse_edit_meta_dict(row.get("back_edit_meta")),
 		"family_cards_count": cint(fam_count or 1),
+		"owner": row.get("owner") or "",
+		"owner_full_name": row.get("owner_full_name") or row.get("owner") or "",
 		"creation": cstr(row.get("creation") or ""),
 		"modified": cstr(row.get("modified") or ""),
 	}
@@ -453,6 +456,8 @@ def get_cards_context(
 			c.back_original_image,
 			c.front_edit_meta,
 			c.back_edit_meta,
+			c.owner,
+			COALESCE(NULLIF(TRIM(u.full_name), ''), c.owner) AS owner_full_name,
 			c.creation,
 			c.modified
 		FROM `tabArchive Card` c
@@ -460,6 +465,7 @@ def get_cards_context(
 		LEFT JOIN `tabArchive Representative` rep ON rep.name = c.representative
 		LEFT JOIN `tabArchive Region` reg ON reg.name = c.region
 		LEFT JOIN `tabArchive Account` acc ON acc.name = c.card_owner
+		LEFT JOIN `tabUser` u ON u.name = c.owner
 		WHERE {list_where_sql}
 		ORDER BY {order_col} {order_dir}, c.serial_no DESC
 		{limit_clause}
@@ -539,6 +545,8 @@ def _fetch_single_card_row(card_name: str) -> dict[str, Any]:
 			c.front_edit_meta,
 			c.back_edit_meta,
 			c.is_deleted,
+			c.owner,
+			COALESCE(NULLIF(TRIM(u.full_name), ''), c.owner) AS owner_full_name,
 			c.creation,
 			c.modified
 		FROM `tabArchive Card` c
@@ -546,6 +554,7 @@ def _fetch_single_card_row(card_name: str) -> dict[str, Any]:
 		LEFT JOIN `tabArchive Representative` rep ON rep.name = c.representative
 		LEFT JOIN `tabArchive Region` reg ON reg.name = c.region
 		LEFT JOIN `tabArchive Account` acc ON acc.name = c.card_owner
+		LEFT JOIN `tabUser` u ON u.name = c.owner
 		WHERE c.name = %(name)s
 		LIMIT 1
 		""",

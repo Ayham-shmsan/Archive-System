@@ -33,6 +33,7 @@ const ARCHIVE_CARDS_COLUMNS = [
 	{ key: "daily_limit", label: "الحد اليومي", width: "120px", locked: false, sortable: true },
 	{ key: "received_date", label: "تاريخ الاستلام", width: "120px", locked: false, sortable: true },
 	{ key: "creation", label: "وقت الإدخال", width: "165px", locked: false, sortable: true },
+	{ key: "owner_full_name", label: "اسم المستخدم", width: "130px", locked: false, sortable: true },
 	{ key: "status", label: "الحالة", width: "125px", locked: true, sortable: true },
 ];
 
@@ -836,6 +837,9 @@ class ArchiveCardsPage {
 				}
 			}
 			return `<td dir="rtl">${frappe.utils.escape_html(formatted_dt)}</td>`;
+		}
+		if (key === "owner_full_name") {
+			return `<td>${frappe.utils.escape_html(row.owner_full_name || row.owner || "—")}</td>`;
 		}
 		if (key === "status") {
 			return `
