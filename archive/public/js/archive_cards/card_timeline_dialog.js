@@ -1,7 +1,10 @@
 (() => {
 	"use strict";
 
-	function format_system_datetime(raw_dt) {
+	function resolve_raw_system_datetime(raw_dt) {
+		if (typeof window.archive_resolve_user_tz_datetime === "function") {
+			return window.archive_resolve_user_tz_datetime(raw_dt);
+		}
 		const str = String(raw_dt || "").trim();
 		if (!str) return "";
 		const clean = str.replace(/\.\d+$/, "");
@@ -16,6 +19,13 @@
 			// fallback below
 		}
 		return clean.length > 19 ? clean.slice(0, 19) : clean;
+	}
+
+	function format_system_datetime(raw_dt) {
+		if (typeof window.archive_format_datetime === "function") {
+			return window.archive_format_datetime(raw_dt, "");
+		}
+		return resolve_raw_system_datetime(raw_dt);
 	}
 
 	const EVENT_TYPE_META = {
@@ -269,7 +279,7 @@
 											</div>
 											<div class="actl-meta-wrap">
 												${source_badge}
-												<span class="actl-timestamp" dir="ltr">${frappe.utils.escape_html(format_system_datetime(ev.event_datetime) || "—")}</span>
+												<span class="actl-timestamp" dir="rtl">${frappe.utils.escape_html(format_system_datetime(ev.event_datetime) || "—")}</span>
 											</div>
 										</div>
 										${format_event_details_html(ev, card)}
@@ -391,7 +401,7 @@
 		}
 
 		static parse_ts(raw_dt) {
-			const str = format_system_datetime(raw_dt);
+			const str = resolve_raw_system_datetime(raw_dt);
 			if (!str) return NaN;
 			const iso = str.replace(" ", "T");
 			const ms = Date.parse(iso);
@@ -574,7 +584,7 @@
 						`
 							: "";
 
-					const recorded_time = format_system_datetime(st.system_datetime).slice(0, 16) || "—";
+					const recorded_time = format_system_datetime(st.system_datetime) || "—";
 
 					return `
 						<div class="actr-station-step actr-transfer-step">
@@ -629,7 +639,7 @@
 										${ACTR_ICONS.user}
 										<span>بواسطة: ${frappe.utils.escape_html(st.performed_by_full_name || st.performed_by || "—")}</span>
 									</span>
-									<span class="actr-tc-time" dir="ltr">
+									<span class="actr-tc-time" dir="rtl">
 										<span>${frappe.utils.escape_html(recorded_time)}</span>
 										${ACTR_ICONS.clock}
 									</span>
@@ -1331,7 +1341,7 @@
 								</div>
 								<div class="actr-station-footer">
 									<span class="aceh-footer-item">${ACTR_ICONS.user}<span>بواسطة: ${frappe.utils.escape_html(st.recorded_by_name)}</span></span>
-									<span class="aceh-footer-item" dir="ltr"><span>${frappe.utils.escape_html(String(st.recorded_at || "—").slice(0, 16))}</span>${ACTR_ICONS.clock}</span>
+									<span class="aceh-footer-item" dir="rtl"><span>${frappe.utils.escape_html(String(st.recorded_at || "—"))}</span>${ACTR_ICONS.clock}</span>
 								</div>
 							</div>
 							${connector}
@@ -1388,7 +1398,7 @@
 						<div class="aceh-grid-item"><span class="aceh-field-icon">${ACTR_ICONS.user}</span><span>المندوب:</span> <strong>${frappe.utils.escape_html(st.representative_name)}</strong></div>
 						<div class="aceh-grid-item"><span class="aceh-field-icon">${ACTR_ICONS.pin}</span><span>المنطقة:</span> <strong>${frappe.utils.escape_html(st.region_name)}</strong></div>
 						<div class="aceh-grid-item"><span class="aceh-field-icon">${ACTR_ICONS.user}</span><span>سجل بواسطة:</span> <strong>${frappe.utils.escape_html(st.recorded_by_name)}</strong></div>
-						<div class="aceh-grid-item"><span class="aceh-field-icon">${ACTR_ICONS.clock}</span><span>وقت التسجيل بالنظام:</span> <strong dir="ltr">${frappe.utils.escape_html(st.recorded_at)}</strong></div>
+						<div class="aceh-grid-item"><span class="aceh-field-icon">${ACTR_ICONS.clock}</span><span>وقت التسجيل بالنظام:</span> <strong dir="rtl">${frappe.utils.escape_html(st.recorded_at)}</strong></div>
 					</div>
 					<div class="aceh-detail-reason-row">
 						<span class="aceh-field-icon">${ACTR_ICONS.comment}</span>

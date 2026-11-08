@@ -82,6 +82,7 @@ SORTABLE_COLUMNS = {
 	"card_owner": "acc.account_name",
 	"daily_limit": "c.daily_limit",
 	"received_date": "c.received_date",
+	"creation": "c.creation",
 	"status": "c.status",
 	"modified": "c.modified",
 }

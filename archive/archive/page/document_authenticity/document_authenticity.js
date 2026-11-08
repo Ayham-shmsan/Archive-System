@@ -3129,6 +3129,9 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
         if (!value) {
             return "-";
         }
+        if (typeof window.archive_format_datetime === "function") {
+            return frappe.utils.escape_html(window.archive_format_datetime(value, "-"));
+        }
 
         const clean = String(value).trim().replace(/\.\d+$/, "");
         try {

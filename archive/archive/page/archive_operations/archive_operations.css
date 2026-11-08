@@ -1325,6 +1325,10 @@ body[data-route="archive-operations"] .main-section > #body,
 	width: 130px;
 }
 
+.archive-operations-table .col-creation-time {
+	width: 170px;
+}
+
 .archive-operations-table .col-from-account {
 	width: 170px;
 }

@@ -1149,6 +1149,18 @@ class ArchiveOperationsPage {
                             type: "date",
                         },
 
+                        creation: {
+                            type: "datetime",
+                            get: (record) =>
+                                record?.creation
+                                    ? String(
+                                          record.creation
+                                      )
+                                          .trim()
+                                          .replace(" ", "T")
+                                    : null,
+                        },
+
                         from_account: {
                             type: "text",
                             get: (record) =>
@@ -2103,6 +2115,7 @@ class ArchiveOperationsPage {
                                 <col class="col-notes">
 
                                 <col class="col-final-swift">
+                                <col class="col-creation-time">
                                 <col class="col-created-by">
                                 <col class="col-status">
                                 
@@ -2283,6 +2296,14 @@ class ArchiveOperationsPage {
                                         data-sort-field="has_final_swift"
                                     >
                                         السويفت النهائي
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
+                                        data-sort-field="creation"
+                                    >
+                                        وقت الإدخال
                                         <span class="generic-sort-indicator"></span>
                                     </th>
 
@@ -3508,6 +3529,13 @@ class ArchiveOperationsPage {
 
                 </td>
 
+                <!-- وقت الإدخال -->
+                <td dir="rtl">
+                    ${this.format_datetime(
+                        operation.creation
+                    )}
+                </td>
+
                 <!-- المستخدم الذي أنشأ العملية -->
                 <td>
                     ${this.escape_value(
@@ -3619,7 +3647,9 @@ class ArchiveOperationsPage {
         if (!value) {
             return "—";
         }
-
+        if (typeof window.archive_format_datetime === "function") {
+            return this.escape_value(window.archive_format_datetime(value, "—"));
+        }
         const clean = String(value).trim().replace(/\.\d+$/, "");
         try {
             if (frappe?.datetime?.convert_to_user_tz) {
@@ -3632,6 +3662,16 @@ class ArchiveOperationsPage {
         } catch (error) {
             return this.escape_value(clean);
         }
+    }
+
+    format_time_only(value) {
+        if (!value) {
+            return "—";
+        }
+        if (typeof window.archive_format_time_only === "function") {
+            return this.escape_value(window.archive_format_time_only(value, "—"));
+        }
+        return "—";
     }
 
 

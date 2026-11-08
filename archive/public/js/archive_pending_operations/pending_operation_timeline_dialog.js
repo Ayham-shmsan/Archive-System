@@ -694,9 +694,10 @@ class ArchivePendingOperationTimelineDialog {
                             <div>
                                 <span class="before">
                                     ${this.escape(
-                                        change
-                                            ?.before
-                                        || "—"
+                                        fieldname === "operation_datetime" ||
+                                        /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(String(change?.before || "").trim())
+                                            ? this.format_datetime(change?.before)
+                                            : (change?.before || "—")
                                     )}
                                 </span>
 
@@ -706,9 +707,10 @@ class ArchivePendingOperationTimelineDialog {
 
                                 <span class="after">
                                     ${this.escape(
-                                        change
-                                            ?.after
-                                        || "—"
+                                        fieldname === "operation_datetime" ||
+                                        /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(String(change?.after || "").trim())
+                                            ? this.format_datetime(change?.after)
+                                            : (change?.after || "—")
                                     )}
                                 </span>
                             </div>
@@ -1350,6 +1352,9 @@ class ArchivePendingOperationTimelineDialog {
     ) {
         if (!value) {
             return "—";
+        }
+        if (typeof window.archive_format_datetime === "function") {
+            return this.escape(window.archive_format_datetime(value, "—"));
         }
 
         const clean = String(value).trim().replace(/\.\d+$/, "");

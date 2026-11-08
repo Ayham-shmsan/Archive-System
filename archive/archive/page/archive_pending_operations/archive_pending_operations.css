@@ -1680,6 +1680,12 @@ body[data-route="archive-pending-operations"] .main-section > #body,
 }
 
 .archive-pending-table
+.col-creation-time {
+    width:
+        170px;
+}
+
+.archive-pending-table
 .col-card-owner {
     width:
         180px;

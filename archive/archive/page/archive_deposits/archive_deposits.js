@@ -1353,6 +1353,9 @@ class ArchiveDepositsPage {
 	}
 
 	format_audit_datetime(value) {
+		if (typeof window.archive_format_datetime === "function") {
+			return window.archive_format_datetime(value, "");
+		}
 		const clean = String(value || "").trim().replace(/\.\d+$/, "");
 		if (!clean) return "";
 		try {

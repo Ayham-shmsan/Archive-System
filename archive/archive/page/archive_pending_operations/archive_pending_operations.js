@@ -807,6 +807,7 @@ class ArchivePendingOperationsPage {
                                 <col class="col-machine-location">
                                 <col class="col-total-returned">
                                 <col class="col-remaining-amount">
+                                <col class="col-creation-time">
                                 <col class="col-owner">
                                 <col class="col-status">
                             </colgroup>
@@ -892,7 +893,10 @@ class ArchivePendingOperationsPage {
                                         "المبلغ المتبقي"
                                     )}
 
-                                    
+                                    ${this.sortable_header(
+                                        "creation",
+                                        "وقت الإدخال"
+                                    )}
 
                                     ${this.sortable_header(
                                         "owner_full_name",
@@ -1171,6 +1175,14 @@ class ArchivePendingOperationsPage {
                                         .get_operation_datetime_sort_key(
                                             record
                                         ),
+                        },
+                        creation: {
+                            type: "text",
+                            get: (record) =>
+                                String(
+                                    record?.creation
+                                    || ""
+                                ),
                         },
                         suspended_note: {
                             type: "text",
@@ -2481,7 +2493,7 @@ class ArchivePendingOperationsPage {
                     )}ر.س
                 </td>
 
-                <td>
+                <td dir="rtl">
                     ${this.format_datetime(
                         operation.operation_datetime
                     )}
@@ -2558,7 +2570,11 @@ class ArchivePendingOperationsPage {
                     )}ر.س
                 </td>
 
-                
+                <td dir="rtl">
+                    ${this.format_datetime(
+                        operation.creation
+                    )}
+                </td>
 
                 <td>
                     ${this.escape_value(
@@ -4902,6 +4918,9 @@ class ArchivePendingOperationsPage {
         if (!value) {
             return "—";
         }
+        if (typeof window.archive_format_datetime === "function") {
+            return this.escape_value(window.archive_format_datetime(value, "—"));
+        }
 
         const clean = String(value).trim().replace(/\.\d+$/, "");
         try {
@@ -4915,5 +4934,17 @@ class ArchivePendingOperationsPage {
         } catch (error) {
             return this.escape_value(clean);
         }
+    }
+
+    format_time_only(
+        value
+    ) {
+        if (!value) {
+            return "—";
+        }
+        if (typeof window.archive_format_time_only === "function") {
+            return this.escape_value(window.archive_format_time_only(value, "—"));
+        }
+        return "—";
     }
 }

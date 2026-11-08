@@ -1431,7 +1431,7 @@ body[data-route="archive-cards"] #body,
 
 .archive-cards-table {
 	width: 100%;
-	min-width: 1140px;
+	min-width: 1320px;
 	border-collapse: collapse;
 	table-layout: fixed;
 	font-size: var(--archive-font-table-cell-size);
@@ -1442,34 +1442,37 @@ body[data-route="archive-cards"] #body,
 }
 
 .archive-cards-table th.ac-th[data-sort-col="serial_no"] {
-	width: 5%;
+	width: 4.2%;
 }
 .archive-cards-table th.ac-th[data-sort-col="card_name"] {
-	width: 15.2%;
+	width: 13.2%;
 }
 .archive-cards-table th.ac-th[data-sort-col="account_number"] {
-	width: 10.5%;
+	width: 9.4%;
 }
 .archive-cards-table th.ac-th[data-sort-col="card_number"] {
-	width: 11%;
-}
-.archive-cards-table th.ac-th[data-sort-col="bank"] {
 	width: 9.8%;
 }
+.archive-cards-table th.ac-th[data-sort-col="bank"] {
+	width: 8.6%;
+}
 .archive-cards-table th.ac-th[data-sort-col="representative"] {
-	width: 9.5%;
+	width: 8.4%;
 }
 .archive-cards-table th.ac-th[data-sort-col="region"] {
-	width: 7.5%;
+	width: 6.7%;
 }
 .archive-cards-table th.ac-th[data-sort-col="card_owner"] {
-	width: 9.5%;
+	width: 8.4%;
 }
 .archive-cards-table th.ac-th[data-sort-col="daily_limit"] {
-	width: 7.5%;
+	width: 6.8%;
 }
 .archive-cards-table th.ac-th[data-sort-col="received_date"] {
-	width: 8%;
+	width: 7.2%;
+}
+.archive-cards-table th.ac-th[data-sort-col="creation"] {
+	width: 10.8%;
 }
 .archive-cards-table th.ac-th[data-sort-col="status"] {
 	width: 6.5%;

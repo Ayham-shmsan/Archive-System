@@ -32,6 +32,7 @@ const ARCHIVE_CARDS_COLUMNS = [
 	{ key: "card_owner", label: "مالك البطاقة", width: "145px", locked: false, sortable: true },
 	{ key: "daily_limit", label: "الحد اليومي", width: "120px", locked: false, sortable: true },
 	{ key: "received_date", label: "تاريخ الاستلام", width: "120px", locked: false, sortable: true },
+	{ key: "creation", label: "وقت الإدخال", width: "165px", locked: false, sortable: true },
 	{ key: "status", label: "الحالة", width: "125px", locked: true, sortable: true },
 ];
 
@@ -807,6 +808,13 @@ class ArchiveCardsPage {
 		}
 		if (key === "received_date") {
 			return `<td class="ac-td-ltr" dir="ltr">${frappe.utils.escape_html(row.received_date || "—")}</td>`;
+		}
+		if (key === "creation") {
+			const formatted_dt =
+				typeof window.archive_format_datetime === "function"
+					? window.archive_format_datetime(row.creation, "—")
+					: "—";
+			return `<td dir="rtl">${frappe.utils.escape_html(formatted_dt)}</td>`;
 		}
 		if (key === "status") {
 			return `

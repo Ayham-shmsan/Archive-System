@@ -1326,7 +1326,10 @@ archive.ui.OperationTimelineDialog = class {
                                             "
                                         >
                                             ${this.escape_value(
-                                                change.old_value
+                                                change.fieldname === "execution_datetime" ||
+                                                /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(String(change.old_value || "").trim())
+                                                    ? this.format_datetime(change.old_value)
+                                                    : change.old_value
                                             )}
                                         </div>
 
@@ -1337,7 +1340,10 @@ archive.ui.OperationTimelineDialog = class {
                                             "
                                         >
                                             ${this.escape_value(
-                                                change.new_value
+                                                change.fieldname === "execution_datetime" ||
+                                                /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(String(change.new_value || "").trim())
+                                                    ? this.format_datetime(change.new_value)
+                                                    : change.new_value
                                             )}
                                         </div>
 
@@ -1926,7 +1932,10 @@ archive.ui.OperationTimelineDialog = class {
 
                                                     <strong>
                                                         ${this.escape_value(
-                                                            field.value
+                                                            field.fieldname === "execution_datetime" ||
+                                                            /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(String(field.value || "").trim())
+                                                                ? this.format_datetime(field.value)
+                                                                : field.value
                                                         )}
                                                     </strong>
                                                 </div>
@@ -2124,6 +2133,9 @@ archive.ui.OperationTimelineDialog = class {
     ) {
         if (!value) {
             return "—";
+        }
+        if (typeof window.archive_format_datetime === "function") {
+            return window.archive_format_datetime(value, "—");
         }
 
         const clean = String(value).trim().replace(/\.\d+$/, "");
