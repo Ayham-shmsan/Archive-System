@@ -20,7 +20,15 @@ def _format_audit_datetime(value: Any) -> str:
 	except Exception:
 		return cstr(value).split(".")[0].strip()
 
-from archive.api.card_search import normalize_account_number
+from archive.api.card_search import (
+	CARD_TYPE_BUSINESS,
+	CARD_TYPE_MADA,
+	VALID_CARD_TYPES,
+	clean_card_type,
+	format_copy_badge_label,
+	make_deposit_group_key,
+	normalize_account_number,
+)
 from archive.api.operation_search import normalize_search_text
 
 DEPOSIT_DOCTYPE = "Archive Card Deposit"
@@ -48,6 +56,7 @@ VALID_DEPOSIT_FILTERS = ("", "all", "deposited", "not_deposited")
 SORTABLE_COLUMNS = (
 	"serial_no",
 	"card_name",
+	"card_type",
 	"card_number",
 	"bank",
 	"representative",
@@ -991,15 +1000,19 @@ def _resolve_user_full_names(user_ids: set[str]) -> dict[str, str]:
 	return result
 
 
-def _resolve_account_key(
+def _resolve_deposit_group_key(
+	base_card_name: Any,
 	account_number_normalized: Any,
 	account_number: Any,
+	bank: Any,
 	fallback_card_id: str,
 ) -> str:
 	norm = cstr(account_number_normalized or "").strip() or normalize_account_number(
 		cstr(account_number or "")
 	)
-	return norm or f"__card__:{fallback_card_id}"
+	if not norm:
+		return f"__card__:{fallback_card_id}"
+	return make_deposit_group_key(base_card_name, norm, bank)
 
 
 def _resolve_account_limits_and_consumption(
@@ -1014,7 +1027,12 @@ def _resolve_account_limits_and_consumption(
 	card_rows = frappe.db.sql(
 		"""
 		SELECT
+			name,
+			base_card_name,
+			account_number,
 			account_number_normalized,
+			bank,
+			IFNULL(card_type, '') AS card_type,
 			daily_limit
 		FROM `tabArchive Card`
 		WHERE account_number_normalized IN %(norms)s
@@ -1024,18 +1042,60 @@ def _resolve_account_limits_and_consumption(
 		as_dict=True,
 	)
 
-	distinct_limits_by_norm: dict[str, set[float]] = {n: set() for n in norm_accounts}
+	groups: dict[str, dict[str, Any]] = {}
+
+	def _ensure_group(g_key: str) -> dict[str, Any]:
+		return groups.setdefault(
+			g_key,
+			{
+				"business_limits": set(),
+				"mada_limits": set(),
+				"legacy_limits": set(),
+				"business_snaps": set(),
+				"mada_snaps": set(),
+				"legacy_snaps": set(),
+				"business_saved_total": 0.0,
+				"mada_saved_total": 0.0,
+				"legacy_saved_total": 0.0,
+				"has_business": False,
+				"has_mada": False,
+				"has_legacy": False,
+			},
+		)
+
 	for cr in card_rows:
-		n_acc = cstr(cr.get("account_number_normalized") or "").strip()
-		if n_acc in distinct_limits_by_norm:
-			l_val = flt(cr.get("daily_limit"), 2)
+		g_key = _resolve_deposit_group_key(
+			cr.get("base_card_name"),
+			cr.get("account_number_normalized"),
+			cr.get("account_number"),
+			cr.get("bank"),
+			cstr(cr.get("name")),
+		)
+		entry = _ensure_group(g_key)
+		c_type = clean_card_type(cr.get("card_type"))
+		l_val = flt(cr.get("daily_limit"), 2)
+		if c_type == CARD_TYPE_BUSINESS:
+			entry["has_business"] = True
 			if l_val > 0:
-				distinct_limits_by_norm[n_acc].add(l_val)
+				entry["business_limits"].add(l_val)
+		elif c_type == CARD_TYPE_MADA:
+			entry["has_mada"] = True
+			if l_val > 0:
+				entry["mada_limits"].add(l_val)
+		else:
+			entry["has_legacy"] = True
+			if l_val > 0:
+				entry["legacy_limits"].add(l_val)
 
 	deposit_rows = frappe.db.sql(
 		"""
 		SELECT
-			c.account_number_normalized AS norm_acc,
+			c.name AS card_id,
+			COALESCE(NULLIF(d.base_card_name_snapshot, ''), c.base_card_name) AS base_card_name,
+			c.account_number,
+			c.account_number_normalized,
+			COALESCE(NULLIF(d.bank_snapshot, ''), c.bank) AS bank,
+			COALESCE(NULLIF(d.card_type_snapshot, ''), IFNULL(c.card_type, '')) AS card_type,
 			d.deposit_amount,
 			d.daily_limit_snapshot
 		FROM `tabArchive Card Deposit` d
@@ -1047,40 +1107,116 @@ def _resolve_account_limits_and_consumption(
 		as_dict=True,
 	)
 
-	saved_totals_by_norm: dict[str, float] = {n: 0.0 for n in norm_accounts}
-	snapshots_by_norm: dict[str, set[float]] = {n: set() for n in norm_accounts}
-	for dr in deposit_rows:
-		n_acc = cstr(dr.get("norm_acc") or "").strip()
-		if n_acc not in saved_totals_by_norm:
-			continue
-		amt = max(0.0, flt(dr.get("deposit_amount") or 0, 2))
-		saved_totals_by_norm[n_acc] = flt(saved_totals_by_norm[n_acc] + amt, 2)
-		snap = dr.get("daily_limit_snapshot")
-		if snap is not None and flt(snap, 2) > 0:
-			snapshots_by_norm[n_acc].add(flt(snap, 2))
-
 	is_past_date = deposit_date < today_str
-	result: dict[str, dict[str, Any]] = {}
-	for n_acc in norm_accounts:
-		cur_limits = sorted(distinct_limits_by_norm.get(n_acc, set()))
-		has_conflict = len(cur_limits) > 1
-		current_limit = cur_limits[0] if len(cur_limits) == 1 else (min(cur_limits) if cur_limits else 0.0)
-
-		snaps = sorted(snapshots_by_norm.get(n_acc, set()))
-		if is_past_date and snaps:
-			effective_limit = snaps[0] if len(snaps) == 1 else min(snaps)
-			effective_conflict = False
+	for dr in deposit_rows:
+		g_key = _resolve_deposit_group_key(
+			dr.get("base_card_name"),
+			dr.get("account_number_normalized"),
+			dr.get("account_number"),
+			dr.get("bank"),
+			cstr(dr.get("card_id")),
+		)
+		entry = _ensure_group(g_key)
+		c_type = clean_card_type(dr.get("card_type"))
+		amt = max(0.0, flt(dr.get("deposit_amount") or 0, 2))
+		snap = dr.get("daily_limit_snapshot")
+		snap_val = flt(snap, 2) if snap is not None and flt(snap, 2) > 0 else 0.0
+		if c_type == CARD_TYPE_BUSINESS:
+			entry["business_saved_total"] = flt(entry["business_saved_total"] + amt, 2)
+			if snap_val > 0:
+				entry["business_snaps"].add(snap_val)
+			if is_past_date and snap_val > 0:
+				entry["has_business"] = True
+		elif c_type == CARD_TYPE_MADA:
+			entry["mada_saved_total"] = flt(entry["mada_saved_total"] + amt, 2)
+			if snap_val > 0:
+				entry["mada_snaps"].add(snap_val)
+			if is_past_date and snap_val > 0:
+				entry["has_mada"] = True
 		else:
-			effective_limit = current_limit
-			effective_conflict = has_conflict
+			entry["legacy_saved_total"] = flt(entry["legacy_saved_total"] + amt, 2)
+			if snap_val > 0:
+				entry["legacy_snaps"].add(snap_val)
+			if is_past_date and snap_val > 0:
+				entry["has_legacy"] = True
 
-		saved_total = flt(saved_totals_by_norm.get(n_acc, 0.0), 2)
-		remaining = max(0.0, flt(effective_limit - saved_total, 2))
-		result[n_acc] = {
-			"daily_limit": effective_limit,
-			"account_saved_total": saved_total,
-			"remaining_limit": remaining,
-			"has_limit_conflict": effective_conflict,
+	result: dict[str, dict[str, Any]] = {}
+	for g_key, entry in groups.items():
+		b_cur = sorted(entry["business_limits"])
+		m_cur = sorted(entry["mada_limits"])
+		l_cur = sorted(entry["legacy_limits"])
+		b_snaps = sorted(entry["business_snaps"])
+		m_snaps = sorted(entry["mada_snaps"])
+		l_snaps = sorted(entry["legacy_snaps"])
+
+		if is_past_date and b_snaps:
+			b_limit = b_snaps[0] if len(b_snaps) == 1 else min(b_snaps)
+			b_conflict = False
+		else:
+			b_limit = b_cur[0] if len(b_cur) == 1 else (min(b_cur) if b_cur else 0.0)
+			b_conflict = len(b_cur) > 1
+
+		if is_past_date and m_snaps:
+			m_limit = m_snaps[0] if len(m_snaps) == 1 else min(m_snaps)
+			m_conflict = False
+		else:
+			m_limit = m_cur[0] if len(m_cur) == 1 else (min(m_cur) if m_cur else 0.0)
+			m_conflict = len(m_cur) > 1
+
+		if is_past_date and l_snaps:
+			l_limit = l_snaps[0] if len(l_snaps) == 1 else min(l_snaps)
+			l_conflict = False
+		else:
+			l_limit = l_cur[0] if len(l_cur) == 1 else (min(l_cur) if l_cur else 0.0)
+			l_conflict = len(l_cur) > 1
+
+		has_b = bool(entry["has_business"])
+		has_m = bool(entry["has_mada"])
+		d_a = flt(entry["business_saved_total"], 2)
+		d_m = flt(entry["mada_saved_total"], 2)
+		d_l = flt(entry["legacy_saved_total"], 2)
+		total_saved = flt(d_a + d_m + d_l, 2)
+
+		if has_b and has_m:
+			rem_b = max(0.0, flt(b_limit - d_a - d_m, 2))
+			rem_m = max(0.0, flt(min(flt(m_limit - d_m, 2), flt(b_limit - d_a - d_m, 2)), 2))
+			group_target = b_limit
+		elif has_b:
+			rem_b = max(0.0, flt(b_limit - d_a, 2))
+			rem_m = 0.0
+			group_target = b_limit
+		elif has_m:
+			rem_b = 0.0
+			rem_m = max(0.0, flt(m_limit - d_m, 2))
+			group_target = m_limit
+		else:
+			rem_b = 0.0
+			rem_m = 0.0
+			group_target = l_limit
+
+		rem_l = (
+			max(0.0, flt(b_limit - d_a - d_m - d_l, 2))
+			if has_b
+			else max(0.0, flt(l_limit - d_l, 2))
+		)
+
+		result[g_key] = {
+			"has_business": has_b,
+			"has_mada": has_m,
+			"business_limit": b_limit,
+			"mada_limit": m_limit,
+			"legacy_limit": l_limit,
+			"business_saved_total": d_a,
+			"mada_saved_total": d_m,
+			"legacy_saved_total": d_l,
+			"account_saved_total": total_saved,
+			"remaining_business": rem_b,
+			"remaining_mada": rem_m,
+			"remaining_legacy": rem_l,
+			"group_daily_target": group_target,
+			"business_conflict": b_conflict,
+			"mada_conflict": m_conflict,
+			"legacy_conflict": l_conflict,
 		}
 	return result
 
@@ -1091,7 +1227,7 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 	for `deposit_date`, joined with any saved deposit record for that date.
 	Inactive/stopped cards are excluded from the screen and its statistics while keeping
 	their saved historical deposit records untouched in `tabArchive Card Deposit` and
-	counted toward their shared account's daily limit consumption.
+	counted toward their shared 3-element deposit group's daily limit consumption.
 	"""
 	raw_rows = frappe.db.sql(
 		"""
@@ -1099,6 +1235,7 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 			c.name AS card_id,
 			c.serial_no,
 			c.copy_no,
+			IFNULL(c.card_type, '') AS card_type,
 			c.card_name,
 			c.base_card_name,
 			c.account_number,
@@ -1120,6 +1257,7 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 			d.card_name_snapshot,
 			d.base_card_name_snapshot,
 			d.copy_no_snapshot,
+			d.card_type_snapshot,
 			d.card_number_snapshot,
 			d.account_number_snapshot,
 			d.bank_snapshot,
@@ -1179,8 +1317,6 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 		saved_amount = flt(r.get("deposit_amount") or 0, 2) if has_deposit_doc else 0.0
 		is_deposited = saved_amount > 0
 
-		# Use historical snapshots when a deposit record exists (protecting historical records
-		# against subsequent changes to card status, representative, region, bank, or daily_limit).
 		use_snapshot = has_deposit_doc and (
 			is_past_date
 			or r.get("card_status") != ACTIVE_CARD_STATUS
@@ -1194,6 +1330,9 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 				r.get("base_card_name_snapshot") or r.get("base_card_name") or effective_card_name
 			)
 			effective_copy_no = cint(r.get("copy_no_snapshot") or r.get("copy_no") or 1)
+			effective_card_type = clean_card_type(
+				r.get("card_type_snapshot") or r.get("card_type")
+			)
 			effective_card_number = cstr(r.get("card_number_snapshot") or r.get("card_number") or "")
 			effective_account_number = cstr(
 				r.get("account_number_snapshot") or r.get("account_number") or ""
@@ -1216,6 +1355,7 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 			effective_card_name = cstr(r.get("card_name") or "")
 			effective_base_name = cstr(r.get("base_card_name") or effective_card_name)
 			effective_copy_no = cint(r.get("copy_no") or 1)
+			effective_card_type = clean_card_type(r.get("card_type"))
 			effective_card_number = cstr(r.get("card_number") or "")
 			effective_account_number = cstr(r.get("account_number") or "")
 			effective_bank = cstr(r.get("bank") or "")
@@ -1225,17 +1365,38 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 			effective_region = cstr(r.get("region") or "")
 			effective_region_name = cstr(r.get("region_name") or effective_region)
 
-		account_key = _resolve_account_key(
+		effective_copy_label = format_copy_badge_label(effective_card_type, effective_copy_no)
+		account_key = _resolve_deposit_group_key(
+			effective_base_name,
 			r.get("account_number_normalized"),
-			r.get("account_number"),
+			effective_account_number,
+			effective_bank,
 			card_id,
 		)
 		acc_state = account_state_map.get(account_key)
 		if acc_state is not None:
-			effective_daily_limit = flt(acc_state["daily_limit"], 2)
+			if effective_card_type == CARD_TYPE_BUSINESS:
+				effective_daily_limit = flt(acc_state["business_limit"], 2)
+				remaining_limit = flt(acc_state["remaining_business"], 2)
+				has_limit_conflict = bool(acc_state["business_conflict"])
+			elif effective_card_type == CARD_TYPE_MADA:
+				effective_daily_limit = flt(acc_state["mada_limit"], 2)
+				remaining_limit = flt(acc_state["remaining_mada"], 2)
+				has_limit_conflict = bool(acc_state["mada_conflict"])
+			else:
+				effective_daily_limit = flt(acc_state["legacy_limit"], 2)
+				remaining_limit = flt(acc_state["remaining_legacy"], 2)
+				has_limit_conflict = bool(acc_state["legacy_conflict"])
 			account_saved_total = flt(acc_state["account_saved_total"], 2)
-			remaining_limit = flt(acc_state["remaining_limit"], 2)
-			has_limit_conflict = bool(acc_state["has_limit_conflict"])
+			has_business = bool(acc_state["has_business"])
+			has_mada = bool(acc_state["has_mada"])
+			business_limit = flt(acc_state["business_limit"], 2)
+			mada_limit = flt(acc_state["mada_limit"], 2)
+			legacy_limit = flt(acc_state["legacy_limit"], 2)
+			business_saved_total = flt(acc_state["business_saved_total"], 2)
+			mada_saved_total = flt(acc_state["mada_saved_total"], 2)
+			legacy_saved_total = flt(acc_state["legacy_saved_total"], 2)
+			group_daily_target = flt(acc_state["group_daily_target"], 2)
 		else:
 			effective_daily_limit = (
 				max(0.0, flt(r.get("daily_limit_snapshot"), 2))
@@ -1245,6 +1406,15 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 			account_saved_total = saved_amount
 			remaining_limit = max(0.0, flt(effective_daily_limit - saved_amount, 2))
 			has_limit_conflict = False
+			has_business = effective_card_type == CARD_TYPE_BUSINESS
+			has_mada = effective_card_type == CARD_TYPE_MADA
+			business_limit = effective_daily_limit if has_business else 0.0
+			mada_limit = effective_daily_limit if has_mada else 0.0
+			legacy_limit = effective_daily_limit if (not has_business and not has_mada) else 0.0
+			business_saved_total = saved_amount if has_business else 0.0
+			mada_saved_total = saved_amount if has_mada else 0.0
+			legacy_saved_total = saved_amount if (not has_business and not has_mada) else 0.0
+			group_daily_target = effective_daily_limit
 
 		status_key = "deposited" if is_deposited else "not_deposited"
 		status_label = "تم الإيداع" if is_deposited else "لم يتم الإيداع"
@@ -1258,6 +1428,8 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 				[
 					effective_card_name,
 					effective_base_name,
+					effective_card_type,
+					effective_copy_label,
 					effective_card_number,
 					effective_account_number,
 					effective_bank_name,
@@ -1272,8 +1444,11 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 			{
 				"card": card_id,
 				"account_key": account_key,
+				"group_key": account_key,
 				"serial_no": cint(r.get("serial_no")),
 				"copy_no": effective_copy_no,
+				"copy_label": effective_copy_label,
+				"card_type": effective_card_type,
 				"card_name": effective_card_name,
 				"base_card_name": effective_base_name,
 				"card_number": effective_card_number,
@@ -1290,6 +1465,15 @@ def _load_day_dataset(deposit_date: str) -> list[dict[str, Any]]:
 				),
 				"daily_limit": effective_daily_limit,
 				"daily_limit_formatted": format_financial_amount(effective_daily_limit, zero_as_zero=True),
+				"has_business": has_business,
+				"has_mada": has_mada,
+				"business_limit": business_limit,
+				"mada_limit": mada_limit,
+				"legacy_limit": legacy_limit,
+				"business_saved_total": business_saved_total,
+				"mada_saved_total": mada_saved_total,
+				"legacy_saved_total": legacy_saved_total,
+				"group_daily_target": group_daily_target,
 				"account_saved_total": account_saved_total,
 				"has_limit_conflict": has_limit_conflict,
 				"deposit_id": cstr(r.get("deposit_id") or ""),
@@ -1337,12 +1521,46 @@ def _compute_day_stats(all_items: list[dict[str, Any]]) -> dict[str, Any]:
 		sum(flt(item["deposit_amount"], 2) for item in all_items if flt(item["deposit_amount"], 2) > 0),
 		2,
 	)
-	unique_account_limits: dict[str, float] = {}
+	# Daily Target (`الهدف اليومي`) per 3-element group (`base_card_name + account_number + bank`):
+	# - If the group has `أعمال` (with or without `مدى`): count `أعمال` limit once only.
+	# - If the group has `مدى` only: count `مدى` limit once only.
+	# - Never multiply by copy count and never sum `مدى` + `أعمال` for the same 3-element group.
+	groups_info: dict[str, dict[str, Any]] = {}
 	for item in all_items:
-		acc_key = cstr(item.get("account_key") or item.get("card"))
-		if acc_key not in unique_account_limits:
-			unique_account_limits[acc_key] = flt(item.get("daily_limit"), 2)
-	total_daily_target = flt(sum(unique_account_limits.values()), 2)
+		g_key = cstr(item.get("group_key") or item.get("account_key") or item.get("card"))
+		g_entry = groups_info.setdefault(
+			g_key,
+			{
+				"has_business": False,
+				"has_mada": False,
+				"business_limit": 0.0,
+				"mada_limit": 0.0,
+				"legacy_limit": 0.0,
+			},
+		)
+		c_type = clean_card_type(item.get("card_type"))
+		c_lim = flt(item.get("daily_limit"), 2)
+		if c_type == CARD_TYPE_BUSINESS:
+			g_entry["has_business"] = True
+			if c_lim > g_entry["business_limit"]:
+				g_entry["business_limit"] = c_lim
+		elif c_type == CARD_TYPE_MADA:
+			g_entry["has_mada"] = True
+			if c_lim > g_entry["mada_limit"]:
+				g_entry["mada_limit"] = c_lim
+		else:
+			if c_lim > g_entry["legacy_limit"]:
+				g_entry["legacy_limit"] = c_lim
+
+	total_daily_target = 0.0
+	for g_entry in groups_info.values():
+		if g_entry["has_business"]:
+			total_daily_target = flt(total_daily_target + g_entry["business_limit"], 2)
+		elif g_entry["has_mada"]:
+			total_daily_target = flt(total_daily_target + g_entry["mada_limit"], 2)
+		else:
+			total_daily_target = flt(total_daily_target + g_entry["legacy_limit"], 2)
+
 	return {
 		"total_cards": total_cards,
 		"deposited_count": deposited_count,
@@ -1371,6 +1589,8 @@ def _sort_items(
 			return (cint(row.get("serial_no")), cstr(row.get("card")))
 		if col == "card_name":
 			return (cstr(row.get("card_name")).lower(), cint(row.get("serial_no")))
+		if col == "card_type":
+			return (cstr(row.get("card_type")).lower(), cint(row.get("serial_no")))
 		if col == "card_number":
 			return (cstr(row.get("card_number")), cint(row.get("serial_no")))
 		if col == "bank":
@@ -1546,7 +1766,7 @@ def save_daily_deposits(
 	)
 
 	# Step 2: Lock ALL cards sharing those account numbers (active + stopped) in deterministic
-	# `c.name ASC` order to strictly serialize concurrent saves on different copies of the same account.
+	# `c.name ASC` order to strictly serialize concurrent saves on different copies of the same deposit group.
 	if target_norms:
 		locked_cards = frappe.db.sql(
 			"""
@@ -1555,6 +1775,7 @@ def save_daily_deposits(
 				c.card_name,
 				c.base_card_name,
 				c.copy_no,
+				IFNULL(c.card_type, '') AS card_type,
 				c.card_number,
 				c.account_number,
 				c.account_number_normalized,
@@ -1587,6 +1808,7 @@ def save_daily_deposits(
 				c.card_name,
 				c.base_card_name,
 				c.copy_no,
+				IFNULL(c.card_type, '') AS card_type,
 				c.card_number,
 				c.account_number,
 				c.account_number_normalized,
@@ -1629,6 +1851,7 @@ def save_daily_deposits(
 			card,
 			deposit_amount,
 			daily_limit_snapshot,
+			card_type_snapshot,
 			recorded_by,
 			recorded_at,
 			last_modified_by,
@@ -1678,89 +1901,248 @@ def save_daily_deposits(
 				frappe.ValidationError,
 			)
 
-	# Step 5: Group all locked cards by shared account_key and validate total account consumption
-	cards_by_account: dict[str, list[dict[str, Any]]] = {}
+	# Step 5: Group all locked cards by shared 3-element deposit group (`base_card_name + account_number + bank`)
+	# and enforce `أعمال` priority ceiling over `مدى`:
+	#   - If `مدى` exists: D_M <= M
+	#   - If `أعمال` exists: D_A + D_M <= A
+	cards_by_group: dict[str, list[dict[str, Any]]] = {}
 	for c_row in locked_cards:
-		acc_key = _resolve_account_key(
+		g_key = _resolve_deposit_group_key(
+			c_row.get("base_card_name"),
 			c_row.get("account_number_normalized"),
 			c_row.get("account_number"),
+			c_row.get("bank"),
 			cstr(c_row.get("name")),
 		)
-		cards_by_account.setdefault(acc_key, []).append(c_row)
+		cards_by_group.setdefault(g_key, []).append(c_row)
 
-	edited_account_keys = sorted(
+	edited_group_keys = sorted(
 		{
-			_resolve_account_key(
+			_resolve_deposit_group_key(
+				cards_by_id[cid].get("base_card_name"),
 				cards_by_id[cid].get("account_number_normalized"),
 				cards_by_id[cid].get("account_number"),
+				cards_by_id[cid].get("bank"),
 				cid,
 			)
 			for cid in sorted_card_ids
 		}
 	)
 
-	resolved_limit_by_account: dict[str, float] = {}
-	for acc_key in edited_account_keys:
-		acc_cards = cards_by_account.get(acc_key, [])
-		non_deleted_cards = [c for c in acc_cards if cint(c.get("is_deleted")) == 0]
-		distinct_cur_limits = sorted(
-			{flt(c.get("daily_limit"), 2) for c in non_deleted_cards if flt(c.get("daily_limit"), 2) > 0}
+	resolved_limits_by_group: dict[str, dict[str, float]] = {}
+	for g_key in edited_group_keys:
+		grp_cards = cards_by_group.get(g_key, [])
+		non_deleted_cards = [c for c in grp_cards if cint(c.get("is_deleted")) == 0]
+		sample_card = non_deleted_cards[0] if non_deleted_cards else grp_cards[0]
+		display_acc = cstr(sample_card.get("account_number") or g_key)
+		display_base = cstr(sample_card.get("base_card_name") or sample_card.get("card_name") or "")
+
+		b_cur_limits = sorted(
+			{
+				flt(c.get("daily_limit"), 2)
+				for c in non_deleted_cards
+				if clean_card_type(c.get("card_type")) == CARD_TYPE_BUSINESS
+				and flt(c.get("daily_limit"), 2) > 0
+			}
 		)
-		snaps_on_date = sorted(
+		m_cur_limits = sorted(
+			{
+				flt(c.get("daily_limit"), 2)
+				for c in non_deleted_cards
+				if clean_card_type(c.get("card_type")) == CARD_TYPE_MADA
+				and flt(c.get("daily_limit"), 2) > 0
+			}
+		)
+		l_cur_limits = sorted(
+			{
+				flt(c.get("daily_limit"), 2)
+				for c in non_deleted_cards
+				if clean_card_type(c.get("card_type")) == ""
+				and flt(c.get("daily_limit"), 2) > 0
+			}
+		)
+
+		b_snaps = sorted(
 			{
 				flt(existing_by_card[cstr(c.get("name"))].get("daily_limit_snapshot"), 2)
-				for c in acc_cards
+				for c in grp_cards
 				if cstr(c.get("name")) in existing_by_card
+				and clean_card_type(
+					existing_by_card[cstr(c.get("name"))].get("card_type_snapshot")
+					or c.get("card_type")
+				)
+				== CARD_TYPE_BUSINESS
+				and existing_by_card[cstr(c.get("name"))].get("daily_limit_snapshot") is not None
+				and flt(existing_by_card[cstr(c.get("name"))].get("daily_limit_snapshot"), 2) > 0
+			}
+		)
+		m_snaps = sorted(
+			{
+				flt(existing_by_card[cstr(c.get("name"))].get("daily_limit_snapshot"), 2)
+				for c in grp_cards
+				if cstr(c.get("name")) in existing_by_card
+				and clean_card_type(
+					existing_by_card[cstr(c.get("name"))].get("card_type_snapshot")
+					or c.get("card_type")
+				)
+				== CARD_TYPE_MADA
+				and existing_by_card[cstr(c.get("name"))].get("daily_limit_snapshot") is not None
+				and flt(existing_by_card[cstr(c.get("name"))].get("daily_limit_snapshot"), 2) > 0
+			}
+		)
+		l_snaps = sorted(
+			{
+				flt(existing_by_card[cstr(c.get("name"))].get("daily_limit_snapshot"), 2)
+				for c in grp_cards
+				if cstr(c.get("name")) in existing_by_card
+				and clean_card_type(
+					existing_by_card[cstr(c.get("name"))].get("card_type_snapshot")
+					or c.get("card_type")
+				)
+				== ""
 				and existing_by_card[cstr(c.get("name"))].get("daily_limit_snapshot") is not None
 				and flt(existing_by_card[cstr(c.get("name"))].get("daily_limit_snapshot"), 2) > 0
 			}
 		)
 
-		if is_past_date and snaps_on_date:
-			effective_account_limit = snaps_on_date[0] if len(snaps_on_date) == 1 else min(snaps_on_date)
+		if is_past_date and b_snaps:
+			effective_b_limit = b_snaps[0] if len(b_snaps) == 1 else min(b_snaps)
 		else:
-			if len(distinct_cur_limits) > 1:
-				display_acc = cstr(
-					(non_deleted_cards[0] if non_deleted_cards else acc_cards[0]).get("account_number")
-					or acc_key
-				)
+			if len(b_cur_limits) > 1:
 				frappe.throw(
 					_(
-						"يوجد تعارض مسبق في الحد اليومي بين نسخ الحساب ({0}). يرجى توحيد الحد اليومي للحساب من شاشة البطاقات أولاً."
+						"يوجد تعارض مسبق في الحد اليومي بين نسخ أعمال للحساب ({0}). يرجى توحيد الحد اليومي من شاشة البطاقات أولاً."
 					).format(display_acc),
 					frappe.ValidationError,
 				)
-			effective_account_limit = distinct_cur_limits[0] if distinct_cur_limits else 0.0
+			effective_b_limit = b_cur_limits[0] if b_cur_limits else 0.0
 
-		resolved_limit_by_account[acc_key] = effective_account_limit
-
-		untouched_saved_total = 0.0
-		edited_new_total = 0.0
-		for c in acc_cards:
-			m_cid = cstr(c.get("name"))
-			if m_cid in normalized_entries:
-				edited_new_total = flt(edited_new_total + flt(normalized_entries[m_cid], 2), 2)
-			elif m_cid in existing_by_card:
-				untouched_saved_total = flt(
-					untouched_saved_total
-					+ max(0.0, flt(existing_by_card[m_cid].get("deposit_amount") or 0, 2)),
-					2,
+		if is_past_date and m_snaps:
+			effective_m_limit = m_snaps[0] if len(m_snaps) == 1 else min(m_snaps)
+		else:
+			if len(m_cur_limits) > 1:
+				frappe.throw(
+					_(
+						"يوجد تعارض مسبق في الحد اليومي بين نسخ مدى للحساب ({0}). يرجى توحيد الحد اليومي من شاشة البطاقات أولاً."
+					).format(display_acc),
+					frappe.ValidationError,
 				)
+			effective_m_limit = m_cur_limits[0] if m_cur_limits else 0.0
 
-		final_account_total = flt(untouched_saved_total + edited_new_total, 2)
-		if round(final_account_total * 100) > round(effective_account_limit * 100):
-			available = max(0.0, flt(effective_account_limit - untouched_saved_total, 2))
-			display_acc = cstr(
-				(non_deleted_cards[0] if non_deleted_cards else acc_cards[0]).get("account_number")
-				or acc_key
+		if is_past_date and l_snaps:
+			effective_l_limit = l_snaps[0] if len(l_snaps) == 1 else min(l_snaps)
+		else:
+			if len(l_cur_limits) > 1:
+				frappe.throw(
+					_(
+						"يوجد تعارض مسبق في الحد اليومي بين نسخ الحساب ({0}). يرجى توحيد الحد اليومي من شاشة البطاقات أولاً."
+					).format(display_acc),
+					frappe.ValidationError,
+				)
+			effective_l_limit = l_cur_limits[0] if l_cur_limits else 0.0
+
+		has_business = any(
+			clean_card_type(c.get("card_type")) == CARD_TYPE_BUSINESS for c in non_deleted_cards
+		) or (is_past_date and bool(b_snaps))
+		has_mada = any(
+			clean_card_type(c.get("card_type")) == CARD_TYPE_MADA for c in non_deleted_cards
+		) or (is_past_date and bool(m_snaps))
+
+		resolved_limits_by_group[g_key] = {
+			CARD_TYPE_BUSINESS: effective_b_limit,
+			CARD_TYPE_MADA: effective_m_limit,
+			"": effective_l_limit,
+		}
+
+		untouched_b = 0.0
+		untouched_m = 0.0
+		untouched_l = 0.0
+		edited_b = 0.0
+		edited_m = 0.0
+		edited_l = 0.0
+
+		for c in grp_cards:
+			m_cid = cstr(c.get("name"))
+			c_type = clean_card_type(c.get("card_type"))
+			if m_cid in normalized_entries:
+				amt = flt(normalized_entries[m_cid], 2)
+				if c_type == CARD_TYPE_BUSINESS:
+					edited_b = flt(edited_b + amt, 2)
+				elif c_type == CARD_TYPE_MADA:
+					edited_m = flt(edited_m + amt, 2)
+				else:
+					edited_l = flt(edited_l + amt, 2)
+			elif m_cid in existing_by_card:
+				amt = max(0.0, flt(existing_by_card[m_cid].get("deposit_amount") or 0, 2))
+				snap_type = clean_card_type(
+					existing_by_card[m_cid].get("card_type_snapshot") or c_type
+				)
+				if snap_type == CARD_TYPE_BUSINESS:
+					untouched_b = flt(untouched_b + amt, 2)
+				elif snap_type == CARD_TYPE_MADA:
+					untouched_m = flt(untouched_m + amt, 2)
+				else:
+					untouched_l = flt(untouched_l + amt, 2)
+
+		final_b = flt(untouched_b + edited_b, 2)
+		final_m = flt(untouched_m + edited_m, 2)
+		final_l = flt(untouched_l + edited_l, 2)
+		final_total = flt(final_b + final_m + final_l, 2)
+
+		# 1. Mada group limit check: D_M <= M
+		if has_mada and round(final_m * 100) > round(effective_m_limit * 100):
+			avail_m = (
+				max(
+					0.0,
+					flt(
+						min(
+							flt(effective_m_limit - untouched_m, 2),
+							flt(effective_b_limit - untouched_b - untouched_m, 2),
+						),
+						2,
+					),
+				)
+				if has_business
+				else max(0.0, flt(effective_m_limit - untouched_m, 2))
 			)
+			frappe.throw(
+				_(
+					"مبلغ الإيداع لبطاقات مدى في المجموعة ({0} — {1}) لا يمكن أن يتجاوز الحد اليومي لمدى ({2})، المتبقي المتاح لمدى: ({3})."
+				).format(
+					display_base,
+					display_acc,
+					format_financial_amount(effective_m_limit, zero_as_zero=True),
+					format_financial_amount(avail_m, zero_as_zero=True),
+				),
+				frappe.ValidationError,
+			)
+
+		# 2. Business ceiling check: D_A + D_M <= A
+		if has_business and round(final_total * 100) > round(effective_b_limit * 100):
+			avail_b = max(0.0, flt(effective_b_limit - untouched_b - untouched_m - untouched_l, 2))
+			frappe.throw(
+				_(
+					"مجموع إيداعات المجموعة ({0} — {1}) شاملاً أعمال ومدى ({2}) يتجاوز السقف اليومي لأعمال ({3})، المتبقي المتاح في السقف: ({4})."
+				).format(
+					display_base,
+					display_acc,
+					format_financial_amount(final_total, zero_as_zero=True),
+					format_financial_amount(effective_b_limit, zero_as_zero=True),
+					format_financial_amount(avail_b, zero_as_zero=True),
+				),
+				frappe.ValidationError,
+			)
+
+		# 3. Legacy fallback check when neither business nor mada exists
+		if not has_business and not has_mada and round(final_l * 100) > round(effective_l_limit * 100):
+			avail_l = max(0.0, flt(effective_l_limit - untouched_l, 2))
 			frappe.throw(
 				_(
 					"مبلغ الإيداع لا يمكن أن يتجاوز الحد اليومي للبطاقة (الحد المشترك للحساب {0}: {1}، المتبقي المتاح: {2})."
 				).format(
 					display_acc,
-					format_financial_amount(effective_account_limit, zero_as_zero=True),
-					format_financial_amount(available, zero_as_zero=True),
+					format_financial_amount(effective_l_limit, zero_as_zero=True),
+					format_financial_amount(avail_l, zero_as_zero=True),
 				),
 				frappe.ValidationError,
 			)
@@ -1773,13 +2155,17 @@ def save_daily_deposits(
 			new_amount = normalized_entries[cid]
 			existing = existing_by_card.get(cid)
 			is_card_active = True
-			acc_key = _resolve_account_key(
+			c_type = clean_card_type(card_row.get("card_type"))
+			g_key = _resolve_deposit_group_key(
+				card_row.get("base_card_name"),
 				card_row.get("account_number_normalized"),
 				card_row.get("account_number"),
+				card_row.get("bank"),
 				cid,
 			)
+			grp_limits = resolved_limits_by_group.get(g_key, {})
 			snapshot_limit = flt(
-				resolved_limit_by_account.get(acc_key, flt(card_row.get("daily_limit") or 0, 2)),
+				grp_limits.get(c_type, flt(card_row.get("daily_limit") or 0, 2)),
 				2,
 			)
 
@@ -1810,6 +2196,7 @@ def save_daily_deposits(
 						"card_name_snapshot": cstr(card_row.get("card_name") or ""),
 						"base_card_name_snapshot": cstr(card_row.get("base_card_name") or ""),
 						"copy_no_snapshot": cint(card_row.get("copy_no") or 1),
+						"card_type_snapshot": c_type,
 						"card_number_snapshot": cstr(card_row.get("card_number") or ""),
 						"account_number_snapshot": cstr(card_row.get("account_number") or ""),
 						"bank_snapshot": card_row.get("bank") or None,
@@ -1877,6 +2264,7 @@ def save_daily_deposits(
 					doc.card_name_snapshot = cstr(card_row.get("card_name") or "")
 					doc.base_card_name_snapshot = cstr(card_row.get("base_card_name") or "")
 					doc.copy_no_snapshot = cint(card_row.get("copy_no") or 1)
+					doc.card_type_snapshot = c_type
 					doc.card_number_snapshot = cstr(card_row.get("card_number") or "")
 					doc.account_number_snapshot = cstr(card_row.get("account_number") or "")
 					doc.bank_snapshot = card_row.get("bank") or None

@@ -6,26 +6,36 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import cint, cstr, flt, getdate, now_datetime
+from frappe.utils import cint, cstr, flt, getdate, now_datetime, today
 
 from archive.api.card_family import (
 	FAMILY_DOCTYPE,
 	_execute_change_card_account_number,
 	acquire_or_create_family_for_new_card,
 	change_card_account_number,
-	get_account_shared_daily_limit_state,
+	get_deposit_group_state_for_date,
+	get_type_group_shared_daily_limit_state,
 	inspect_account_family,
 	rename_card_family_base_name,
-	sync_account_daily_limit,
-	validate_account_daily_limit_against_today_deposits,
+	sync_type_group_daily_limit,
+	validate_type_group_daily_limit_against_today_deposits,
 )
 from archive.api.card_search import (
+	CARD_TYPE_BUSINESS,
+	CARD_TYPE_MADA,
+	VALID_CARD_TYPES,
 	clean_account_number_display,
 	clean_base_card_name,
 	clean_card_number,
+	clean_card_type,
+	format_copy_badge_label,
 	format_daily_limit,
+	make_copy_group_key,
+	make_deposit_group_key,
 	normalize_account_number,
 	set_card_search_text,
+	validate_card_type,
+	validate_daily_limit_for_card_type,
 )
 from archive.api.operation_search import normalize_search_text
 from archive.services.card_audit import (
@@ -74,6 +84,7 @@ def get_card_status_display_label(status: str | None) -> str:
 SORTABLE_COLUMNS = {
 	"serial_no": "c.serial_no",
 	"card_name": "c.card_name",
+	"card_type": "c.card_type",
 	"account_number": "c.account_number",
 	"card_number": "c.card_number",
 	"bank": "b.bank_name",
@@ -211,15 +222,142 @@ def _parse_edit_meta_dict(raw_meta: Any) -> dict[str, Any] | None:
 	return None
 
 
+def _compute_today_remaining_by_card(raw_rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+	norms = sorted(
+		{
+			cstr(r.get("account_number_normalized") or "").strip()
+			for r in raw_rows
+			if cstr(r.get("account_number_normalized") or "").strip()
+		}
+	)
+	if not norms:
+		return {}
+
+	today_str = cstr(today())
+	group_rows = frappe.db.sql(
+		"""
+		SELECT
+			c.name,
+			c.base_card_name,
+			c.account_number_normalized,
+			c.bank,
+			IFNULL(c.card_type, '') AS card_type,
+			c.daily_limit,
+			COALESCE(d.deposit_amount, 0) AS deposit_amount
+		FROM `tabArchive Card` c
+		LEFT JOIN `tabArchive Card Deposit` d
+			ON d.card = c.name AND d.deposit_date = %(today)s
+		WHERE IFNULL(c.is_deleted, 0) = 0
+		  AND c.account_number_normalized IN %(norms)s
+		""",
+		{"today": today_str, "norms": tuple(norms)},
+		as_dict=True,
+	)
+
+	groups: dict[str, dict[str, Any]] = {}
+	for gr in group_rows:
+		g_key = make_deposit_group_key(
+			gr.get("base_card_name"),
+			gr.get("account_number_normalized"),
+			gr.get("bank"),
+		)
+		entry = groups.setdefault(
+			g_key,
+			{
+				"has_business": False,
+				"has_mada": False,
+				"business_limit": 0.0,
+				"mada_limit": 0.0,
+				"legacy_limit": 0.0,
+				"business_deposited": 0.0,
+				"mada_deposited": 0.0,
+				"legacy_deposited": 0.0,
+			},
+		)
+		c_type = clean_card_type(gr.get("card_type"))
+		c_limit = flt(gr.get("daily_limit"), 2)
+		dep_amt = flt(gr.get("deposit_amount"), 2)
+		if c_type == CARD_TYPE_BUSINESS:
+			entry["has_business"] = True
+			if c_limit > entry["business_limit"]:
+				entry["business_limit"] = c_limit
+			entry["business_deposited"] = flt(entry["business_deposited"] + dep_amt, 2)
+		elif c_type == CARD_TYPE_MADA:
+			entry["has_mada"] = True
+			if c_limit > entry["mada_limit"]:
+				entry["mada_limit"] = c_limit
+			entry["mada_deposited"] = flt(entry["mada_deposited"] + dep_amt, 2)
+		else:
+			if c_limit > entry["legacy_limit"]:
+				entry["legacy_limit"] = c_limit
+			entry["legacy_deposited"] = flt(entry["legacy_deposited"] + dep_amt, 2)
+
+	for entry in groups.values():
+		a_lim = flt(entry["business_limit"], 2)
+		m_lim = flt(entry["mada_limit"], 2)
+		l_lim = flt(entry["legacy_limit"], 2)
+		d_a = flt(entry["business_deposited"], 2)
+		d_m = flt(entry["mada_deposited"], 2)
+		d_l = flt(entry["legacy_deposited"], 2)
+		if entry["has_business"] and entry["has_mada"]:
+			rem_a = max(0.0, flt(a_lim - d_a - d_m, 2))
+			rem_m = max(0.0, flt(min(flt(m_lim - d_m, 2), flt(a_lim - d_a - d_m, 2)), 2))
+		elif entry["has_business"]:
+			rem_a = max(0.0, flt(a_lim - d_a, 2))
+			rem_m = 0.0
+		elif entry["has_mada"]:
+			rem_a = 0.0
+			rem_m = max(0.0, flt(m_lim - d_m, 2))
+		else:
+			rem_a = 0.0
+			rem_m = 0.0
+		rem_l = (
+			max(0.0, flt(a_lim - d_a - d_m - d_l, 2))
+			if entry["has_business"]
+			else max(0.0, flt(l_lim - d_l, 2))
+		)
+		entry["remaining_business"] = rem_a
+		entry["remaining_mada"] = rem_m
+		entry["remaining_legacy"] = rem_l
+
+	result: dict[str, dict[str, Any]] = {}
+	for r in raw_rows:
+		g_key = make_deposit_group_key(
+			r.get("base_card_name"),
+			r.get("account_number_normalized"),
+			r.get("bank"),
+		)
+		entry = groups.get(g_key)
+		c_type = clean_card_type(r.get("card_type"))
+		if not entry:
+			c_lim = flt(r.get("daily_limit"), 2)
+			rem_val = max(0.0, c_lim)
+		elif c_type == CARD_TYPE_BUSINESS:
+			rem_val = flt(entry["remaining_business"], 2)
+		elif c_type == CARD_TYPE_MADA:
+			rem_val = flt(entry["remaining_mada"], 2)
+		else:
+			rem_val = flt(entry["remaining_legacy"], 2)
+		result[r["name"]] = {
+			"remaining_limit": rem_val,
+			"remaining_limit_formatted": format_daily_limit(rem_val),
+		}
+	return result
+
+
 def _serialize_card_row(
 	row: dict[str, Any],
 	can_view_images: bool,
 	family_counts: dict[str, int] | None = None,
+	remaining_info: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
 	limit_num = flt(row.get("daily_limit"))
 	clean_limit = flt(limit_num, 2) if limit_num > 0 else None
 	version_token = cstr(row.get("modified") or "1")
 	card_name = row["name"]
+	card_type = clean_card_type(row.get("card_type"))
+	copy_no = cint(row.get("copy_no") or 1)
+	copy_label = format_copy_badge_label(card_type, copy_no)
 
 	is_perm_stopped = cstr(row.get("status") or "").strip() == "موقفة نهائياً"
 	front_url = (
@@ -245,12 +383,24 @@ def _serialize_card_row(
 
 	fam_id = row.get("card_family") or ""
 	fam_count = (family_counts or {}).get(fam_id, 1)
+	rem_val = (
+		flt(remaining_info["remaining_limit"], 2)
+		if remaining_info and "remaining_limit" in remaining_info
+		else (clean_limit if clean_limit is not None else 0.0)
+	)
+	rem_fmt = (
+		remaining_info["remaining_limit_formatted"]
+		if remaining_info and "remaining_limit_formatted" in remaining_info
+		else format_daily_limit(rem_val)
+	)
 
 	return {
 		"name": card_name,
 		"serial_no": cint(row.get("serial_no")),
 		"card_family": fam_id,
-		"copy_no": cint(row.get("copy_no") or 1),
+		"copy_no": copy_no,
+		"copy_label": copy_label,
+		"card_type": card_type,
 		"card_name": row.get("card_name") or "",
 		"base_card_name": row.get("base_card_name") or "",
 		"account_number": row.get("account_number") or "",
@@ -266,6 +416,8 @@ def _serialize_card_row(
 		"card_owner_name": row.get("card_owner_name") or row.get("card_owner") or "",
 		"daily_limit": clean_limit,
 		"daily_limit_formatted": format_daily_limit(clean_limit) if clean_limit else "",
+		"remaining_limit": rem_val,
+		"remaining_limit_formatted": rem_fmt,
 		"received_date": cstr(row.get("received_date") or ""),
 		"status": row.get("status") or "نشطة",
 		"status_display": get_card_status_display_label(row.get("status") or "نشطة"),
@@ -315,6 +467,10 @@ def _fetch_masters() -> dict[str, list[dict[str, Any]]]:
 		"representatives": representatives,
 		"regions": regions,
 		"card_owners": card_owners,
+		"card_types": [
+			{"name": CARD_TYPE_MADA, "label": CARD_TYPE_MADA},
+			{"name": CARD_TYPE_BUSINESS, "label": CARD_TYPE_BUSINESS},
+		],
 	}
 
 
@@ -325,6 +481,7 @@ def get_cards_context(
 	search: str = "",
 	status: str = "",
 	bank: str = "",
+	card_type: str = "",
 	representative: str = "",
 	region: str = "",
 	card_owner: str = "",
@@ -343,6 +500,12 @@ def get_cards_context(
 	if bank:
 		base_conditions.append("c.bank = %(bank)s")
 		params["bank"] = bank.strip()
+
+	if card_type:
+		clean_ct = clean_card_type(card_type)
+		if clean_ct in VALID_CARD_TYPES:
+			base_conditions.append("IFNULL(c.card_type, '') = %(card_type)s")
+			params["card_type"] = clean_ct
 
 	if representative:
 		base_conditions.append("c.representative = %(representative)s")
@@ -430,6 +593,7 @@ def get_cards_context(
 			c.serial_no,
 			c.card_family,
 			c.copy_no,
+			IFNULL(c.card_type, '') AS card_type,
 			c.card_name,
 			c.base_card_name,
 			c.account_number,
@@ -489,7 +653,16 @@ def get_cards_context(
 		)
 		family_counts = {r.card_family: cint(r.cnt) for r in fam_rows}
 
-	rows = [_serialize_card_row(r, can_view_images, family_counts) for r in raw_rows]
+	remaining_by_card = _compute_today_remaining_by_card(raw_rows)
+	rows = [
+		_serialize_card_row(
+			r,
+			can_view_images,
+			family_counts,
+			remaining_info=remaining_by_card.get(r["name"]),
+		)
+		for r in raw_rows
+	]
 
 	return {
 		"permissions": perms,
@@ -518,6 +691,7 @@ def _fetch_single_card_row(card_name: str) -> dict[str, Any]:
 			c.serial_no,
 			c.card_family,
 			c.copy_no,
+			IFNULL(c.card_type, '') AS card_type,
 			c.card_name,
 			c.base_card_name,
 			c.account_number,
@@ -582,12 +756,14 @@ def get_card_preview(card: str) -> dict[str, Any]:
 		as_dict=True,
 	)
 	fam_count = cint(fam_count_rows[0].cnt if fam_count_rows else 1)
+	remaining_by_card = _compute_today_remaining_by_card([row])
 
 	return {
 		"card": _serialize_card_row(
 			row,
 			can_view_images=bool(perms.get("can_view_images")),
 			family_counts={row.card_family: fam_count},
+			remaining_info=remaining_by_card.get(row.name),
 		),
 		"permissions": perms,
 	}
@@ -602,7 +778,14 @@ def get_card_details(card: str) -> dict[str, Any]:
 	family_doc = frappe.db.get_value(
 		FAMILY_DOCTYPE,
 		row.card_family,
-		["name", "account_number", "account_number_normalized", "base_card_name", "highest_copy_no"],
+		[
+			"name",
+			"account_number",
+			"account_number_normalized",
+			"base_card_name",
+			"card_type",
+			"highest_copy_no",
+		],
 		as_dict=True,
 	)
 
@@ -612,6 +795,7 @@ def get_card_details(card: str) -> dict[str, Any]:
 			c.name,
 			c.serial_no,
 			c.copy_no,
+			IFNULL(c.card_type, '') AS card_type,
 			c.card_name,
 			c.base_card_name,
 			c.card_number,
@@ -640,6 +824,8 @@ def get_card_details(card: str) -> dict[str, Any]:
 			"name": s.name,
 			"serial_no": cint(s.serial_no),
 			"copy_no": cint(s.copy_no),
+			"card_type": clean_card_type(s.card_type),
+			"copy_label": format_copy_badge_label(s.card_type, s.copy_no),
 			"card_name": s.card_name,
 			"base_card_name": s.base_card_name,
 			"card_number": s.card_number,
@@ -656,11 +842,13 @@ def get_card_details(card: str) -> dict[str, Any]:
 		if not cint(s.is_deleted)
 	]
 	deleted_siblings_count = sum(1 for s in sibling_rows if cint(s.is_deleted))
+	remaining_by_card = _compute_today_remaining_by_card([row])
 
 	serialized = _serialize_card_row(
 		row,
 		can_view_images=bool(perms.get("can_view_images")),
 		family_counts={row.card_family: len(active_siblings)},
+		remaining_info=remaining_by_card.get(row.name),
 	)
 
 	return {
@@ -669,6 +857,9 @@ def get_card_details(card: str) -> dict[str, Any]:
 			"name": family_doc.name if family_doc else row.card_family,
 			"account_number": family_doc.account_number if family_doc else row.account_number,
 			"base_card_name": family_doc.base_card_name if family_doc else row.base_card_name,
+			"card_type": clean_card_type(
+				family_doc.card_type if family_doc else row.get("card_type")
+			),
 			"highest_copy_no": cint(family_doc.highest_copy_no if family_doc else row.copy_no),
 			"active_cards_count": len(active_siblings),
 			"deleted_cards_count": deleted_siblings_count,
@@ -690,6 +881,7 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 			f.account_number_normalized,
 			COALESCE(NULLIF(f.bank, ''), MAX(c.bank)) AS bank,
 			COALESCE(NULLIF(b.bank_name, ''), MAX(cb.bank_name), NULLIF(f.bank, ''), MAX(c.bank)) AS bank_name,
+			COALESCE(NULLIF(f.card_type, ''), MAX(IFNULL(c.card_type, '')), '') AS card_type,
 			f.highest_copy_no,
 			COUNT(CASE WHEN IFNULL(c.is_deleted, 0) = 0 THEN 1 END) AS active_count
 		FROM `tabArchive Card Family` f
@@ -703,6 +895,7 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 			f.account_number_normalized,
 			f.bank,
 			b.bank_name,
+			f.card_type,
 			f.highest_copy_no,
 			f.modified
 		ORDER BY
@@ -714,23 +907,34 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 
 	limit_rows = frappe.db.sql(
 		"""
-		SELECT account_number_normalized, daily_limit
+		SELECT
+			base_card_name,
+			account_number_normalized,
+			bank,
+			IFNULL(card_type, '') AS card_type,
+			daily_limit
 		FROM `tabArchive Card`
 		WHERE IFNULL(is_deleted, 0) = 0
 		  AND IFNULL(account_number_normalized, '') != ''
 		""",
 		as_dict=True,
 	)
-	limits_by_norm: dict[str, set[float]] = {}
-	cards_exist_by_norm: set[str] = set()
+	limits_by_copy_key: dict[str, set[float]] = {}
+	cards_exist_by_copy_key: set[str] = set()
 	for lr in limit_rows:
 		n_acc = cstr(lr.get("account_number_normalized") or "").strip()
 		if not n_acc:
 			continue
-		cards_exist_by_norm.add(n_acc)
+		c_key = make_copy_group_key(
+			lr.get("base_card_name"),
+			n_acc,
+			lr.get("bank"),
+			lr.get("card_type"),
+		)
+		cards_exist_by_copy_key.add(c_key)
 		l_val = flt(lr.get("daily_limit"), 2)
 		if l_val > 0:
-			limits_by_norm.setdefault(n_acc, set()).add(l_val)
+			limits_by_copy_key.setdefault(c_key, set()).add(l_val)
 
 	families: list[dict[str, Any]] = []
 	for r in rows:
@@ -739,11 +943,15 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 		norm_acc = cstr(r.account_number_normalized or "").strip() or normalize_account_number(acc_num)
 		bank_id = cstr(r.bank or "").strip()
 		bank_label = cstr(r.bank_name or bank_id).strip()
+		c_type = clean_card_type(r.card_type)
 		if not base_name or not acc_num or not norm_acc or not bank_id:
 			continue
-		distinct_limits = sorted(limits_by_norm.get(norm_acc, set()))
+		c_key = make_copy_group_key(base_name, norm_acc, bank_id, c_type)
+		distinct_limits = sorted(limits_by_copy_key.get(c_key, set()))
 		has_conflict = len(distinct_limits) > 1
 		shared_limit = distinct_limits[0] if len(distinct_limits) == 1 else None
+		highest_no = cint(r.highest_copy_no)
+		next_no = max(2, highest_no + 1)
 		families.append(
 			{
 				"family_name": r.name,
@@ -752,9 +960,12 @@ def get_card_family_lookups() -> dict[str, list[dict[str, Any]]]:
 				"account_number_normalized": norm_acc,
 				"bank": bank_id,
 				"bank_name": bank_label,
-				"highest_copy_no": cint(r.highest_copy_no),
+				"card_type": c_type,
+				"highest_copy_no": highest_no,
+				"expected_copy_no": next_no,
+				"expected_copy_label": format_copy_badge_label(c_type, next_no),
 				"active_count": cint(r.active_count),
-				"account_exists": norm_acc in cards_exist_by_norm,
+				"account_exists": c_key in cards_exist_by_copy_key,
 				"shared_daily_limit": shared_limit,
 				"has_limit_conflict": has_conflict,
 				"conflict_limits": distinct_limits,
@@ -769,6 +980,7 @@ def check_duplicate_account(
 	account_number: str,
 	base_card_name: str | None = None,
 	bank: str | None = None,
+	card_type: str | None = None,
 	exclude_card: str | None = None,
 ) -> dict[str, Any]:
 	require_card_permission("view_cards", _("ليست لديك صلاحية للتحقق من رقم الحساب."))
@@ -776,6 +988,7 @@ def check_duplicate_account(
 		account_number=account_number,
 		base_card_name=base_card_name,
 		bank=bank,
+		card_type=card_type,
 		exclude_card=exclude_card,
 	)
 
@@ -817,25 +1030,56 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 		frappe.throw(_("سبب الإيقاف النهائي للبطاقة مطلوب."), frappe.ValidationError)
 	resolved_status_reason = raw_status_reason if status == "موقفة نهائياً" else None
 
-	account_limit_state = get_account_shared_daily_limit_state(norm_account, lock=True)
-	if account_limit_state["exists"]:
-		if account_limit_state["has_conflict"]:
+	card_type = validate_card_type(data.get("card_type"), required=True)
+
+	type_limit_state = get_type_group_shared_daily_limit_state(
+		norm_account,
+		clean_base_name,
+		bank,
+		card_type,
+		lock=True,
+	)
+	if type_limit_state["exists"]:
+		if type_limit_state["has_conflict"]:
 			conflicts_str = " / ".join(
-				format_daily_limit(v) for v in account_limit_state["distinct_limits"]
+				format_daily_limit(v) for v in type_limit_state["distinct_limits"]
 			)
 			frappe.throw(
 				_(
-					"يوجد تعارض مسبق في الحد اليومي بين نسخ الحساب ({0}): [{1}]. يرجى توحيد الحد اليومي للحساب أولاً قبل إنشاء نسخة جديدة."
-				).format(account_number, conflicts_str),
+					"يوجد تعارض مسبق في الحد اليومي بين نسخ مجموعة ({0} — {1}): [{2}]. يرجى توحيد الحد اليومي للمجموعة أولاً قبل إنشاء نسخة جديدة."
+				).format(account_number, card_type, conflicts_str),
 				frappe.ValidationError,
 			)
-		if account_limit_state["daily_limit"] is not None and account_limit_state["daily_limit"] > 0:
-			daily_limit = flt(account_limit_state["daily_limit"], 2)
+		if type_limit_state["daily_limit"] is not None and type_limit_state["daily_limit"] > 0:
+			daily_limit = flt(type_limit_state["daily_limit"], 2)
+			validate_daily_limit_for_card_type(daily_limit, card_type)
 		else:
 			daily_limit = _parse_daily_limit_input(data.get("daily_limit"))
-			sync_account_daily_limit(norm_account, daily_limit)
+			validate_daily_limit_for_card_type(daily_limit, card_type)
+			validate_type_group_daily_limit_against_today_deposits(
+				norm_account,
+				clean_base_name,
+				bank,
+				card_type,
+				daily_limit,
+			)
+			sync_type_group_daily_limit(
+				norm_account,
+				clean_base_name,
+				bank,
+				card_type,
+				daily_limit,
+			)
 	else:
 		daily_limit = _parse_daily_limit_input(data.get("daily_limit"))
+		validate_daily_limit_for_card_type(daily_limit, card_type)
+		validate_type_group_daily_limit_against_today_deposits(
+			norm_account,
+			clean_base_name,
+			bank,
+			card_type,
+			daily_limit,
+		)
 	clean_pin = normalize_and_validate_pin(data.get("pin"), required=True)
 
 	front_file_doc = resolve_and_validate_card_image_file(
@@ -884,6 +1128,7 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 		account_number=account_number,
 		raw_base_card_name=clean_base_name,
 		bank=bank,
+		card_type=card_type,
 		allow_duplicate_account=allow_dup,
 	)
 
@@ -892,6 +1137,7 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 	card_doc = frappe.new_doc(CARD_DOCTYPE)
 	card_doc.card_family = family_doc.name
 	card_doc.copy_no = copy_no
+	card_doc.card_type = card_type
 	card_doc.base_card_name = family_doc.base_card_name
 	card_doc.card_name = derived_card_name
 	card_doc.account_number = family_doc.account_number
@@ -953,6 +1199,8 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 		details={
 			"card_family": family_doc.name,
 			"copy_no": copy_no,
+			"copy_label": format_copy_badge_label(card_type, copy_no),
+			"card_type": card_type,
 			"card_name": derived_card_name,
 			"base_card_name": family_doc.base_card_name,
 			"account_number": family_doc.account_number,
@@ -1021,8 +1269,13 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 				require_card_permission("edit_card", _("ليست لديك صلاحية لتعديل بيانات البطاقة."))
 				_validate_unique_card_number(pre_card_number, exclude_card=card_doc.name)
 
-		# 1. Family Identity Transition (if any of account_number, base_card_name, or bank changed)
-		pre_move_norm = cstr(card_doc.account_number_normalized or "").strip()
+		# 1. Family Identity Transition (if any of account_number, base_card_name, bank, or card_type changed)
+		pre_move_copy_key = make_copy_group_key(
+			card_doc.base_card_name,
+			card_doc.account_number_normalized,
+			card_doc.bank,
+			card_doc.card_type,
+		)
 		pre_move_limit = flt(card_doc.daily_limit, 2) if flt(card_doc.daily_limit) > 0 else None
 		parsed_incoming_limit = (
 			_parse_daily_limit_input(data.get("daily_limit")) if "daily_limit" in data else None
@@ -1050,11 +1303,42 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 		if "bank" in data and data.get("bank") is not None:
 			incoming_bank = _validate_link_exists("Archive Bank", data.get("bank"), _("البنك"))
 
+		old_card_type = clean_card_type(card_doc.card_type)
+		incoming_type = old_card_type
+		if "card_type" in data and data.get("card_type") is not None:
+			raw_ct = cstr(data.get("card_type")).strip()
+			if raw_ct or old_card_type:
+				incoming_type = validate_card_type(raw_ct, required=True)
+
+		will_change_quad = (
+			incoming_norm != card_doc.account_number_normalized
+			or incoming_base.casefold() != cstr(card_doc.base_card_name or "").strip().casefold()
+			or incoming_bank != card_doc.bank
+			or incoming_type != old_card_type
+		)
+		target_pre_state = (
+			get_type_group_shared_daily_limit_state(
+				incoming_norm,
+				incoming_base,
+				incoming_bank,
+				incoming_type,
+				exclude_card=card_doc.name,
+				lock=False,
+			)
+			if will_change_quad
+			else {"exists": False}
+		)
+		target_existed_before_move = bool(will_change_quad and target_pre_state.get("exists"))
+
+		if not target_existed_before_move and parsed_incoming_limit is not None and incoming_type:
+			validate_daily_limit_for_card_type(parsed_incoming_limit, incoming_type)
+
 		if (
 			incoming_norm != card_doc.account_number_normalized
 			or incoming_acc != card_doc.account_number
 			or incoming_base != card_doc.base_card_name
 			or incoming_bank != card_doc.bank
+			or incoming_type != old_card_type
 		):
 			require_card_permission("edit_card", _("ليست لديك صلاحية لتعديل بيانات البطاقة."))
 			transition_mode = cstr(data.get("account_transition_mode") or "auto").strip()
@@ -1064,8 +1348,13 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 				transition_mode=transition_mode,
 				new_base_card_name=incoming_base,
 				new_bank=incoming_bank,
+				new_card_type=incoming_type,
 				remarks=cstr(data.get("remarks") or "").strip() or None,
-				override_target_limit=parsed_incoming_limit if explicit_limit_edit else None,
+				override_target_limit=(
+					None
+					if target_existed_before_move
+					else (parsed_incoming_limit if parsed_incoming_limit is not None else None)
+				),
 			)
 			card_doc.reload()
 
@@ -1075,6 +1364,7 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 			k in data
 			for k in (
 				"card_number",
+				"card_type",
 				"bank",
 				"card_owner",
 				"region",
@@ -1136,23 +1426,42 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 				}
 				card_doc.received_date = new_rec_date
 
-		# 4. Daily limit (unified across all non-deleted cards sharing account_number_normalized)
+		# 4. Daily limit (unified across all non-deleted cards sharing the 4-element copy group)
 		daily_limit_changed = False
 		old_limit = flt(card_doc.daily_limit, 2) if flt(card_doc.daily_limit) > 0 else None
 		new_limit = old_limit
-		moved_account = cstr(card_doc.account_number_normalized or "").strip() != pre_move_norm
-		acct_state = get_account_shared_daily_limit_state(
-			card_doc.account_number_normalized, lock=True
+		post_move_copy_key = make_copy_group_key(
+			card_doc.base_card_name,
+			card_doc.account_number_normalized,
+			card_doc.bank,
+			card_doc.card_type,
+		)
+		moved_group = post_move_copy_key != pre_move_copy_key
+		acct_state = get_type_group_shared_daily_limit_state(
+			card_doc.account_number_normalized,
+			card_doc.base_card_name,
+			card_doc.bank,
+			card_doc.card_type,
+			lock=True,
 		)
 
-		if not moved_account:
+		if not moved_group:
 			if parsed_incoming_limit is not None:
+				if clean_card_type(card_doc.card_type):
+					validate_daily_limit_for_card_type(parsed_incoming_limit, card_doc.card_type)
 				if parsed_incoming_limit != old_limit or acct_state["has_conflict"]:
-					validate_account_daily_limit_against_today_deposits(
-						card_doc.account_number_normalized, parsed_incoming_limit
-					)
-					sync_account_daily_limit(
+					validate_type_group_daily_limit_against_today_deposits(
 						card_doc.account_number_normalized,
+						card_doc.base_card_name,
+						card_doc.bank,
+						card_doc.card_type,
+						parsed_incoming_limit,
+					)
+					sync_type_group_daily_limit(
+						card_doc.account_number_normalized,
+						card_doc.base_card_name,
+						card_doc.bank,
+						card_doc.card_type,
 						parsed_incoming_limit,
 						exclude_card=card_doc.name,
 						triggered_by_card=card_doc.name,
@@ -1170,12 +1479,21 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 			) and flt(card_doc.daily_limit) <= 0:
 				frappe.throw(_("حقل الحد اليومي مطلوب."), frappe.ValidationError)
 		else:
-			if explicit_limit_edit and parsed_incoming_limit is not None:
-				validate_account_daily_limit_against_today_deposits(
-					card_doc.account_number_normalized, parsed_incoming_limit
-				)
-				sync_account_daily_limit(
+			if not target_existed_before_move and explicit_limit_edit and parsed_incoming_limit is not None:
+				if clean_card_type(card_doc.card_type):
+					validate_daily_limit_for_card_type(parsed_incoming_limit, card_doc.card_type)
+				validate_type_group_daily_limit_against_today_deposits(
 					card_doc.account_number_normalized,
+					card_doc.base_card_name,
+					card_doc.bank,
+					card_doc.card_type,
+					parsed_incoming_limit,
+				)
+				sync_type_group_daily_limit(
+					card_doc.account_number_normalized,
+					card_doc.base_card_name,
+					card_doc.bank,
+					card_doc.card_type,
 					parsed_incoming_limit,
 					exclude_card=card_doc.name,
 					triggered_by_card=card_doc.name,
@@ -1187,6 +1505,8 @@ def update_card(card: str, payload: dict[str, Any] | str) -> dict[str, Any]:
 					card_doc.daily_limit = parsed_incoming_limit
 			elif flt(card_doc.daily_limit) <= 0:
 				if parsed_incoming_limit is not None:
+					if clean_card_type(card_doc.card_type):
+						validate_daily_limit_for_card_type(parsed_incoming_limit, card_doc.card_type)
 					card_doc.daily_limit = parsed_incoming_limit
 					daily_limit_changed = True
 					new_limit = parsed_incoming_limit

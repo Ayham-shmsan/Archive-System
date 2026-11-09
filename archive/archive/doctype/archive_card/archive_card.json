@@ -18,6 +18,7 @@
     "card_number",
     "details_section",
     "bank",
+    "card_type",
     "card_owner",
     "daily_limit",
     "column_break_details_1",
@@ -141,6 +142,15 @@
       "label": "البنك",
       "options": "Archive Bank",
       "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "card_type",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "نوع البطاقة",
+      "options": "\nمدى\nأعمال",
       "search_index": 1
     },
     {

@@ -9,6 +9,15 @@
 		return clean === "موقفة نهائياً" ? "موقفة نهائياً (متلفة)" : clean;
 	}
 
+	function format_copy_badge_label(card_type, copy_no) {
+		const num = Math.max(1, Number(copy_no || 1));
+		const ctype = String(card_type || "").trim();
+		if (ctype === "مدى" || ctype === "أعمال") {
+			return `${ctype} ${num}`;
+		}
+		return `نسخة ${num}`;
+	}
+
 	class ArchiveCardStatusDialog {
 		static open(card, on_done) {
 			if (!card || !card.name) return;
@@ -64,7 +73,7 @@
 						fieldtype: "HTML",
 						options: `
 							<div class="acvd-mini-summary" dir="rtl">
-								<div>البطاقة: <strong>${frappe.utils.escape_html(card.base_card_name || "")}</strong> <span class="ac-copy-badge">نسخة ${card.copy_no || 1}</span></div>
+								<div>البطاقة: <strong>${frappe.utils.escape_html(card.base_card_name || "")}</strong> <span class="ac-copy-badge">${frappe.utils.escape_html(card.copy_label || format_copy_badge_label(card.card_type, card.copy_no))}</span></div>
 								<div>الحالة الحالية: <span class="acvd-status-pill" data-status="${frappe.utils.escape_html(card.status || "")}">${frappe.utils.escape_html(display_status_label(card.status))}</span></div>
 							</div>
 						`,
@@ -304,7 +313,7 @@
 								</div>
 								<p>
 									سيتم إخفاء البطاقة <strong>${frappe.utils.escape_html(card.base_card_name || "")}</strong>
-									(رقم الحساب: <code dir="ltr">${frappe.utils.escape_html(card.account_number || "")}</code> — نسخة ${card.copy_no || 1})
+									(رقم الحساب: <code dir="ltr">${frappe.utils.escape_html(card.account_number || "")}</code> — ${frappe.utils.escape_html(card.copy_label || format_copy_badge_label(card.card_type, card.copy_no))})
 									من شاشة البطاقات والإحصائيات مع الاحتفاظ بسجلها التاريخي وتسلسل نسخ العائلة.
 								</p>
 							</div>
@@ -546,7 +555,7 @@
 							.map(
 								(s) => `
 							<div class="acvd-sibling-chip ${s.name === c.name ? "is-current" : ""}">
-								<span class="ac-copy-badge acvd-sib-copy">نسخة ${s.copy_no}</span>
+								<span class="ac-copy-badge acvd-sib-copy">${frappe.utils.escape_html(s.copy_label || format_copy_badge_label(s.card_type, s.copy_no))}</span>
 								<strong>${frappe.utils.escape_html(s.base_card_name || fam.base_card_name || c.base_card_name || "")}</strong>
 								<span class="text-muted" dir="ltr">${frappe.utils.escape_html(s.card_number)}</span>
 								<span class="acvd-status-pill" data-status="${frappe.utils.escape_html(s.status)}">${frappe.utils.escape_html(display_status_label(s.status))}</span>
@@ -564,7 +573,7 @@
 					<div class="acvd-top-bar">
 						<div class="acvd-identity-badges">
 							<span class="acvd-serial-badge">رقم تسلسلي #${c.serial_no}</span>
-							<span class="ac-copy-badge acd-copy-pill">نسخة ${c.copy_no}</span>
+							<span class="ac-copy-badge acd-copy-pill">${frappe.utils.escape_html(c.copy_label || format_copy_badge_label(c.card_type, c.copy_no))}</span>
 							<span class="acvd-status-pill" data-status="${frappe.utils.escape_html(c.status)}">${frappe.utils.escape_html(display_status_label(c.status))}</span>
 							${
 								c.status_reason
@@ -645,6 +654,7 @@
 									<div class="acd-field-slot" data-field-slot="base_card_name"></div>
 									<div class="acd-field-slot" data-field-slot="bank"></div>
 									<div class="acd-field-slot" data-field-slot="account_number"></div>
+									<div class="acd-field-slot" data-field-slot="card_type"></div>
 									<div class="acd-field-slot" data-field-slot="card_number"></div>
 								</div>
 							</div>
@@ -875,6 +885,18 @@
 					},
 				},
 				{
+					slot: "card_type",
+					val: c.card_type || "",
+					df: {
+						fieldname: "card_type",
+						label: "نوع البطاقة",
+						fieldtype: "Select",
+						options: ["", "مدى", "أعمال"],
+						reqd: c.card_type ? 1 : 0,
+						read_only,
+					},
+				},
+				{
 					slot: "card_owner",
 					val: c.card_owner,
 					df: {
@@ -947,9 +969,22 @@
 				this.controls[df.fieldname] = ctrl;
 			});
 
+			this.manual_daily_limit_value = c.daily_limit_formatted || "";
+			this.is_daily_limit_locked = false;
+			this.is_applying_shared_limit = false;
+			this._identity_check_req_id = 0;
+
 			if (window.ArchiveCardDailyLimitInput) {
 				window.ArchiveCardDailyLimitInput.bind(this.controls.daily_limit);
 			}
+
+			this.controls.daily_limit?.$input?.on("input change", () => {
+				if (!this.is_daily_limit_locked && !this.is_applying_shared_limit) {
+					this.manual_daily_limit_value = String(
+						this.controls.daily_limit?.get_value() || ""
+					).trim();
+				}
+			});
 
 			this.family_autocomplete?.destroy();
 			this.family_autocomplete = null;
@@ -960,14 +995,173 @@
 						base_card_name: this.controls.base_card_name,
 						account_number: this.controls.account_number,
 						bank: this.controls.bank,
+						card_type: this.controls.card_type,
 					},
 					enabled_provider: () => this.can_edit_data(),
+					on_account_changed: (acc, meta) => this.handle_identity_fields_changed(meta),
 					initial_values: {
 						base_card_name: c.base_card_name || "",
 						account_number: c.account_number || "",
 						bank: c.bank || "",
+						card_type: c.card_type || "",
 					},
 				});
+			}
+		}
+
+		set_daily_limit_control_value(val) {
+			const ctrl = this.controls.daily_limit;
+			if (!ctrl) return;
+			const str_val = String(val ?? "");
+			this.is_applying_shared_limit = true;
+			try {
+				ctrl.value = str_val;
+				if (ctrl.$input && ctrl.$input.length) {
+					ctrl.$input.val(str_val);
+				}
+				ctrl.set_value(str_val, true);
+			} finally {
+				this.is_applying_shared_limit = false;
+			}
+		}
+
+		apply_target_group_limit_state(info) {
+			const ctrl = this.controls.daily_limit;
+			if (!ctrl || !this.can_edit_data()) return;
+
+			if (
+				info &&
+				info.family_exists &&
+				info.shared_daily_limit !== null &&
+				info.shared_daily_limit !== undefined
+			) {
+				this.is_daily_limit_locked = true;
+				const formatted =
+					info.shared_daily_limit_formatted ||
+					(window.ArchiveCardDailyLimitInput
+						? window.ArchiveCardDailyLimitInput.format_number_value(info.shared_daily_limit)
+						: String(info.shared_daily_limit));
+				this.set_daily_limit_control_value(formatted);
+				if (ctrl.df) ctrl.df.read_only = 1;
+				ctrl.$input
+					?.prop("readonly", true)
+					.attr("readonly", "readonly")
+					.addClass("acd-readonly-shared-limit");
+				ctrl.$wrapper?.addClass("acd-shared-limit-locked");
+			} else {
+				const was_locked = this.is_daily_limit_locked;
+				this.is_daily_limit_locked = false;
+				if (ctrl.df) ctrl.df.read_only = 0;
+				ctrl.$input
+					?.prop("readonly", false)
+					.removeAttr("readonly")
+					.removeClass("acd-readonly-shared-limit");
+				ctrl.$wrapper?.removeClass("acd-shared-limit-locked");
+
+				const cur_type = String(this.controls.card_type?.get_value() || "").trim();
+				const orig_type = String(this.card?.card_type || "").trim();
+				let candidate_val = was_locked
+					? this.manual_daily_limit_value || ""
+					: String(ctrl.get_value() || this.manual_daily_limit_value || "").trim();
+
+				// Do not let مدى inherit أعمال limit or vice versa when switching to a brand new type group
+				if (cur_type && orig_type && cur_type !== orig_type && window.ArchiveCardDailyLimitInput) {
+					const num_val = Number(String(candidate_val).replace(/,/g, ""));
+					if (Number.isFinite(num_val) && num_val > 0) {
+						const check = window.ArchiveCardDailyLimitInput.validate_for_card_type(
+							num_val,
+							cur_type,
+							{ silent: true }
+						);
+						if (!check) {
+							candidate_val = "";
+						}
+					}
+				}
+				this.set_daily_limit_control_value(candidate_val);
+			}
+		}
+
+		update_header_copy_badge(card_type, copy_no) {
+			const label = format_copy_badge_label(card_type, copy_no || 1);
+			this.dialog?.$wrapper?.find(".acd-copy-pill").text(label);
+		}
+
+		async handle_identity_fields_changed(meta = {}) {
+			if (!this.can_edit_data() || !this.card) return;
+			const cur_base = String(this.controls.base_card_name?.get_value() || "").trim();
+			const cur_acc = String(this.controls.account_number?.get_value() || "").trim();
+			const cur_bank = String(this.controls.bank?.get_value() || "").trim();
+			const cur_type = String(this.controls.card_type?.get_value() || "").trim();
+
+			const norm_cur_acc = window.ArchiveCardFamilyAutocomplete
+				? window.ArchiveCardFamilyAutocomplete.normalize_account(cur_acc)
+				: cur_acc.replace(/[\s\-_]+/g, "").toUpperCase();
+			const norm_orig_acc = window.ArchiveCardFamilyAutocomplete
+				? window.ArchiveCardFamilyAutocomplete.normalize_account(this.card.account_number || "")
+				: String(this.card.account_number || "")
+						.replace(/[\s\-_]+/g, "")
+						.toUpperCase();
+
+			const same_quad =
+				norm_cur_acc === norm_orig_acc &&
+				cur_base.toLowerCase() === String(this.card.base_card_name || "").trim().toLowerCase() &&
+				cur_bank === String(this.card.bank || "").trim() &&
+				cur_type === String(this.card.card_type || "").trim();
+
+			if (same_quad) {
+				this._identity_check_req_id += 1;
+				this.apply_target_group_limit_state(null);
+				this.update_header_copy_badge(cur_type, this.card.copy_no || 1);
+				return;
+			}
+
+			if (!norm_cur_acc || !cur_base || !cur_bank) {
+				this._identity_check_req_id += 1;
+				this.apply_target_group_limit_state(null);
+				this.update_header_copy_badge(cur_type, 1);
+				return;
+			}
+
+			const matched =
+				meta?.matched_family ||
+				meta?.matched_item ||
+				this.family_autocomplete?.find_by_triplet(cur_base, cur_acc, cur_bank, cur_type);
+			if (
+				matched &&
+				matched.shared_daily_limit !== null &&
+				matched.shared_daily_limit !== undefined
+			) {
+				this.apply_target_group_limit_state({
+					family_exists: true,
+					shared_daily_limit: matched.shared_daily_limit,
+					shared_daily_limit_formatted: matched.shared_daily_limit_formatted,
+				});
+				this.update_header_copy_badge(cur_type, (Number(matched.active_count) || 1) + 1);
+			} else {
+				this.apply_target_group_limit_state(null);
+				this.update_header_copy_badge(cur_type, 1);
+			}
+
+			const req_id = ++this._identity_check_req_id;
+			try {
+				const res = await frappe.call({
+					method: "archive.api.cards.check_duplicate_account",
+					args: {
+						account_number: cur_acc,
+						base_card_name: cur_base,
+						bank: cur_bank,
+						card_type: cur_type,
+						exclude_card: this.card.name,
+					},
+				});
+				if (req_id !== this._identity_check_req_id) return;
+				const info = res?.message || null;
+				this.apply_target_group_limit_state(info);
+				const expected_copy = info?.family_exists ? info.expected_copy_no || 2 : 1;
+				this.update_header_copy_badge(cur_type, expected_copy);
+			} catch (e) {
+				// Ignore transient network errors during typing
 			}
 		}
 
@@ -1343,6 +1537,7 @@
 					base_card_name: String(this.controls.base_card_name?.get_value() || "").trim(),
 					card_number: String(this.controls.card_number?.get_value() || "").trim(),
 					bank: String(this.controls.bank?.get_value() || "").trim(),
+					card_type: String(this.controls.card_type?.get_value() || "").trim(),
 					card_owner: String(this.controls.card_owner?.get_value() || "").trim(),
 					daily_limit: window.ArchiveCardDailyLimitInput
 						? window.ArchiveCardDailyLimitInput.extract_api_value(
@@ -1422,6 +1617,24 @@
 					});
 					return;
 				}
+				const effective_card_type = String(payload.card_type ?? this.card.card_type ?? "").trim();
+				if (this.card.card_type && !effective_card_type) {
+					frappe.msgprint({
+						title: "نوع البطاقة مطلوب",
+						message: "لا يمكن إزالة نوع البطاقة بعد تحديده. اختر (مدى) أو (أعمال).",
+						indicator: "red",
+					});
+					return;
+				}
+				if (window.ArchiveCardDailyLimitInput && effective_card_type) {
+					const limit_check = window.ArchiveCardDailyLimitInput.validate_for_card_type(
+						clean_num,
+						effective_card_type
+					);
+					if (!limit_check) {
+						return;
+					}
+				}
 
 				if (payload.card_number && payload.card_number !== this.card.card_number) {
 					const norm_cnum = window.ArchiveCardFamilyAutocomplete
@@ -1450,13 +1663,12 @@
 				}
 			}
 
-			// Check if any family identity field (account_number, base_card_name, bank) changed
-			const identity_changed =
-				(payload.account_number && payload.account_number !== this.card.account_number) ||
-				(payload.base_card_name && payload.base_card_name !== this.card.base_card_name) ||
-				(payload.bank && payload.bank !== this.card.bank);
+			// Distinguish actual account number change from card_type / group transition
+			const account_number_changed = Boolean(
+				payload.account_number && payload.account_number !== this.card.account_number
+			);
 
-			if (this.permissions.can_edit && identity_changed) {
+			if (this.permissions.can_edit && account_number_changed) {
 				const plan_res = await frappe.call({
 					method: "archive.api.card_family.build_account_change_plan",
 					args: {
@@ -1464,6 +1676,7 @@
 						new_account_number: payload.account_number,
 						new_base_card_name: payload.base_card_name,
 						new_bank: payload.bank,
+						new_card_type: payload.card_type,
 					},
 				});
 				const plan = plan_res?.message || {};
@@ -1496,6 +1709,8 @@
 
 		show_account_transition_dialog(plan, payload) {
 			let body_html = "";
+			const target_card_type = String(plan.new_card_type ?? payload.card_type ?? this.card.card_type ?? "").trim();
+			const expected_badge = format_copy_badge_label(target_card_type, plan.expected_copy_no || 1);
 
 			if (plan.case === "SAME_NORMALIZED") {
 				body_html = `
@@ -1506,7 +1721,7 @@
 							يطابق نفس رقم الحساب المعياري الحالي <code dir="ltr">${frappe.utils.escape_html(plan.new_normalized)}</code>.
 						</p>
 						<div class="acd-dup-summary-box">
-							<div>سيتم تحديث طريقة عرض رقم الحساب على العائلة وجميع بطاقاتها النشطة (${plan.source_active_count || 1}) دون نقل البطاقة أو تغيير رقم نسختها (<span class="ac-copy-badge">نسخة ${plan.expected_copy_no}</span>).</div>
+							<div>سيتم تحديث طريقة عرض رقم الحساب على العائلة وجميع بطاقاتها النشطة (${plan.source_active_count || 1}) دون نقل البطاقة أو تغيير رقم نسختها (<span class="ac-copy-badge">${frappe.utils.escape_html(expected_badge)}</span>).</div>
 						</div>
 					</div>
 				`;
@@ -1514,30 +1729,29 @@
 				const tf = plan.target_family || {};
 				body_html = `
 					<div class="acvd-transition-box" dir="rtl">
-						<div class="acvd-transition-title">انضمام البطاقة إلى عائلة حساب موجودة</div>
+						<div class="acvd-transition-title">انضمام البطاقة إلى مجموعة نسخ موجودة</div>
 						<p>
-							رقم الحساب الجديد <strong dir="ltr">${frappe.utils.escape_html(plan.new_account_number)}</strong>
-							مرتبط مسبقاً بعائلة البطاقات <strong>${frappe.utils.escape_html(tf.base_card_name || "")}</strong>
-							(${tf.active_count || 0} بطاقات نشطة).
+							مجموعة البطاقات المختارة (<strong dir="ltr">${frappe.utils.escape_html(plan.new_account_number)}</strong> — <strong>${frappe.utils.escape_html(tf.base_card_name || "")}</strong>${target_card_type ? ` — <strong>${frappe.utils.escape_html(target_card_type)}</strong>` : ""})
+							تحتوي مسبقاً على (${tf.active_count || 0} بطاقات نشطة).
 						</p>
 						<div class="acd-dup-summary-box">
 							<div>اسم البطاقة: <strong>${frappe.utils.escape_html(tf.base_card_name || plan.expected_base_card_name || "")}</strong></div>
-							<div>رقم النسخة الجديد للبطاقة: <span class="ac-copy-badge">نسخة ${plan.expected_copy_no}</span></div>
+							<div>رقم النسخة الجديد للبطاقة: <span class="ac-copy-badge">${frappe.utils.escape_html(expected_badge)}</span></div>
 						</div>
 					</div>
 				`;
 			} else {
+				const first_badge = format_copy_badge_label(target_card_type, 1);
 				body_html = `
 					<div class="acvd-transition-box" dir="rtl">
-						<div class="acvd-transition-title">نقل البطاقة إلى عائلة حساب جديدة</div>
+						<div class="acvd-transition-title">نقل البطاقة إلى مجموعة نسخ جديدة</div>
 						<p>
-							سيتم نقل هذه البطاقة من الحساب <code dir="ltr">${frappe.utils.escape_html(plan.current_account_number)}</code>
-							إلى عائلة حساب جديدة برقم <code dir="ltr">${frappe.utils.escape_html(plan.new_account_number)}</code>
-							مع الاحتفاظ بسجل العائلة السابقة.
+							سيتم نقل هذه البطاقة إلى مجموعة جديدة بالاسم <strong>${frappe.utils.escape_html(plan.expected_base_card_name || "")}</strong> والحساب <code dir="ltr">${frappe.utils.escape_html(plan.new_account_number)}</code>${target_card_type ? ` والنوع <strong>${frappe.utils.escape_html(target_card_type)}</strong>` : ""}
+							مع الاحتفاظ بسجل المجموعة السابقة.
 						</p>
 						<div class="acd-dup-summary-box">
-							<div>اسم البطاقة في العائلة الجديدة: <strong class="text-primary">${frappe.utils.escape_html(plan.expected_base_card_name || "")}</strong></div>
-							<div>رقم النسخة في العائلة الجديدة: <span class="ac-copy-badge">نسخة 1</span></div>
+							<div>اسم البطاقة في المجموعة الجديدة: <strong class="text-primary">${frappe.utils.escape_html(plan.expected_base_card_name || "")}</strong></div>
+							<div>رقم النسخة في المجموعة الجديدة: <span class="ac-copy-badge">${frappe.utils.escape_html(first_badge)}</span></div>
 						</div>
 					</div>
 				`;

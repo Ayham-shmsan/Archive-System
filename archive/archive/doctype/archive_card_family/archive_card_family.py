@@ -74,9 +74,27 @@ def on_doctype_update():
 
 	_backfill_and_reconcile_family_triplets()
 
-	if not frappe.db.has_index("tabArchive Card Family", "uq_card_family_identity"):
+	idx_cols = frappe.db.sql(
+		"""
+		SELECT Column_name
+		FROM information_schema.STATISTICS
+		WHERE TABLE_SCHEMA = DATABASE()
+		  AND TABLE_NAME = 'tabArchive Card Family'
+		  AND INDEX_NAME = 'uq_card_family_identity'
+		ORDER BY SEQ_IN_INDEX ASC
+		""",
+		pluck="Column_name",
+	)
+	expected_cols = ["account_number_normalized", "bank", "base_card_name", "card_type"]
+	if idx_cols and idx_cols != expected_cols:
 		frappe.db.sql_ddl(
-			"ALTER TABLE `tabArchive Card Family` ADD UNIQUE INDEX `uq_card_family_identity` (`account_number_normalized`, `bank`, `base_card_name`)"
+			"ALTER TABLE `tabArchive Card Family` DROP INDEX `uq_card_family_identity`"
+		)
+		idx_cols = []
+
+	if not idx_cols:
+		frappe.db.sql_ddl(
+			"ALTER TABLE `tabArchive Card Family` ADD UNIQUE INDEX `uq_card_family_identity` (`account_number_normalized`, `bank`, `base_card_name`, `card_type`)"
 		)
 
 

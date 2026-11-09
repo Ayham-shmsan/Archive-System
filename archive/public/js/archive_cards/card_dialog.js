@@ -130,6 +130,7 @@
 								<div class="acd-fields-grid acd-cols-2">
 									<div class="acd-field-slot" data-field-slot="base_card_name"></div>
 									<div class="acd-field-slot" data-field-slot="bank"></div>
+									<div class="acd-field-slot" data-field-slot="card_type"></div>
 									<div class="acd-field-slot" data-field-slot="account_number"></div>
 									<div class="acd-field-slot" data-field-slot="card_number"></div>
 								</div>
@@ -296,6 +297,21 @@
 					},
 				},
 				{
+					slot: "card_type",
+					df: {
+						fieldname: "card_type",
+						label: "نوع البطاقة",
+						fieldtype: "Select",
+						options: ["", "مدى", "أعمال"].join("\n"),
+						reqd: 1,
+						onchange: () => {
+							this.family_autocomplete?.handle_card_type_changed?.();
+							this.update_default_copy_badge();
+							this.schedule_account_family_check("", { immediate: true });
+						},
+					},
+				},
+				{
 					slot: "card_owner",
 					df: {
 						fieldname: "card_owner",
@@ -406,12 +422,14 @@
 					base_card_name: this.controls.base_card_name,
 					account_number: this.controls.account_number,
 					bank: this.controls.bank,
+					card_type: this.controls.card_type,
 				},
 				enabled_provider: () => !this.is_submitting,
 				initial_values: {
 					base_card_name: "",
 					account_number: "",
 					bank: "",
+					card_type: "",
 				},
 				on_account_changed: (acc, meta = {}) => {
 					this.schedule_account_family_check(acc, meta);
@@ -569,6 +587,27 @@
 			}
 		}
 
+		format_copy_badge(card_type, copy_no) {
+			if (typeof window.format_copy_badge_label === "function") {
+				return window.format_copy_badge_label(card_type, copy_no);
+			}
+			const n = Math.max(1, Number(copy_no || 1));
+			const ct = String(card_type || "").trim();
+			if (ct === "مدى" || ct === "أعمال") {
+				return `${ct} ${n}`;
+			}
+			return `نسخة ${n}`;
+		}
+
+		update_default_copy_badge() {
+			if (!this.dialog) return;
+			const cur_type = String(this.controls.card_type?.get_value() || "").trim();
+			const $badge = $(this.dialog.body).find('[data-role="copy-badge"]');
+			if (!this.duplicate_family_info || !this.duplicate_family_info.family_exists) {
+				$badge.text(this.format_copy_badge(cur_type, 1)).removeClass("is-duplicate");
+			}
+		}
+
 		sync_daily_limit_lock(info, raw_acc) {
 			const ctrl = this.controls.daily_limit;
 			const $inp = ctrl?.$input;
@@ -584,7 +623,7 @@
 					this._manual_daily_limit_draft = String($inp.val() || "");
 				}
 				this._locked_account_limit_norm =
-					ArchiveCardFamilyAutocomplete.normalize_account(raw_acc);
+					ArchiveCardFamilyAutocomplete.normalize_account(raw_acc) || "locked";
 				const formatted = ArchiveCardDailyLimitInput.format_with_caret(
 					String(info.shared_daily_limit),
 					0
@@ -622,12 +661,12 @@
 				<div class="acd-dup-banner-inner">
 					<i class="fa fa-exclamation-triangle"></i>
 					<div>
-						<strong>تعارض في الحد اليومي للحساب:</strong>
+						<strong>تعارض في الحد اليومي للمجموعة:</strong>
 						توجد بطاقات حالية مرتبطة برقم الحساب <code>${frappe.utils.escape_html(
 							info.account_number || ""
-						)}</code> بحدود يومية مختلفة (${frappe.utils.escape_html(
+						)}</code> من نفس النوع بحدود يومية مختلفة (${frappe.utils.escape_html(
 				limits_txt
-			)}). يرجى توحيد الحد اليومي للحساب أولاً عبر تعديل إحدى نسخه.
+			)}). يرجى توحيد الحد اليومي للمجموعة أولاً عبر تعديل إحدى نسخها.
 					</div>
 				</div>
 			`);
@@ -636,9 +675,13 @@
 		reset_duplicate_ui() {
 			this.duplicate_family_info = null;
 			if (!this.dialog) return;
+			const cur_type = String(this.controls.card_type?.get_value() || "").trim();
 			const $body = $(this.dialog.body);
 			$body.find('[data-role="duplicate-banner"]').prop("hidden", true).empty();
-			$body.find('[data-role="copy-badge"]').text("نسخة 1").removeClass("is-duplicate");
+			$body
+				.find('[data-role="copy-badge"]')
+				.text(this.format_copy_badge(cur_type, 1))
+				.removeClass("is-duplicate");
 			$body.find('[data-role="derived-name-hint"]').prop("hidden", true).empty();
 		}
 
@@ -663,8 +706,14 @@
 			}
 
 			if (info && info.family_exists) {
+				const cur_type = String(
+					info.card_type || this.controls.card_type?.get_value() || ""
+				).trim();
+				const badge_text =
+					info.expected_copy_label ||
+					this.format_copy_badge(cur_type, info.expected_copy_no);
 				$badge
-					.text(`نسخة ${info.expected_copy_no}`)
+					.text(badge_text)
 					.addClass("is-duplicate");
 
 				if (info.base_card_name) {
@@ -676,20 +725,22 @@
 					.html(
 						`اسم البطاقة يتبع الاسم الأساسي لعائلة الحساب: <strong>${frappe.utils.escape_html(
 							info.base_card_name
-						)}</strong> <span class="ac-copy-badge">نسخة ${info.expected_copy_no}</span>`
+						)}</strong> <span class="ac-copy-badge">${frappe.utils.escape_html(badge_text)}</span>`
 					);
 
 				$banner.prop("hidden", false).html(`
 					<div class="acd-dup-banner-inner">
 						<i class="fa fa-exclamation-triangle"></i>
 						<div>
-							<strong>تنبيه تكرار رقم الحساب:</strong>
+							<strong>تنبيه تكرار مجموعة البطاقة:</strong>
 							رقم الحساب <code>${frappe.utils.escape_html(info.account_number)}</code> مسجل مسبقاً لعائلة
-							<strong>${frappe.utils.escape_html(info.base_card_name)}</strong>
+							<strong>${frappe.utils.escape_html(info.base_card_name)}</strong>${
+					cur_type ? ` (${frappe.utils.escape_html(cur_type)})` : ""
+				}
 							(${info.active_count} بطاقة نشطة).
 							سيتم إصدار هذه البطاقة باسم
 							<strong>${frappe.utils.escape_html(info.base_card_name)}</strong>
-							<span class="ac-copy-badge">نسخة ${info.expected_copy_no}</span> بعد التأكيد.
+							<span class="ac-copy-badge">${frappe.utils.escape_html(badge_text)}</span> بعد التأكيد.
 						</div>
 					</div>
 				`);
@@ -703,8 +754,9 @@
 			const clean_acc = String(this.controls.account_number?.get_value() || "").trim();
 			const clean_base = String(this.controls.base_card_name?.get_value() || "").trim();
 			const clean_bank = String(this.controls.bank?.get_value() || "").trim();
+			const clean_type = String(this.controls.card_type?.get_value() || "").trim();
 
-			if (!clean_acc) {
+			if (!clean_acc || !clean_base || !clean_bank || !clean_type) {
 				this._dup_check_seq += 1;
 				this.sync_daily_limit_lock(null, "");
 				this.reset_duplicate_ui();
@@ -712,29 +764,22 @@
 			}
 
 			const local_limit_info = this.family_autocomplete?.loaded
-				? this.family_autocomplete.get_account_limit_info(clean_acc)
+				? this.family_autocomplete.get_account_limit_info(
+						clean_acc,
+						clean_base,
+						clean_bank,
+						clean_type
+				  )
 				: null;
 			if (this.family_autocomplete?.loaded) {
 				this.sync_daily_limit_lock(local_limit_info, clean_acc);
 			}
 
-			if (!clean_base || !clean_bank) {
-				this._dup_check_seq += 1;
-				this.reset_duplicate_ui();
-				if (local_limit_info?.has_limit_conflict) {
-					this.render_limit_conflict_banner(local_limit_info);
-				} else if (!this.family_autocomplete?.loaded) {
-					this._dup_check_timer = setTimeout(() => {
-						this.check_account_family();
-					}, 250);
-				}
-				return;
-			}
-
 			const local_match = this.family_autocomplete?.find_by_triplet(
 				clean_base,
 				clean_acc,
-				clean_bank
+				clean_bank,
+				clean_type
 			);
 			if (this.family_autocomplete?.loaded && !local_match && !local_limit_info) {
 				this._dup_check_seq += 1;
@@ -756,18 +801,21 @@
 			const acc = String(this.controls.account_number?.get_value() || "").trim();
 			const base_name = String(this.controls.base_card_name?.get_value() || "").trim();
 			const bank = String(this.controls.bank?.get_value() || "").trim();
-			if (!acc) {
+			const card_type = String(this.controls.card_type?.get_value() || "").trim();
+			if (!acc || !base_name || !bank || !card_type) {
 				this.sync_daily_limit_lock(null, "");
 				this.reset_duplicate_ui();
 				return null;
 			}
 
-			const triplet_key =
-				base_name && bank
-					? ArchiveCardFamilyAutocomplete.make_triplet_key(base_name, acc, bank)
-					: "";
-			if (!opts.force_remote && triplet_key && this._dup_info_cache.has(triplet_key)) {
-				const cached = this._dup_info_cache.get(triplet_key);
+			const group_key = ArchiveCardFamilyAutocomplete.make_group_key(
+				base_name,
+				acc,
+				bank,
+				card_type
+			);
+			if (!opts.force_remote && group_key && this._dup_info_cache.has(group_key)) {
+				const cached = this._dup_info_cache.get(group_key);
 				this.apply_duplicate_ui(cached);
 				return cached;
 			}
@@ -781,27 +829,27 @@
 						account_number: acc,
 						base_card_name: base_name,
 						bank: bank,
+						card_type: card_type,
 					},
 				});
 				const info = res?.message || null;
-				if (triplet_key && info) {
-					this._dup_info_cache.set(triplet_key, info);
+				if (group_key && info) {
+					this._dup_info_cache.set(group_key, info);
 				}
 				const cur_acc = String(this.controls.account_number?.get_value() || "").trim();
 				const cur_norm = ArchiveCardFamilyAutocomplete.normalize_account(cur_acc);
 				if (seq === this._dup_check_seq && cur_norm === req_norm_acc) {
-					const latest_key = ArchiveCardFamilyAutocomplete.make_triplet_key(
+					const latest_key = ArchiveCardFamilyAutocomplete.make_group_key(
 						this.controls.base_card_name?.get_value() || "",
 						cur_acc,
-						this.controls.bank?.get_value() || ""
+						this.controls.bank?.get_value() || "",
+						this.controls.card_type?.get_value() || ""
 					);
-					if (triplet_key && latest_key === triplet_key) {
+					if (group_key && latest_key === group_key) {
 						this.apply_duplicate_ui(info);
 					} else {
-						this.sync_daily_limit_lock(info, cur_acc);
-						if (info?.has_limit_conflict) {
-							this.render_limit_conflict_banner(info);
-						}
+						this.sync_daily_limit_lock(null, "");
+						this.reset_duplicate_ui();
 					}
 				}
 				return info;
@@ -817,6 +865,7 @@
 			const payload = {
 				account_number: String(this.controls.account_number?.get_value() || "").trim(),
 				base_card_name: String(this.controls.base_card_name?.get_value() || "").trim(),
+				card_type: String(this.controls.card_type?.get_value() || "").trim(),
 				card_number: String(this.controls.card_number?.get_value() || "").trim(),
 				bank: String(this.controls.bank?.get_value() || "").trim(),
 				card_owner: String(this.controls.card_owner?.get_value() || "").trim(),
@@ -851,6 +900,7 @@
 			const required_checks = [
 				[payload.account_number, "رقم الحساب"],
 				[payload.base_card_name, "اسم البطاقة"],
+				[payload.card_type, "نوع البطاقة"],
 				[payload.card_number, "رقم البطاقة"],
 				[payload.bank, "البنك"],
 				[payload.card_owner, "مالك البطاقة"],
@@ -873,6 +923,15 @@
 				}
 			}
 
+			if (payload.card_type !== "مدى" && payload.card_type !== "أعمال") {
+				frappe.msgprint({
+					title: "نوع البطاقة غير صالح",
+					message: "نوع البطاقة يجب أن يكون (مدى) أو (أعمال).",
+					indicator: "red",
+				});
+				return false;
+			}
+
 			if (payload.status === "موقفة نهائياً" && !payload.status_reason) {
 				frappe.msgprint({
 					title: "سبب الإيقاف النهائي مطلوب",
@@ -892,12 +951,7 @@
 			}
 
 			const clean_num = Number(String(payload.daily_limit || "").replace(/,/g, ""));
-			if (!Number.isFinite(clean_num) || clean_num <= 0) {
-				frappe.msgprint({
-					title: "الحد اليومي غير صالح",
-					message: "الحد اليومي مطلوب ويجب أن يكون رقماً أكبر من صفر.",
-					indicator: "red",
-				});
+			if (!ArchiveCardDailyLimitInput.validate_for_card_type(clean_num, payload.card_type)) {
 				return false;
 			}
 
@@ -983,6 +1037,12 @@
 
 		show_duplicate_confirmation_modal(dup_info, payload) {
 			const cards = Array.isArray(dup_info.existing_cards) ? dup_info.existing_cards : [];
+			const exp_label =
+				dup_info.expected_copy_label ||
+				this.format_copy_badge(
+					dup_info.card_type || payload.card_type,
+					dup_info.expected_copy_no
+				);
 			const rows_html = cards.length
 				? cards
 						.map(
@@ -990,7 +1050,9 @@
 						<tr>
 							<td>
 								<strong>${frappe.utils.escape_html(c.base_card_name || dup_info.base_card_name || "")}</strong>
-								<span class="ac-copy-badge ac-row-copy-badge">نسخة ${c.copy_no || 1}</span>
+								<span class="ac-copy-badge ac-row-copy-badge">${frappe.utils.escape_html(
+									c.copy_label || this.format_copy_badge(c.card_type || dup_info.card_type, c.copy_no)
+								)}</span>
 							</td>
 							<td dir="ltr">${frappe.utils.escape_html(c.card_number)}</td>
 							<td>${frappe.utils.escape_html(c.bank_name || c.bank)}</td>
@@ -1022,9 +1084,10 @@
 					<div class="acd-dup-summary-box">
 						<div>رقم الحساب: <strong dir="ltr">${frappe.utils.escape_html(dup_info.account_number)}</strong></div>
 						<div>اسم البطاقة: <strong>${frappe.utils.escape_html(dup_info.base_card_name)}</strong></div>
-						<div>رقم النسخة الجديدة المتوقع: <span class="ac-copy-badge">نسخة ${dup_info.expected_copy_no}</span></div>
+						<div>نوع البطاقة: <strong>${frappe.utils.escape_html(dup_info.card_type || payload.card_type || "—")}</strong></div>
+						<div>رقم النسخة الجديدة المتوقع: <span class="ac-copy-badge">${frappe.utils.escape_html(exp_label)}</span></div>
 					</div>
-					<div class="acd-dup-table-title">البطاقات الحالية المرتبطة بهذا الحساب (${cards.length}):</div>
+					<div class="acd-dup-table-title">البطاقات الحالية المرتبطة بهذه المجموعة (${cards.length}):</div>
 					<div class="table-responsive">
 						<table class="table table-bordered acd-dup-table">
 							<thead>
@@ -1224,6 +1287,47 @@
 			return num.toFixed(2);
 		},
 
+		validate_for_card_type(clean_num, card_type, opts = {}) {
+			const silent = Boolean(opts && opts.silent);
+			if (!Number.isFinite(clean_num) || clean_num <= 0) {
+				if (!silent) {
+					frappe.msgprint({
+						title: "الحد اليومي غير صالح",
+						message: "الحد اليومي مطلوب ويجب أن يكون رقماً أكبر من صفر.",
+						indicator: "red",
+					});
+				}
+				return false;
+			}
+			const ct = String(card_type || "").trim();
+			if (ct === "أعمال") {
+				if (clean_num < 100000 || clean_num > 1000000) {
+					if (!silent) {
+						frappe.msgprint({
+							title: "الحد اليومي خارج النطاق المعتمد",
+							message:
+								"الحد اليومي لبطاقة (أعمال) يجب أن يكون من <strong>100,000</strong> إلى <strong>1,000,000</strong> (شاملاً الحدين).",
+							indicator: "red",
+						});
+					}
+					return false;
+				}
+			} else if (ct === "مدى") {
+				if (clean_num <= 0 || clean_num > 100000) {
+					if (!silent) {
+						frappe.msgprint({
+							title: "الحد اليومي خارج النطاق المعتمد",
+							message:
+								"الحد اليومي لبطاقة (مدى) يجب أن يكون أكبر من صفر وألا يتجاوز <strong>100,000</strong>.",
+							indicator: "red",
+						});
+					}
+					return false;
+				}
+			}
+			return true;
+		},
+
 		bind(ctrl) {
 			const $inp = ctrl?.$input;
 			if (!$inp || !$inp.length) return;
@@ -1355,6 +1459,15 @@
 			return `${n_base}||${n_acc}||${n_bank}`;
 		}
 
+		static make_group_key(base_name, acc, bank, card_type = "") {
+			const n_base = this.normalize_exact_name(base_name);
+			const n_acc = this.normalize_account(acc);
+			const n_bank = this.normalize_exact_name(bank);
+			const n_type = String(card_type || "").trim();
+			if (!n_base || !n_acc || !n_bank) return "";
+			return `${n_base}||${n_acc}||${n_bank}||${n_type}`;
+		}
+
 		constructor(options = {}) {
 			this.dialog = options.dialog || null;
 			this.controls = options.controls || {};
@@ -1367,19 +1480,24 @@
 			const init_base = String(options.initial_values?.base_card_name || "").trim();
 			const init_acc = String(options.initial_values?.account_number || "").trim();
 			const init_bank = String(options.initial_values?.bank || "").trim();
+			const init_type = String(options.initial_values?.card_type || "").trim();
 			this.initial_values = {
 				base_card_name: init_base,
 				account_number: init_acc,
 				bank: init_bank,
+				card_type: init_type,
 			};
 			this.fallback_base_card_name = init_base;
 			this.fallback_account_number = init_acc;
 			this.fallback_bank = init_bank;
+			this.fallback_card_type = init_type;
 			this.last_account_raw = init_acc;
 			this.last_bank_raw = init_bank;
+			this.last_card_type_raw = init_type;
 			this.is_base_autofilled = false;
 			this.is_acc_autofilled = false;
 			this.is_bank_autofilled = false;
+			this.is_type_autofilled = false;
 			this.selected_family = null;
 			this.is_applying = false;
 			this.is_destroyed = false;
@@ -1388,6 +1506,7 @@
 			this._load_promise = null;
 			this.families = [];
 			this.by_triplet = new Map();
+			this.by_group = new Map();
 			this.by_norm_account = new Map();
 			this.by_norm_account_list = new Map();
 			this.unique_name_items = [];
@@ -1442,12 +1561,13 @@
 		build_indexes(list) {
 			this.families = list;
 			this.by_triplet.clear();
+			this.by_group.clear();
 			this.by_norm_account.clear();
 			this.by_norm_account_list.clear();
 			this.unique_name_items = [];
 			this.unique_account_items = [];
 
-			const seen_triplets = new Set();
+			const seen_groups = new Set();
 
 			for (const fam of list) {
 				const base_name = String(fam.base_card_name || "").trim();
@@ -1457,6 +1577,7 @@
 					ArchiveCardFamilyAutocomplete.normalize_account(acc_num);
 				const bank = String(fam.bank || "").trim();
 				const bank_label = String(fam.bank_name || bank).trim();
+				const card_type = String(fam.card_type || "").trim();
 				if (!base_name || !acc_num || !norm_acc || !bank) continue;
 
 				const t_key = ArchiveCardFamilyAutocomplete.make_triplet_key(
@@ -1464,9 +1585,18 @@
 					norm_acc,
 					bank
 				);
-				if (!t_key || seen_triplets.has(t_key)) continue;
-				seen_triplets.add(t_key);
-				this.by_triplet.set(t_key, fam);
+				const g_key = ArchiveCardFamilyAutocomplete.make_group_key(
+					base_name,
+					norm_acc,
+					bank,
+					card_type
+				);
+				if (!g_key || seen_groups.has(g_key)) continue;
+				seen_groups.add(g_key);
+				this.by_group.set(g_key, fam);
+				if (!this.by_triplet.has(t_key)) {
+					this.by_triplet.set(t_key, fam);
+				}
 
 				if (!this.by_norm_account_list.has(norm_acc)) {
 					this.by_norm_account_list.set(norm_acc, []);
@@ -1478,28 +1608,46 @@
 				}
 
 				const exact_name_key = ArchiveCardFamilyAutocomplete.normalize_exact_name(base_name);
+				const name_secondary = [bank_label, card_type].filter(Boolean).join(" — ");
+				const acc_secondary = [base_name, bank_label, card_type]
+					.filter(Boolean)
+					.join(" — ");
 				this.unique_name_items.push({
 					value: base_name,
-					secondary_text: bank_label,
+					secondary_text: name_secondary,
 					exact_key: exact_name_key,
 					search_key: ArchiveCardFamilyAutocomplete.normalize_search_text(base_name),
-					bank_search_key: ArchiveCardFamilyAutocomplete.normalize_search_text(bank_label),
+					bank_search_key: ArchiveCardFamilyAutocomplete.normalize_search_text(
+						`${bank_label} ${card_type}`
+					),
 					triplet_key: t_key,
+					group_key: g_key,
 					family: fam,
 				});
 
 				this.unique_account_items.push({
 					value: acc_num,
-					secondary_text: bank_label ? `${base_name} — ${bank_label}` : base_name,
+					secondary_text: acc_secondary,
 					norm_acc,
 					raw_lower: acc_num.toLocaleLowerCase(),
 					triplet_key: t_key,
+					group_key: g_key,
 					family: fam,
 				});
 			}
 		}
 
-		find_by_triplet(base_name, raw_acc, bank) {
+		find_by_triplet(base_name, raw_acc, bank, card_type = undefined) {
+			if (card_type !== undefined) {
+				const g_key = ArchiveCardFamilyAutocomplete.make_group_key(
+					base_name,
+					raw_acc,
+					bank,
+					card_type
+				);
+				if (!g_key) return null;
+				return this.by_group.get(g_key) || null;
+			}
 			const key = ArchiveCardFamilyAutocomplete.make_triplet_key(base_name, raw_acc, bank);
 			if (!key) return null;
 			return this.by_triplet.get(key) || null;
@@ -1516,19 +1664,21 @@
 			return this.find_unique_by_account(raw_acc);
 		}
 
-		get_account_limit_info(raw_acc) {
+		get_account_limit_info(raw_acc, base_name = "", bank = "", card_type = "") {
 			const norm = ArchiveCardFamilyAutocomplete.normalize_account(raw_acc);
 			if (!norm) return null;
-			const list = this.by_norm_account_list.get(norm) || [];
-			const match = list.find((f) => f.account_exists) || list[0];
-			if (!match || !match.account_exists) return null;
-			return {
-				account_number: match.account_number || raw_acc,
-				account_exists: true,
-				shared_daily_limit: match.shared_daily_limit,
-				has_limit_conflict: Boolean(match.has_limit_conflict),
-				conflict_limits: match.conflict_limits || [],
-			};
+			if (base_name && bank) {
+				const match = this.find_by_triplet(base_name, norm, bank, card_type);
+				if (!match || !match.account_exists) return null;
+				return {
+					account_number: match.account_number || raw_acc,
+					account_exists: true,
+					shared_daily_limit: match.shared_daily_limit,
+					has_limit_conflict: Boolean(match.has_limit_conflict),
+					conflict_limits: match.conflict_limits || [],
+				};
+			}
+			return null;
 		}
 
 		notify_triplet_changed(meta = {}) {
@@ -1536,10 +1686,11 @@
 			const cur_acc = String(this.controls.account_number?.get_value() || "").trim();
 			const cur_base = String(this.controls.base_card_name?.get_value() || "").trim();
 			const cur_bank = String(this.controls.bank?.get_value() || "").trim();
+			const cur_type = String(this.controls.card_type?.get_value() || "").trim();
 			const matched =
 				meta.matched_family !== undefined
 					? meta.matched_family
-					: this.find_by_triplet(cur_base, cur_acc, cur_bank);
+					: this.find_by_triplet(cur_base, cur_acc, cur_bank, cur_type);
 			this.on_account_changed(cur_acc, {
 				immediate: Boolean(meta.immediate),
 				matched_family: matched,
@@ -1634,6 +1785,16 @@
 							this.handle_bank_changed();
 						}
 					);
+			}
+
+			const $ctype_input = this.controls.card_type?.$input;
+			if ($ctype_input && $ctype_input.length) {
+				$ctype_input
+					.off(this.ns)
+					.on(`input${this.ns} change${this.ns}`, () => {
+						if (this.is_applying || !this.is_enabled()) return;
+						this.handle_card_type_changed();
+					});
 			}
 		}
 
@@ -1999,6 +2160,15 @@
 			$cur[0]?.scrollIntoView({ block: "nearest" });
 		}
 
+		handle_card_type_changed() {
+			const cur_type = String(this.controls.card_type?.get_value() || "").trim();
+			if (cur_type === this.last_card_type_raw) return;
+			this.last_card_type_raw = cur_type;
+			this.is_type_autofilled = false;
+			this.fallback_card_type = cur_type;
+			this.notify_triplet_changed({ immediate: true });
+		}
+
 		async select_item(state, index) {
 			const item = state.items[index];
 			if (!item || !item.family) return;
@@ -2021,6 +2191,11 @@
 				if (fam.bank && this.controls.bank) {
 					await this.set_control_value(this.controls.bank, fam.bank);
 				}
+				if (fam.card_type && this.controls.card_type) {
+					this.is_type_autofilled = true;
+					this.last_card_type_raw = fam.card_type;
+					await this.set_control_value(this.controls.card_type, fam.card_type);
+				}
 			} else {
 				this.fallback_account_number = fam.account_number;
 				this.last_account_raw = fam.account_number;
@@ -2033,6 +2208,11 @@
 				await this.set_control_value(this.controls.base_card_name, fam.base_card_name);
 				if (fam.bank && this.controls.bank) {
 					await this.set_control_value(this.controls.bank, fam.bank);
+				}
+				if (fam.card_type && this.controls.card_type) {
+					this.is_type_autofilled = true;
+					this.last_card_type_raw = fam.card_type;
+					await this.set_control_value(this.controls.card_type, fam.card_type);
 				}
 			}
 

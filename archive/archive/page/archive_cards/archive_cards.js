@@ -19,11 +19,22 @@ function format_card_status_label(status) {
 	return CARD_STATUS_DISPLAY_LABELS[clean] || clean;
 }
 
+function format_copy_badge_label(card_type, copy_no) {
+	const n = Math.max(1, Number(copy_no || 1));
+	const ct = String(card_type || "").trim();
+	if (ct === "مدى" || ct === "أعمال") {
+		return `${ct} ${n}`;
+	}
+	return `نسخة ${n}`;
+}
+
 window.format_card_status_label = format_card_status_label;
+window.format_copy_badge_label = format_copy_badge_label;
 
 const ARCHIVE_CARDS_COLUMNS = [
 	{ key: "serial_no", label: "الرقم", width: "78px", locked: true, sortable: true },
 	{ key: "card_name", label: "اسم البطاقة", width: "225px", locked: true, sortable: true },
+	{ key: "card_type", label: "نوع البطاقة", width: "110px", locked: false, sortable: true },
 	{ key: "account_number", label: "رقم الحساب", width: "155px", locked: false, sortable: true },
 	{ key: "card_number", label: "رقم البطاقة", width: "160px", locked: false, sortable: true },
 	{ key: "bank", label: "البنك", width: "130px", locked: false, sortable: true },
@@ -46,6 +57,7 @@ class ArchiveCardsPage {
 			search: "",
 			filters: {
 				bank: "",
+				card_type: "",
 				representative: "",
 				region: "",
 				card_owner: "",
@@ -293,6 +305,14 @@ class ArchiveCardsPage {
 							<label>البنك</label>
 							<select class="form-control" data-filter="bank">
 								<option value="">الكل</option>
+							</select>
+						</div>
+						<div class="ac-filter-field">
+							<label>نوع البطاقة</label>
+							<select class="form-control" data-filter="card_type">
+								<option value="">الكل</option>
+								<option value="مدى">مدى</option>
+								<option value="أعمال">أعمال</option>
 							</select>
 						</div>
 						<div class="ac-filter-field">
@@ -638,7 +658,7 @@ class ArchiveCardsPage {
 							<span class="ac-info-panel-heading">بيانات البطاقة</span>
 						</div>
 						<div class="ac-info-header-badges">
-							<span class="ac-copy-badge acd-copy-pill">نسخة ${card.copy_no || 1}</span>
+							<span class="ac-copy-badge acd-copy-pill">${frappe.utils.escape_html(card.copy_label || format_copy_badge_label(card.card_type, card.copy_no))}</span>
 							<span class="acvd-status-pill" data-status="${frappe.utils.escape_html(card.status || "")}">${frappe.utils.escape_html(format_card_status_label(card.status))}</span>
 						</div>
 					</div>
@@ -646,6 +666,7 @@ class ArchiveCardsPage {
 					<div class="ac-ro-fields-grid">
 						${render_ro_field("اسم البطاقة", card.base_card_name, { primary: true })}
 						${render_ro_field("البنك", card.bank_name || card.bank, { primary: true })}
+						${render_ro_field("نوع البطاقة", card.card_type || "—")}
 						${render_ro_field("رقم الحساب", card.account_number)}
 						${render_ro_field("رقم البطاقة", card.card_number)}
 						${render_ro_field("المندوب", card.representative_name || card.representative)}
@@ -653,6 +674,7 @@ class ArchiveCardsPage {
 						${render_ro_field("تاريخ الاستلام", card.received_date || "—", { ltr: true })}
 						${render_ro_field("الرمز السري", "••••", { raw_html: pin_surface_html })}
 						${render_ro_field("الحد اليومي", card.daily_limit_formatted || "—")}
+						${render_ro_field("المتبقي اليوم", card.remaining_limit_formatted || "—")}
 						${render_ro_field("مالك البطاقة", card.card_owner_name || card.card_owner)}
 					</div>
 				</div>
@@ -777,14 +799,17 @@ class ArchiveCardsPage {
 			return `<td class="ac-td-mono">${row.serial_no}</td>`;
 		}
 		if (key === "card_name") {
-			const copy_no = Number(row.copy_no || 1);
-			const copy_badge = `<span class="ac-copy-badge ac-row-copy-badge" title="نسخة ${copy_no}">نسخة ${copy_no}</span>`;
+			const badge_text = row.copy_label || format_copy_badge_label(row.card_type, row.copy_no);
+			const copy_badge = `<span class="ac-copy-badge ac-row-copy-badge" title="${frappe.utils.escape_html(badge_text)}">${frappe.utils.escape_html(badge_text)}</span>`;
 			return `
 				<td class="ac-td-name">
 					<span class="ac-cell-card-name">${frappe.utils.escape_html(row.base_card_name)}</span>
 					${copy_badge}
 				</td>
 			`;
+		}
+		if (key === "card_type") {
+			return `<td>${frappe.utils.escape_html(row.card_type || "—")}</td>`;
 		}
 		if (key === "account_number") {
 			return `<td class="ac-td-ltr" dir="ltr">${frappe.utils.escape_html(row.account_number)}</td>`;
@@ -987,6 +1012,7 @@ class ArchiveCardsPage {
 					search: this.state.search,
 					status: this.state.status,
 					bank: this.state.filters.bank,
+					card_type: this.state.filters.card_type,
 					representative: this.state.filters.representative,
 					region: this.state.filters.region,
 					card_owner: this.state.filters.card_owner,
@@ -1375,6 +1401,7 @@ class ArchiveCardsPage {
 		$main.on("click", '[data-action="reset-filters"]', () => {
 			this.state.filters = {
 				bank: "",
+				card_type: "",
 				representative: "",
 				region: "",
 				card_owner: "",

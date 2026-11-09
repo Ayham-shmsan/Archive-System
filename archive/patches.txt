@@ -29,3 +29,4 @@ archive.patches.v1_0.setup_granular_card_and_pending_permissions
 archive.patches.v1_0.setup_five_screens_access_roles
 archive.patches.v1_0.rename_operation_and_pending_timeline_roles # 2026-11-08
 archive.patches.v1_0.setup_commercial_registries_roles_and_screen # 2026-11-08
+archive.patches.v1_0.setup_card_types_mada_business # 2026-11-09

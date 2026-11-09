@@ -84,12 +84,29 @@ class ArchiveCard(Document):
 		if self.daily_limit is not None and flt(self.daily_limit) < 0:
 			frappe.throw(_("الحد اليومي لا يقبل قيماً سالبة."), frappe.ValidationError)
 
-		if not cint(self.is_deleted) and (self.is_new() or self.has_value_changed("daily_limit")):
+		from archive.api.card_search import (
+			clean_card_type,
+			validate_card_type,
+			validate_daily_limit_for_card_type,
+		)
+
+		raw_card_type = clean_card_type(getattr(self, "card_type", None))
+		if not cint(self.is_deleted):
+			if self.is_new():
+				self.card_type = validate_card_type(raw_card_type, required=True)
+			elif raw_card_type:
+				self.card_type = validate_card_type(raw_card_type, required=True)
+
+		if not cint(self.is_deleted) and (
+			self.is_new() or self.has_value_changed("daily_limit") or self.has_value_changed("card_type")
+		):
 			if self.daily_limit is None or flt(self.daily_limit) <= 0:
 				frappe.throw(
 					_("الحد اليومي مطلوب ويجب أن يكون أكبر من صفر."),
 					frappe.ValidationError,
 				)
+			if clean_card_type(getattr(self, "card_type", None)):
+				validate_daily_limit_for_card_type(self.daily_limit, getattr(self, "card_type", None))
 
 		if cint(self.is_deleted):
 			self.search_text = ""

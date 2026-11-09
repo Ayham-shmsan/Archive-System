@@ -16,6 +16,7 @@
     "snapshot_section",
     "card_name_snapshot",
     "base_card_name_snapshot",
+    "card_type_snapshot",
     "copy_no_snapshot",
     "card_number_snapshot",
     "account_number_snapshot",
@@ -106,6 +107,12 @@
       "fieldname": "base_card_name_snapshot",
       "fieldtype": "Data",
       "label": "الاسم الأساسي للبطاقة وقت التسجيل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "card_type_snapshot",
+      "fieldtype": "Data",
+      "label": "نوع البطاقة وقت التسجيل",
       "read_only": 1
     },
     {

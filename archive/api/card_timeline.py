@@ -7,6 +7,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, cstr, get_datetime
 
+from archive.api.card_search import clean_card_type, format_copy_badge_label
 from archive.api.cards import get_card_status_display_label
 from archive.services.card_permissions import (
 	CARD_DOCTYPE,
@@ -45,6 +46,7 @@ def get_card_events(card: str) -> dict[str, Any]:
 			"name",
 			"serial_no",
 			"copy_no",
+			"card_type",
 			"card_name",
 			"base_card_name",
 			"account_number",
@@ -125,6 +127,8 @@ def get_card_events(card: str) -> dict[str, Any]:
 			"name": card_row.name,
 			"serial_no": cint(card_row.serial_no),
 			"copy_no": cint(card_row.copy_no or 1),
+			"card_type": clean_card_type(card_row.card_type),
+			"copy_label": format_copy_badge_label(card_row.card_type, card_row.copy_no or 1),
 			"card_name": card_row.card_name,
 			"base_card_name": card_row.base_card_name,
 			"account_number": card_row.account_number,
@@ -156,6 +160,7 @@ def get_card_activity_timeline(card: str, limit: int | str = 150) -> dict[str, A
 			"name",
 			"serial_no",
 			"copy_no",
+			"card_type",
 			"card_name",
 			"base_card_name",
 			"account_number",
@@ -227,6 +232,8 @@ def get_card_activity_timeline(card: str, limit: int | str = 150) -> dict[str, A
 			"name": card_row.name,
 			"serial_no": cint(card_row.serial_no),
 			"copy_no": cint(card_row.copy_no or 1),
+			"card_type": clean_card_type(card_row.card_type),
+			"copy_label": format_copy_badge_label(card_row.card_type, card_row.copy_no or 1),
 			"card_name": card_row.card_name,
 			"base_card_name": card_row.base_card_name,
 			"account_number": card_row.account_number,

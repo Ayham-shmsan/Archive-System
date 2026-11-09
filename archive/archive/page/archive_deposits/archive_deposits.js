@@ -748,6 +748,26 @@ class ArchiveDepositsPage {
 		let base = this.accounts_baseline.get(key) || null;
 		if (!base && fallback_row) {
 			base = {
+				has_business: Boolean(fallback_row.has_business || fallback_row.card_type === "أعمال"),
+				has_mada: Boolean(fallback_row.has_mada || fallback_row.card_type === "مدى"),
+				business_limit: Number(
+					fallback_row.business_limit !== undefined
+						? fallback_row.business_limit
+						: fallback_row.card_type === "أعمال"
+						? fallback_row.daily_limit || 0
+						: 0
+				),
+				mada_limit: Number(
+					fallback_row.mada_limit !== undefined
+						? fallback_row.mada_limit
+						: fallback_row.card_type === "مدى"
+						? fallback_row.daily_limit || 0
+						: 0
+				),
+				legacy_limit: Number(fallback_row.legacy_limit || fallback_row.daily_limit || 0),
+				business_saved_total: Number(fallback_row.business_saved_total || 0),
+				mada_saved_total: Number(fallback_row.mada_saved_total || 0),
+				legacy_saved_total: Number(fallback_row.legacy_saved_total || 0),
 				daily_limit: Number(fallback_row.daily_limit || 0),
 				account_saved_total: Number(
 					fallback_row.account_saved_total !== undefined
@@ -761,6 +781,14 @@ class ArchiveDepositsPage {
 			for (const d of this.dirty_deposits.values()) {
 				if (d.account_key === key) {
 					base = {
+						has_business: Boolean(d.has_business || d.card_type === "أعمال"),
+						has_mada: Boolean(d.has_mada || d.card_type === "مدى"),
+						business_limit: Number(d.business_limit || 0),
+						mada_limit: Number(d.mada_limit || 0),
+						legacy_limit: Number(d.legacy_limit || d.daily_limit || 0),
+						business_saved_total: Number(d.business_saved_total || 0),
+						mada_saved_total: Number(d.mada_saved_total || 0),
+						legacy_saved_total: Number(d.legacy_saved_total || 0),
 						daily_limit: Number(d.daily_limit || 0),
 						account_saved_total: Number(d.account_saved_total || 0),
 						has_limit_conflict: Boolean(d.has_limit_conflict),
@@ -770,21 +798,82 @@ class ArchiveDepositsPage {
 			}
 		}
 
+		const has_business = Boolean(base?.has_business);
+		const has_mada = Boolean(base?.has_mada);
+		const business_limit = Math.max(0, Math.round(Number(base?.business_limit || 0) * 100) / 100);
+		const mada_limit = Math.max(0, Math.round(Number(base?.mada_limit || 0) * 100) / 100);
+		const legacy_limit = Math.max(0, Math.round(Number(base?.legacy_limit || base?.daily_limit || 0) * 100) / 100);
 		const daily_limit = Math.max(0, Math.round(Number(base?.daily_limit || 0) * 100) / 100);
+
+		const base_business_saved = Math.max(0, Math.round(Number(base?.business_saved_total || 0) * 100) / 100);
+		const base_mada_saved = Math.max(0, Math.round(Number(base?.mada_saved_total || 0) * 100) / 100);
+		const base_legacy_saved = Math.max(0, Math.round(Number(base?.legacy_saved_total || 0) * 100) / 100);
 		const base_saved = Math.max(
 			0,
 			Math.round(Number(base?.account_saved_total || 0) * 100) / 100
 		);
-		let delta = 0;
+
+		let delta_business = 0;
+		let delta_mada = 0;
+		let delta_legacy = 0;
+		let delta_all = 0;
 		for (const entry of this.dirty_deposits.values()) {
 			if (entry.account_key === key && !entry.is_negative) {
-				delta += Number(entry.amount || 0) - Number(entry.saved_amount || 0);
+				const d = Number(entry.amount || 0) - Number(entry.saved_amount || 0);
+				delta_all += d;
+				if (entry.card_type === "أعمال") {
+					delta_business += d;
+				} else if (entry.card_type === "مدى") {
+					delta_mada += d;
+				} else {
+					delta_legacy += d;
+				}
 			}
 		}
 
-		const effective_total = Math.max(0, Math.round((base_saved + delta) * 100) / 100);
-		const remaining = Math.max(0, Math.round((daily_limit - effective_total) * 100) / 100);
-		const is_over_limit = Math.round(effective_total * 100) > Math.round(daily_limit * 100);
+		const d_a = Math.max(0, Math.round((base_business_saved + delta_business) * 100) / 100);
+		const d_m = Math.max(0, Math.round((base_mada_saved + delta_mada) * 100) / 100);
+		const d_l = Math.max(0, Math.round((base_legacy_saved + delta_legacy) * 100) / 100);
+		const effective_total = Math.max(0, Math.round((base_saved + delta_all) * 100) / 100);
+
+		let remaining_business = 0;
+		let remaining_mada = 0;
+		let remaining_legacy = Math.max(0, Math.round((legacy_limit - effective_total) * 100) / 100);
+		let is_over_business = false;
+		let is_over_mada = false;
+		let is_over_legacy = Math.round(effective_total * 100) > Math.round(legacy_limit * 100);
+
+		if (has_business) {
+			const group_rem = Math.round((business_limit - d_a - d_m - d_l) * 100) / 100;
+			remaining_business = Math.max(0, group_rem);
+			is_over_business = Math.round((d_a + d_m + d_l) * 100) > Math.round(business_limit * 100);
+			if (has_mada) {
+				const mada_own_rem = Math.round((mada_limit - d_m) * 100) / 100;
+				remaining_mada = Math.max(0, Math.min(mada_own_rem, group_rem));
+				is_over_mada =
+					Math.round(d_m * 100) > Math.round(mada_limit * 100) || is_over_business;
+			}
+		} else if (has_mada) {
+			const mada_rem = Math.round((mada_limit - d_m - d_l) * 100) / 100;
+			remaining_mada = Math.max(0, mada_rem);
+			is_over_mada = Math.round((d_m + d_l) * 100) > Math.round(mada_limit * 100);
+		}
+
+		const remaining_for_type = (ctype) => {
+			if (ctype === "أعمال") return remaining_business;
+			if (ctype === "مدى") return remaining_mada;
+			return remaining_legacy;
+		};
+		const is_over_for_type = (ctype) => {
+			if (ctype === "أعمال") return is_over_business;
+			if (ctype === "مدى") return is_over_mada;
+			return is_over_legacy;
+		};
+
+		const row_ctype = String(fallback_row?.card_type || "").trim();
+		const remaining = remaining_for_type(row_ctype);
+		const is_over_limit = is_over_for_type(row_ctype);
+
 		return {
 			account_key: key,
 			daily_limit,
@@ -792,6 +881,8 @@ class ArchiveDepositsPage {
 			effective_total,
 			remaining,
 			is_over_limit,
+			remaining_for_type,
+			is_over_for_type,
 			has_limit_conflict: Boolean(base?.has_limit_conflict),
 		};
 	}
@@ -834,7 +925,8 @@ class ArchiveDepositsPage {
 
 			const $rem = $tr.find('[data-role="remaining-cell-val"]');
 			if ($rem.length) {
-				$rem.text(format_deposit_number(acct_state.remaining, false));
+				const row_rem = acct_state.remaining_for_type(String(r.card_type || "").trim());
+				$rem.text(format_deposit_number(row_rem, false));
 				$rem.removeClass("is-over-limit");
 			}
 
@@ -857,6 +949,7 @@ class ArchiveDepositsPage {
 		if (!row) return;
 
 		const account_key = String(row.account_key || row.card);
+		const card_type = String(row.card_type || "").trim();
 		const daily_limit = Math.max(0, Math.round(Number(row.daily_limit || 0) * 100) / 100);
 		const saved_amount = Math.round(Number(row.deposit_amount || 0) * 100) / 100;
 		const account_saved_total = Math.round(
@@ -866,14 +959,27 @@ class ArchiveDepositsPage {
 		) / 100;
 		const has_limit_conflict = Boolean(row.has_limit_conflict);
 
+		const meta_fields = {
+			account_key,
+			card_type,
+			daily_limit,
+			account_saved_total,
+			has_business: Boolean(row.has_business || card_type === "أعمال"),
+			has_mada: Boolean(row.has_mada || card_type === "مدى"),
+			business_limit: Number(row.business_limit || 0),
+			mada_limit: Number(row.mada_limit || 0),
+			legacy_limit: Number(row.legacy_limit || row.daily_limit || 0),
+			business_saved_total: Number(row.business_saved_total || 0),
+			mada_saved_total: Number(row.mada_saved_total || 0),
+			legacy_saved_total: Number(row.legacy_saved_total || 0),
+			has_limit_conflict,
+		};
+
 		if (is_negative) {
 			this.dirty_deposits.set(card_id, {
 				amount: saved_amount,
 				saved_amount,
-				account_key,
-				daily_limit,
-				account_saved_total,
-				has_limit_conflict,
+				...meta_fields,
 				raw: sanitized_raw,
 				is_negative: true,
 				invalid_msg: DEPOSIT_NEGATIVE_MSG,
@@ -887,10 +993,7 @@ class ArchiveDepositsPage {
 			this.dirty_deposits.set(card_id, {
 				amount: parsed_num,
 				saved_amount,
-				account_key,
-				daily_limit,
-				account_saved_total,
-				has_limit_conflict,
+				...meta_fields,
 				raw: sanitized_raw,
 				is_negative: false,
 				invalid_msg: "",
@@ -913,11 +1016,12 @@ class ArchiveDepositsPage {
 				continue;
 			}
 
+			const entry_over = acct_state.is_over_for_type(entry.card_type);
 			if (
-				acct_state.is_over_limit &&
+				entry_over &&
 				(cid === card_id ||
 					entry.amount > entry.saved_amount ||
-					Math.round(entry.amount * 100) > Math.round(acct_state.daily_limit * 100))
+					Math.round(entry.amount * 100) > Math.round(entry.daily_limit * 100))
 			) {
 				entry.invalid_msg = DEPOSIT_OVER_LIMIT_MSG;
 				continue;
@@ -1050,6 +1154,14 @@ class ArchiveDepositsPage {
 				this.rows_by_card.set(r.card, r);
 				const acc_key = String(r.account_key || r.card);
 				this.accounts_baseline.set(acc_key, {
+					has_business: Boolean(r.has_business || r.card_type === "أعمال"),
+					has_mada: Boolean(r.has_mada || r.card_type === "مدى"),
+					business_limit: Number(r.business_limit || 0),
+					mada_limit: Number(r.mada_limit || 0),
+					legacy_limit: Number(r.legacy_limit || r.daily_limit || 0),
+					business_saved_total: Number(r.business_saved_total || 0),
+					mada_saved_total: Number(r.mada_saved_total || 0),
+					legacy_saved_total: Number(r.legacy_saved_total || 0),
 					daily_limit: Number(r.daily_limit || 0),
 					account_saved_total: Number(
 						r.account_saved_total !== undefined
@@ -1483,6 +1595,9 @@ class ArchiveDepositsPage {
 		const can_save = Boolean(this.permissions?.can_save);
 
 		if (key === "card_name") {
+			const copy_badge = row.copy_label
+				? `<span class="ac-copy-badge" style="margin-right:6px;">${frappe.utils.escape_html(row.copy_label)}</span>`
+				: "";
 			const inactive_tag = row.is_historical_inactive
 				? `<span class="ad-historical-tag" title="بطاقة موقفة حالياً — سجل إيداع تاريخي محفوظ">${frappe.utils.escape_html(
 						row.card_status
@@ -1491,6 +1606,7 @@ class ArchiveDepositsPage {
 			return `
 				<td class="ac-td-name" title="${frappe.utils.escape_html(row.card_name)}">
 					<span class="ad-card-title-text">${frappe.utils.escape_html(row.card_name)}</span>
+					${copy_badge}
 					${inactive_tag}
 				</td>
 			`;

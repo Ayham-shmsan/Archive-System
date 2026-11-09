@@ -125,6 +125,7 @@
 	const FIELD_ARABIC_LABELS = {
 		card_number: "رقم البطاقة",
 		bank: "البنك",
+		card_type: "نوع البطاقة",
 		card_owner: "مالك البطاقة",
 		region: "المنطقة",
 		representative: "المندوب",
@@ -132,6 +133,15 @@
 		daily_limit: "الحد اليومي",
 		status: "الحالة",
 	};
+
+	function format_copy_badge_label(card_type, copy_no) {
+		const num = Math.max(1, Number(copy_no || 1));
+		const ctype = String(card_type || "").trim();
+		if (ctype === "مدى" || ctype === "أعمال") {
+			return `${ctype} ${num}`;
+		}
+		return `نسخة ${num}`;
+	}
 
 	function display_status_label(status) {
 		if (typeof window.format_card_status_label === "function") {
@@ -148,8 +158,9 @@
 
 		if (type === "created") {
 			const created_base_name = d.base_card_name || card.base_card_name || "";
+			const created_badge = format_copy_badge_label(d.card_type || card.card_type, d.copy_no || 1);
 			if (created_base_name) {
-				lines.push(`الاسم: <strong>${frappe.utils.escape_html(created_base_name)}</strong> <span class="ac-copy-badge">نسخة ${d.copy_no || 1}</span>`);
+				lines.push(`الاسم: <strong>${frappe.utils.escape_html(created_base_name)}</strong> <span class="ac-copy-badge">${frappe.utils.escape_html(created_badge)}</span>`);
 			}
 			if (d.account_number) lines.push(`رقم الحساب: <code dir="ltr">${frappe.utils.escape_html(d.account_number)}</code>`);
 			if (d.bank_name || d.bank) lines.push(`البنك: <strong>${frappe.utils.escape_html(d.bank_name || d.bank)}</strong>`);
@@ -394,8 +405,9 @@
 			const updatedFormatted = this.split_date_time(newestDt || card.modified || card.creation).inline;
 
 			const cardTitleName = card.base_card_name || card.card_name || this.card_name || "—";
+			const copyBadgeLabel = card.copy_label || format_copy_badge_label(card.card_type, card.copy_no);
 			const copyBadgeHtml = card.copy_no
-				? `<span class="ac-copy-badge" style="margin-right:6px;">نسخة ${frappe.utils.escape_html(String(card.copy_no))}</span>`
+				? `<span class="ac-copy-badge" style="margin-right:6px;">${frappe.utils.escape_html(copyBadgeLabel)}</span>`
 				: "";
 
 			this.$root.html(`
@@ -1425,7 +1437,7 @@
 							<span class="actr-sum-icon">${ACTR_ICONS.card}</span>
 							<span class="actr-sum-label">البطاقة:</span>
 							<strong class="actr-sum-val">${frappe.utils.escape_html(card.base_card_name || card.card_name || "—")}</strong>
-							<span class="actr-copy-pill">نسخة ${frappe.utils.escape_html(String(card.copy_no || 1))}</span>
+							<span class="actr-copy-pill">${frappe.utils.escape_html(card.copy_label || format_copy_badge_label(card.card_type, card.copy_no))}</span>
 						</div>
 						<div class="actr-sum-item">
 							<span class="actr-sum-icon">${ACTR_ICONS.bank}</span>
@@ -2026,7 +2038,7 @@
 			$body.attr("dir", "rtl").html(`
 				<div class="archive-card-timeline-shell" dir="rtl">
 					<div class="actl-header-summary">
-						<div class="aceh-sum-item"><span class="actr-sum-icon">${ACTR_ICONS.card}</span><strong>البطاقة:</strong> ${frappe.utils.escape_html(card.base_card_name || card.card_name || "")} <span class="ac-copy-badge">نسخة ${card.copy_no || 1}</span></div>
+						<div class="aceh-sum-item"><span class="actr-sum-icon">${ACTR_ICONS.card}</span><strong>البطاقة:</strong> ${frappe.utils.escape_html(card.base_card_name || card.card_name || "")} <span class="ac-copy-badge">${frappe.utils.escape_html(card.copy_label || format_copy_badge_label(card.card_type, card.copy_no))}</span></div>
 						<div class="aceh-sum-item"><span class="actr-sum-icon">${ACTR_ICONS.bank}</span><strong>البنك:</strong> ${frappe.utils.escape_html(card.bank_name || card.bank || "—")}</div>
 						<div class="aceh-sum-item"><span class="actr-sum-icon">${ACTR_ICONS.card_plus}</span><strong>رقم الحساب:</strong> <span dir="ltr">${frappe.utils.escape_html(card.account_number || "—")}</span></div>
 						<div class="aceh-sum-item"><span class="actr-sum-icon">${ACTR_ICONS.card}</span><strong>رقم البطاقة:</strong> <span dir="ltr">${frappe.utils.escape_html(card.card_number || "—")}</span></div>
