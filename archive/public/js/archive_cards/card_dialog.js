@@ -133,28 +133,7 @@
 									<div class="acd-field-slot" data-field-slot="card_type"></div>
 									<div class="acd-field-slot" data-field-slot="account_number"></div>
 									<div class="acd-field-slot" data-field-slot="card_number"></div>
-								</div>
-								<div class="acd-derived-name-hint" data-role="derived-name-hint" hidden></div>
-							</div>
-
-							<div class="acd-section-card">
-								<div class="acd-section-header">
-									<span class="acd-section-title">بيانات المندوب والمالك</span>
-								</div>
-								<div class="acd-fields-grid acd-cols-3">
-									<div class="acd-field-slot" data-field-slot="card_owner"></div>
 									<div class="acd-field-slot" data-field-slot="daily_limit"></div>
-									<div class="acd-field-slot" data-field-slot="received_date"></div>
-									<div class="acd-field-slot" data-field-slot="representative"></div>
-									<div class="acd-field-slot" data-field-slot="region"></div>
-								</div>
-							</div>
-
-							<div class="acd-section-card">
-								<div class="acd-section-header">
-									<span class="acd-section-title">الرقم السري وحالة البطاقة</span>
-								</div>
-								<div class="acd-fields-grid acd-cols-2">
 									<div class="acd-pin-field-wrapper">
 										<label class="control-label reqd">الرقم السري (PIN)</label>
 										<div class="acd-pin-input-group">
@@ -177,9 +156,20 @@
 										</div>
 										<div class="acd-field-help">يُحفظ مشفراً ولا يظهر إلا لصاحب الصلاحية.</div>
 									</div>
-									<div class="acd-field-slot" data-field-slot="status"></div>
 								</div>
-								<div class="acd-field-slot" data-field-slot="status_reason" hidden style="margin-top: 10px;"></div>
+								<div class="acd-derived-name-hint" data-role="derived-name-hint" hidden></div>
+							</div>
+
+							<div class="acd-section-card">
+								<div class="acd-section-header">
+									<span class="acd-section-title">بيانات المندوب والمالك</span>
+								</div>
+								<div class="acd-fields-grid acd-cols-2">
+									<div class="acd-field-slot" data-field-slot="card_owner"></div>
+									<div class="acd-field-slot" data-field-slot="representative"></div>
+									<div class="acd-field-slot" data-field-slot="region"></div>
+									<div class="acd-field-slot" data-field-slot="received_date"></div>
+								</div>
 							</div>
 						</div>
 
@@ -364,34 +354,6 @@
 						default: frappe.datetime.get_today(),
 					},
 				},
-				{
-					slot: "status",
-					df: {
-						fieldname: "status",
-						label: "الحالة الابتدائية",
-						fieldtype: "Select",
-						options: ["نشطة", "موقفة مؤقتاً", "موقفة نهائياً"].join("\n"),
-						default: "نشطة",
-						reqd: 1,
-						onchange: () => {
-							const st = this.controls.status?.get_value() || "نشطة";
-							const is_perm = st === "موقفة نهائياً";
-							$body.find('[data-field-slot="status_reason"]').prop("hidden", !is_perm);
-							if (!is_perm && this.controls.status_reason) {
-								this.controls.status_reason.set_value("");
-							}
-						},
-					},
-				},
-				{
-					slot: "status_reason",
-					df: {
-						fieldname: "status_reason",
-						label: "سبب الإيقاف النهائي (إلزامي)",
-						fieldtype: "Small Text",
-						placeholder: "أدخل سبب الإيقاف النهائي للبطاقة...",
-					},
-				},
 			];
 
 			defs.forEach(({ slot, df }) => {
@@ -404,11 +366,6 @@
 				ctrl.refresh();
 				if (df.default) {
 					ctrl.set_value(df.default);
-				}
-				if (df.fieldname === "status" && ctrl.$input) {
-					ctrl.$input
-						.find('option[value="موقفة نهائياً"]')
-						.text("موقفة نهائياً (متلفة)");
 				}
 				this.controls[df.fieldname] = ctrl;
 			});
@@ -705,6 +662,27 @@
 				return;
 			}
 
+			if (info && info.account_name_conflict) {
+				const conflict_msg =
+					info.account_name_conflict_message ||
+					`رقم الحساب مرتبط مسبقًا باسم البطاقة: ${info.bound_base_card_name || ""}. لا يمكن استخدام رقم الحساب لاسم بطاقة مختلف.`;
+				$hint.prop("hidden", false).html(
+					`<span class="text-danger" style="color: #dc2626; font-weight: 600;"><i class="fa fa-times-circle"></i> ${frappe.utils.escape_html(
+						conflict_msg
+					)}</span>`
+				);
+				$banner.prop("hidden", false).html(`
+					<div class="acd-dup-banner-inner" style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; color: #991b1b;">
+						<i class="fa fa-times-circle" style="color: #dc2626; font-size: 18px;"></i>
+						<div>
+							<strong>تعارض في اسم البطاقة ورقم الحساب:</strong>
+							${frappe.utils.escape_html(conflict_msg)}
+						</div>
+					</div>
+				`);
+				return;
+			}
+
 			if (info && info.family_exists) {
 				const cur_type = String(
 					info.card_type || this.controls.card_type?.get_value() || ""
@@ -755,6 +733,24 @@
 			const clean_base = String(this.controls.base_card_name?.get_value() || "").trim();
 			const clean_bank = String(this.controls.bank?.get_value() || "").trim();
 			const clean_type = String(this.controls.card_type?.get_value() || "").trim();
+
+			if (clean_acc && clean_base && this.family_autocomplete?.loaded) {
+				const norm_acc = ArchiveCardFamilyAutocomplete.normalize_account(clean_acc);
+				const bound_fam = this.family_autocomplete.by_norm_account?.get(norm_acc);
+				if (bound_fam && bound_fam.base_card_name) {
+					const cur_norm = ArchiveCardFamilyAutocomplete.normalize_search_text(clean_base);
+					const bound_norm = ArchiveCardFamilyAutocomplete.normalize_search_text(bound_fam.base_card_name);
+					if (cur_norm && bound_norm && cur_norm !== bound_norm) {
+						this.apply_duplicate_ui({
+							account_name_conflict: true,
+							bound_base_card_name: bound_fam.base_card_name,
+							account_number: clean_acc,
+							account_name_conflict_message: `رقم الحساب مرتبط مسبقًا باسم البطاقة: ${bound_fam.base_card_name}. لا يمكن استخدام رقم الحساب لاسم بطاقة مختلف.`,
+						});
+						return;
+					}
+				}
+			}
 
 			if (!clean_acc || !clean_base || !clean_bank || !clean_type) {
 				this._dup_check_seq += 1;
@@ -873,8 +869,8 @@
 				region: String(this.controls.region?.get_value() || "").trim(),
 				representative: String(this.controls.representative?.get_value() || "").trim(),
 				received_date: String(this.controls.received_date?.get_value() || "").trim(),
-				status: String(this.controls.status?.get_value() || "نشطة").trim(),
-				status_reason: String(this.controls.status_reason?.get_value() || "").trim(),
+				status: "نشطة",
+				status_reason: "",
 				pin,
 				front_image: this.staged_files.front?.file_id || this.staged_files.front?.file_url || "",
 				back_image: this.staged_files.back?.file_id || this.staged_files.back?.file_url || "",
@@ -932,15 +928,6 @@
 				return false;
 			}
 
-			if (payload.status === "موقفة نهائياً" && !payload.status_reason) {
-				frappe.msgprint({
-					title: "سبب الإيقاف النهائي مطلوب",
-					message: "يرجى إدخال سبب الإيقاف النهائي عند اختيار حالة (موقفة نهائياً (متلفة)).",
-					indicator: "red",
-				});
-				return false;
-			}
-
 			if (!/^[0-9٠-٩۰-۹]{4}$/.test(payload.pin)) {
 				frappe.msgprint({
 					title: "الرقم السري غير صالح",
@@ -953,6 +940,25 @@
 			const clean_num = Number(String(payload.daily_limit || "").replace(/,/g, ""));
 			if (!ArchiveCardDailyLimitInput.validate_for_card_type(clean_num, payload.card_type)) {
 				return false;
+			}
+
+			if (this.family_autocomplete?.loaded && payload.account_number && payload.base_card_name) {
+				const norm_acc = ArchiveCardFamilyAutocomplete.normalize_account(payload.account_number);
+				const bound_fam = this.family_autocomplete.by_norm_account?.get(norm_acc);
+				if (bound_fam && bound_fam.base_card_name) {
+					const cur_norm = ArchiveCardFamilyAutocomplete.normalize_search_text(payload.base_card_name);
+					const bound_norm = ArchiveCardFamilyAutocomplete.normalize_search_text(bound_fam.base_card_name);
+					if (cur_norm && bound_norm && cur_norm !== bound_norm) {
+						frappe.msgprint({
+							title: "تعارض في اسم البطاقة ورقم الحساب",
+							message: `رقم الحساب مرتبط مسبقًا باسم البطاقة: <strong>${frappe.utils.escape_html(
+								bound_fam.base_card_name
+							)}</strong>. لا يمكن استخدام رقم الحساب لاسم بطاقة مختلف.`,
+							indicator: "red",
+						});
+						return false;
+					}
+				}
 			}
 
 			return true;
@@ -969,6 +975,20 @@
 
 			try {
 				const dup_info = await this.check_account_family({ force_remote: true });
+				if (dup_info && dup_info.account_name_conflict) {
+					this.is_submitting = false;
+					this.dialog.get_primary_btn().prop("disabled", false);
+					frappe.msgprint({
+						title: "تعارض في اسم البطاقة ورقم الحساب",
+						message:
+							dup_info.account_name_conflict_message ||
+							`رقم الحساب مرتبط مسبقًا باسم البطاقة: <strong>${frappe.utils.escape_html(
+								dup_info.bound_base_card_name
+							)}</strong>. لا يمكن استخدام رقم الحساب لاسم بطاقة مختلف.`,
+						indicator: "red",
+					});
+					return;
+				}
 				if (dup_info && dup_info.has_limit_conflict) {
 					this.is_submitting = false;
 					this.dialog.get_primary_btn().prop("disabled", false);

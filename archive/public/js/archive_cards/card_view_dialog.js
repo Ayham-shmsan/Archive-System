@@ -653,9 +653,49 @@
 								<div class="acd-fields-grid acd-cols-2">
 									<div class="acd-field-slot" data-field-slot="base_card_name"></div>
 									<div class="acd-field-slot" data-field-slot="bank"></div>
-									<div class="acd-field-slot" data-field-slot="account_number"></div>
 									<div class="acd-field-slot" data-field-slot="card_type"></div>
+									<div class="acd-field-slot" data-field-slot="account_number"></div>
 									<div class="acd-field-slot" data-field-slot="card_number"></div>
+									<div class="acd-field-slot" data-field-slot="daily_limit"></div>
+									<div class="acd-pin-field-wrapper acvd-pin-field-wrapper">
+										<label class="control-label">الرقم السري (PIN)</label>
+										<div class="acvd-pin-section-row">
+											<div class="acvd-pin-read-box">
+												<code class="acvd-pin-mask" data-role="pin-display" dir="ltr">••••</code>
+												${
+													p.can_view_pin
+														? `<button type="button" class="btn btn-xs btn-default" data-action="reveal-pin" title="إظهار / إخفاء الرقم السري">
+															<i class="fa fa-eye"></i> <span>إظهار</span>
+														</button>`
+														: ""
+												}
+											</div>
+
+											${
+												this.can_edit_data() && p.can_view_pin
+													? `
+												<div class="acvd-pin-update-box">
+													<button type="button" class="btn btn-xs btn-default" data-action="toggle-edit-pin">
+														<i class="fa fa-key"></i> تغيير الرقم السري
+													</button>
+													<div class="acvd-new-pin-wrap" data-role="new-pin-wrap" hidden>
+														<input
+															type="password"
+															class="form-control input-xs acd-pin-input"
+															data-role="new-pin-input"
+															placeholder="الرقم السري الجديد (4 أرقام)"
+															inputmode="numeric"
+														/>
+														<button type="button" class="btn btn-xs btn-default" data-action="toggle-new-pin-eye">
+															<i class="fa fa-eye"></i>
+														</button>
+													</div>
+												</div>
+											`
+													: ""
+											}
+										</div>
+									</div>
 								</div>
 							</div>
 
@@ -664,55 +704,11 @@
 									<span class="acd-section-title">بيانات المندوب والمالك</span>
 									<span class="acd-section-subtitle">لتسجيل حالة انتقال جديدة استخدم زر (نقل البطاقة)</span>
 								</div>
-								<div class="acd-fields-grid acd-cols-3">
+								<div class="acd-fields-grid acd-cols-2">
 									<div class="acd-field-slot" data-field-slot="card_owner"></div>
-									<div class="acd-field-slot" data-field-slot="daily_limit"></div>
-									<div class="acd-field-slot" data-field-slot="received_date"></div>
 									<div class="acd-field-slot" data-field-slot="representative"></div>
 									<div class="acd-field-slot" data-field-slot="region"></div>
-								</div>
-							</div>
-
-							<div class="acd-section-card">
-								<div class="acd-section-header">
-									<span class="acd-section-title">الرقم السري (PIN)</span>
-								</div>
-								<div class="acvd-pin-section-row">
-									<div class="acvd-pin-read-box">
-										<span class="acvd-pin-label">الرقم السري المحفوظ:</span>
-										<code class="acvd-pin-mask" data-role="pin-display" dir="ltr">••••</code>
-										${
-											p.can_view_pin
-												? `<button type="button" class="btn btn-xs btn-default" data-action="reveal-pin" title="إظهار / إخفاء الرقم السري">
-													<i class="fa fa-eye"></i> <span>إظهار</span>
-												</button>`
-												: ""
-										}
-									</div>
-
-									${
-										this.can_edit_data() && p.can_view_pin
-											? `
-										<div class="acvd-pin-update-box">
-											<button type="button" class="btn btn-xs btn-default" data-action="toggle-edit-pin">
-												<i class="fa fa-key"></i> تغيير الرقم السري
-											</button>
-											<div class="acvd-new-pin-wrap" data-role="new-pin-wrap" hidden>
-												<input
-													type="password"
-													class="form-control input-xs acd-pin-input"
-													data-role="new-pin-input"
-													placeholder="الرقم السري الجديد (4 أرقام)"
-													inputmode="numeric"
-												/>
-												<button type="button" class="btn btn-xs btn-default" data-action="toggle-new-pin-eye">
-													<i class="fa fa-eye"></i>
-												</button>
-											</div>
-										</div>
-									`
-											: ""
-									}
+									<div class="acd-field-slot" data-field-slot="received_date"></div>
 								</div>
 							</div>
 

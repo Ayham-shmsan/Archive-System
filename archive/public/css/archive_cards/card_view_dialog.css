@@ -72,18 +72,31 @@
 	flex-wrap: wrap;
 }
 
+.acvd-pin-field-wrapper {
+	display: flex;
+	flex-direction: column;
+}
+
+.acvd-pin-field-wrapper .control-label {
+	margin-bottom: 4px;
+	font-size: 12px;
+	color: var(--text-muted, #64748b);
+	font-weight: normal;
+}
+
 .acvd-pin-section-row {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
+	justify-content: flex-start;
 	flex-wrap: wrap;
-	gap: 12px;
+	gap: 8px;
+	min-height: 28px;
 }
 
 .acvd-pin-read-box {
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: 6px;
 }
 
 .acvd-pin-label {
@@ -93,10 +106,10 @@
 }
 
 .acvd-pin-mask {
-	font-size: 15px;
+	font-size: 14px;
 	font-weight: 700;
-	padding: 4px 12px;
-	border-radius: 8px;
+	padding: 3px 10px;
+	border-radius: 6px;
 	background: #ffffff;
 	border: 1px solid #cbd5e1;
 	color: #0f172a;
@@ -117,7 +130,7 @@
 .acvd-pin-update-box {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 6px;
 	flex-wrap: wrap;
 }
 
@@ -128,7 +141,7 @@
 }
 
 .acvd-new-pin-wrap input {
-	width: 170px;
+	width: 140px;
 }
 
 .acd-card-aspect-frame.is-protected {

@@ -18,6 +18,7 @@ from archive.api.card_family import (
 	inspect_account_family,
 	rename_card_family_base_name,
 	sync_type_group_daily_limit,
+	validate_account_number_base_card_name,
 	validate_type_group_daily_limit_against_today_deposits,
 )
 from archive.api.card_search import (
@@ -1016,19 +1017,21 @@ def create_card(payload: dict[str, Any] | str) -> dict[str, Any]:
 	if not clean_base_name:
 		frappe.throw(_("حقل اسم البطاقة مطلوب."), frappe.ValidationError)
 
+	validate_account_number_base_card_name(
+		norm_account=norm_account,
+		clean_base_name=clean_base_name,
+		lock=True,
+	)
+
 	card_number = clean_card_number(data.get("card_number"))
 	if not card_number:
 		frappe.throw(_("حقل رقم البطاقة مطلوب."), frappe.ValidationError)
 	_validate_unique_card_number(card_number)
 
-	status = cstr(data.get("status") or "نشطة").strip()
-	if status not in VALID_STATUSES:
-		frappe.throw(_("حالة البطاقة غير صالحة."), frappe.ValidationError)
-
-	raw_status_reason = cstr(data.get("status_reason") or "").strip()
-	if status == "موقفة نهائياً" and not raw_status_reason:
-		frappe.throw(_("سبب الإيقاف النهائي للبطاقة مطلوب."), frappe.ValidationError)
-	resolved_status_reason = raw_status_reason if status == "موقفة نهائياً" else None
+	if data.get("status") and cstr(data.get("status")).strip() != "نشطة":
+		frappe.throw(_("حالة البطاقة الجديدة تكون «نشطة» دائماً."), frappe.ValidationError)
+	status = "نشطة"
+	resolved_status_reason = None
 
 	card_type = validate_card_type(data.get("card_type"), required=True)
 

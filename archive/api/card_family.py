@@ -22,6 +22,7 @@ from archive.api.card_search import (
 	validate_card_type,
 	validate_daily_limit_for_card_type,
 )
+from archive.api.operation_search import normalize_search_text
 from archive.services.card_audit import log_card_event
 from archive.services.card_permissions import CARD_DOCTYPE, require_card_permission
 
@@ -739,6 +740,94 @@ def _next_available_copy_no(family_name: str, exclude_card: str | None = None) -
 	return candidate
 
 
+def get_account_number_name_binding(
+	norm_account: str,
+	target_base_card_name: str | None = None,
+	exclude_card: str | None = None,
+	lock: bool = False,
+) -> dict[str, Any]:
+	if not norm_account:
+		return {
+			"is_bound": False,
+			"bound_base_card_name": None,
+			"has_name_conflict": False,
+			"conflict_message": None,
+		}
+
+	query = """
+		SELECT c.base_card_name
+		FROM `tabArchive Card` c
+		WHERE IFNULL(c.is_deleted, 0) = 0
+		  AND c.account_number_normalized = %(norm_account)s
+	"""
+	if exclude_card:
+		query += f" AND c.name != {frappe.db.escape(exclude_card)}"
+	query += " ORDER BY c.creation ASC"
+	if lock:
+		query += " FOR UPDATE"
+
+	rows = frappe.db.sql(query, {"norm_account": norm_account}, as_dict=True)
+	if not rows:
+		return {
+			"is_bound": False,
+			"bound_base_card_name": None,
+			"has_name_conflict": False,
+			"conflict_message": None,
+		}
+
+	bound_name = None
+	has_conflict = False
+	conflict_msg = None
+
+	target_norm = (
+		normalize_search_text(clean_base_card_name(target_base_card_name))
+		if target_base_card_name
+		else ""
+	)
+
+	for r in rows:
+		b_name = cstr(r.get("base_card_name") or "").strip()
+		if not b_name:
+			continue
+		if not bound_name:
+			bound_name = b_name
+		if target_norm:
+			b_norm = normalize_search_text(clean_base_card_name(b_name))
+			if b_norm and b_norm != target_norm:
+				has_conflict = True
+				conflict_msg = _(
+					"رقم الحساب مرتبط مسبقًا باسم البطاقة: {0}. لا يمكن استخدام رقم الحساب لاسم بطاقة مختلف."
+				).format(b_name)
+				bound_name = b_name
+				break
+
+	if not bound_name and rows:
+		bound_name = cstr(rows[0].get("base_card_name") or "").strip()
+
+	return {
+		"is_bound": bool(bound_name),
+		"bound_base_card_name": bound_name,
+		"has_name_conflict": has_conflict,
+		"conflict_message": conflict_msg,
+	}
+
+
+def validate_account_number_base_card_name(
+	norm_account: str,
+	clean_base_name: str,
+	exclude_card: str | None = None,
+	lock: bool = True,
+) -> None:
+	binding = get_account_number_name_binding(
+		norm_account=norm_account,
+		target_base_card_name=clean_base_name,
+		exclude_card=exclude_card,
+		lock=lock,
+	)
+	if binding["has_name_conflict"]:
+		frappe.throw(binding["conflict_message"], frappe.ValidationError)
+
+
 def inspect_account_family(
 	account_number: str,
 	base_card_name: str | None = None,
@@ -751,6 +840,18 @@ def inspect_account_family(
 	clean_base = clean_base_card_name(base_card_name)
 	clean_bank = cstr(bank or "").strip()
 	clean_type = clean_card_type(card_type)
+
+	binding_state = get_account_number_name_binding(
+		norm_account=norm,
+		target_base_card_name=clean_base,
+		exclude_card=exclude_card,
+		lock=False,
+	)
+	binding_fields = {
+		"account_name_conflict": bool(binding_state["has_name_conflict"]),
+		"bound_base_card_name": binding_state["bound_base_card_name"],
+		"account_name_conflict_message": binding_state["conflict_message"],
+	}
 
 	limit_state = get_type_group_shared_daily_limit_state(
 		norm_account=norm,
@@ -785,6 +886,7 @@ def inspect_account_family(
 			"requires_duplicate_confirmation": False,
 			"existing_cards": [],
 			**limit_fields,
+			**binding_fields,
 		}
 
 	family_rows = frappe.db.sql(
@@ -834,6 +936,7 @@ def inspect_account_family(
 			"requires_duplicate_confirmation": False,
 			"existing_cards": [],
 			**limit_fields,
+			**binding_fields,
 		}
 
 	family_row = family_rows[0]
@@ -936,6 +1039,7 @@ def inspect_account_family(
 		"requires_duplicate_confirmation": has_active,
 		"existing_cards": active_cards,
 		**limit_fields,
+		**binding_fields,
 	}
 
 
@@ -960,6 +1064,7 @@ def acquire_or_create_family_for_new_card(
 		frappe.throw(_("البنك مطلوب."), frappe.ValidationError)
 
 	clean_type = validate_card_type(card_type, required=True)
+	validate_account_number_base_card_name(norm_acc, clean_base, lock=True)
 
 	locked_rows = frappe.db.sql(
 		"""
