@@ -369,17 +369,17 @@ class ArchiveCardsPage {
 					<svg width="26" height="26" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 						<defs>
 							<linearGradient id="ac-layers-top" x1="4" y1="5" x2="24" y2="14" gradientUnits="userSpaceOnUse">
-								<stop offset="0%" stop-color="#60A5FA"/>
-								<stop offset="100%" stop-color="#1D6FF2"/>
+								<stop offset="0%" stop-color="#94A3B8"/>
+								<stop offset="100%" stop-color="#475569"/>
 							</linearGradient>
 							<linearGradient id="ac-layers-mid" x1="4" y1="12" x2="24" y2="19" gradientUnits="userSpaceOnUse">
-								<stop offset="0%" stop-color="#3B82F6"/>
-								<stop offset="100%" stop-color="#155EEF"/>
+								<stop offset="0%" stop-color="#64748B"/>
+								<stop offset="100%" stop-color="#475569"/>
 							</linearGradient>
 						</defs>
 						<path d="M14 4.5L24.5 9.8L14 15.1L3.5 9.8L14 4.5Z" fill="url(#ac-layers-top)"/>
 						<path d="M4.2 13.7L14 18.7L23.8 13.7" stroke="url(#ac-layers-mid)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-						<path d="M4.2 17.8L14 22.8L23.8 17.8" stroke="#0B5ED7" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+						<path d="M4.2 17.8L14 22.8L23.8 17.8" stroke="#334155" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
 					</svg>
 				`,
 			},

@@ -1,0 +1,24 @@
+{
+ "content": null,
+ "creation": "2026-11-08 22:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Page",
+ "icon": "file-text",
+ "idx": 0,
+ "modified": "2026-11-08 22:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Archive",
+ "name": "archive-commercial-registries",
+ "owner": "Administrator",
+ "page_name": "archive-commercial-registries",
+ "roles": [
+  {
+   "role": "\u0635\u0644\u0627\u062d\u064a\u0629 \u0639\u0631\u0636 \u0634\u0627\u0634\u0629 \u0627\u0644\u0633\u062c\u0644\u0627\u062a \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "\u0627\u0644\u0633\u062c\u0644\u0627\u062a \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629"
+}

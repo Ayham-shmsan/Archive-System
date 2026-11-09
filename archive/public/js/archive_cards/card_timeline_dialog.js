@@ -238,10 +238,44 @@
 		`;
 	}
 
+	const AC_UTL_ICONS = {
+		layers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>`,
+		card: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line><line x1="6" y1="15" x2="10" y2="15"></line></svg>`,
+		bank: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M3 10h18"></path><path d="M5 6l7-3 7 3"></path><path d="M4 10v11"></path><path d="M20 10v11"></path><path d="M8 14v3"></path><path d="M12 14v3"></path><path d="M16 14v3"></path></svg>`,
+		chart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>`,
+		plus_circle: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>`,
+		edit_box: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`,
+		image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>`,
+		transfer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 4l4 4-4 4"></path><path d="M3 8h18"></path><path d="M7 20l-4-4 4-4"></path><path d="M21 16H3"></path></svg>`,
+		refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
+		eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
+		trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
+		calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`,
+		user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
+		pin: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`,
+		doc_note: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>`,
+		filter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>`,
+		chevron_down: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`,
+	};
+
+	function get_status_tone_class(statusRaw) {
+		const clean = String(statusRaw || "")
+			.trim()
+			.replace(/مؤقتًا/g, "مؤقتاً")
+			.replace(/نهائيًا/g, "نهائياً");
+		if (clean === "نشطة" || clean === "نشط") return "is-status-active";
+		if (clean === "موقفة مؤقتاً") return "is-status-temp";
+		if (clean.startsWith("موقفة نهائياً")) return "is-status-perm";
+		return "is-status-neutral";
+	}
+
 	class ArchiveCardActivityTimelineDialog {
 		constructor(options = {}) {
 			this.card_name = options.card_name || "";
 			this.dialog = null;
+			this.card = {};
+			this.events = [];
+			this.active_filter = "all";
 		}
 
 		async show() {
@@ -252,74 +286,600 @@
 				args: { card: this.card_name },
 			});
 			const data = res?.message || {};
-			const card = data.card || {};
-			const events = Array.isArray(data.events) ? data.events : [];
+			this.card = data.card || {};
+			this.events = Array.isArray(data.events) ? data.events : [];
 
 			this.dialog = new frappe.ui.Dialog({
-				title: `سجل أحداث البطاقة — ${card.base_card_name || this.card_name}`,
-				size: "large",
-				primary_action_label: "إغلاق",
-				primary_action: () => this.dialog.hide(),
+				title: "سجل مستخدم العملية – البطاقات",
+				size: "extra-large",
+				fields: [
+					{
+						fieldname: "timeline_content",
+						fieldtype: "HTML",
+						options: `<div class="ac-utl-root" dir="rtl"></div>`,
+					},
+				],
 			});
 
-			const events_html = events.length
-				? events
-						.map((ev, idx) => {
-							const meta = resolve_event_meta(ev);
-							const is_last = idx === events.length - 1;
-							const source_badge =
-								ev.event_source === "system"
-									? `<span class="actl-source-badge is-system">تحديث عائلي تلقائي</span>`
-									: `<span class="actl-source-badge is-user">${frappe.utils.escape_html(ev.event_user_full_name || ev.event_user)}</span>`;
+			this.dialog.$wrapper
+				.addClass("ac-user-timeline-dialog")
+				.attr("dir", "rtl");
 
-							return `
-								<div class="actl-timeline-item tone-${meta.tone} ${is_last ? "is-last" : ""}">
-									<div class="actl-timeline-rail" aria-hidden="true">
-										<div class="actl-timeline-marker">
-											<i class="fa ${meta.icon}"></i>
-										</div>
-										<div class="actl-timeline-connector"></div>
-										${!is_last ? `<div class="actl-timeline-segment"></div>` : ""}
-									</div>
-									<div class="actl-timeline-card">
-										<div class="actl-timeline-card-header">
-											<div class="actl-title-wrap">
-												<span class="actl-type-badge tone-${meta.tone}">${frappe.utils.escape_html(meta.label)}</span>
-												<strong class="actl-event-title">${frappe.utils.escape_html(ev.event_title)}</strong>
-											</div>
-											<div class="actl-meta-wrap">
-												${source_badge}
-												<span class="actl-timestamp" dir="rtl">${frappe.utils.escape_html(format_system_datetime(ev.event_datetime) || "—")}</span>
-											</div>
-										</div>
-										${format_event_details_html(ev, card)}
-										${
-											ev.remarks
-												? `<div class="actl-remarks"><i class="fa fa-comment-o"></i> ${frappe.utils.escape_html(ev.remarks)}</div>`
-												: ""
-										}
-									</div>
-								</div>
-							`;
-						})
-						.join("")
-				: `<div class="actl-empty-state">لا توجد أحداث مسجلة لهذه البطاقة بعد.</div>`;
+			const $title = this.dialog.$wrapper.find(".modal-title");
+			if ($title.length) {
+				$title.html(`
+					<span class="ac-utl-modal-title">
+						<span class="ac-utl-modal-title-icon">${AC_UTL_ICONS.layers}</span>
+						<span>سجل مستخدم العملية – البطاقات</span>
+					</span>
+				`);
+			}
 
-			$(this.dialog.body).attr("dir", "rtl").html(`
-				<div class="archive-card-timeline-shell" dir="rtl">
-					<div class="actl-header-summary">
-						<div><strong>البطاقة:</strong> ${frappe.utils.escape_html(card.base_card_name || "")} <span class="ac-copy-badge">نسخة ${card.copy_no || 1}</span></div>
-						<div><strong>رقم الحساب:</strong> <span dir="ltr">${frappe.utils.escape_html(card.account_number || "")}</span></div>
-						<div><strong>رقم البطاقة:</strong> <span dir="ltr">${frappe.utils.escape_html(card.card_number || "")}</span></div>
-						<div><strong>إجمالي الأحداث:</strong> ${events.length}</div>
+			this.$root = this.dialog.fields_dict.timeline_content.$wrapper.find(".ac-utl-root");
+
+			this.dialog.$wrapper.on("click.ac_utl", "[data-ac-utl-filter]", (e) => {
+				this.active_filter = $(e.currentTarget).attr("data-ac-utl-filter") || "all";
+				this.render();
+			});
+
+			this.dialog.$wrapper.on("change.ac_utl", "[data-ac-utl-select]", (e) => {
+				this.active_filter = $(e.currentTarget).val() || "all";
+				this.render();
+			});
+
+			this.dialog.$wrapper.on("hidden.bs.modal.ac_utl", () => {
+				this.dialog?.$wrapper?.off(".ac_utl");
+				this.dialog?.$wrapper?.remove();
+			});
+
+			this.render();
+			this.dialog.show();
+		}
+
+		get_event_category(ev) {
+			const t = String(ev.event_type || "").trim();
+			if (t === "status_change") return "status";
+			if (t === "formal_transfer") return "transfer";
+			if (t === "front_image_updated") return "front_image";
+			if (t === "back_image_updated") return "back_image";
+			if (t === "created") return "created";
+			if (t === "deleted") return "deleted";
+			return "edit";
+		}
+
+		split_date_time(rawValue) {
+			const resolved = resolve_raw_system_datetime(rawValue);
+			if (!resolved) {
+				return { date: "—", time: "—", inline: "—" };
+			}
+			const m = resolved.match(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{1,2}):(\d{2})/);
+			if (!m) {
+				return { date: resolved, time: "", inline: resolved };
+			}
+			const datePart = m[1];
+			const h24 = parseInt(m[2], 10);
+			const min = String(m[3]).padStart(2, "0");
+			const period = h24 >= 12 ? "م" : "ص";
+			const h12 = String(h24 % 12 || 12).padStart(2, "0");
+			const timePart = `${h12}:${min} ${period}`;
+			return {
+				date: datePart,
+				time: timePart,
+				inline: `${datePart} ${timePart}`,
+			};
+		}
+
+		render() {
+			const card = this.card || {};
+			const allEvents = this.events || [];
+
+			const counts = {
+				all: allEvents.length,
+				edit: allEvents.filter((e) => this.get_event_category(e) === "edit").length,
+				front_image: allEvents.filter((e) => this.get_event_category(e) === "front_image").length,
+				back_image: allEvents.filter((e) => this.get_event_category(e) === "back_image").length,
+				transfer: allEvents.filter((e) => this.get_event_category(e) === "transfer").length,
+				status: allEvents.filter((e) => this.get_event_category(e) === "status").length,
+				created: allEvents.filter((e) => this.get_event_category(e) === "created").length,
+			};
+
+			const filteredEvents =
+				this.active_filter === "all"
+					? allEvents
+					: allEvents.filter((e) => this.get_event_category(e) === this.active_filter);
+
+			const oldestDt = allEvents.length ? allEvents[allEvents.length - 1].event_datetime : "";
+			const newestDt = allEvents.length ? allEvents[0].event_datetime : "";
+			const createdFormatted = this.split_date_time(card.creation || oldestDt).inline;
+			const updatedFormatted = this.split_date_time(newestDt || card.modified || card.creation).inline;
+
+			const cardTitleName = card.base_card_name || card.card_name || this.card_name || "—";
+			const copyBadgeHtml = card.copy_no
+				? `<span class="ac-copy-badge" style="margin-right:6px;">نسخة ${frappe.utils.escape_html(String(card.copy_no))}</span>`
+				: "";
+
+			this.$root.html(`
+				<!-- Top Summary Banner -->
+				<div class="ac-utl-banner">
+					<div class="ac-utl-banner-brand">
+						<div class="ac-utl-banner-icon">${AC_UTL_ICONS.card}</div>
+						<div class="ac-utl-banner-id">
+							<span class="ac-utl-banner-sub">اسم البطاقة:</span>
+							<div class="ac-utl-banner-title">
+								<strong>${frappe.utils.escape_html(cardTitleName)}</strong>
+								${copyBadgeHtml}
+							</div>
+						</div>
 					</div>
-					<div class="actl-vertical-stream">
-						${events_html}
+
+					<div class="ac-utl-banner-sep"></div>
+
+					<div class="ac-utl-banner-meta">
+						<span class="ac-utl-banner-meta-icon">${AC_UTL_ICONS.bank}</span>
+						<span class="ac-utl-banner-label">رقم الحساب:</span>
+						<strong class="ac-utl-banner-num" dir="ltr">${frappe.utils.escape_html(card.account_number || "—")}</strong>
+					</div>
+
+					<div class="ac-utl-banner-sep"></div>
+
+					<div class="ac-utl-banner-meta">
+						<span class="ac-utl-banner-meta-icon">${AC_UTL_ICONS.card}</span>
+						<span class="ac-utl-banner-label">رقم البطاقة:</span>
+						<strong class="ac-utl-banner-num" dir="ltr">${frappe.utils.escape_html(card.card_number || "—")}</strong>
+					</div>
+
+					<div class="ac-utl-banner-sep"></div>
+
+					<div class="ac-utl-banner-total">
+						<span class="ac-utl-banner-total-icon">${AC_UTL_ICONS.calendar}</span>
+						<span>إجمالي الأحداث: <strong>${counts.all}</strong></span>
 					</div>
 				</div>
-			`);
 
-			this.dialog.show();
+				<!-- Two-Column Workspace: Right Main Feed + Left Summary Sidebar -->
+				<div class="ac-utl-layout">
+					<!-- Main Panel (Right in RTL) -->
+					<div class="ac-utl-main">
+						<div class="ac-utl-filterbar">
+							<div class="ac-utl-pills">
+								<button type="button" class="ac-utl-pill is-all ${this.active_filter === "all" ? "is-active" : ""}" data-ac-utl-filter="all">
+									<span class="ac-utl-pill-icon">${AC_UTL_ICONS.filter}</span>
+									<span>الكل (${counts.all})</span>
+								</button>
+								<button type="button" class="ac-utl-pill is-edit ${this.active_filter === "edit" ? "is-active" : ""}" data-ac-utl-filter="edit">
+									<span class="ac-utl-pill-icon">${AC_UTL_ICONS.edit_box}</span>
+									<span>تعديل (${counts.edit})</span>
+								</button>
+								<button type="button" class="ac-utl-pill is-front-image ${this.active_filter === "front_image" ? "is-active" : ""}" data-ac-utl-filter="front_image">
+									<span class="ac-utl-pill-icon">${AC_UTL_ICONS.image}</span>
+									<span>إضافة صورة أمام (${counts.front_image})</span>
+								</button>
+								<button type="button" class="ac-utl-pill is-back-image ${this.active_filter === "back_image" ? "is-active" : ""}" data-ac-utl-filter="back_image">
+									<span class="ac-utl-pill-icon">${AC_UTL_ICONS.image}</span>
+									<span>إضافة خلف (${counts.back_image})</span>
+								</button>
+								<button type="button" class="ac-utl-pill is-transfer ${this.active_filter === "transfer" ? "is-active" : ""}" data-ac-utl-filter="transfer">
+									<span class="ac-utl-pill-icon">${AC_UTL_ICONS.transfer}</span>
+									<span>نقل البطاقة (${counts.transfer})</span>
+								</button>
+								<button type="button" class="ac-utl-pill is-status ${this.active_filter === "status" ? "is-active" : ""}" data-ac-utl-filter="status">
+									<span class="ac-utl-pill-icon">${AC_UTL_ICONS.refresh}</span>
+									<span>تغيير الحالة (${counts.status})</span>
+								</button>
+							</div>
+
+							<div class="ac-utl-select-wrap">
+								<span class="ac-utl-select-filter-icon">${AC_UTL_ICONS.filter}</span>
+								<select class="ac-utl-select" data-ac-utl-select>
+									<option value="all" ${this.active_filter === "all" ? "selected" : ""}>كل العمليات</option>
+									<option value="created" ${this.active_filter === "created" ? "selected" : ""}>إنشاء البطاقة</option>
+									<option value="edit" ${this.active_filter === "edit" ? "selected" : ""}>تعديل البيانات</option>
+									<option value="front_image" ${this.active_filter === "front_image" ? "selected" : ""}>إضافة صورة أمام</option>
+									<option value="back_image" ${this.active_filter === "back_image" ? "selected" : ""}>إضافة صورة خلف</option>
+									<option value="transfer" ${this.active_filter === "transfer" ? "selected" : ""}>نقل البطاقة</option>
+									<option value="status" ${this.active_filter === "status" ? "selected" : ""}>تغيير الحالة</option>
+								</select>
+								<span class="ac-utl-select-chevron">${AC_UTL_ICONS.chevron_down}</span>
+							</div>
+						</div>
+
+						<div class="ac-utl-feed">
+							${
+								filteredEvents.length
+									? filteredEvents.map((ev, idx) => this.render_event_row(ev, idx, filteredEvents.length)).join("")
+									: `<div class="ac-utl-empty">لا توجد أحداث مسجلة لهذه البطاقة ضمن هذا التصنيف.</div>`
+							}
+						</div>
+					</div>
+
+					<!-- Summary Sidebar (Left in RTL) -->
+					<aside class="ac-utl-sidebar">
+						<div class="ac-utl-sidebar-head">
+							<span class="ac-utl-sidebar-head-icon">${AC_UTL_ICONS.chart}</span>
+							<h4>ملخص العملية</h4>
+						</div>
+
+						<div class="ac-utl-stat-list">
+							<div class="ac-utl-stat-card">
+								<div class="ac-utl-stat-label">
+									<span class="ac-utl-stat-icon is-edit">${AC_UTL_ICONS.edit_box}</span>
+									<span>تعديل البيانات</span>
+								</div>
+								<strong class="ac-utl-stat-num">${counts.edit}</strong>
+							</div>
+							<div class="ac-utl-stat-card">
+								<div class="ac-utl-stat-label">
+									<span class="ac-utl-stat-icon is-front-image">${AC_UTL_ICONS.image}</span>
+									<span>إضافة صورة أمام</span>
+								</div>
+								<strong class="ac-utl-stat-num">${counts.front_image}</strong>
+							</div>
+							<div class="ac-utl-stat-card">
+								<div class="ac-utl-stat-label">
+									<span class="ac-utl-stat-icon is-back-image">${AC_UTL_ICONS.image}</span>
+									<span>إضافة صورة خلف</span>
+								</div>
+								<strong class="ac-utl-stat-num">${counts.back_image}</strong>
+							</div>
+							<div class="ac-utl-stat-card">
+								<div class="ac-utl-stat-label">
+									<span class="ac-utl-stat-icon is-transfer">${AC_UTL_ICONS.transfer}</span>
+									<span>نقل البطاقة</span>
+								</div>
+								<strong class="ac-utl-stat-num">${counts.transfer}</strong>
+							</div>
+							<div class="ac-utl-stat-card">
+								<div class="ac-utl-stat-label">
+									<span class="ac-utl-stat-icon is-status">${AC_UTL_ICONS.refresh}</span>
+									<span>تغيير الحالة</span>
+								</div>
+								<strong class="ac-utl-stat-num">${counts.status}</strong>
+							</div>
+						</div>
+
+						<div class="ac-utl-sidebar-divider"></div>
+
+						<div class="ac-utl-dates">
+							<div class="ac-utl-date-item">
+								<span class="ac-utl-date-icon">${AC_UTL_ICONS.calendar}</span>
+								<div class="ac-utl-date-info">
+									<span>تاريخ الإنشاء</span>
+									<strong>${frappe.utils.escape_html(createdFormatted)}</strong>
+								</div>
+							</div>
+							<div class="ac-utl-date-item">
+								<span class="ac-utl-date-icon">${AC_UTL_ICONS.calendar}</span>
+								<div class="ac-utl-date-info">
+									<span>آخر تحديث</span>
+									<strong>${frappe.utils.escape_html(updatedFormatted)}</strong>
+								</div>
+							</div>
+						</div>
+					</aside>
+				</div>
+			`);
+		}
+
+		resolve_visual_config(ev) {
+			const type = String(ev.event_type || "").trim();
+			if (type === "status_change") {
+				return {
+					badge_label: "تغيير الحالة",
+					badge_class: "is-status",
+					icon: AC_UTL_ICONS.refresh,
+					actor_sub: "قام بتغيير حالة البطاقة.",
+				};
+			}
+			if (type === "formal_transfer") {
+				return {
+					badge_label: "نقل البطاقة",
+					badge_class: "is-transfer",
+					icon: AC_UTL_ICONS.transfer,
+					actor_sub: "قام بنقل البطاقة.",
+				};
+			}
+			if (type === "front_image_updated") {
+				return {
+					badge_label: "إضافة صورة أمام",
+					badge_class: "is-front-image",
+					icon: AC_UTL_ICONS.image,
+					actor_sub: "قام بإضافة صورة أمام.",
+				};
+			}
+			if (type === "back_image_updated") {
+				return {
+					badge_label: "إضافة صورة خلف",
+					badge_class: "is-back-image",
+					icon: AC_UTL_ICONS.image,
+					actor_sub: "قام بإضافة صورة خلف.",
+				};
+			}
+			if (type === "created") {
+				return {
+					badge_label: "إنشاء البطاقة",
+					badge_class: "is-created",
+					icon: AC_UTL_ICONS.plus_circle,
+					actor_sub: "قام بإنشاء البطاقة.",
+				};
+			}
+			if (type === "deleted") {
+				return {
+					badge_label: "حذف البطاقة",
+					badge_class: "is-deleted",
+					icon: AC_UTL_ICONS.trash,
+					actor_sub: "قام بحذف البطاقة.",
+				};
+			}
+			if (type === "image_blur_revealed") {
+				return {
+					badge_label: "كشف تمويه",
+					badge_class: "is-edit",
+					icon: AC_UTL_ICONS.eye,
+					actor_sub: "قام بكشف تمويه صورة البطاقة.",
+				};
+			}
+			return {
+				badge_label: "تعديل البيانات",
+				badge_class: "is-edit",
+				icon: AC_UTL_ICONS.edit_box,
+				actor_sub: "قام بتعديل بيانات البطاقة.",
+			};
+		}
+
+		render_center_details(ev) {
+			const d = ev.details || {};
+			const type = String(ev.event_type || "").trim();
+			const remarks = String(ev.remarks || "").trim();
+			const noteHtml = remarks
+				? `
+					<div class="ac-utl-note-pill">
+						<span class="ac-utl-note-icon">${AC_UTL_ICONS.doc_note}</span>
+						<strong>ملاحظة:</strong>
+						<span>${frappe.utils.escape_html(remarks)}</span>
+					</div>
+				`
+				: "";
+
+			if (type === "status_change") {
+				const oldRaw = d.old_status || "—";
+				const newRaw = d.new_status || "—";
+				const oldLabel = display_status_label(oldRaw) || oldRaw;
+				const newLabel = display_status_label(newRaw) || newRaw;
+				const oldTone = get_status_tone_class(oldRaw);
+				const newTone = get_status_tone_class(newRaw);
+				return `
+					<div class="ac-utl-center-stack">
+						<div class="ac-utl-status-flow">
+							<span class="ac-utl-status-pill ${oldTone}">${frappe.utils.escape_html(oldLabel)}</span>
+							<span class="ac-utl-flow-arrow">←</span>
+							<span class="ac-utl-status-pill ${newTone}">${frappe.utils.escape_html(newLabel)}</span>
+						</div>
+						${noteHtml}
+					</div>
+				`;
+			}
+
+			if (type === "formal_transfer") {
+				const fromRep = d.from_representative_name || d.from_representative || "—";
+				const fromReg = d.from_region_name || d.from_region || "—";
+				const toRep = d.to_representative_name || d.to_representative || "—";
+				const toReg = d.to_region_name || d.to_region || "—";
+				return `
+					<div class="ac-utl-center-stack">
+						<div class="ac-utl-transfer-flow">
+							<div class="ac-utl-transfer-col">
+								<span class="ac-utl-transfer-head">من:</span>
+								<div class="ac-utl-transfer-box is-from">
+									<div class="ac-utl-transfer-line">
+										<span class="ac-utl-mini-icon">${AC_UTL_ICONS.pin}</span>
+										<span>المنطقة: <strong>${frappe.utils.escape_html(fromReg)}</strong></span>
+									</div>
+									<div class="ac-utl-transfer-line">
+										<span class="ac-utl-mini-icon">${AC_UTL_ICONS.user}</span>
+										<span>المندوب: <strong>${frappe.utils.escape_html(fromRep)}</strong></span>
+									</div>
+								</div>
+							</div>
+
+							<span class="ac-utl-flow-arrow">←</span>
+
+							<div class="ac-utl-transfer-col">
+								<span class="ac-utl-transfer-head">إلى:</span>
+								<div class="ac-utl-transfer-box is-to">
+									<div class="ac-utl-transfer-line">
+										<span class="ac-utl-mini-icon">${AC_UTL_ICONS.pin}</span>
+										<span>المنطقة: <strong class="is-accent">${frappe.utils.escape_html(toReg)}</strong></span>
+									</div>
+									<div class="ac-utl-transfer-line">
+										<span class="ac-utl-mini-icon">${AC_UTL_ICONS.user}</span>
+										<span>المندوب: <strong>${frappe.utils.escape_html(toRep)}</strong></span>
+									</div>
+								</div>
+							</div>
+						</div>
+						${noteHtml}
+					</div>
+				`;
+			}
+
+			if (type === "front_image_updated") {
+				return `
+					<div class="ac-utl-center-stack">
+						<div class="ac-utl-simple-title">تم إضافة صورة أمام البطاقة.</div>
+						${noteHtml}
+					</div>
+				`;
+			}
+
+			if (type === "back_image_updated") {
+				return `
+					<div class="ac-utl-center-stack">
+						<div class="ac-utl-simple-title">تم إضافة صورة خلف البطاقة.</div>
+						${noteHtml}
+					</div>
+				`;
+			}
+
+			if (type === "created") {
+				const stRaw = d.status || this.card.status || "نشطة";
+				const stLabel = display_status_label(stRaw) || stRaw;
+				const stTone = get_status_tone_class(stRaw);
+				return `
+					<div class="ac-utl-center-stack">
+						<div class="ac-utl-simple-title">تم إنشاء البطاقة.</div>
+						<div class="ac-utl-created-status-wrap">
+							<span class="ac-utl-status-pill ${stTone}">الحالة: ${frappe.utils.escape_html(stLabel)}</span>
+						</div>
+						${noteHtml}
+					</div>
+				`;
+			}
+
+			if (type === "account_family_changed") {
+				const rows = [];
+				rows.push(`
+					<div class="ac-utl-diff-row">
+						<span class="ac-utl-diff-old">رقم الحساب: <span dir="ltr">${frappe.utils.escape_html(d.old_account_number || "—")}</span></span>
+						<span class="ac-utl-flow-arrow">←</span>
+						<span class="ac-utl-diff-new" dir="ltr">${frappe.utils.escape_html(d.new_account_number || "—")}</span>
+					</div>
+				`);
+				if (d.old_base_card_name || d.new_base_card_name) {
+					rows.push(`
+						<div class="ac-utl-diff-row">
+							<span class="ac-utl-diff-old">اسم البطاقة: ${frappe.utils.escape_html(d.old_base_card_name || "—")}</span>
+							<span class="ac-utl-flow-arrow">←</span>
+							<span class="ac-utl-diff-new">${frappe.utils.escape_html(d.new_base_card_name || "—")}</span>
+						</div>
+					`);
+				}
+				return `
+					<div class="ac-utl-center-stack">
+						<div class="ac-utl-simple-title">تم تعديل بيانات البطاقة.</div>
+						${rows.join("")}
+						${noteHtml}
+					</div>
+				`;
+			}
+
+			if (type === "family_base_name_changed") {
+				return `
+					<div class="ac-utl-center-stack">
+						<div class="ac-utl-simple-title">تم تعديل بيانات البطاقة.</div>
+						<div class="ac-utl-diff-row">
+							<span class="ac-utl-diff-old">اسم البطاقة: ${frappe.utils.escape_html(d.old_base_card_name || "—")}</span>
+							<span class="ac-utl-flow-arrow">←</span>
+							<span class="ac-utl-diff-new">${frappe.utils.escape_html(d.new_base_card_name || "—")}</span>
+						</div>
+						${noteHtml}
+					</div>
+				`;
+			}
+
+			if (type === "daily_limit_changed") {
+				const oldV = d.old_daily_limit ? Number(d.old_daily_limit).toLocaleString("en-US", { minimumFractionDigits: 2 }) : "غير محدد";
+				const newV = d.new_daily_limit ? Number(d.new_daily_limit).toLocaleString("en-US", { minimumFractionDigits: 2 }) : "غير محدد";
+				return `
+					<div class="ac-utl-center-stack">
+						<div class="ac-utl-simple-title">تم تعديل الحد اليومي للبطاقة.</div>
+						<div class="ac-utl-diff-row">
+							<span class="ac-utl-diff-old">الحد اليومي: <span dir="ltr">${frappe.utils.escape_html(oldV)}</span></span>
+							<span class="ac-utl-flow-arrow">←</span>
+							<span class="ac-utl-diff-new" dir="ltr">${frappe.utils.escape_html(newV)}</span>
+						</div>
+						${noteHtml}
+					</div>
+				`;
+			}
+
+			if (type === "manual_edit" && d.changed_fields && typeof d.changed_fields === "object") {
+				const diffRows = Object.entries(d.changed_fields)
+					.map(([field, diff]) => {
+						const label = FIELD_ARABIC_LABELS[field] || field;
+						const oldDisp = diff.old_label !== undefined ? diff.old_label : (diff.old ?? "—");
+						const newDisp = diff.new_label !== undefined ? diff.new_label : (diff.new ?? "—");
+						return `
+							<div class="ac-utl-diff-row">
+								<span class="ac-utl-diff-old">${frappe.utils.escape_html(label)}: ${frappe.utils.escape_html(String(oldDisp))}</span>
+								<span class="ac-utl-flow-arrow">←</span>
+								<span class="ac-utl-diff-new">${frappe.utils.escape_html(String(newDisp))}</span>
+							</div>
+						`;
+					})
+					.join("");
+				return `
+					<div class="ac-utl-center-stack">
+						<div class="ac-utl-simple-title">تم تعديل بيانات البطاقة.</div>
+						${diffRows}
+						${noteHtml}
+					</div>
+				`;
+			}
+
+			if (type === "image_blur_revealed") {
+				const sideAr = d.side_label || (d.side === "back" ? "الخلفي" : "الأمامي");
+				const detailMsg = d.description || `قام المستخدم بكشف تمويه صورة الوجه ${sideAr} للبطاقة بغرض العرض.`;
+				return `
+					<div class="ac-utl-center-stack">
+						<div class="ac-utl-simple-title">${frappe.utils.escape_html(detailMsg)}</div>
+						${noteHtml}
+					</div>
+				`;
+			}
+
+			return `
+				<div class="ac-utl-center-stack">
+					<div class="ac-utl-simple-title">${frappe.utils.escape_html(ev.event_title || "تم تحديث بيانات البطاقة.")}</div>
+					${noteHtml}
+				</div>
+			`;
+		}
+
+		render_event_row(ev, idx, total) {
+			const vis = this.resolve_visual_config(ev);
+			const dtParts = this.split_date_time(ev.event_datetime);
+			const actorName =
+				ev.event_source === "system"
+					? `${ev.event_user_full_name || ev.event_user || "النظام"} (تحديث عائلي تلقائي)`
+					: ev.event_user_full_name || ev.event_user || "—";
+
+			return `
+				<div class="ac-utl-row">
+					<div class="ac-utl-axis">
+						<span class="ac-utl-node ${vis.badge_class}">${vis.icon}</span>
+						${idx < total - 1 ? `<span class="ac-utl-line"></span>` : ""}
+					</div>
+
+					<div class="ac-utl-card">
+						<div class="ac-utl-card-right">
+							<span class="ac-utl-badge ${vis.badge_class}">
+								<span class="ac-utl-badge-icon">${vis.icon}</span>
+								<span>${frappe.utils.escape_html(vis.badge_label)}</span>
+							</span>
+
+							<div class="ac-utl-actor-col">
+								<div class="ac-utl-actor">
+									<span class="ac-utl-actor-icon">${AC_UTL_ICONS.user}</span>
+									<strong>${frappe.utils.escape_html(actorName)}</strong>
+								</div>
+								<div class="ac-utl-actor-sub">${frappe.utils.escape_html(vis.actor_sub)}</div>
+							</div>
+						</div>
+
+						<div class="ac-utl-card-center">
+							${this.render_center_details(ev)}
+						</div>
+
+						<div class="ac-utl-card-left">
+							<div class="ac-utl-time-stack">
+								<span class="ac-utl-date">${frappe.utils.escape_html(dtParts.date)}</span>
+								<span class="ac-utl-time">${frappe.utils.escape_html(dtParts.time)}</span>
+							</div>
+							<span class="ac-utl-cal-icon">${AC_UTL_ICONS.calendar}</span>
+						</div>
+					</div>
+				</div>
+			`;
 		}
 	}
 

@@ -19,6 +19,10 @@ ROLE_OPERATIONS_SCREEN_ACCESS = (
     "صلاحية الوصول إلى شاشة العمليات"
 )
 
+ROLE_VIEW_OPERATION_TIMELINE = (
+    "صلاحية عرض سجل مستخدم العملية في شاشة العمليات"
+)
+
 
 def has_operations_screen_access_role(
     user: str | None = None,

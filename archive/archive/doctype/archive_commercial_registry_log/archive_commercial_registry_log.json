@@ -1,0 +1,162 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-11-08 22:40:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "log_section",
+  "commercial_registry",
+  "commercial_registry_no",
+  "registry_name",
+  "account_owner",
+  "record_owner",
+  "column_break_log_1",
+  "event_type",
+  "event_title",
+  "event_datetime",
+  "event_user",
+  "event_source",
+  "details_section",
+  "remarks",
+  "details_json"
+ ],
+ "fields": [
+  {
+   "fieldname": "log_section",
+   "fieldtype": "Section Break",
+   "label": "\u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u062d\u062f\u062b"
+  },
+  {
+   "fieldname": "commercial_registry",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "\u0645\u0639\u0631\u0641 \u0627\u0644\u0633\u062c\u0644 \u0627\u0644\u062a\u062c\u0627\u0631\u064a",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "commercial_registry_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "\u0631\u0642\u0645 \u0627\u0644\u0633\u062c\u0644 \u0627\u0644\u062a\u062c\u0627\u0631\u064a",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "registry_name",
+   "fieldtype": "Data",
+   "label": "\u0627\u0633\u0645 \u0627\u0644\u0633\u062c\u0644",
+   "read_only": 1
+  },
+  {
+   "fieldname": "account_owner",
+   "fieldtype": "Data",
+   "label": "\u0635\u0627\u062d\u0628 \u0627\u0644\u0633\u062c\u0644",
+   "read_only": 1
+  },
+  {
+   "fieldname": "record_owner",
+   "fieldtype": "Data",
+   "label": "\u0645\u0646\u0634\u0626 \u0627\u0644\u0633\u062c\u0644",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_log_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "event_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "\u0646\u0648\u0639 \u0627\u0644\u062d\u062f\u062b",
+   "options": "created\nmanual_edit\nattachment_added\nattachment_deleted\nattachment_viewed\nattachment_downloaded\ndeleted",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "event_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "\u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u062d\u062f\u062b",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "event_datetime",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "\u0648\u0642\u062a \u0627\u0644\u062d\u062f\u062b",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "event_user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "\u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645",
+   "options": "User",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "default": "user",
+   "fieldname": "event_source",
+   "fieldtype": "Select",
+   "label": "\u0645\u0635\u062f\u0631 \u0627\u0644\u062d\u062f\u062b",
+   "options": "user\nsystem",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "\u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "\u0645\u0644\u0627\u062d\u0638\u0627\u062a",
+   "read_only": 1
+  },
+  {
+   "fieldname": "details_json",
+   "fieldtype": "Code",
+   "label": "\u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644 (JSON)",
+   "options": "JSON",
+   "read_only": 1
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-08 22:40:00.000000",
+ "modified_by": "Administrator",
+ "module": "Archive",
+ "name": "Archive Commercial Registry Log",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "\u0635\u0644\u0627\u062d\u064a\u0629 \u0639\u0631\u0636 \u0633\u062c\u0644 \u0645\u0633\u062a\u062e\u062f\u0645 \u0627\u0644\u0639\u0645\u0644\u064a\u0629",
+   "select": 1,
+   "share": 0
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "event_datetime",
+ "sort_order": "DESC",
+ "states": []
+}

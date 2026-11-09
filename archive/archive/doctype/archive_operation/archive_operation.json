@@ -486,7 +486,7 @@
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Archive Timeline Viewer",
+   "role": "صلاحية عرض سجل مستخدم العملية في شاشة العمليات",
    "share": 1,
    "view_operation_timeline": 1
   }

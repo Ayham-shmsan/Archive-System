@@ -128,11 +128,68 @@ def is_archive_card_file_doc(doc_or_name: Any) -> bool:
 	return False
 
 
+def _get_commercial_registry_for_file(doc_or_name: Any) -> str | None:
+	if not doc_or_name:
+		return None
+
+	if isinstance(doc_or_name, str):
+		row = frappe.db.get_value(
+			"File",
+			doc_or_name,
+			["name", "attached_to_doctype", "attached_to_name", "file_url"],
+			as_dict=True,
+		)
+		if not row:
+			return None
+		file_id = row.get("name")
+		attached_to_doctype = row.get("attached_to_doctype")
+		attached_to_name = row.get("attached_to_name")
+		file_url = row.get("file_url")
+	else:
+		file_id = getattr(doc_or_name, "name", None)
+		attached_to_doctype = getattr(doc_or_name, "attached_to_doctype", None)
+		attached_to_name = getattr(doc_or_name, "attached_to_name", None)
+		file_url = getattr(doc_or_name, "file_url", None)
+
+	if attached_to_doctype == "Archive Commercial Registry" and attached_to_name:
+		return str(attached_to_name)
+
+	if (file_id or file_url) and frappe.db.table_exists("Archive Commercial Registry Attachment"):
+		parent = frappe.db.sql(
+			"""
+			SELECT parent
+			FROM `tabArchive Commercial Registry Attachment`
+			WHERE (%(file_id)s != '' AND file_id = %(file_id)s)
+			   OR (%(file_url)s != '' AND file = %(file_url)s)
+			LIMIT 1
+			""",
+			{"file_id": str(file_id or ""), "file_url": str(file_url or "")},
+		)
+		if parent and parent[0] and parent[0][0]:
+			return str(parent[0][0])
+
+	return None
+
+
 def has_file_permission(
 	doc: Any,
 	ptype: str | None = None,
 	user: str | None = None,
 ) -> bool | None:
+	registry_name = _get_commercial_registry_for_file(doc)
+	if registry_name:
+		from archive.services.commercial_registry_permissions import (
+			can_edit_commercial_registry,
+			can_view_commercial_registry,
+		)
+
+		perm = ptype or "read"
+		if perm in ("read", "select", "export", "print", "email"):
+			return can_view_commercial_registry(registry_name, user=user)
+		if perm in ("write", "create", "delete"):
+			return can_edit_commercial_registry(registry_name, user=user)
+		return False
+
 	if not is_archive_card_file_doc(doc):
 		return True
 
@@ -150,6 +207,13 @@ def has_file_permission(
 
 class ArchiveFileMixin(Document):
 	def is_downloadable(self) -> bool:
+		registry_name = _get_commercial_registry_for_file(self)
+		if registry_name:
+			from archive.services.commercial_registry_permissions import (
+				can_view_commercial_registry,
+			)
+
+			return can_view_commercial_registry(registry_name)
 		if is_archive_card_file_doc(self):
 			return has_card_permission("view_card_images")
 		return super().is_downloadable()

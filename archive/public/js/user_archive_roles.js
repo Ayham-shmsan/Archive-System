@@ -45,7 +45,7 @@
 					"صلاحية إنهاء وإعادة فتح المعلقات",
 					"صلاحية إضافة إرجاع في المعلقات",
 					"صلاحية تصحيح حركة المبلغ في المعلقات",
-					"صلاحية عرض مسار العملية في المعلقات",
+					"صلاحية عرض سجل مستخدم العملية في شاشة المعلقات",
 				],
 			},
 			{
@@ -63,7 +63,7 @@
 					"Archive Attachment Manager",
 					"Archive Final Swift",
 					"صلاحية إرفاق الفاتورة غير المكتملة",
-					"Archive Timeline Viewer",
+					"صلاحية عرض سجل مستخدم العملية في شاشة العمليات",
 				],
 			},
 			{
@@ -92,6 +92,22 @@
 					"archive document authenticity manager",
 				],
 			},
+			{
+				id: "commercial_registries",
+				title: "السجلات التجارية",
+				icon: "file-text",
+				entry_role: "صلاحية عرض شاشة السجلات التجارية",
+				roles: [
+					"صلاحية عرض شاشة السجلات التجارية",
+					"صلاحية إضافة سجل تجاري",
+					"صلاحية تعديل السجل للمستخدم",
+					"صلاحية تعديل سجلات الآخرين",
+					"صلاحية عرض سجلات المستخدم فقط",
+					"صلاحية عرض سجلات الآخرين",
+					"صلاحية عرض سجل مستخدم العملية",
+					"صلاحية حذف سجل تجاري",
+				],
+			},
 		],
 		deprecated_roles: [
 			"مدير البطاقات",
@@ -110,6 +126,7 @@
 		layers: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
 		wallet: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>`,
 		"shield-check": `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>`,
+		"file-text": `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
 		grid: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
 		section: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
 		chevron: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,

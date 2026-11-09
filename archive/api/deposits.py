@@ -347,6 +347,9 @@ def has_deposit_permission(
 def get_all_screens_access_map(user: str | None = None) -> dict[str, bool]:
 	from archive.api.document_authenticity import has_authenticity_screen_access_role
 	from archive.services.card_permissions import has_card_permission
+	from archive.services.commercial_registry_permissions import (
+		has_commercial_registries_screen_access_role,
+	)
 	from archive.services.operation_permissions import has_operations_screen_access_role
 	from archive.services.pending_operation_permissions import has_pending_screen_access_role
 
@@ -357,6 +360,9 @@ def get_all_screens_access_map(user: str | None = None) -> dict[str, bool]:
 		"archive-operations": has_operations_screen_access_role(user=resolved_user),
 		"archive-deposits": has_deposits_screen_access_role(user=resolved_user),
 		"document-authenticity": has_authenticity_screen_access_role(user=resolved_user),
+		"archive-commercial-registries": has_commercial_registries_screen_access_role(
+			user=resolved_user
+		),
 	}
 
 
@@ -385,6 +391,7 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 	from archive.services.operation_permissions import (
 		ROLE_ATTACH_INCOMPLETE_INVOICE,
 		ROLE_OPERATIONS_SCREEN_ACCESS,
+		ROLE_VIEW_OPERATION_TIMELINE,
 	)
 	from archive.services.pending_operation_permissions import (
 		ROLE_ADD_PENDING_RETURN,
@@ -398,6 +405,11 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 		ROLE_VIEW_ALL_PENDING_OPERATIONS,
 		ROLE_VIEW_OWN_PENDING_OPERATIONS,
 		ROLE_VIEW_PENDING_OPERATION_TIMELINE,
+	)
+	from archive.services.commercial_registry_permissions import (
+		COMMERCIAL_REGISTRY_DOCTYPE,
+		COMMERCIAL_REGISTRY_ROLES,
+		ROLE_COMMERCIAL_REGISTRY_SCREEN_ACCESS,
 	)
 
 	deprecated_roles = (
@@ -476,7 +488,7 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 				"Archive Attachment Manager",
 				"Archive Final Swift",
 				ROLE_ATTACH_INCOMPLETE_INVOICE,
-				"Archive Timeline Viewer",
+				ROLE_VIEW_OPERATION_TIMELINE,
 			],
 		},
 		{
@@ -506,6 +518,14 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 				"archive document authenticity technical details",
 				"archive document authenticity manager",
 			],
+		},
+		{
+			"id": "commercial_registries",
+			"title": "السجلات التجارية",
+			"icon": "file-text",
+			"doctype": COMMERCIAL_REGISTRY_DOCTYPE,
+			"entry_role": ROLE_COMMERCIAL_REGISTRY_SCREEN_ACCESS,
+			"roles": list(COMMERCIAL_REGISTRY_ROLES),
 		},
 	]
 
@@ -699,7 +719,17 @@ def enforce_deposits_request_guard() -> None:
 		require_authenticity_screen_access()
 		return
 
-	# 2. Direct REST v1/v2 access to Archive Card Deposit
+	if "archive.api.commercial_registries." in raw_path or cmd_name.startswith(
+		"archive.api.commercial_registries."
+	):
+		from archive.services.commercial_registry_permissions import (
+			require_commercial_registries_screen_access,
+		)
+
+		require_commercial_registries_screen_access()
+		return
+
+	# 2. Direct REST v1/v2 access to Archive Card Deposit or Archive Commercial Registry
 	lower_path = raw_path.lower()
 	if (
 		"/api/resource/archive card deposit" in lower_path
@@ -713,7 +743,23 @@ def enforce_deposits_request_guard() -> None:
 			)
 		return
 
-	# 3. Direct Desk Page loader for the 5 Archive screens
+	if (
+		"/api/resource/archive commercial registry" in lower_path
+		or "/api/v2/document/archive commercial registry" in lower_path
+	):
+		from archive.services.commercial_registry_permissions import (
+			require_commercial_registries_screen_access,
+		)
+
+		require_commercial_registries_screen_access()
+		if http_method not in ("GET", "HEAD", "OPTIONS"):
+			frappe.throw(
+				_("لا يُسمح بتعديل أو حذف السجلات التجارية مباشرة عبر REST."),
+				frappe.PermissionError,
+			)
+		return
+
+	# 3. Direct Desk Page loader for the Archive screens
 	if "frappe.desk.desk_page.getpage" in raw_path or cmd_name == "frappe.desk.desk_page.getpage":
 		page_name = cstr(form_dict.get("name") or req_args.get("name") or "").strip()
 		if page_name == "archive-deposits":
@@ -739,10 +785,37 @@ def enforce_deposits_request_guard() -> None:
 
 			require_authenticity_screen_access()
 			return
+		if page_name == "archive-commercial-registries":
+			from archive.services.commercial_registry_permissions import (
+				require_commercial_registries_screen_access,
+			)
 
-	# 4. Generic Frappe RPC endpoints querying or mutating Archive Card Deposit or User day limits
+			require_commercial_registries_screen_access()
+			return
+
+	# 4. Generic Frappe RPC endpoints querying or mutating Archive Card Deposit, Archive Commercial Registry, or User day limits
 	if raw_path.startswith("/api/method/"):
 		target_doctypes = _extract_request_target_doctypes()
+		if "Archive Commercial Registry" in target_doctypes:
+			from archive.services.commercial_registry_permissions import (
+				require_commercial_registries_screen_access,
+			)
+
+			require_commercial_registries_screen_access()
+			write_rpc_markers = (
+				"frappe.client.insert",
+				"frappe.client.save",
+				"frappe.client.set_value",
+				"frappe.client.delete",
+				"frappe.client.rename_doc",
+				"frappe.desk.form.save.savedocs",
+			)
+			if any(m in raw_path or cmd_name == m for m in write_rpc_markers):
+				frappe.throw(
+					_("لا يُسمح بتعديل أو حذف السجلات التجارية خارج مسار الحفظ المعتمد."),
+					frappe.PermissionError,
+				)
+			return
 		if DEPOSIT_DOCTYPE in target_doctypes:
 			require_deposits_screen_access()
 			write_rpc_markers = (

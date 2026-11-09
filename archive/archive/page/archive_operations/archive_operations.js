@@ -2011,7 +2011,7 @@ class ArchiveOperationsPage {
                         style="display: none;"
                     >
                         <span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3.5 2"/></svg></span>
-                        <span class="ac-tb-label">مسار العملية</span>
+                        <span class="ac-tb-label">سجل مستخدم العملية</span>
                     </button>
                     
                     <button
@@ -3447,8 +3447,8 @@ class ArchiveOperationsPage {
 
 
                 <!-- تاريخ التنفيذ -->
-                <td>
-                    ${this.format_datetime(
+                <td dir="rtl">
+                    ${this.format_execution_datetime(
                         operation.execution_datetime
                     )}
                 </td>
@@ -3642,6 +3642,19 @@ class ArchiveOperationsPage {
         );
     }
 
+
+    format_execution_datetime(value) {
+        if (!value) {
+            return "—";
+        }
+
+        return this.escape_value(
+            String(value)
+                .trim()
+                .replace(/\.\d+$/, "")
+                .replace(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{1,2}:\d{2})(?::\d{2})?$/, "$1، $2")
+        );
+    }
 
     format_datetime(value) {
         if (!value) {

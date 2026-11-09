@@ -162,6 +162,8 @@ def get_card_activity_timeline(card: str, limit: int | str = 150) -> dict[str, A
 			"card_number",
 			"status",
 			"is_deleted",
+			"creation",
+			"modified",
 		],
 		as_dict=True,
 	)
@@ -230,6 +232,8 @@ def get_card_activity_timeline(card: str, limit: int | str = 150) -> dict[str, A
 			"account_number": card_row.account_number,
 			"card_number": card_row.card_number,
 			"status": card_row.status,
+			"creation": _format_event_datetime(card_row.creation),
+			"modified": _format_event_datetime(card_row.modified),
 		},
 		"events": events,
 		"total_events": len(events),

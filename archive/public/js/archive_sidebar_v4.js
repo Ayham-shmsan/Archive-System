@@ -62,6 +62,7 @@
                 "archive-pending-operations",
                 "archive-cards",
                 "archive-deposits",
+                "archive-commercial-registries",
                 "document-authenticity",
             ],
         },
@@ -815,6 +816,8 @@
                             ? "archive-cards"
                             : href.includes("archive-deposits") || label === "الإيداعات"
                             ? "archive-deposits"
+                            : href.includes("archive-commercial-registries") || label === "السجلات التجارية"
+                            ? "archive-commercial-registries"
                             : href.includes("document-authenticity") || label === "فحص المستندات"
                             ? "document-authenticity"
                             : "";

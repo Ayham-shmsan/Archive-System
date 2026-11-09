@@ -68,7 +68,7 @@ ROLE_CLOSE_REOPEN_PENDING_OPERATION = (
     "صلاحية إنهاء وإعادة فتح المعلقات"
 )
 ROLE_VIEW_PENDING_OPERATION_TIMELINE = (
-    "صلاحية عرض مسار العملية في المعلقات"
+    "صلاحية عرض سجل مستخدم العملية في شاشة المعلقات"
 )
 ROLE_PENDING_SCREEN_ACCESS = (
     "صلاحية الوصول إلى شاشة المعلقات"

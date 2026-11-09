@@ -568,6 +568,12 @@ class ArchivePendingOperationsPage {
                         "0"
                     )}
 
+                    ${this.summary_card(
+                        "closed",
+                        "العمليات المنتهية",
+                        "0"
+                    )}
+
                 </div>
 
                 <div class="archive-pending-toolbar">
@@ -673,7 +679,7 @@ class ArchivePendingOperationsPage {
                             disabled
                         >
                             <span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3.5 2"/></svg></span>
-                            <span class="ac-tb-label">مسار العملية</span>
+                            <span class="ac-tb-label">سجل مستخدم العملية</span>
                         </button>
 
                         <span class="ac-tb-divider" aria-hidden="true"></span>
@@ -1002,6 +1008,10 @@ class ArchivePendingOperationsPage {
                 desc: "معلقات تعذر تنفيذها",
                 icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="12.5"></line><circle cx="12" cy="16" r="0.6" fill="currentColor"></circle></svg>`,
             },
+            closed: {
+                desc: "معلقات تم إنهاؤها",
+                icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 12 2 2 4-4"></path></svg>`,
+            },
         }[status] || { desc: "", icon: "" };
 
         return `
@@ -1127,6 +1137,21 @@ class ArchivePendingOperationsPage {
                         custom.data_grid
                             .utils
                             .get_search_tokens,
+
+                    filter_handlers: {
+                        status: (record, filter_value) => {
+                            if (filter_value === "__closed__") {
+                                return this.is_operation_closed(record);
+                            }
+                            if (filter_value === "مرتجعة غير مكتملة") {
+                                return (
+                                    record?.status === "مرتجعة غير مكتملة"
+                                    && !this.is_operation_closed(record)
+                                );
+                            }
+                            return record?.status === filter_value;
+                        },
+                    },
 
                     sorters: {
 
@@ -1984,6 +2009,9 @@ class ArchivePendingOperationsPage {
 
                 failed:
                     "معلقة فاشلة",
+
+                closed:
+                    "__closed__",
             };
 
             return (
@@ -2035,6 +2063,9 @@ class ArchivePendingOperationsPage {
 
                 "معلقة فاشلة":
                     0,
+
+                closed:
+                    0,
             };
 
         for (
@@ -2052,7 +2083,28 @@ class ArchivePendingOperationsPage {
                 continue;
             }
 
+            const is_closed =
+                this.is_operation_closed(
+                    operation
+                );
+
             counts.all += 1;
+
+            if (is_closed) {
+                counts.closed += 1;
+            }
+
+            if (
+                operation.status
+                === "مرتجعة غير مكتملة"
+            ) {
+                if (!is_closed) {
+                    counts[
+                        "مرتجعة غير مكتملة"
+                    ] += 1;
+                }
+                continue;
+            }
 
             if (
                 Object.prototype
@@ -2230,6 +2282,10 @@ class ArchivePendingOperationsPage {
                 counts[
                     "معلقة فاشلة"
                 ]
+                || 0,
+
+            closed:
+                counts.closed
                 || 0,
         };
 

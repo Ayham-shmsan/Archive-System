@@ -214,6 +214,8 @@ permission_query_conditions = {
         "archive.services.card_permissions.get_permission_query_conditions",
     "Archive Card Deposit":
         "archive.api.deposits.get_deposit_permission_query_conditions",
+    "Archive Commercial Registry":
+        "archive.services.commercial_registry_permissions.get_permission_query_conditions",
 }
 
 has_permission = {
@@ -231,6 +233,10 @@ has_permission = {
         "archive.services.card_permissions.has_card_event_permission",
     "Archive Card Deposit":
         "archive.api.deposits.has_deposit_permission",
+    "Archive Commercial Registry":
+        "archive.services.commercial_registry_permissions.has_permission",
+    "Archive Commercial Registry Log":
+        "archive.services.commercial_registry_permissions.has_log_permission",
     "File":
         "archive.services.card_security.has_file_permission",
 }
