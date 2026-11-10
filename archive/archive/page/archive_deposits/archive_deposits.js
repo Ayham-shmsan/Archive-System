@@ -223,16 +223,41 @@ class ArchiveDepositsPage {
 	}
 
 	async initialize() {
-		await new Promise((resolve) => {
-			frappe.require(
-				[
-					"/assets/archive/js/shared/data_grid/core.js",
-					"/assets/archive/js/shared/data_grid/pagination.js",
-					"/assets/archive/css/shared/data_grid.css",
-				],
-				resolve
+		const [, fiscal_res] = await Promise.all([
+			new Promise((resolve) => {
+				frappe.require(
+					[
+						"/assets/archive/js/shared/data_grid/core.js",
+						"/assets/archive/js/shared/data_grid/pagination.js",
+						"/assets/archive/css/shared/data_grid.css",
+					],
+					resolve
+				);
+			}),
+			frappe
+				.call({
+					method: "archive.services.fiscal_year_permissions.get_my_fiscal_context",
+					type: "GET",
+				})
+				.catch(() => null),
+		]);
+
+		if (fiscal_res && fiscal_res.message) {
+			this.fiscal_context = fiscal_res.message;
+			const allowed = Array.isArray(this.fiscal_context.allowed_view_years)
+				? this.fiscal_context.allowed_view_years
+				: [];
+			const default_fy = String(
+				this.fiscal_context.default_view_fiscal_year || allowed[0] || ""
 			);
-		});
+			if (!this.state.fiscal_year && default_fy) {
+				this.state.fiscal_year = default_fy;
+				if (!String(this.state.deposit_date || "").startsWith(`${default_fy}-`)) {
+					this.state.deposit_date = "";
+				}
+			}
+			this.render_fiscal_year_filter();
+		}
 
 		this.mount_pagination();
 		this.bind_events();

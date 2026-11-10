@@ -268,27 +268,33 @@ class ArchiveOperationsPage {
         }
     }
     async initialize() {
-
-        await new Promise(
-            (resolve) => {
-
+        const [, fiscal_res] = await Promise.all([
+            new Promise((resolve) => {
                 frappe.require(
                     [
                         "/assets/archive/js/shared/data_grid/core.js",
                         "/assets/archive/js/shared/data_grid/pagination.js",
                         "/assets/archive/css/shared/data_grid.css",
-                        
+
                         "/assets/archive/js/shared/data_grid/filters.js",
                         "/assets/archive/css/shared/data_grid_filters.css",
                     ],
                     resolve
                 );
-            }
-        );
+            }),
+            frappe
+                .call({
+                    method: "archive.services.fiscal_year_permissions.get_my_fiscal_context",
+                    type: "GET",
+                })
+                .catch(() => null),
+        ]);
 
+        if (fiscal_res && fiscal_res.message) {
+            this.render_fiscal_year_filter(fiscal_res.message);
+        }
 
         this.initialize_data_grid();
-
 
         await this.load_operations();
     }
@@ -2693,6 +2699,8 @@ class ArchiveOperationsPage {
         );
 
 
+        const requested_fiscal_year = this.state.fiscal_year || "";
+
         try {
 
             const response =
@@ -2705,7 +2713,7 @@ class ArchiveOperationsPage {
                         "GET",
 
                     args: {
-                        fiscal_year: this.state.fiscal_year || undefined,
+                        fiscal_year: requested_fiscal_year || undefined,
                     },
                 });
 
@@ -2716,6 +2724,13 @@ class ArchiveOperationsPage {
 
             if (result.fiscal_context) {
                 this.render_fiscal_year_filter(result.fiscal_context);
+                if (
+                    !requested_fiscal_year
+                    && this.state.fiscal_year
+                    && this.state.fiscal_year !== "all"
+                ) {
+                    return await this.load_operations();
+                }
             }
 
 

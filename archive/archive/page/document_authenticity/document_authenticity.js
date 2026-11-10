@@ -1079,7 +1079,12 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                 }
 
                 if (!state.history.fiscal_year) {
-                    state.history.fiscal_year = fctx.default_view_fiscal_year || "";
+                    const allowedView = Array.isArray(fctx.allowed_view_years) ? fctx.allowed_view_years : [];
+                    state.history.fiscal_year = fctx.default_view_fiscal_year || allowedView[0] || "";
+                }
+                const $historyFy = $main.find(".archive-auth-history-fiscal-year");
+                if ($historyFy.length && state.history.initialized) {
+                    $historyFy.html(render_history_fiscal_year_options());
                 }
 
                 const $check_section =
@@ -2758,7 +2763,17 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             const closed_suffix = meta && Number(meta.is_closed) === 1 ? " (مغلقة)" : "";
             options.push({ value: yr, label: `${yr}${closed_suffix}` });
         });
-        const current = state.history.fiscal_year || fctx.default_view_fiscal_year || (options[0]?.value || "");
+        const validValues = new Set(options.map((opt) => opt.value));
+        const normalizedState =
+            state.history.fiscal_year && String(state.history.fiscal_year).toLowerCase() === "all" && validValues.has("ALL")
+                ? "ALL"
+                : state.history.fiscal_year;
+        const current =
+            normalizedState && validValues.has(normalizedState)
+                ? normalizedState
+                : fctx.default_view_fiscal_year && validValues.has(fctx.default_view_fiscal_year)
+                ? fctx.default_view_fiscal_year
+                : (options[0]?.value || "");
         state.history.fiscal_year = current;
         return options
             .map((option) => {

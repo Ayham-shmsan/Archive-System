@@ -1086,9 +1086,8 @@ class ArchivePendingOperationsPage {
     }
 
     async initialize() {
-        await new Promise(
-            (resolve) => {
-
+        const [, fiscal_res] = await Promise.all([
+            new Promise((resolve) => {
                 frappe.require(
                     [
                         "/assets/archive/js/shared/data_grid/core.js",
@@ -1097,17 +1096,16 @@ class ArchivePendingOperationsPage {
 
                         "/assets/archive/js/shared/data_grid/filters.js",
                         "/assets/archive/css/shared/data_grid_filters.css",
-                        
+
                         "/assets/archive/js/archive_pending_operations/pending_attachment_manager.js",
                         "/assets/archive/css/archive_pending_operations/pending_attachment_manager.css",
-                        
+
                         "/assets/archive/js/archive_pending_operations/pending_operation_dialog.js",
                         "/assets/archive/css/archive_pending_operations/pending_operation_dialog.css",
-                        
-                        
+
                         "/assets/archive/js/archive_pending_operations/pending_smart_autocomplete.js",
                         "/assets/archive/css/archive_pending_operations/pending_smart_autocomplete.css",
-                        
+
                         "/assets/archive/js/archive_pending_operations/pending_operation_view_dialog.js",
                         "/assets/archive/css/archive_pending_operations/pending_operation_view_dialog.css",
 
@@ -1116,8 +1114,19 @@ class ArchivePendingOperationsPage {
                     ],
                     resolve
                 );
-            }
-        );
+            }),
+            frappe
+                .call({
+                    method: "archive.services.fiscal_year_permissions.get_my_fiscal_context",
+                    type: "GET",
+                })
+                .catch(() => null),
+        ]);
+
+        if (fiscal_res && fiscal_res.message) {
+            this.fiscal_context = fiscal_res.message;
+            this.render_fiscal_year_filter();
+        }
 
         this.initialize_data_grid();
         this.initialize_filters();
@@ -1614,6 +1623,8 @@ class ArchivePendingOperationsPage {
             true
         );
 
+        const requested_fiscal_year = this.state.fiscal_year || "";
+
         try {
             const response =
                 await frappe.call({
@@ -1625,7 +1636,7 @@ class ArchivePendingOperationsPage {
                         "GET",
 
                     args: {
-                        fiscal_year: this.state.fiscal_year || undefined,
+                        fiscal_year: requested_fiscal_year || undefined,
                     },
                 });
 
@@ -1653,6 +1664,14 @@ class ArchivePendingOperationsPage {
                 this.state.fiscal_year = result.selected_fiscal_year;
             }
             this.render_fiscal_year_filter();
+            if (
+                !requested_fiscal_year
+                && this.state.fiscal_year
+                && String(this.state.fiscal_year).toLowerCase() !== "all"
+            ) {
+                this.set_loading(false);
+                return await this.load_context();
+            }
 
             this.scope =
                 result.scope
@@ -1832,7 +1851,17 @@ class ArchivePendingOperationsPage {
             return;
         }
         $select.prop("disabled", false);
-        const current = this.state.fiscal_year || ctx.default_view_fiscal_year || options[0].value;
+        const validValues = new Set(options.map((o) => o.value));
+        const normalizedState =
+            this.state.fiscal_year && String(this.state.fiscal_year).toLowerCase() === "all" && validValues.has("ALL")
+                ? "ALL"
+                : this.state.fiscal_year;
+        const current =
+            normalizedState && validValues.has(normalizedState)
+                ? normalizedState
+                : ctx.default_view_fiscal_year && validValues.has(ctx.default_view_fiscal_year)
+                ? ctx.default_view_fiscal_year
+                : options[0].value;
         $select.html(
             options
                 .map(
