@@ -1845,6 +1845,11 @@ class OperationViewDialog {
 
 		this.make_controls();
 
+		archive?.operations?.bind_swift_country_autofill?.(
+			this.controls?.swift_code,
+			this.controls?.country
+		);
+
 
 		// ========================================================
 		// Download events

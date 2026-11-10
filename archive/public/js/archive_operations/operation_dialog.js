@@ -1601,6 +1601,10 @@ archive.ui.OperationDialog = class OperationDialog {
 		this.bind_operation_number_mode();
 		this.bind_operation_number_lookup();
 		this.bind_customer_rate_mode();
+		archive?.operations?.bind_swift_country_autofill?.(
+			this.controls?.swift_code,
+			this.controls?.country
+		);
 		this.render_shared_documents();
 	}
 

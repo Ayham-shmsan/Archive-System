@@ -4106,6 +4106,7 @@ class ArchiveOperationsPage {
             [
                 "/assets/archive/js/archive_pending_operations/pending_attachment_manager.js",
                 "/assets/archive/css/archive_pending_operations/pending_attachment_manager.css",
+                "/assets/archive/js/archive_operations/swift_country_helper.js",
                 "/assets/archive/js/archive_operations/operation_view_dialog.js",
                 "/assets/archive/css/archive_operations/operation_dialog.css",
             ],
@@ -4508,6 +4509,7 @@ class ArchiveOperationsPage {
 	open_create_operation() {
         frappe.require(
             [
+                "/assets/archive/js/archive_operations/swift_country_helper.js",
                 "/assets/archive/js/archive_operations/operation_dialog.js",
                 "/assets/archive/css/archive_operations/operation_dialog.css",
             ],
