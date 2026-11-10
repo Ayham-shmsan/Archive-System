@@ -31,3 +31,4 @@ archive.patches.v1_0.rename_operation_and_pending_timeline_roles # 2026-11-08
 archive.patches.v1_0.setup_commercial_registries_roles_and_screen # 2026-11-08
 archive.patches.v1_0.setup_card_types_mada_business # 2026-11-09
 archive.patches.v1_0.setup_fiscal_years_2026 # 2026-11-10
+archive.patches.v1_0.setup_preview_operation_attachments_role # 2026-11-10

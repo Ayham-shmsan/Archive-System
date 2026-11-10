@@ -511,24 +511,6 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 	)
 	system_roles = {"System Manager", "Administrator", "All", "Guest", "Desk User"}
 
-	if not frappe.db.exists("Role", ROLE_PREVIEW_OPERATION_ATTACHMENTS):
-		frappe.get_doc(
-			{
-				"doctype": "Role",
-				"role_name": ROLE_PREVIEW_OPERATION_ATTACHMENTS,
-				"desk_access": 1,
-				"is_custom": 1,
-			}
-		).insert(ignore_permissions=True)
-		frappe.db.delete(
-			"Has Role",
-			{
-				"parent": "Administrator",
-				"parenttype": "User",
-				"role": ROLE_PREVIEW_OPERATION_ATTACHMENTS,
-			},
-		)
-
 	enabled_roles = set(
 		frappe.get_all("Role", filters={"disabled": 0}, pluck="name")
 	)
