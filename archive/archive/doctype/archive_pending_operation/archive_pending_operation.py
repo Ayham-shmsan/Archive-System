@@ -33,6 +33,13 @@ from archive.services.pending_operation_attachments import (
     adopt_pending_attachment_files,
     validate_pending_attachment_reference,
 )
+from archive.services.fiscal_year_permissions import (
+    enforce_immutable_fiscal_fields,
+    get_default_fiscal_year,
+    get_next_fiscal_sequence,
+    require_fiscal_permission,
+    resolve_target_fiscal_year_for_create,
+)
 
 PENDING_OPERATION_SERIAL_SERIES_KEY = (
     "ARCHIVE-PENDING-OPERATION-SERIAL"
@@ -348,6 +355,21 @@ class ArchivePendingOperation(Document):
             self.serial_no = (
                 get_next_pending_operation_serial()
             )
+        if not (
+            getattr(frappe.flags, "in_patch", False)
+            or getattr(frappe.flags, "in_migrate", False)
+            or getattr(frappe.flags, "in_install", False)
+        ):
+            self.fiscal_year = resolve_target_fiscal_year_for_create(self.fiscal_year)
+        elif not cstr(getattr(self, "fiscal_year", "")).strip():
+            self.fiscal_year = get_default_fiscal_year()
+
+        if not cint(getattr(self, "fiscal_sequence", 0)):
+            self.fiscal_sequence = get_next_fiscal_sequence(
+                "Archive Pending Operation",
+                self.fiscal_year,
+            )
+        set_pending_search_text(self)
         self.is_closed = 0
         self.closed_date = None
         self.closed_at = None
@@ -375,6 +397,7 @@ class ArchivePendingOperation(Document):
     def validate(
         self,
     ) -> None:
+        self._validate_fiscal_year_rules()
         if (
             cstr(
                 self.currency
@@ -398,6 +421,23 @@ class ArchivePendingOperation(Document):
         self._validate_closure_state()
 
         self._validate_closed_immutability()
+
+    def _validate_fiscal_year_rules(self) -> None:
+        is_system_migration = bool(
+            getattr(frappe.flags, "in_patch", False)
+            or getattr(frappe.flags, "in_migrate", False)
+            or getattr(frappe.flags, "in_install", False)
+        )
+        if self.is_new():
+            if not is_system_migration:
+                self.fiscal_year = resolve_target_fiscal_year_for_create(self.fiscal_year)
+            elif not cstr(getattr(self, "fiscal_year", "")).strip():
+                self.fiscal_year = get_default_fiscal_year()
+            return
+
+        enforce_immutable_fiscal_fields(self, has_sequence=True)
+        if not is_system_migration and cstr(getattr(self, "fiscal_year", "")).strip():
+            require_fiscal_permission(self.fiscal_year, "edit", check_open=True)
 
     def _validate_closure_mutation(
         self,
@@ -721,3 +761,14 @@ class ArchivePendingOperation(Document):
             row.file_name = (
                 file_data.file_name
             )
+
+
+def on_doctype_update() -> None:
+    try:
+        frappe.db.add_unique(
+            "Archive Pending Operation",
+            ["fiscal_year", "fiscal_sequence"],
+            constraint_name="uniq_archive_pend_fy_seq",
+        )
+    except Exception:
+        pass

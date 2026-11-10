@@ -16,6 +16,7 @@ from archive.services.pending_operation_attachments import (
 
 from archive.services.pending_operation_permissions import (
     _require_create_pending_operation,
+    _require_view_pending_operation,
 )
 
 
@@ -117,6 +118,54 @@ def cleanup_pending_staged_attachments(
             file_ids,
         )
     )
+
+
+@frappe.whitelist()
+def download_pending_attachment(
+    operation_name: str,
+    file_id: str,
+) -> None:
+    clean_op = cstr(operation_name).strip()
+    clean_fid = cstr(file_id).strip()
+
+    if not clean_op or not clean_fid:
+        frappe.throw(
+            _("بيانات المرفق غير مكتملة."),
+            frappe.ValidationError,
+        )
+
+    if not frappe.db.exists("Archive Pending Operation", clean_op):
+        frappe.throw(
+            _("العملية المعلقة غير موجودة."),
+            frappe.DoesNotExistError,
+        )
+
+    doc = frappe.get_doc("Archive Pending Operation", clean_op)
+    _require_view_pending_operation(doc)
+
+    att_row = next(
+        (
+            row
+            for row in (doc.attachments or [])
+            if cstr(row.file_id).strip() == clean_fid
+        ),
+        None,
+    )
+    if not att_row or not frappe.db.exists("File", clean_fid):
+        frappe.throw(
+            _("المرفق غير موجود في هذه العملية المعلقة."),
+            frappe.DoesNotExistError,
+        )
+
+    file_doc = frappe.get_doc("File", clean_fid)
+    content = file_doc.get_content()
+    filename = cstr(
+        att_row.file_name or file_doc.file_name or clean_fid
+    ).strip()
+
+    frappe.local.response.filename = filename
+    frappe.local.response.filecontent = content
+    frappe.local.response.type = "download"
 
 
 def _get_uploaded_file_payload() -> tuple[

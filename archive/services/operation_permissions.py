@@ -23,6 +23,57 @@ ROLE_VIEW_OPERATION_TIMELINE = (
     "صلاحية عرض سجل مستخدم العملية في شاشة العمليات"
 )
 
+ROLE_PREVIEW_OPERATION_ATTACHMENTS = (
+    "معاينة مرفقات العمليات"
+)
+
+
+def can_preview_operation_attachments(
+    operation=None,
+    user: str | None = None,
+) -> bool:
+    """
+    صلاحية مستقلة لمعاينة مرفقات العمليات (زر «عرض»).
+    غير مفعّلة افتراضيًا ومستقلة عن بقية الصلاحيات،
+    وتُشترط بالإضافة إلى صلاحية قراءة العملية ونطاق الملكية.
+    """
+    resolved_user = user or frappe.session.user or "Guest"
+    if not resolved_user or resolved_user == "Guest":
+        return False
+    if not cint(frappe.db.get_value("User", resolved_user, "enabled")):
+        return False
+
+    has_explicit_role = bool(
+        frappe.db.exists(
+            "Has Role",
+            {
+                "parent": resolved_user,
+                "parenttype": "User",
+                "role": ROLE_PREVIEW_OPERATION_ATTACHMENTS,
+            },
+        )
+    )
+    if not has_explicit_role:
+        return False
+
+    if operation is not None:
+        return bool(
+            frappe.has_permission(
+                "Archive Operation",
+                ptype="read",
+                doc=operation,
+                user=resolved_user,
+            )
+        )
+
+    return bool(
+        frappe.has_permission(
+            "Archive Operation",
+            ptype="read",
+            user=resolved_user,
+        )
+    )
+
 
 def has_operations_screen_access_role(
     user: str | None = None,

@@ -16,6 +16,7 @@ from archive.services.uploaded_files import (
 from archive.services.operation_permissions import (
     can_attach_incomplete_invoice,
     can_manage_operation_attachments,
+    can_preview_operation_attachments,
     can_re_extract_operation_data,
     require_operations_screen_access,
 )
@@ -35,6 +36,14 @@ from archive.api.pdf_parser import (
 from archive.archive.doctype.archive_operation.archive_operation import (
     make_operation_no_hash,
     normalize_operation_no,
+)
+from archive.services.fiscal_year_permissions import (
+    format_fiscal_display_no,
+    get_screen_fiscal_context,
+    has_fiscal_permission,
+    require_fiscal_permission,
+    resolve_fiscal_year_filter,
+    resolve_target_fiscal_year_for_create,
 )
 
 
@@ -1621,6 +1630,19 @@ def serialize_operation_for_view(
         "serial_no":
             operation.serial_no,
 
+        "fiscal_year":
+            operation.fiscal_year,
+
+        "fiscal_sequence":
+            cint(operation.fiscal_sequence) or cint(operation.serial_no),
+
+        "fiscal_display_no":
+            format_fiscal_display_no(
+                operation.fiscal_year,
+                operation.fiscal_sequence,
+                operation.serial_no,
+            ),
+
 
         # ====================================================
         # Operation / Group identity
@@ -2188,9 +2210,26 @@ def create_operation(
     # Create Archive Operation
     # ========================================================
 
+    source_pending_name = cstr(
+        values.get("source_pending_operation")
+        or values.get("pending_operation")
+        or ""
+    ).strip()
+    if source_pending_name and frappe.db.exists("Archive Pending Operation", source_pending_name):
+        pending_fy = cstr(
+            frappe.db.get_value("Archive Pending Operation", source_pending_name, "fiscal_year")
+        ).strip()
+        require_fiscal_permission(pending_fy, "edit", check_open=True)
+        target_fiscal_year = require_fiscal_permission(pending_fy, "add", check_open=True)
+    else:
+        target_fiscal_year = resolve_target_fiscal_year_for_create(
+            values.get("fiscal_year")
+        )
+
     doc = frappe.new_doc(
         "Archive Operation"
     )
+    doc.fiscal_year = target_fiscal_year
 
 
     for fieldname in (
@@ -2520,6 +2559,19 @@ def create_operation(
         "serial_no":
             doc.serial_no,
 
+        "fiscal_year":
+            doc.fiscal_year,
+
+        "fiscal_sequence":
+            cint(doc.fiscal_sequence) or cint(doc.serial_no),
+
+        "fiscal_display_no":
+            format_fiscal_display_no(
+                doc.fiscal_year,
+                doc.fiscal_sequence,
+                doc.serial_no,
+            ),
+
         "status":
             doc.status,
 
@@ -2598,6 +2650,7 @@ def get_operations(
     incomplete_invoice: int = 0,
     start: int = 0,
     page_length: int =100000 ,
+    fiscal_year: str | None = None,
 ) -> dict[str, Any]:
     require_operations_screen_access()
 
@@ -2605,6 +2658,25 @@ def get_operations(
         "Archive Operation",
         "read",
     ):
+        if fiscal_year and cstr(fiscal_year).strip().lower() not in ("", "all", "جميع السنوات", "*"):
+            frappe.throw(_("ليست لديك صلاحية استعراض العمليات."), frappe.PermissionError)
+        return {
+            "operations": [],
+            "total": 0,
+            "counts": {
+                "all": 0,
+                "معلقة": 0,
+                "غير مؤكدة": 0,
+                "مؤكدة": 0,
+                "مرتجعة": 0,
+                "محضورة": 0,
+                "final_swift": 0,
+                "incomplete_invoice": 0,
+            },
+        }
+
+    allowed_fiscal_years = resolve_fiscal_year_filter(fiscal_year, action="view")
+    if not allowed_fiscal_years:
         return {
             "operations": [],
             "total": 0,
@@ -2662,7 +2734,9 @@ def get_operations(
 
     
 
-    filters = {}
+    filters = {
+        "fiscal_year": ["in", allowed_fiscal_years],
+    }
 
     force_empty_results = False
 
@@ -2786,6 +2860,8 @@ def get_operations(
             fields=[
                 "name",
                 "serial_no",
+                "fiscal_year",
+                "fiscal_sequence",
                 "operation_no",
                 "customer",
                 "amount",
@@ -3208,6 +3284,7 @@ def get_operations(
 )
 def release_pending_operation(
     operation_name: str,
+    values: dict[str, Any] | str | None = None,
 ) -> dict[str, Any]:
     require_operations_screen_access()
 
@@ -3221,6 +3298,66 @@ def release_pending_operation(
             _("اسم العملية مطلوب.")
         )
 
+    # إذا كان السجل المُمرر من نوع Archive Pending Operation،
+    # يتم تحويله إلى عملية Archive Operation مع وراثة السنة المالية للمعلقة الأصلية.
+    if (
+        not frappe.db.exists("Archive Operation", operation_name)
+        and frappe.db.exists("Archive Pending Operation", operation_name)
+    ):
+        from archive.services.pending_operation_permissions import (
+            can_edit_pending_operation,
+            require_pending_screen_access,
+        )
+
+        require_pending_screen_access()
+        pending_doc = frappe.get_doc("Archive Pending Operation", operation_name)
+        if not can_edit_pending_operation(pending_doc):
+            frappe.throw(
+                _("ليست لديك صلاحية تعديل أو تحويل هذه العملية المعلقة."),
+                frappe.PermissionError,
+            )
+        if not frappe.has_permission("Archive Operation", "create"):
+            frappe.throw(
+                _("ليست لديك صلاحية إنشاء عملية في شاشة العمليات."),
+                frappe.PermissionError,
+            )
+
+        orig_fy = cstr(pending_doc.fiscal_year).strip()
+        require_fiscal_permission(orig_fy, "edit", check_open=True)
+        require_fiscal_permission(orig_fy, "add", check_open=True)
+
+        extra_vals = _parse(values, {})
+        if not isinstance(extra_vals, dict):
+            extra_vals = {}
+
+        new_op = frappe.new_doc("Archive Operation")
+        new_op.fiscal_year = orig_fy
+        new_op.is_blocked_operation = cint(extra_vals.get("is_blocked_operation", 1 if not extra_vals.get("operation_no") else 0))
+        new_op.operation_no = extra_vals.get("operation_no")
+        new_op.customer = extra_vals.get("customer")
+        new_op.amount = extra_vals.get("amount") or pending_doc.remaining_amount or pending_doc.total_suspended
+        new_op.currency = extra_vals.get("currency") or pending_doc.currency or "SAR"
+        new_op.transferring_bank = extra_vals.get("transferring_bank") or pending_doc.bank
+        new_op.sender_account = extra_vals.get("sender_account") or pending_doc.account_number
+        new_op.sender_name = extra_vals.get("sender_name") or pending_doc.card_name
+        new_op.notes = extra_vals.get("notes") or pending_doc.notes
+        new_op.insert(ignore_permissions=True)
+
+        return {
+            "name": new_op.name,
+            "serial_no": new_op.serial_no,
+            "fiscal_year": new_op.fiscal_year,
+            "fiscal_sequence": new_op.fiscal_sequence,
+            "fiscal_display_no": format_fiscal_display_no(
+                new_op.fiscal_year,
+                new_op.fiscal_sequence,
+                new_op.serial_no,
+            ),
+            "source_pending_operation": pending_doc.name,
+            "source_pending_fiscal_year": orig_fy,
+            "status": new_op.status,
+        }
+
 
     operation = frappe.get_doc(
         "Archive Operation",
@@ -3231,6 +3368,7 @@ def release_pending_operation(
     operation.check_permission(
         "read"
     )
+    require_fiscal_permission(operation.fiscal_year, "edit", check_open=True)
 
 
     # ========================================================
@@ -3388,9 +3526,11 @@ def release_pending_operation(
 
 
 @frappe.whitelist(
-    methods=["GET"]
+    methods=["GET", "POST"]
 )
-def get_operations_context() -> dict[str, Any]:
+def get_operations_context(
+    fiscal_year: str | None = None,
+) -> dict[str, Any]:
     """
     تحميل Snapshot كامل وخفيف لواجهة العمليات.
 
@@ -3403,13 +3543,28 @@ def get_operations_context() -> dict[str, Any]:
     """
     require_operations_screen_access()
 
+    fiscal_ctx = get_screen_fiscal_context()
+
     if not frappe.has_permission(
         "Archive Operation",
         "read",
     ):
+        if fiscal_year and cstr(fiscal_year).strip().lower() not in ("", "all", "جميع السنوات", "*"):
+            frappe.throw(_("ليست لديك صلاحية استعراض العمليات."), frappe.PermissionError)
         return {
             "version": 2,
             "records": [],
+            "total": 0,
+            "fiscal_context": fiscal_ctx,
+        }
+
+    allowed_fiscal_years = resolve_fiscal_year_filter(fiscal_year, action="view")
+    if not allowed_fiscal_years:
+        return {
+            "version": 2,
+            "records": [],
+            "total": 0,
+            "fiscal_context": fiscal_ctx,
         }
 
 
@@ -3425,9 +3580,15 @@ def get_operations_context() -> dict[str, Any]:
     operations = frappe.get_list(
         "Archive Operation",
 
+        filters={
+            "fiscal_year": ["in", allowed_fiscal_years],
+        },
+
         fields=[
             "name",
             "serial_no",
+            "fiscal_year",
+            "fiscal_sequence",
             "operation_no",
             "customer",
 
@@ -3485,6 +3646,15 @@ def get_operations_context() -> dict[str, Any]:
 
 
     for operation in operations:
+        operation["fiscal_sequence"] = (
+            cint(operation.get("fiscal_sequence"))
+            or cint(operation.get("serial_no"))
+        )
+        operation["fiscal_display_no"] = format_fiscal_display_no(
+            operation.get("fiscal_year"),
+            operation.get("fiscal_sequence"),
+            operation.get("serial_no"),
+        )
 
         operation.setdefault(
             "operation_no_duplicate_count",
@@ -3920,6 +4090,9 @@ def get_operations_context() -> dict[str, Any]:
         "version":
             context_version,
 
+        "fiscal_context":
+            fiscal_ctx,
+
         "capabilities": {
             "can_change_initial_status":
                 can_change_initial_status,
@@ -3977,6 +4150,13 @@ def get_operation_for_view(
     operation.check_permission(
         "read"
     )
+    require_fiscal_permission(operation.fiscal_year, "view", check_open=False)
+
+    can_edit_fiscal_year = has_fiscal_permission(
+        operation.fiscal_year,
+        "edit",
+        check_open=True,
+    )
 
 
     # ========================================================
@@ -3990,6 +4170,7 @@ def get_operation_for_view(
         operation.has_permission(
             "write"
         )
+        and can_edit_fiscal_year
     )
 
 
@@ -4122,27 +4303,47 @@ def get_operation_for_view(
                 editable_fields,
 
             "can_change_status":
-                can_change_operation_status(
-                    operation.status
+                bool(
+                    can_change_operation_status(
+                        operation.status
+                    )
+                    and can_edit_fiscal_year
                 ),
 
             "can_manage_attachments":
-                can_manage_operation_attachments(
-                    operation
+                bool(
+                    can_manage_operation_attachments(
+                        operation
+                    )
+                    and can_edit_fiscal_year
+                ),
+
+            "can_preview_attachments":
+                bool(
+                    can_preview_operation_attachments(
+                        operation
+                    )
                 ),
 
             "can_attach_final_swift":
-                can_add_final_swift,
+                bool(
+                    can_add_final_swift
+                    and can_edit_fiscal_year
+                ),
 
             "can_attach_incomplete_invoice":
                 bool(
                     group_data.get("is_incomplete_invoice")
                     and can_attach_incomplete_invoice(operation)
+                    and can_edit_fiscal_year
                 ),
 
             "can_re_extract":
-                can_re_extract_operation_data(
-                    operation
+                bool(
+                    can_re_extract_operation_data(
+                        operation
+                    )
+                    and can_edit_fiscal_year
                 ),
         },
     }
@@ -4248,6 +4449,7 @@ def register_attachment_download(
     operation.check_permission(
         "read"
     )
+    require_fiscal_permission(operation.fiscal_year, "view", check_open=False)
 
 
     
@@ -4469,6 +4671,13 @@ def register_attachment_download(
             "file_url":
                 attachment.file,
 
+            "download_url":
+                _build_operation_attachment_stream_url(
+                    operation.name,
+                    attachment_name=attachment.name,
+                    inline=False,
+                ),
+
             "file_name":
                 file_name,
 
@@ -4640,12 +4849,327 @@ def register_attachment_download(
         "file_url":
             shared_document.file,
 
+        "download_url":
+            _build_operation_attachment_stream_url(
+                operation.name,
+                shared_document_name=shared_document.name,
+                inline=False,
+            ),
+
         "file_name":
             file_name,
 
         "document_kind":
             "shared_document",
     }
+
+
+def _build_operation_attachment_stream_url(
+    operation_name: str,
+    *,
+    attachment_name: str = "",
+    shared_document_name: str = "",
+    inline: bool = False,
+) -> str:
+    from urllib.parse import urlencode
+
+    params: dict[str, Any] = {
+        "operation_name": cstr(operation_name).strip(),
+        "inline": 1 if inline else 0,
+    }
+    if attachment_name:
+        params["attachment_name"] = cstr(attachment_name).strip()
+    if shared_document_name:
+        params["shared_document_name"] = cstr(shared_document_name).strip()
+    return f"/api/method/archive.api.operations.stream_operation_attachment?{urlencode(params)}"
+
+
+def _detect_operation_attachment_file_kind(file_name_or_url: str) -> str:
+    clean = cstr(file_name_or_url).strip().lower().split("?")[0].split("#")[0]
+    ext = clean.rsplit(".", 1)[-1] if "." in clean else ""
+    if ext == "pdf":
+        return "pdf"
+    if ext in {"png", "jpg", "jpeg", "webp", "gif", "bmp", "svg", "avif"}:
+        return "image"
+    return "file"
+
+
+def _resolve_operation_attachment_target(
+    operation_name: str,
+    attachment_name: str | None = None,
+    shared_document_name: str | None = None,
+    *,
+    for_download: bool = False,
+) -> dict[str, Any]:
+    require_operations_screen_access()
+
+    clean_op = cstr(operation_name).strip()
+    clean_att = cstr(attachment_name).strip()
+    clean_shared = cstr(shared_document_name).strip()
+
+    if not clean_op:
+        frappe.throw(_("اسم العملية مطلوب."), frappe.ValidationError)
+
+    if not clean_att and not clean_shared:
+        frappe.throw(_("المستند المطلوب غير محدد."), frappe.ValidationError)
+
+    if clean_att and clean_shared:
+        frappe.throw(
+            _("لا يمكن تحديد مرفق ومستند مشترك في طلب واحد."),
+            frappe.ValidationError,
+        )
+
+    operation = frappe.get_doc("Archive Operation", clean_op)
+    operation.check_permission("read")
+    require_fiscal_permission(operation.fiscal_year, "view", check_open=False)
+
+    if not for_download and not can_preview_operation_attachments(operation):
+        frappe.throw(
+            _("ليس لديك صلاحية معاينة مرفقات هذه العملية."),
+            frappe.PermissionError,
+        )
+
+    if clean_att:
+        if for_download and not can_manage_operation_attachments(operation):
+            frappe.throw(
+                _("ليس لديك صلاحية تنزيل مرفقات هذه العملية."),
+                frappe.PermissionError,
+            )
+
+        attachment = next(
+            (
+                row
+                for row in (operation.attachments or [])
+                if row.name == clean_att
+            ),
+            None,
+        )
+        if not attachment:
+            frappe.throw(_("المرفق غير موجود في هذه العملية."), frappe.DoesNotExistError)
+        if not attachment.file:
+            frappe.throw(_("المرفق لا يحتوي على ملف."), frappe.ValidationError)
+
+        if attachment.is_final_swift:
+            document_kind = "final_swift"
+            document_label = "السويفت النهائي"
+        elif attachment.is_extraction_source:
+            document_kind = "extraction_source"
+            document_label = "مستند استخراج البيانات"
+        else:
+            document_kind = "operation_attachment"
+            document_label = "مرفق العملية"
+
+        file_doc_name = frappe.db.get_value(
+            "File",
+            {
+                "file_url": attachment.file,
+                "attached_to_doctype": "Archive Operation",
+                "attached_to_name": operation.name,
+            },
+            "name",
+        )
+        if not file_doc_name:
+            frappe.throw(_("ملف المرفق غير موجود."), frappe.DoesNotExistError)
+
+        file_doc = frappe.get_doc("File", file_doc_name)
+        content = file_doc.get_content()
+        file_name = cstr(
+            attachment.file_name or file_doc.file_name or "مرفق"
+        ).strip()
+
+        return {
+            "operation": operation,
+            "file_doc": file_doc,
+            "content": content,
+            "file_name": file_name,
+            "file_url": attachment.file,
+            "file_kind": _detect_operation_attachment_file_kind(
+                file_name or attachment.file
+            ),
+            "document_kind": document_kind,
+            "document_label": document_label,
+            "attachment": attachment,
+            "shared_document": None,
+        }
+
+    shared_document = frappe.get_doc(
+        "Archive Operation Document",
+        clean_shared,
+    )
+    if (
+        cstr(shared_document.operation_group).strip()
+        != cstr(operation.operation_group).strip()
+    ):
+        frappe.throw(
+            _("المستند المشترك لا يتبع مجموعة هذه العملية."),
+            frappe.PermissionError,
+        )
+    if not shared_document.file:
+        frappe.throw(
+            _("المستند المشترك لا يحتوي على ملف."),
+            frappe.ValidationError,
+        )
+
+    shared_file_doc_name = frappe.db.get_value(
+        "File",
+        {
+            "file_url": shared_document.file,
+            "attached_to_doctype": "Archive Operation Document",
+            "attached_to_name": shared_document.name,
+        },
+        "name",
+    )
+    if not shared_file_doc_name:
+        frappe.throw(
+            _("ملف المستند المشترك غير موجود."),
+            frappe.DoesNotExistError,
+        )
+
+    shared_file_doc = frappe.get_doc("File", shared_file_doc_name)
+    content = shared_file_doc.get_content()
+    file_name = cstr(
+        shared_document.file_name or shared_file_doc.file_name or "مستند مشترك"
+    ).strip()
+
+    return {
+        "operation": operation,
+        "file_doc": shared_file_doc,
+        "content": content,
+        "file_name": file_name,
+        "file_url": shared_document.file,
+        "file_kind": _detect_operation_attachment_file_kind(
+            file_name or shared_document.file
+        ),
+        "document_kind": "shared_document",
+        "document_label": "مستند مشترك",
+        "attachment": None,
+        "shared_document": shared_document,
+    }
+
+
+@frappe.whitelist(
+    methods=["POST"]
+)
+def register_attachment_view(
+    operation_name: str,
+    attachment_name: str | None = None,
+    shared_document_name: str | None = None,
+) -> dict[str, Any]:
+    resolved = _resolve_operation_attachment_target(
+        operation_name=operation_name,
+        attachment_name=attachment_name,
+        shared_document_name=shared_document_name,
+        for_download=False,
+    )
+
+    operation = resolved["operation"]
+    file_doc = resolved["file_doc"]
+    file_name = resolved["file_name"]
+    file_url = resolved["file_url"]
+    file_kind = resolved["file_kind"]
+    document_kind = resolved["document_kind"]
+    document_label = resolved["document_label"]
+    attachment = resolved["attachment"]
+    shared_document = resolved["shared_document"]
+
+    event_datetime = now_datetime()
+    event_user = frappe.session.user
+
+    if attachment is not None:
+        log_operation_event(
+            operation.name,
+            "attachment_viewed",
+            "تم عرض {0}: {1}".format(document_label, file_name),
+            details={
+                "document_kind": document_kind,
+                "attachment_name": attachment.name,
+                "file_id": file_doc.name,
+                "file_name": file_name,
+                "file_url": file_url,
+                "is_extraction_source": bool(attachment.is_extraction_source),
+                "is_final_swift": bool(attachment.is_final_swift),
+            },
+            event_source="User",
+            event_user=event_user,
+            event_datetime=event_datetime,
+        )
+        open_url = _build_operation_attachment_stream_url(
+            operation.name,
+            attachment_name=attachment.name,
+            inline=True,
+        )
+        download_url = _build_operation_attachment_stream_url(
+            operation.name,
+            attachment_name=attachment.name,
+            inline=False,
+        )
+    else:
+        log_operation_event(
+            operation.name,
+            "attachment_viewed",
+            "تم عرض مستند مشترك: {0}".format(file_name),
+            details={
+                "document_kind": "shared_document",
+                "shared_document_name": shared_document.name,
+                "operation_group": operation.operation_group,
+                "source_operation": shared_document.source_operation,
+                "document_role": shared_document.document_role,
+                "file_id": file_doc.name,
+                "file_name": file_name,
+                "file_url": file_url,
+            },
+            event_source="User",
+            event_user=event_user,
+            event_datetime=event_datetime,
+        )
+        open_url = _build_operation_attachment_stream_url(
+            operation.name,
+            shared_document_name=shared_document.name,
+            inline=True,
+        )
+        download_url = _build_operation_attachment_stream_url(
+            operation.name,
+            shared_document_name=shared_document.name,
+            inline=False,
+        )
+
+    return {
+        "file_url": file_url,
+        "open_url": open_url,
+        "download_url": download_url,
+        "file_name": file_name,
+        "file_kind": file_kind,
+        "document_kind": document_kind,
+    }
+
+
+@frappe.whitelist()
+def stream_operation_attachment(
+    operation_name: str,
+    attachment_name: str | None = None,
+    shared_document_name: str | None = None,
+    inline: int | str = 0,
+) -> None:
+    import mimetypes
+
+    is_inline = bool(cint(inline))
+    resolved = _resolve_operation_attachment_target(
+        operation_name=operation_name,
+        attachment_name=attachment_name,
+        shared_document_name=shared_document_name,
+        for_download=not is_inline,
+    )
+
+    file_name = resolved["file_name"]
+    content = resolved["content"]
+    content_type, _ = mimetypes.guess_type(file_name)
+
+    frappe.local.response.filename = file_name
+    frappe.local.response.filecontent = content
+    frappe.local.response.type = "download"
+    frappe.local.response.display_content_as = "inline" if is_inline else "attachment"
+    if content_type:
+        frappe.local.response.content_type = content_type
 
 
 
@@ -4796,6 +5320,7 @@ def attach_final_swift(
             ),
             frappe.PermissionError,
         )
+    require_fiscal_permission(operation.fiscal_year, "edit", check_open=True)
 
 
     # ========================================================
@@ -5404,6 +5929,7 @@ def attach_incomplete_invoice(
             _("ليس لديك صلاحية إرفاق الفاتورة غير المكتملة."),
             frappe.PermissionError,
         )
+    require_fiscal_permission(operation.fiscal_year, "edit", check_open=True)
 
     operation_group = cstr(
         operation.operation_group
@@ -5695,6 +6221,7 @@ def change_operation_status(
             ),
             frappe.PermissionError,
         )
+    require_fiscal_permission(operation.fiscal_year, "edit", check_open=True)
 
     old_status = (
         operation.status
@@ -6085,6 +6612,7 @@ def save_operation_re_extraction(
             ),
             frappe.PermissionError,
         )
+    require_fiscal_permission(operation.fiscal_year, "edit", check_open=True)
 
 
     # ========================================================
@@ -7134,6 +7662,7 @@ def change_operation_number(
     operation.check_permission(
         "write"
     )
+    require_fiscal_permission(operation.fiscal_year, "edit", check_open=True)
 
 
     # ========================================================
@@ -8228,6 +8757,11 @@ def save_operation_view_changes(
     operation.check_permission(
         "read"
     )
+    require_fiscal_permission(operation.fiscal_year, "edit", check_open=True)
+    if isinstance(values, dict):
+        values.pop("fiscal_year", None)
+        values.pop("fiscal_sequence", None)
+        values.pop("serial_no", None)
 
 
     # ========================================================

@@ -6,6 +6,11 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cstr, flt, getdate
+from archive.services.fiscal_year_permissions import (
+	derive_fiscal_year_from_date,
+	enforce_immutable_fiscal_fields,
+	require_fiscal_permission,
+)
 
 
 class ArchiveCardDeposit(Document):
@@ -75,6 +80,33 @@ class ArchiveCardDeposit(Document):
 			frappe.throw(_("يجب تحديد تاريخ الإيداع."), frappe.ValidationError)
 
 		self.deposit_date = cstr(getdate(self.deposit_date))
+		derived_year = derive_fiscal_year_from_date(self.deposit_date)
+
+		if self.is_new():
+			self.fiscal_year = derived_year
+			if (
+				not getattr(self.flags, "from_deposits_batch_api", False)
+				and not getattr(frappe.flags, "in_migrate", False)
+				and not getattr(frappe.flags, "in_patch", False)
+			):
+				require_fiscal_permission(self.fiscal_year, "add", check_open=True)
+		else:
+			enforce_immutable_fiscal_fields(self, has_sequence=False)
+			if cstr(self.fiscal_year).strip() and derived_year != cstr(self.fiscal_year).strip():
+				frappe.throw(
+					_("لا يمكن تغيير تاريخ الإيداع إلى سنة مالية أخرى ({0} ← {1}).").format(
+						self.fiscal_year, derived_year
+					),
+					frappe.ValidationError,
+				)
+			if not cstr(self.fiscal_year).strip():
+				self.fiscal_year = derived_year
+			if (
+				not getattr(self.flags, "from_deposits_batch_api", False)
+				and not getattr(frappe.flags, "in_migrate", False)
+				and not getattr(frappe.flags, "in_patch", False)
+			):
+				require_fiscal_permission(self.fiscal_year, "edit", check_open=True)
 
 		if (
 			not getattr(self.flags, "from_deposits_batch_api", False)

@@ -3,10 +3,29 @@
 	"doctype": "DocType",
 	"engine": "InnoDB",
 	"field_order": [
+		"fiscal_years_section",
+		"default_fiscal_year",
+		"fiscal_years_manager_html",
 		"final_swift_section",
 		"final_swift_banks"
 	],
 	"fields": [
+		{
+			"fieldname": "fiscal_years_section",
+			"fieldtype": "Section Break",
+			"label": "إدارة السنوات المالية"
+		},
+		{
+			"fieldname": "default_fiscal_year",
+			"fieldtype": "Link",
+			"label": "السنة المالية الافتراضية",
+			"options": "Archive Fiscal Year"
+		},
+		{
+			"fieldname": "fiscal_years_manager_html",
+			"fieldtype": "HTML",
+			"label": "قائمة وإدارة السنوات المالية"
+		},
 		{
 			"fieldname": "final_swift_section",
 			"fieldtype": "Section Break",
@@ -33,5 +52,6 @@
 	],
 	"sort_field": "modified",
 	"sort_order": "DESC",
-	"states": []
+	"states": [],
+	"track_changes": 1
 }

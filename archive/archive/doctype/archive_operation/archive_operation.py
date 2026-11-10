@@ -12,6 +12,13 @@ from frappe.model.naming import getseries
 from archive.domain.operation_group import (
     ensure_operation_group,
 )
+from archive.services.fiscal_year_permissions import (
+    enforce_immutable_fiscal_fields,
+    get_default_fiscal_year,
+    get_next_fiscal_sequence,
+    require_fiscal_permission,
+    resolve_target_fiscal_year_for_create,
+)
 
 
 _OPERATION_NUMBER_DIGITS = str.maketrans(
@@ -211,9 +218,25 @@ class ArchiveOperation(Document):
 
     
     def before_insert(self):
-        self.serial_no = (
-            get_next_operation_serial()
-        )
+        if not cint(self.serial_no):
+            self.serial_no = (
+                get_next_operation_serial()
+            )
+
+        if not (
+            getattr(frappe.flags, "in_patch", False)
+            or getattr(frappe.flags, "in_migrate", False)
+            or getattr(frappe.flags, "in_install", False)
+        ):
+            self.fiscal_year = resolve_target_fiscal_year_for_create(self.fiscal_year)
+        elif not cstr(getattr(self, "fiscal_year", "")).strip():
+            self.fiscal_year = get_default_fiscal_year()
+
+        if not cint(getattr(self, "fiscal_sequence", 0)):
+            self.fiscal_sequence = get_next_fiscal_sequence(
+                "Archive Operation",
+                self.fiscal_year,
+            )
 
         if not getattr(
             frappe.flags,
@@ -1057,6 +1080,7 @@ class ArchiveOperation(Document):
         )
 
     def validate(self):
+        self.validate_fiscal_year_rules()
         self.validate_blocked_creation_mode()
         self.validate_blocked_operation_permission()
 
@@ -1073,6 +1097,23 @@ class ArchiveOperation(Document):
         self.sync_extraction_source()
         self.validate_attachments()
         self.set_attachment_names()
+
+    def validate_fiscal_year_rules(self):
+        is_system_migration = bool(
+            getattr(frappe.flags, "in_patch", False)
+            or getattr(frappe.flags, "in_migrate", False)
+            or getattr(frappe.flags, "in_install", False)
+        )
+        if self.is_new():
+            if not is_system_migration:
+                self.fiscal_year = resolve_target_fiscal_year_for_create(self.fiscal_year)
+            elif not cstr(getattr(self, "fiscal_year", "")).strip():
+                self.fiscal_year = get_default_fiscal_year()
+            return
+
+        enforce_immutable_fiscal_fields(self, has_sequence=True)
+        if not is_system_migration and cstr(getattr(self, "fiscal_year", "")).strip():
+            require_fiscal_permission(self.fiscal_year, "edit", check_open=True)
 
 
     def validate_blocked_creation_mode(
@@ -1260,3 +1301,14 @@ class ArchiveOperation(Document):
                 row.file_name = os.path.basename(
                     row.file
                 )
+
+
+def on_doctype_update():
+    try:
+        frappe.db.add_unique(
+            "Archive Operation",
+            ["fiscal_year", "fiscal_sequence"],
+            constraint_name="uniq_archive_op_fy_seq",
+        )
+    except Exception:
+        pass

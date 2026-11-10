@@ -62,6 +62,7 @@
 					"Archive Advanced Status",
 					"Archive Attachment Manager",
 					"Archive Final Swift",
+					"معاينة مرفقات العمليات",
 					"صلاحية إرفاق الفاتورة غير المكتملة",
 					"صلاحية عرض سجل مستخدم العملية في شاشة العمليات",
 				],
@@ -129,8 +130,148 @@
 		"file-text": `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
 		grid: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
 		section: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+		calendar: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
 		chevron: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
 	};
+
+	const FISCAL_ACTION_ROWS = [
+		{ key: "can_view", label: "استعراض" },
+		{ key: "can_add", label: "إضافة" },
+		{ key: "can_edit", label: "تعديل" },
+		{ key: "can_delete", label: "حذف" },
+		{ key: "can_export", label: "تصدير" },
+	];
+
+	function renderFiscalPermissionsCard(rolesEditor, $section) {
+		const $fiscalCard = $section.find(".archive-fiscal-permissions-card");
+		if (!$fiscalCard.length) return;
+
+		const $tableWrap = $fiscalCard.find(".archive-fiscal-permissions-table-wrap");
+		const $badge = $fiscalCard.find(".archive-fiscal-permissions-card__badge");
+		const years = Array.isArray(rolesEditor._fiscalYearsList)
+			? rolesEditor._fiscalYearsList
+			: [{ year_name: "2026", is_closed: 0, is_default: 1 }];
+		const state = rolesEditor._fiscalPermissionsState || {};
+
+		let activeCount = 0;
+		const totalCount = years.length * FISCAL_ACTION_ROWS.length;
+
+		const headerCols = years
+			.map((y) => {
+				const yr = frappe.utils.escape_html(y.year_name);
+				const closedBadge = Number(y.is_closed)
+					? `<span class="archive-fiscal-year-badge archive-fiscal-year-badge--closed">مغلقة</span>`
+					: "";
+				const defBadge = Number(y.is_default)
+					? `<span class="archive-fiscal-year-badge archive-fiscal-year-badge--default">افتراضية</span>`
+					: "";
+				return `<th data-fiscal-year-col="${yr}">${yr}${defBadge}${closedBadge}</th>`;
+			})
+			.join("");
+
+		const bodyRows = FISCAL_ACTION_ROWS.map((row) => {
+			const cells = years
+				.map((y) => {
+					const yr = y.year_name;
+					const yrEsc = frappe.utils.escape_html(yr);
+					const isChecked = Boolean(state[yr] && state[yr][row.key]);
+					if (isChecked) activeCount += 1;
+					return `
+						<td class="${isChecked ? "is-checked-cell" : ""}">
+							<input
+								type="checkbox"
+								class="archive-fiscal-perm-cb"
+								data-fiscal-year="${yrEsc}"
+								data-fiscal-action="${row.key}"
+								${isChecked ? "checked" : ""}
+							/>
+						</td>
+					`;
+				})
+				.join("");
+			return `
+				<tr data-fiscal-action-row="${row.key}">
+					<td class="fiscal-action-label">${row.label}</td>
+					${cells}
+				</tr>
+			`;
+		}).join("");
+
+		$badge
+			.text(`المفعّل: ${activeCount} من ${totalCount}`)
+			.toggleClass("is-active", activeCount > 0);
+
+		$tableWrap.html(`
+			<table class="archive-fiscal-permissions-table">
+				<thead>
+					<tr>
+						<th class="fiscal-action-col">الصلاحية</th>
+						${headerCols}
+					</tr>
+				</thead>
+				<tbody>
+					${bodyRows}
+				</tbody>
+			</table>
+		`);
+
+		$tableWrap.off("change.archiveFiscalPerm").on("change.archiveFiscalPerm", ".archive-fiscal-perm-cb", function () {
+			const yr = String($(this).attr("data-fiscal-year") || "").trim();
+			const actionKey = String($(this).attr("data-fiscal-action") || "").trim();
+			const checked = Boolean(this.checked);
+			if (!rolesEditor._fiscalPermissionsState) {
+				rolesEditor._fiscalPermissionsState = {};
+			}
+			if (!rolesEditor._fiscalPermissionsState[yr]) {
+				rolesEditor._fiscalPermissionsState[yr] = {
+					can_view: false,
+					can_add: false,
+					can_edit: false,
+					can_delete: false,
+					can_export: false,
+				};
+			}
+			rolesEditor._fiscalPermissionsState[yr][actionKey] = checked;
+			rolesEditor._fiscalPermissionsDirty = true;
+			$(this).closest("td").toggleClass("is-checked-cell", checked);
+
+			let currentActive = 0;
+			$tableWrap.find(".archive-fiscal-perm-cb").each(function () {
+				if (this.checked) currentActive += 1;
+			});
+			$badge
+				.text(`المفعّل: ${currentActive} من ${totalCount}`)
+				.toggleClass("is-active", currentActive > 0);
+
+			const frm = rolesEditor.frm || cur_frm;
+			if (frm && frm.doctype === "User") {
+				frm.doc._archive_fiscal_permissions = JSON.stringify(rolesEditor._fiscalPermissionsState);
+				frm.dirty();
+			}
+		});
+	}
+
+	function fetchUserFiscalPermissions(rolesEditor, userDocName) {
+		if (!rolesEditor || !rolesEditor.wrapper) return;
+		const targetUser = String(userDocName || "").trim();
+		frappe.call({
+			method: "archive.services.fiscal_year_permissions.get_user_fiscal_permissions_for_editor",
+			args: { user: targetUser },
+			callback(r) {
+				const data = (r && r.message) || {};
+				if (Array.isArray(data.fiscal_years) && data.fiscal_years.length) {
+					rolesEditor._fiscalYearsList = data.fiscal_years;
+				}
+				rolesEditor._fiscalPermissionsState = data.permissions || {};
+				rolesEditor._fiscalPermissionsLoadedFor = targetUser;
+				rolesEditor._fiscalPermissionsDirty = false;
+				const $section = $(rolesEditor.wrapper).find(".archive-roles-section");
+				if ($section.length) {
+					renderFiscalPermissionsCard(rolesEditor, $section);
+				}
+			},
+		});
+	}
 
 	function getCatalog() {
 		const bootCatalog = frappe.boot && frappe.boot.archive_role_containers;
@@ -293,9 +434,36 @@
 						<span class="archive-roles-section__toggle-link" data-archive-action="collapse-all" role="button" tabindex="0">طي الكل</span>
 					</div>
 				</div>
+				<div class="archive-fiscal-permissions-card" data-container-id="fiscal_years">
+					<div class="archive-fiscal-permissions-card__header">
+						<div class="archive-role-card__header-main">
+							<span class="archive-role-card__icon">${CONTAINER_ICONS.calendar}</span>
+							<div class="archive-role-card__title-group">
+								<span class="archive-role-card__title">صلاحيات السنوات المالية</span>
+								<span class="archive-role-card__subtitle">تطبق على شاشات العمليات والمعلقات والإيداعات وفحص المستندات</span>
+							</div>
+						</div>
+						<div class="archive-role-card__header-meta">
+							<span class="archive-role-card__badge archive-role-card__badge--active archive-fiscal-permissions-card__badge">المفعّل: 0 من 0</span>
+						</div>
+					</div>
+					<div class="archive-fiscal-permissions-card__body">
+						<div class="archive-fiscal-permissions-table-wrap"></div>
+					</div>
+				</div>
 				<div class="archive-roles-containers"></div>
 			</div>
 		`);
+
+		renderFiscalPermissionsCard(rolesEditor, $section);
+		const currentFrm = rolesEditor.frm || cur_frm;
+		const userDocName =
+			currentFrm && currentFrm.doctype === "User" && !currentFrm.is_new()
+				? currentFrm.doc.name
+				: "";
+		if (rolesEditor._fiscalPermissionsLoadedFor !== userDocName) {
+			fetchUserFiscalPermissions(rolesEditor, userDocName);
+		}
 
 		const $containersWrap = $section.find(".archive-roles-containers");
 
@@ -479,14 +647,41 @@
 		onload: function (frm) {
 			patchRoleEditorClass();
 			if (frm.roles_editor) {
+				frm.roles_editor.frm = frm;
 				enhanceRoleEditorInstance(frm.roles_editor);
 			}
 		},
 		refresh: function (frm) {
 			patchRoleEditorClass();
 			if (frm.roles_editor) {
+				frm.roles_editor.frm = frm;
 				enhanceRoleEditorInstance(frm.roles_editor);
 				updateArchiveContainerCounts(frm.roles_editor);
+				fetchUserFiscalPermissions(frm.roles_editor, frm.is_new() ? "" : frm.doc.name);
+			}
+		},
+		after_save: function (frm) {
+			if (
+				frm.roles_editor &&
+				frm.roles_editor._fiscalPermissionsDirty &&
+				frm.roles_editor._fiscalPermissionsState &&
+				frm.doc.name
+			) {
+				const stateToSave = frm.roles_editor._fiscalPermissionsState;
+				frm.roles_editor._fiscalPermissionsDirty = false;
+				frappe.call({
+					method: "archive.services.fiscal_year_permissions.save_user_fiscal_permissions_from_editor",
+					args: {
+						user: frm.doc.name,
+						permissions: JSON.stringify(stateToSave),
+					},
+					callback(r) {
+						if (r && r.message && frm.roles_editor) {
+							frm.roles_editor._fiscalPermissionsState = r.message.permissions || stateToSave;
+							frm.roles_editor._fiscalPermissionsLoadedFor = frm.doc.name;
+						}
+					},
+				});
 			}
 		},
 	});

@@ -19,6 +19,7 @@ class ArchiveOperationsPage {
         this.state = {
             status: "all",
             search: "",
+            fiscal_year: "",
             advanced_filters: {},
 
             page: 1,
@@ -32,6 +33,8 @@ class ArchiveOperationsPage {
             selected_operation_name:
                 null,
         };
+
+        this.fiscal_context = null;
 
 
         this.operations = [];
@@ -1048,6 +1051,12 @@ class ArchiveOperationsPage {
 
                         serial_no: {
                             type: "number",
+                            get: (record) =>
+                                Number(
+                                    record?.fiscal_sequence
+                                    || record?.serial_no
+                                    || 0
+                                ),
                         },
 
                         operation_no: {
@@ -1950,6 +1959,11 @@ class ArchiveOperationsPage {
                         >
                     </div>
 
+                    <div class="archive-fiscal-year-filter-wrap" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <label class="archive-fiscal-year-label" style="margin: 0; font-size: 12px; font-weight: 600; color: #475569; white-space: nowrap;">السنة المالية:</label>
+                        <select class="form-control archive-fiscal-year-select" style="height: 36px; min-width: 115px; border-radius: 8px; font-size: 13px; font-weight: 600; padding: 0 10px;"></select>
+                    </div>
+
                     <button
                         type="button"
                         class="btn btn-default ac-tb-btn archive-filter-button"
@@ -2636,6 +2650,33 @@ class ArchiveOperationsPage {
     //         $refresh.prop("disabled", false);
     //     }
     // }
+    render_fiscal_year_filter(fiscal_context) {
+        this.fiscal_context = fiscal_context || {};
+        const allowed = Array.isArray(this.fiscal_context.allowed_view_years)
+            ? this.fiscal_context.allowed_view_years
+            : [];
+        const can_multi = Boolean(this.fiscal_context.can_view_multiple_years && allowed.length > 1);
+        const default_fy = String(this.fiscal_context.default_view_fiscal_year || allowed[0] || "");
+        if (!this.state.fiscal_year || (this.state.fiscal_year !== "all" && !allowed.includes(this.state.fiscal_year)) || (this.state.fiscal_year === "all" && !can_multi)) {
+            this.state.fiscal_year = default_fy;
+        }
+        const $select = $(this.wrapper).find(".archive-fiscal-year-select");
+        if (!$select.length) return;
+        const options = [];
+        if (can_multi) {
+            options.push(`<option value="all" ${this.state.fiscal_year === "all" ? "selected" : ""}>جميع السنوات</option>`);
+        }
+        allowed.forEach((yr) => {
+            const esc = frappe.utils.escape_html(String(yr));
+            options.push(`<option value="${esc}" ${this.state.fiscal_year === String(yr) ? "selected" : ""}>${esc}</option>`);
+        });
+        $select.html(options.join(""));
+        $select.prop("disabled", allowed.length <= 1 && !can_multi);
+
+        const can_add_fy = Array.isArray(this.fiscal_context.allowed_add_years) && this.fiscal_context.allowed_add_years.length > 0;
+        $(this.wrapper).find(".archive-create-operation, .archive-empty-create").prop("disabled", !can_add_fy);
+    }
+
     async load_operations() {
 
         const $wrapper =
@@ -2664,12 +2705,20 @@ class ArchiveOperationsPage {
 
                     type:
                         "GET",
+
+                    args: {
+                        fiscal_year: this.state.fiscal_year || undefined,
+                    },
                 });
 
 
             const result =
                 response.message
                 || {};
+
+            if (result.fiscal_context) {
+                this.render_fiscal_year_filter(result.fiscal_context);
+            }
 
 
             const records =
@@ -3336,7 +3385,8 @@ class ArchiveOperationsPage {
                 <td>
                     <div class="archive-operation-serial">
                         ${this.escape_value(
-                            operation.serial_no
+                            operation.fiscal_sequence
+                                || operation.serial_no
                                 || operation.name
                         )}
                     </div>
@@ -4056,6 +4106,8 @@ class ArchiveOperationsPage {
 
         frappe.require(
             [
+                "/assets/archive/js/archive_pending_operations/pending_attachment_manager.js",
+                "/assets/archive/css/archive_pending_operations/pending_attachment_manager.css",
                 "/assets/archive/js/archive_operations/operation_view_dialog.js",
                 "/assets/archive/css/archive_operations/operation_dialog.css",
             ],
@@ -4399,6 +4451,17 @@ class ArchiveOperationsPage {
 
 
         $wrapper
+            .find(".archive-fiscal-year-select")
+            .on("change", async (event) => {
+                const val = String(event.target.value || "").trim();
+                if (val && val !== this.state.fiscal_year) {
+                    this.state.fiscal_year = val;
+                    this.state.page = 1;
+                    await this.load_operations();
+                }
+            });
+
+        $wrapper
             .find(".archive-refresh-button")
             .on("click", async () => {
                 await this.load_operations();
@@ -4452,7 +4515,9 @@ class ArchiveOperationsPage {
             ],
             () => {
                 const dialog =
-                    new archive.ui.OperationDialog();
+                    new archive.ui.OperationDialog({
+                        fiscal_context: this.fiscal_context,
+                    });
 
                 dialog.show();
             }

@@ -38,6 +38,7 @@ VALID_EVENT_TYPES = {
     "final_swift_added",
     "final_swift_deleted",
     "attachment_downloaded",
+    "attachment_viewed",
     "incomplete_invoice_registered",
     "incomplete_invoice_completed",
 }
@@ -69,6 +70,9 @@ EVENT_TYPE_LABELS = {
         "حذف السويفت النهائي",
     "attachment_downloaded":
         "تنزيل مرفق",
+
+    "attachment_viewed":
+        "عرض مرفق",
 
     "incomplete_invoice_registered":
         "فاتورة غير مكتملة",
@@ -500,6 +504,8 @@ def get_operation_timeline(
         "read"
     )
 
+    from archive.services.fiscal_year_permissions import require_fiscal_permission
+    require_fiscal_permission(operation.fiscal_year, "view", check_open=False)
 
     # ========================================================
     # Special timeline permission

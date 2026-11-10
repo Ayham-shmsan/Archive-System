@@ -53,7 +53,9 @@
   "closed_date",
 "closed_at",
 "closed_by",
-  "search_text"
+  "search_text",
+  "fiscal_year",
+  "fiscal_sequence"
 ],
   "fields": [
     {
@@ -343,6 +345,25 @@
     "label": "تم إنهاؤها بواسطة",
     "options": "User",
     "read_only": 1
+},
+{
+    "fieldname": "fiscal_year",
+    "fieldtype": "Link",
+    "hidden": 1,
+    "label": "السنة المالية",
+    "no_copy": 1,
+    "options": "Archive Fiscal Year",
+    "read_only": 1,
+    "search_index": 1
+},
+{
+    "fieldname": "fiscal_sequence",
+    "fieldtype": "Int",
+    "hidden": 1,
+    "label": "الرقم السنوي",
+    "no_copy": 1,
+    "read_only": 1,
+    "search_index": 1
 }
   ],
   "index_web_pages_for_search": 0,

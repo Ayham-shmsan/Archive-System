@@ -4,7 +4,14 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import cint, cstr
+from archive.services.fiscal_year_permissions import (
+    check_doctype_fiscal_permission,
+    get_allowed_fiscal_years,
+    get_fiscal_permission_query_condition,
+    has_fiscal_permission,
+    require_fiscal_permission,
+)
 
 
 PENDING_DOCTYPE = "Archive Pending Operation"
@@ -291,6 +298,23 @@ def _is_own_operation(
     )
 
 
+def _get_operation_fiscal_year(operation) -> str:
+    if not operation:
+        return ""
+    if isinstance(operation, str):
+        return cstr(
+            frappe.db.get_value(
+                PENDING_DOCTYPE,
+                operation,
+                "fiscal_year",
+            )
+            or ""
+        ).strip()
+    if isinstance(operation, dict):
+        return cstr(operation.get("fiscal_year") or "").strip()
+    return cstr(getattr(operation, "fiscal_year", None) or "").strip()
+
+
 def _can_view_pending_operation(
     operation,
     user: str | None = None,
@@ -303,15 +327,22 @@ def _can_view_pending_operation(
     )
 
     if scope == "all":
-        return True
-
-    if scope == "own":
-        return _is_own_operation(
+        old_ok = True
+    elif scope == "own":
+        old_ok = _is_own_operation(
             operation,
             user,
         )
+    else:
+        return False
 
-    return False
+    if not old_ok:
+        return False
+
+    fy = _get_operation_fiscal_year(operation)
+    if fy:
+        return has_fiscal_permission(fy, "view", user=user, check_open=False)
+    return True
 
 
 def _require_create_pending_operation(
@@ -341,18 +372,19 @@ def _require_view_pending_operation(
     user = _get_user(user)
     require_pending_screen_access(user=user)
 
-    if _can_view_pending_operation(
-        operation,
-        user=user,
-    ):
-        return
+    scope = _get_pending_scope(user=user, throw=False)
+    old_ok = (scope == "all") or (scope == "own" and _is_own_operation(operation, user))
+    if not old_ok:
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية لعرض هذه العملية المعلقة."
+            ),
+            frappe.PermissionError,
+        )
 
-    frappe.throw(
-        _(
-            "ليس لديك صلاحية لعرض هذه العملية المعلقة."
-        ),
-        frappe.PermissionError,
-    )
+    fy = _get_operation_fiscal_year(operation)
+    if fy:
+        require_fiscal_permission(fy, "view", user=user, check_open=False)
 
 
 def _can_edit_pending_operation(
@@ -367,13 +399,13 @@ def _can_edit_pending_operation(
     ):
         return False
 
+    old_edit = False
     if _has_pending_permission(
         EDIT_ALL_PENDING_OPERATIONS_PERMISSION,
         user=user,
     ):
-        return True
-
-    if (
+        old_edit = True
+    elif (
         _has_pending_permission(
             EDIT_OWN_PENDING_OPERATIONS_PERMISSION,
             user=user,
@@ -383,9 +415,15 @@ def _can_edit_pending_operation(
             user,
         )
     ):
-        return True
+        old_edit = True
 
-    return False
+    if not old_edit:
+        return False
+
+    fy = _get_operation_fiscal_year(operation)
+    if fy:
+        return has_fiscal_permission(fy, "edit", user=user, check_open=True)
+    return True
 
 
 def _require_edit_pending_operation(
@@ -393,19 +431,29 @@ def _require_edit_pending_operation(
     user: str | None = None,
 ) -> None:
     user = _get_user(user)
+    _require_view_pending_operation(operation, user=user)
 
-    if _can_edit_pending_operation(
-        operation,
+    old_edit = _has_pending_permission(
+        EDIT_ALL_PENDING_OPERATIONS_PERMISSION,
         user=user,
-    ):
-        return
-
-    frappe.throw(
-        _(
-            "ليس لديك صلاحية لتعديل بيانات هذه العملية المعلقة."
-        ),
-        frappe.PermissionError,
+    ) or (
+        _has_pending_permission(
+            EDIT_OWN_PENDING_OPERATIONS_PERMISSION,
+            user=user,
+        )
+        and _is_own_operation(operation, user)
     )
+    if not old_edit:
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية لتعديل بيانات هذه العملية المعلقة."
+            ),
+            frappe.PermissionError,
+        )
+
+    fy = _get_operation_fiscal_year(operation)
+    if fy:
+        require_fiscal_permission(fy, "edit", user=user, check_open=True)
 
 
 def _can_add_pending_return(
@@ -413,6 +461,7 @@ def _can_add_pending_return(
     user: str | None = None,
 ) -> bool:
     user = _get_user(user)
+    fy = _get_operation_fiscal_year(operation)
 
     return bool(
         _can_view_pending_operation(
@@ -423,6 +472,7 @@ def _can_add_pending_return(
             ADD_PENDING_RETURN_PERMISSION,
             user=user,
         )
+        and (not fy or has_fiscal_permission(fy, "edit", user=user, check_open=True))
     )
 
 
@@ -431,19 +481,22 @@ def _require_add_pending_return(
     user: str | None = None,
 ) -> None:
     user = _get_user(user)
+    _require_view_pending_operation(operation, user=user)
 
-    if _can_add_pending_return(
-        operation,
+    if not _has_pending_permission(
+        ADD_PENDING_RETURN_PERMISSION,
         user=user,
     ):
-        return
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية لإضافة مبلغ مرتجع لهذه العملية."
+            ),
+            frappe.PermissionError,
+        )
 
-    frappe.throw(
-        _(
-            "ليس لديك صلاحية لإضافة مبلغ مرتجع لهذه العملية."
-        ),
-        frappe.PermissionError,
-    )
+    fy = _get_operation_fiscal_year(operation)
+    if fy:
+        require_fiscal_permission(fy, "edit", user=user, check_open=True)
 
 
 def _can_correct_pending_ledger(
@@ -451,6 +504,7 @@ def _can_correct_pending_ledger(
     user: str | None = None,
 ) -> bool:
     user = _get_user(user)
+    fy = _get_operation_fiscal_year(operation)
 
     return bool(
         _can_view_pending_operation(
@@ -461,6 +515,7 @@ def _can_correct_pending_ledger(
             CORRECT_PENDING_LEDGER_PERMISSION,
             user=user,
         )
+        and (not fy or has_fiscal_permission(fy, "edit", user=user, check_open=True))
     )
 
 
@@ -469,19 +524,22 @@ def _require_correct_pending_ledger(
     user: str | None = None,
 ) -> None:
     user = _get_user(user)
+    _require_view_pending_operation(operation, user=user)
 
-    if _can_correct_pending_ledger(
-        operation,
+    if not _has_pending_permission(
+        CORRECT_PENDING_LEDGER_PERMISSION,
         user=user,
     ):
-        return
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية لتصحيح الحركة المالية لهذه العملية."
+            ),
+            frappe.PermissionError,
+        )
 
-    frappe.throw(
-        _(
-            "ليس لديك صلاحية لتصحيح الحركة المالية لهذه العملية."
-        ),
-        frappe.PermissionError,
-    )
+    fy = _get_operation_fiscal_year(operation)
+    if fy:
+        require_fiscal_permission(fy, "edit", user=user, check_open=True)
 
 
 def _can_change_pending_failure_status(
@@ -489,6 +547,7 @@ def _can_change_pending_failure_status(
     user: str | None = None,
 ) -> bool:
     user = _get_user(user)
+    fy = _get_operation_fiscal_year(operation)
 
     return bool(
         _can_view_pending_operation(
@@ -499,6 +558,7 @@ def _can_change_pending_failure_status(
             CHANGE_PENDING_FAILURE_STATUS_PERMISSION,
             user=user,
         )
+        and (not fy or has_fiscal_permission(fy, "edit", user=user, check_open=True))
     )
 
 
@@ -507,19 +567,22 @@ def _require_change_pending_failure_status(
     user: str | None = None,
 ) -> None:
     user = _get_user(user)
+    _require_view_pending_operation(operation, user=user)
 
-    if _can_change_pending_failure_status(
-        operation,
+    if not _has_pending_permission(
+        CHANGE_PENDING_FAILURE_STATUS_PERMISSION,
         user=user,
     ):
-        return
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية لتغيير حالة الفشل لهذه العملية المعلقة."
+            ),
+            frappe.PermissionError,
+        )
 
-    frappe.throw(
-        _(
-            "ليس لديك صلاحية لتغيير حالة الفشل لهذه العملية المعلقة."
-        ),
-        frappe.PermissionError,
-    )
+    fy = _get_operation_fiscal_year(operation)
+    if fy:
+        require_fiscal_permission(fy, "edit", user=user, check_open=True)
 
 
 def _can_close_reopen_pending_operation(
@@ -527,6 +590,7 @@ def _can_close_reopen_pending_operation(
     user: str | None = None,
 ) -> bool:
     user = _get_user(user)
+    fy = _get_operation_fiscal_year(operation)
 
     return bool(
         _can_view_pending_operation(
@@ -537,6 +601,7 @@ def _can_close_reopen_pending_operation(
             CLOSE_REOPEN_PENDING_OPERATION_PERMISSION,
             user=user,
         )
+        and (not fy or has_fiscal_permission(fy, "edit", user=user, check_open=True))
     )
 
 
@@ -545,19 +610,22 @@ def _require_close_reopen_pending_operation(
     user: str | None = None,
 ) -> None:
     user = _get_user(user)
+    _require_view_pending_operation(operation, user=user)
 
-    if _can_close_reopen_pending_operation(
-        operation,
+    if not _has_pending_permission(
+        CLOSE_REOPEN_PENDING_OPERATION_PERMISSION,
         user=user,
     ):
-        return
+        frappe.throw(
+            _(
+                "ليس لديك صلاحية لإنهاء أو إعادة فتح هذه العملية المعلقة."
+            ),
+            frappe.PermissionError,
+        )
 
-    frappe.throw(
-        _(
-            "ليس لديك صلاحية لإنهاء أو إعادة فتح هذه العملية المعلقة."
-        ),
-        frappe.PermissionError,
-    )
+    fy = _get_operation_fiscal_year(operation)
+    if fy:
+        require_fiscal_permission(fy, "edit", user=user, check_open=True)
 
 
 def _can_view_pending_operation_timeline(
@@ -583,9 +651,10 @@ def _require_view_pending_operation_timeline(
     user: str | None = None,
 ) -> None:
     user = _get_user(user)
+    _require_view_pending_operation(operation, user=user)
 
-    if _can_view_pending_operation_timeline(
-        operation,
+    if _has_pending_permission(
+        VIEW_PENDING_OPERATION_TIMELINE_PERMISSION,
         user=user,
     ):
         return
@@ -818,6 +887,7 @@ def get_pending_record_permissions(
 
 def get_permission_query_conditions(
     user: str | None = None,
+    doctype: str | None = None,
 ) -> str:
     """
     حماية List View / reports / frappe.get_list.
@@ -826,6 +896,7 @@ def get_permission_query_conditions(
     view_own -> owner == user.
     بدون صلاحية -> لا يعيد أي سجل.
     """
+    del doctype
 
     user = _get_user(user)
 
@@ -834,16 +905,21 @@ def get_permission_query_conditions(
         throw=False,
     )
 
+    if scope not in ("all", "own"):
+        return "1=0"
+
+    fiscal_cond = get_fiscal_permission_query_condition(PENDING_DOCTYPE, user=user)
+    if fiscal_cond == "1=0":
+        return "1=0"
+
     if scope == "all":
-        return ""
+        return fiscal_cond
 
-    if scope == "own":
-        return (
-            f"`tab{PENDING_DOCTYPE}`.`owner` = "
-            f"{frappe.db.escape(user)}"
-        )
-
-    return "1=0"
+    own_cond = (
+        f"`tab{PENDING_DOCTYPE}`.`owner` = "
+        f"{frappe.db.escape(user)}"
+    )
+    return f"({own_cond}) AND ({fiscal_cond})"
 
 
 def has_permission(
@@ -860,6 +936,13 @@ def has_permission(
     if user == "Guest":
         return False
 
+    if ptype == "export":
+        if not bool(_get_pending_scope(user=user, throw=False)):
+            return False
+        if doc is not None and not _can_view_pending_operation(doc, user=user):
+            return False
+        return check_doctype_fiscal_permission(doc, ptype="export", user=user)
+
     if ptype in _READ_LIKE_PERMISSION_TYPES:
         if doc is None:
             return bool(
@@ -867,6 +950,7 @@ def has_permission(
                     user=user,
                     throw=False,
                 )
+                and check_doctype_fiscal_permission(None, ptype="read", user=user)
             )
         return _can_view_pending_operation(
             doc,
@@ -890,6 +974,7 @@ def has_permission(
                         user=user,
                     )
                 )
+                and check_doctype_fiscal_permission(None, ptype="write", user=user)
             )
         return _can_edit_pending_operation(
             doc,
@@ -897,18 +982,25 @@ def has_permission(
         )
 
     if ptype == "create":
-        return _has_pending_permission(
-            CREATE_PENDING_OPERATION_PERMISSION,
-            user=user,
+        return bool(
+            _has_pending_permission(
+                CREATE_PENDING_OPERATION_PERMISSION,
+                user=user,
+            )
+            and check_doctype_fiscal_permission(doc, ptype="create", user=user)
         )
 
     if ptype in _ALWAYS_DENIED_GENERIC_PERMISSION_TYPES:
         return False
 
     if ptype in PENDING_PERMISSION_TYPES:
-        return _has_pending_permission(
+        if not _has_pending_permission(
             ptype,
             user=user,
-        )
+        ):
+            return False
+        if doc is not None:
+            return check_doctype_fiscal_permission(doc, ptype=ptype, user=user)
+        return True
 
     return False

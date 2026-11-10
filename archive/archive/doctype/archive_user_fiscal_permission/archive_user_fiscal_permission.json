@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-10 01:45:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "parent_user",
+  "fiscal_year",
+  "permissions_section",
+  "can_view",
+  "can_add",
+  "can_edit",
+  "can_delete",
+  "can_export"
+ ],
+ "fields": [
+  {
+   "fieldname": "parent_user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "المستخدم",
+   "options": "User",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "fiscal_year",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "السنة المالية",
+   "options": "Archive Fiscal Year",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "permissions_section",
+   "fieldtype": "Section Break",
+   "label": "صلاحيات السنة"
+  },
+  {
+   "default": "0",
+   "fieldname": "can_view",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "استعراض"
+  },
+  {
+   "default": "0",
+   "fieldname": "can_add",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "إضافة"
+  },
+  {
+   "default": "0",
+   "fieldname": "can_edit",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "تعديل"
+  },
+  {
+   "default": "0",
+   "fieldname": "can_delete",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "حذف"
+  },
+  {
+   "default": "0",
+   "fieldname": "can_export",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "تصدير"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-10 01:45:00",
+ "modified_by": "Administrator",
+ "module": "Archive",
+ "name": "Archive User Fiscal Permission",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -133,6 +133,7 @@ class ArchiveDepositsPage {
 
 		this.state = {
 			deposit_date: initial_today,
+			fiscal_year: null,
 			today: initial_today,
 			status_filter: "all",
 			search: "",
@@ -165,6 +166,8 @@ class ArchiveDepositsPage {
 		this.pagination = { page: 1, page_size: 50, total_count: 0, total_pages: 1 };
 		this.masters = { banks: [], representatives: [], regions: [] };
 		this.permissions = { can_view: false, can_save: false };
+		this.fiscal_context = null;
+		this.fiscal_year_is_closed = false;
 
 		this._search_timer = null;
 		this._load_seq = 0;
@@ -340,6 +343,12 @@ class ArchiveDepositsPage {
 							<span class="archive-deposits-filter-badge" data-role="filter-count" hidden>0</span>
 						</button>
 
+						<div class="archive-fiscal-year-filter-wrap" style="display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 4px;">
+							<label class="archive-fiscal-year-label" style="margin: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap;">السنة المالية</label>
+							<select class="form-control input-xs archive-fiscal-year-select" data-role="fiscal-year-select" style="width: auto; min-width: 110px; height: 32px; padding: 2px 8px; border-radius: 6px; font-weight: 600;">
+							</select>
+						</div>
+
 						<div class="archive-deposits-dropdown-wrap">
 							<button
 								type="button"
@@ -471,6 +480,19 @@ class ArchiveDepositsPage {
 				return;
 			}
 			this.request_date_change(next_date);
+		});
+
+		$main.on("change", '[data-role="fiscal-year-select"]', (e) => {
+			const next_year = String($(e.currentTarget).val() || "").trim();
+			if (!next_year || next_year === this.state.fiscal_year) {
+				return;
+			}
+			const today_str = this.state.today || frappe.datetime.get_today();
+			const target_date = today_str.startsWith(`${next_year}-`)
+				? today_str
+				: `${next_year}-01-01`;
+			this.state.fiscal_year = next_year;
+			this.request_date_change(target_date);
 		});
 
 		$main.on("click", '[data-action="prev-day"]', () => {
@@ -1119,6 +1141,31 @@ class ArchiveDepositsPage {
 		}
 	}
 
+	render_fiscal_year_filter() {
+		const $select = $(this.page.main).find('[data-role="fiscal-year-select"]');
+		if (!$select.length) return;
+		const ctx = this.fiscal_context || {};
+		const allowed = Array.isArray(ctx.allowed_view_years) ? ctx.allowed_view_years : [];
+		if (!allowed.length) {
+			$select.html('<option value="">لا توجد سنوات متاحة</option>').prop("disabled", true);
+			return;
+		}
+		$select.prop("disabled", false);
+		const current = this.state.fiscal_year || ctx.default_view_fiscal_year || allowed[0];
+		$select.html(
+			allowed
+				.map((yr) => {
+					const meta = (ctx.years || []).find((item) => item.year_name === yr);
+					const closed_suffix = meta && Number(meta.is_closed) === 1 ? " (مغلقة)" : "";
+					return `<option value="${frappe.utils.escape_html(yr)}" ${
+						yr === current ? "selected" : ""
+					}>${frappe.utils.escape_html(`${yr}${closed_suffix}`)}</option>`;
+				})
+				.join("")
+		);
+		this.state.fiscal_year = current;
+	}
+
 	async load_context(preserve_masters = true) {
 		const seq = ++this._load_seq;
 		this.is_loading = true;
@@ -1128,6 +1175,7 @@ class ArchiveDepositsPage {
 				type: "GET",
 				args: {
 					deposit_date: this.state.deposit_date,
+					fiscal_year: this.state.fiscal_year || undefined,
 					status_filter: this.state.status_filter === "all" ? "" : this.state.status_filter,
 					search: this.state.search,
 					bank: this.state.filters.bank,
@@ -1144,6 +1192,10 @@ class ArchiveDepositsPage {
 			const data = res?.message || {};
 
 			this.state.deposit_date = data.deposit_date || this.state.deposit_date;
+			this.state.fiscal_year = data.fiscal_year || String(this.state.deposit_date || "").slice(0, 4);
+			this.fiscal_year_is_closed = Boolean(data.fiscal_year_is_closed);
+			this.fiscal_context = data.fiscal_context || this.fiscal_context || {};
+			this.render_fiscal_year_filter();
 			this.state.today = data.today || this.state.today;
 			this.rows = data.rows || [];
 			this.rows_by_card.clear();

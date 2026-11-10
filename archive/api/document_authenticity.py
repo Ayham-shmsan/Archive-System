@@ -5,11 +5,17 @@ import os
 import re
 import frappe
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import cint, cstr, now_datetime
 from frappe.query_builder.functions import Count
 from archive.forensic.snb_pdf_validator import validate_snb_pdf
 from archive.forensic.snb_pdf_fingerprint import (
     FINGERPRINT_ENGINE_VERSION,
+)
+from archive.services.fiscal_year_permissions import (
+    get_screen_fiscal_context,
+    require_fiscal_permission,
+    resolve_fiscal_year_filter,
+    resolve_target_fiscal_year_for_create,
 )
 
 CHECK_DOCTYPE = "Archive Document Authenticity Check"
@@ -237,14 +243,16 @@ def get_authenticity_capabilities() -> dict:
     elif can_view_own:
         history_scope = "own"
 
+    fiscal_ctx = get_screen_fiscal_context()
+
     return {
         "can_check":
-            can_check,
+            bool(can_check and fiscal_ctx.get("allowed_add_years")),
 
         "can_view_history":
             bool(
-                can_view_all
-                or can_view_own
+                (can_view_all or can_view_own)
+                and fiscal_ctx.get("allowed_view_years")
             ),
 
         "history_scope":
@@ -258,10 +266,16 @@ def get_authenticity_capabilities() -> dict:
 
         "can_view_technical_details":
             can_view_technical_details,
+
+        "fiscal_context":
+            fiscal_ctx,
     }
 
 @frappe.whitelist()
-def check_pdf(file_id: str) -> dict:
+def check_pdf(
+    file_id: str,
+    fiscal_year: str | None = None,
+) -> dict:
     """
     يفحص ملف PDF موجود في DocType File،
     ثم ينشئ سجل فحص مستقل وغير قابل للتعديل.
@@ -276,6 +290,7 @@ def check_pdf(file_id: str) -> dict:
         )
 
     _require_authenticity_check_permission()
+    target_fiscal_year = resolve_target_fiscal_year_for_create(fiscal_year)
 
     file_id = (
         file_id
@@ -346,6 +361,9 @@ def check_pdf(file_id: str) -> dict:
         {
             "doctype":
                 CHECK_DOCTYPE,
+
+            "fiscal_year":
+                target_fiscal_year,
 
             "source_file":
                 file_doc.file_url,
@@ -434,6 +452,19 @@ def check_pdf(file_id: str) -> dict:
     return {
         "name":
             check_doc.name,
+
+        "fiscal_year":
+            getattr(check_doc, "fiscal_year", None),
+
+        "fiscal_sequence":
+            cint(getattr(check_doc, "fiscal_sequence", 0)),
+
+        "fiscal_display_no":
+            (
+                cint(getattr(check_doc, "fiscal_sequence", 0))
+                if cint(getattr(check_doc, "fiscal_sequence", 0)) > 0
+                else check_doc.name
+            ),
 
         "status":
             check_doc.status,
@@ -601,6 +632,7 @@ def check_pdf(file_id: str) -> dict:
 @frappe.whitelist()
 def get_recent_checks(
     limit: int = 20,
+    fiscal_year: str | None = None,
 ) -> list[dict]:
     """
     Compatibility endpoint.
@@ -643,6 +675,7 @@ def get_recent_checks(
     result = get_check_history(
         page=1,
         page_length=limit,
+        fiscal_year=fiscal_year,
     )
 
     return (
@@ -659,6 +692,7 @@ def get_check_history(
     status: str = "",
     page: int = 1,
     page_length: int = 20,
+    fiscal_year: str | None = None,
 ) -> dict:
     """
     سجل الفحوصات مع بحث عام سريع والحالة والصفحات.
@@ -679,6 +713,18 @@ def get_check_history(
     history_scope = (
         _get_authenticity_history_scope()
     )
+    allowed_fiscal_years = resolve_fiscal_year_filter(
+        fiscal_year,
+        action="view",
+    )
+    if not allowed_fiscal_years:
+        return {
+            "rows": [],
+            "total": 0,
+            "page": 1,
+            "page_length": 20,
+            "total_pages": 1,
+        }
 
     search = (
         search
@@ -740,6 +786,15 @@ def get_check_history(
 
 
     conditions = []
+    if len(allowed_fiscal_years) == 1:
+        conditions.append(
+            check.fiscal_year == allowed_fiscal_years[0]
+        )
+    else:
+        conditions.append(
+            check.fiscal_year.isin(allowed_fiscal_years)
+        )
+
     if (
         history_scope == "own"
     ):
@@ -775,6 +830,12 @@ def get_check_history(
                 check.name.like(
                     like_value
                 )
+                | check.fiscal_sequence.like(
+                    like_value
+                )
+                | check.fiscal_year.like(
+                    like_value
+                )
                 | check.file_name.like(
                     like_value
                 )
@@ -805,6 +866,8 @@ def get_check_history(
         )
         .select(
             check.name,
+            check.fiscal_year,
+            check.fiscal_sequence,
             check.file_name,
             check.source_file,
             check.status,
@@ -913,6 +976,11 @@ def get_check_history(
                 "checked_by_full_name"
             )
             or checked_by
+        )
+        row["fiscal_display_no"] = (
+            cint(row.get("fiscal_sequence"))
+            if cint(row.get("fiscal_sequence")) > 0
+            else row.get("name")
         )
 
 
@@ -1146,6 +1214,11 @@ def get_check_details(
     _require_authenticity_history_record_access(
         check_doc.checked_by
     )
+    require_fiscal_permission(
+        getattr(check_doc, "fiscal_year", None),
+        "view",
+        check_open=False,
+    )
 
     can_view_technical_details = (
         _can_view_authenticity_technical_details()
@@ -1188,6 +1261,19 @@ def get_check_details(
     return {
         "name":
             check_doc.name,
+
+        "fiscal_year":
+            getattr(check_doc, "fiscal_year", None),
+
+        "fiscal_sequence":
+            cint(getattr(check_doc, "fiscal_sequence", 0)),
+
+        "fiscal_display_no":
+            (
+                cint(getattr(check_doc, "fiscal_sequence", 0))
+                if cint(getattr(check_doc, "fiscal_sequence", 0)) > 0
+                else check_doc.name
+            ),
 
         "file_name":
             check_doc.file_name,

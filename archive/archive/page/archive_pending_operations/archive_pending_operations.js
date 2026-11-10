@@ -9,6 +9,7 @@ class ArchivePendingOperationsPage {
         this.state = {
             status: "all",
             search: "",
+            fiscal_year: null,
             advanced_filters: {},
             page: 1,
             page_length: "100",
@@ -23,6 +24,7 @@ class ArchivePendingOperationsPage {
 
         this.operations = [];
         this.capabilities = {};
+        this.fiscal_context = null;
         this.scope = null;
         this.context_version = null;
 
@@ -623,6 +625,12 @@ class ArchivePendingOperationsPage {
                             <span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></span>
                             <span class="ac-tb-label">الفلاتر</span>
                         </button>
+
+                        <div class="archive-fiscal-year-filter-wrap" style="display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 4px;">
+                            <label class="archive-fiscal-year-label" style="margin: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap;">السنة المالية</label>
+                            <select class="form-control input-xs archive-fiscal-year-select" style="width: auto; min-width: 110px; height: 32px; padding: 2px 8px; border-radius: 6px; font-weight: 600;">
+                            </select>
+                        </div>
 
                         <div class="archive-cards-dropdown-wrap">
                             <button
@@ -1617,6 +1625,10 @@ class ArchivePendingOperationsPage {
 
                     type:
                         "GET",
+
+                    args: {
+                        fiscal_year: this.state.fiscal_year || undefined,
+                    },
                 });
 
             const result =
@@ -1633,6 +1645,16 @@ class ArchivePendingOperationsPage {
             this.capabilities =
                 result.capabilities
                 || {};
+
+            this.fiscal_context =
+                result.fiscal_context
+                || this.capabilities.fiscal_context
+                || null;
+
+            if (result.selected_fiscal_year) {
+                this.state.fiscal_year = result.selected_fiscal_year;
+            }
+            this.render_fiscal_year_filter();
 
             this.scope =
                 result.scope
@@ -1791,6 +1813,39 @@ class ArchivePendingOperationsPage {
                     this.is_loading
                 )
             );
+    }
+
+    render_fiscal_year_filter() {
+        const $select = $(this.wrapper).find(".archive-fiscal-year-select");
+        if (!$select.length) return;
+        const ctx = this.fiscal_context || {};
+        const allowed = Array.isArray(ctx.allowed_view_years) ? ctx.allowed_view_years : [];
+        const options = [];
+        if (ctx.can_view_multiple_years && allowed.length > 1) {
+            options.push({ value: "ALL", label: "جميع السنوات" });
+        }
+        allowed.forEach((yr) => {
+            const meta = (ctx.years || []).find((item) => item.year_name === yr);
+            const closed_suffix = meta && Number(meta.is_closed) === 1 ? " (مغلقة)" : "";
+            options.push({ value: yr, label: `${yr}${closed_suffix}` });
+        });
+        if (!options.length) {
+            $select.html('<option value="">لا توجد سنوات متاحة</option>').prop("disabled", true);
+            return;
+        }
+        $select.prop("disabled", false);
+        const current = this.state.fiscal_year || ctx.default_view_fiscal_year || options[0].value;
+        $select.html(
+            options
+                .map(
+                    (opt) =>
+                        `<option value="${frappe.utils.escape_html(opt.value)}" ${
+                            opt.value === current ? "selected" : ""
+                        }>${frappe.utils.escape_html(opt.label)}</option>`
+                )
+                .join("")
+        );
+        this.state.fiscal_year = current;
     }
 
     update_scope_badge() {
@@ -2509,7 +2564,7 @@ class ArchivePendingOperationsPage {
 
                 <td class="archive-pending-serial">
                     ${this.escape_value(
-                        operation.serial_no
+                        operation.fiscal_display_no || operation.serial_no
                     )}
                 </td>
 
@@ -4421,6 +4476,23 @@ class ArchivePendingOperationsPage {
 
         $wrapper
             .find(
+                ".archive-fiscal-year-select"
+            )
+            .on(
+                "change",
+                async (event) => {
+                    const next_year = String(event.target.value || "").trim();
+                    if (!next_year || next_year === this.state.fiscal_year) {
+                        return;
+                    }
+                    this.state.fiscal_year = next_year;
+                    this.state.page = 1;
+                    await this.load_context();
+                }
+            );
+
+        $wrapper
+            .find(
                 '[data-role="columns-menu"]'
             )
             .on(
@@ -4851,6 +4923,11 @@ class ArchivePendingOperationsPage {
         const create_dialog =
             new window
                 .ArchivePendingOperationDialog({
+
+                    fiscal_context:
+                        this.fiscal_context
+                        || this.capabilities?.fiscal_context
+                        || null,
 
                     lookup_rows:
                         this

@@ -208,8 +208,12 @@ doctype_js = {
 extend_bootinfo = "archive.api.deposits.extend_deposits_bootinfo"
 
 permission_query_conditions = {
+    "Archive Operation":
+        "archive.services.fiscal_year_permissions.get_operation_permission_query_conditions",
     "Archive Pending Operation":
         "archive.services.pending_operation_permissions.get_permission_query_conditions",
+    "Archive Document Authenticity Check":
+        "archive.services.fiscal_year_permissions.get_authenticity_permission_query_conditions",
     "Archive Card":
         "archive.services.card_permissions.get_permission_query_conditions",
     "Archive Card Deposit":
@@ -219,8 +223,12 @@ permission_query_conditions = {
 }
 
 has_permission = {
+    "Archive Operation":
+        "archive.services.fiscal_year_permissions.has_operation_permission",
     "Archive Pending Operation":
         "archive.services.pending_operation_permissions.has_permission",
+    "Archive Document Authenticity Check":
+        "archive.services.fiscal_year_permissions.has_authenticity_permission",
     "Archive Card":
         "archive.services.card_permissions.has_permission",
     "Archive Card Family":
@@ -246,7 +254,10 @@ has_permission = {
 
 doc_events = {
     "User": {
-        "validate": "archive.api.deposits.validate_user_deposit_day_limits",
+        "validate": [
+            "archive.api.deposits.validate_user_deposit_day_limits",
+            "archive.services.fiscal_year_permissions.save_user_fiscal_permissions_on_user_validate",
+        ],
     },
 }
 

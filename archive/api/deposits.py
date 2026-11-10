@@ -30,6 +30,16 @@ from archive.api.card_search import (
 	normalize_account_number,
 )
 from archive.api.operation_search import normalize_search_text
+from archive.services.fiscal_year_permissions import (
+	derive_fiscal_year_from_date,
+	get_allowed_fiscal_years,
+	get_screen_fiscal_context,
+	get_user_fiscal_permissions_map,
+	has_fiscal_permission,
+	is_fiscal_year_closed,
+	require_fiscal_permission,
+	require_fiscal_year_open,
+)
 
 DEPOSIT_DOCTYPE = "Archive Card Deposit"
 ACTIVE_CARD_STATUS = "نشطة"
@@ -157,19 +167,16 @@ def require_deposits_screen_access(user: str | None = None) -> None:
 
 
 def can_view_deposits(user: str | None = None) -> bool:
-	return has_deposits_screen_access_role(user=user)
+	if not has_deposits_screen_access_role(user=user):
+		return False
+	return bool(get_allowed_fiscal_years(user=user, action="view", only_open=False))
 
 
-def can_edit_deposits_for_date(
+def _can_edit_deposits_date_window(
 	deposit_date: str | None = None,
 	user: str | None = None,
 ) -> bool:
-	"""
-	Evaluates whether `user` can edit deposits for `deposit_date` relative to the
-	Frappe server site date (`today()`).
-	View role is always a mandatory prerequisite.
-	"""
-	if not can_view_deposits(user=user):
+	if not has_deposits_screen_access_role(user=user):
 		return False
 
 	resolved_date = _resolve_valid_date(deposit_date)
@@ -194,6 +201,33 @@ def can_edit_deposits_for_date(
 	return limits["future_days"] > 0 and delta_days <= limits["future_days"]
 
 
+def can_edit_deposits_for_date(
+	deposit_date: str | None = None,
+	user: str | None = None,
+) -> bool:
+	"""
+	Evaluates whether `user` can edit deposits for `deposit_date` relative to the
+	Frappe server site date (`today()`) AND whether the fiscal year of `deposit_date`
+	is open and user has add/edit permission on that fiscal year.
+	"""
+	if not _can_edit_deposits_date_window(deposit_date=deposit_date, user=user):
+		return False
+
+	resolved_date = _resolve_valid_date(deposit_date)
+	try:
+		fy = derive_fiscal_year_from_date(resolved_date)
+	except Exception:
+		return False
+
+	if is_fiscal_year_closed(fy):
+		return False
+
+	return bool(
+		has_fiscal_permission(fy, "add", user=user, check_open=True)
+		or has_fiscal_permission(fy, "edit", user=user, check_open=True)
+	)
+
+
 def can_save_deposits(
 	deposit_date: str | None = None,
 	user: str | None = None,
@@ -211,7 +245,17 @@ def require_deposit_save_permission(
 ) -> None:
 	require_deposits_screen_access(user=user)
 	resolved_date = _resolve_valid_date(deposit_date)
-	if not can_edit_deposits_for_date(resolved_date, user=user):
+	fy = derive_fiscal_year_from_date(resolved_date)
+	require_fiscal_year_open(fy)
+	if not (
+		has_fiscal_permission(fy, "add", user=user, check_open=True)
+		or has_fiscal_permission(fy, "edit", user=user, check_open=True)
+	):
+		frappe.throw(
+			_("ليست لديك صلاحية لإضافة أو تعديل الإيداعات في السنة المالية ({0}).").format(fy),
+			frappe.PermissionError,
+		)
+	if not _can_edit_deposits_date_window(resolved_date, user=user):
 		frappe.throw(
 			_("ليست لديك صلاحية لتعديل أو حفظ الإيداعات في التاريخ ({0}).").format(resolved_date),
 			frappe.PermissionError,
@@ -325,31 +369,65 @@ def validate_user_deposit_day_limits(doc: Any, method: str | None = None) -> Non
 		)
 
 
-def get_deposit_permission_query_conditions(user: str | None = None) -> str:
+def get_deposit_permission_query_conditions(
+	user: str | None = None,
+	doctype: str | None = None,
+) -> str:
+	del doctype
 	if not can_view_deposits(user=user):
 		return "1=0"
-	return ""
+	allowed_years = get_allowed_fiscal_years(user=user, action="view", only_open=False)
+	if not allowed_years:
+		return "1=0"
+	escaped_years = ", ".join(frappe.db.escape(y) for y in allowed_years)
+	return f"`tabArchive Card Deposit`.`fiscal_year` IN ({escaped_years})"
 
 
 def has_deposit_permission(
 	doc: Any,
 	ptype: str | None = None,
 	user: str | None = None,
+	debug: bool = False,
 ) -> bool:
+	del debug
 	if not has_deposits_screen_access_role(user=user):
 		return False
 	perm = ptype or "read"
-	if perm in ("read", "select", "report", "export", "print"):
+	doc_fy = None
+	doc_date = None
+	if isinstance(doc, dict):
+		doc_fy = doc.get("fiscal_year")
+		doc_date = doc.get("deposit_date")
+	elif doc is not None:
+		doc_fy = getattr(doc, "fiscal_year", None)
+		doc_date = getattr(doc, "deposit_date", None)
+	if not doc_fy and doc_date:
+		try:
+			doc_fy = derive_fiscal_year_from_date(cstr(doc_date))
+		except Exception:
+			return False
+
+	if perm in ("export", "print"):
+		if doc_fy:
+			return has_fiscal_permission(doc_fy, "export", user=user, check_open=False)
+		return bool(get_allowed_fiscal_years(user=user, action="export", only_open=False))
+	if perm in ("read", "select", "report"):
+		if doc_fy:
+			return has_fiscal_permission(doc_fy, "view", user=user, check_open=False)
 		return can_view_deposits(user=user)
 	if perm in ("create", "write"):
-		doc_date = None
-		if isinstance(doc, dict):
-			doc_date = doc.get("deposit_date")
-		elif doc is not None:
-			doc_date = getattr(doc, "deposit_date", None)
+		action = "add" if perm == "create" else "edit"
+		if doc_fy and not has_fiscal_permission(doc_fy, action, user=user, check_open=True):
+			return False
 		if doc_date:
 			return can_edit_deposits_for_date(cstr(doc_date), user=user)
-		return has_any_deposit_edit_role(user=user)
+		return has_any_deposit_edit_role(user=user) and bool(
+			get_allowed_fiscal_years(user=user, action=action, only_open=True)
+		)
+	if perm == "delete":
+		if doc_fy:
+			return has_fiscal_permission(doc_fy, "delete", user=user, check_open=True)
+		return bool(get_allowed_fiscal_years(user=user, action="delete", only_open=True))
 	return False
 
 
@@ -400,6 +478,7 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 	from archive.services.operation_permissions import (
 		ROLE_ATTACH_INCOMPLETE_INVOICE,
 		ROLE_OPERATIONS_SCREEN_ACCESS,
+		ROLE_PREVIEW_OPERATION_ATTACHMENTS,
 		ROLE_VIEW_OPERATION_TIMELINE,
 	)
 	from archive.services.pending_operation_permissions import (
@@ -431,6 +510,24 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 		"قارئ المعلقات",
 	)
 	system_roles = {"System Manager", "Administrator", "All", "Guest", "Desk User"}
+
+	if not frappe.db.exists("Role", ROLE_PREVIEW_OPERATION_ATTACHMENTS):
+		frappe.get_doc(
+			{
+				"doctype": "Role",
+				"role_name": ROLE_PREVIEW_OPERATION_ATTACHMENTS,
+				"desk_access": 1,
+				"is_custom": 1,
+			}
+		).insert(ignore_permissions=True)
+		frappe.db.delete(
+			"Has Role",
+			{
+				"parent": "Administrator",
+				"parenttype": "User",
+				"role": ROLE_PREVIEW_OPERATION_ATTACHMENTS,
+			},
+		)
 
 	enabled_roles = set(
 		frappe.get_all("Role", filters={"disabled": 0}, pluck="name")
@@ -496,6 +593,7 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 				"Archive Advanced Status",
 				"Archive Attachment Manager",
 				"Archive Final Swift",
+				ROLE_PREVIEW_OPERATION_ATTACHMENTS,
 				ROLE_ATTACH_INCOMPLETE_INVOICE,
 				ROLE_VIEW_OPERATION_TIMELINE,
 			],
@@ -1622,10 +1720,63 @@ def get_deposits_context(
 	page_size: int | str = 50,
 	sort_by: str = "serial_no",
 	sort_order: str = "desc",
+	fiscal_year: str = "",
 ) -> dict[str, Any]:
 	require_deposit_view_permission()
+	fiscal_ctx = get_screen_fiscal_context()
+	allowed_view_years = fiscal_ctx.get("allowed_view_years") or []
+	if not allowed_view_years:
+		frappe.throw(
+			_("ليست لديك صلاحية لعرض الإيداعات في أي سنة مالية."),
+			frappe.PermissionError,
+		)
+
+	clean_fy = cstr(fiscal_year or "").strip()
+	if clean_fy and clean_fy != "all":
+		require_fiscal_permission(clean_fy, "view", check_open=False)
+
+	if not deposit_date or not cstr(deposit_date).strip():
+		candidate_date = cstr(today())
+		try:
+			candidate_fy = derive_fiscal_year_from_date(candidate_date)
+		except Exception:
+			candidate_fy = ""
+
+		target_fy = clean_fy if (clean_fy and clean_fy != "all") else ""
+		if not target_fy:
+			if candidate_fy and candidate_fy in allowed_view_years:
+				target_fy = candidate_fy
+			else:
+				default_fy = cstr(fiscal_ctx.get("default_view_fiscal_year") or "")
+				if default_fy and default_fy != "all" and default_fy in allowed_view_years:
+					target_fy = default_fy
+				else:
+					target_fy = allowed_view_years[0]
+
+		if candidate_fy != target_fy:
+			fy_bounds = frappe.db.get_value(
+				"Archive Fiscal Year",
+				target_fy,
+				["start_date", "end_date"],
+				as_dict=True,
+			)
+			if fy_bounds:
+				if getdate(candidate_date) > getdate(fy_bounds.end_date):
+					deposit_date = cstr(fy_bounds.end_date)
+				else:
+					deposit_date = cstr(fy_bounds.start_date)
 
 	resolved_date = _resolve_valid_date(deposit_date)
+	derived_fy = derive_fiscal_year_from_date(resolved_date)
+	require_fiscal_permission(derived_fy, "view", check_open=False)
+	if clean_fy and clean_fy != "all" and derived_fy != clean_fy:
+		frappe.throw(
+			_("التاريخ المحدد ({0}) يقع في السنة المالية ({1}) ولا ينتمي إلى السنة المالية المحددة ({2}).").format(
+				resolved_date, derived_fy, clean_fy
+			),
+			frappe.ValidationError,
+		)
+
 	all_day_items = _load_day_dataset(resolved_date)
 
 	# Compute day summary statistics across the entire day dataset within user permissions
@@ -1683,8 +1834,12 @@ def get_deposits_context(
 		row_copy.pop("_search_blob", None)
 		clean_rows.append(row_copy)
 
+	fy_is_closed = is_fiscal_year_closed(derived_fy)
 	return {
 		"deposit_date": resolved_date,
+		"fiscal_year": derived_fy,
+		"fiscal_year_is_closed": fy_is_closed,
+		"fiscal_context": fiscal_ctx,
 		"today": cstr(today()),
 		"rows": clean_rows,
 		"stats": stats,
@@ -1698,6 +1853,8 @@ def get_deposits_context(
 		"permissions": {
 			"can_view": True,
 			"can_save": can_edit_deposits_for_date(resolved_date),
+			"can_add_in_fiscal_year": has_fiscal_permission(derived_fy, "add", check_open=True),
+			"can_edit_in_fiscal_year": has_fiscal_permission(derived_fy, "edit", check_open=True),
 		},
 	}
 
@@ -1875,6 +2032,8 @@ def save_daily_deposits(
 	# Re-verify date edit permission after acquiring row locks so concurrent role/limit changes
 	# or midnight date rollover cannot bypass date-window restrictions.
 	require_deposit_save_permission(resolved_date)
+	derived_fy = derive_fiscal_year_from_date(resolved_date)
+	require_fiscal_year_open(derived_fy)
 
 	current_user = cstr(frappe.session.user or "Administrator")
 	now_ts = now_datetime()
@@ -2175,6 +2334,8 @@ def save_daily_deposits(
 					skipped_zero_count += 1
 					continue
 
+				require_fiscal_permission(derived_fy, "add", check_open=True)
+
 				initial_history = [
 					{
 						"action": "created",
@@ -2188,6 +2349,7 @@ def save_daily_deposits(
 				doc = frappe.get_doc(
 					{
 						"doctype": DEPOSIT_DOCTYPE,
+						"fiscal_year": derived_fy,
 						"card": cid,
 						"deposit_date": resolved_date,
 						"deposit_amount": new_amount,
@@ -2229,6 +2391,8 @@ def save_daily_deposits(
 				if abs(old_amount - new_amount) < 0.0001:
 					# Idempotent: identical retry does not create duplicate or fake modification entry
 					continue
+
+				require_fiscal_permission(derived_fy, "edit", check_open=True)
 
 				doc = frappe.get_doc(DEPOSIT_DOCTYPE, existing.name)
 				history = _parse_json_arg(doc.audit_history_json, [])

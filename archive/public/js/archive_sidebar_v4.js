@@ -1016,6 +1016,24 @@
                         "title",
                         label
                     );
+
+                    const href = String(
+                        anchor.getAttribute("href") || ""
+                    ).toLowerCase();
+                    if (
+                        label === "الإعدادات"
+                        || href.includes("system-settings")
+                    ) {
+                        const current_href = String(
+                            anchor.getAttribute("href") || ""
+                        );
+                        const target_href = current_href.startsWith("/app/")
+                            ? "/app/archive-settings"
+                            : "/desk/archive-settings";
+                        if (href.includes("system-settings")) {
+                            anchor.setAttribute("href", target_href);
+                        }
+                    }
                 }
             );
     }

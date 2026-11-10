@@ -34,7 +34,8 @@
     "last_modified_by",
     "last_modified_at",
     "audit_history_section",
-    "audit_history_json"
+    "audit_history_json",
+    "fiscal_year"
   ],
   "fields": [
     {
@@ -224,6 +225,16 @@
       "hidden": 1,
       "label": "سجل التعديلات JSON",
       "read_only": 1
+    },
+    {
+      "fieldname": "fiscal_year",
+      "fieldtype": "Link",
+      "hidden": 1,
+      "label": "السنة المالية",
+      "no_copy": 1,
+      "options": "Archive Fiscal Year",
+      "read_only": 1,
+      "search_index": 1
     }
   ],
   "index_web_pages_for_search": 0,

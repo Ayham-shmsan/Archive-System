@@ -12,6 +12,8 @@ from typing import Any
 OPERATION_SEARCH_FIELDS = (
     "name",
     "serial_no",
+    "fiscal_year",
+    "fiscal_sequence",
     "operation_no",
 
     "customer",

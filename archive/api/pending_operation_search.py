@@ -23,6 +23,8 @@ BACKFILL_BATCH_SIZE = 500
 _CONTEXT_DB_FIELDS = [
     "name",
     "serial_no",
+    "fiscal_year",
+    "fiscal_sequence",
 
     "card_name",
     "account_number",
@@ -81,6 +83,12 @@ def set_pending_search_text(doc) -> str:
 
             "serial_no":
                 doc.serial_no,
+
+            "fiscal_year":
+                getattr(doc, "fiscal_year", None),
+
+            "fiscal_sequence":
+                getattr(doc, "fiscal_sequence", None),
 
             "card_name":
                 doc.card_name,
@@ -316,6 +324,8 @@ def build_pending_search_text(
     search_fields = (
         "name",
         "serial_no",
+        "fiscal_year",
+        "fiscal_sequence",
 
         "card_name",
         "account_number",
@@ -400,6 +410,7 @@ def get_pending_context_rows(
     *,
     user: str,
     scope: str | None,
+    allowed_fiscal_years: list[str] | None = None,
 ) -> list[frappe._dict]:
     """
     يعيد Snapshot خفيفًا فقط.
@@ -436,10 +447,19 @@ def get_pending_context_rows(
             frappe.PermissionError,
         )
 
-    filters = {}
+    if allowed_fiscal_years is not None and not allowed_fiscal_years:
+        return []
+
+    filters: dict[str, Any] = {}
 
     if scope == "own":
         filters["owner"] = user
+
+    if allowed_fiscal_years is not None:
+        if len(allowed_fiscal_years) == 1:
+            filters["fiscal_year"] = allowed_fiscal_years[0]
+        else:
+            filters["fiscal_year"] = ["in", list(allowed_fiscal_years)]
 
     rows = frappe.get_all(
         PENDING_DOCTYPE,
@@ -598,6 +618,12 @@ def hydrate_pending_context_rows(
             )
             or row.owner
             or ""
+        )
+
+        row.fiscal_display_no = (
+            cint(row.fiscal_sequence)
+            if cint(row.fiscal_sequence) > 0
+            else cint(row.serial_no)
         )
 
         row.search_text = (

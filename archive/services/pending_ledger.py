@@ -979,6 +979,13 @@ def operation_financial_state(
     return {
         "name": doc.name,
         "serial_no": doc.serial_no,
+        "fiscal_year": getattr(doc, "fiscal_year", None),
+        "fiscal_sequence": cint(getattr(doc, "fiscal_sequence", 0)),
+        "fiscal_display_no": (
+            cint(getattr(doc, "fiscal_sequence", 0))
+            if cint(getattr(doc, "fiscal_sequence", 0)) > 0
+            else cint(doc.serial_no)
+        ),
         "currency": doc.currency,
 
         "total_suspended":

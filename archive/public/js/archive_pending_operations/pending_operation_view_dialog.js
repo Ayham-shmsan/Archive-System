@@ -101,10 +101,14 @@ class ArchivePendingOperationViewDialog {
         const operation =
             this.details.operation;
 
+        const title_suffix = operation.fiscal_display_no
+            ? `${operation.fiscal_display_no} (${operation.name})`
+            : operation.name;
+
         this.dialog =
             new frappe.ui.Dialog({
                 title:
-                    `العملية ${operation.name}`,
+                    `العملية ${title_suffix}`,
 
                 size:
                     "extra-large",
@@ -2712,6 +2716,24 @@ class ArchivePendingOperationViewDialog {
             null;
 
         try {
+            if (
+                this.attachment_manager
+                    ?.wait_until_idle
+            ) {
+                await this.attachment_manager.wait_until_idle();
+            }
+
+            if (
+                this.attachment_manager
+                    ?.last_modified
+                &&
+                this.details
+                    ?.operation
+            ) {
+                this.details.operation.modified =
+                    this.attachment_manager.last_modified;
+            }
+
             const response =
                 await frappe.call({
                     method:
@@ -4277,7 +4299,19 @@ class ArchivePendingOperationViewDialog {
                             || [],
 
                         on_changed:
-                            async () => {
+                            async (
+                                change_info
+                            ) => {
+                                if (
+                                    change_info
+                                        ?.modified
+                                    &&
+                                    this.details
+                                        ?.operation
+                                ) {
+                                    this.details.operation.modified =
+                                        change_info.modified;
+                                }
 
                                 this.details
                                     .attachments =
@@ -4311,8 +4345,16 @@ class ArchivePendingOperationViewDialog {
                             },
                     });
 
+            this.attachment_manager.last_modified =
+                this.details?.operation?.modified
+                || null;
+
             return;
         }
+
+        this.attachment_manager.last_modified =
+            this.details?.operation?.modified
+            || null;
 
         this.attachment_manager
             .set_operation_name(

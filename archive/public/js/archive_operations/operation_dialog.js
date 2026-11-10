@@ -1,8 +1,9 @@
 frappe.provide("archive.ui");
 
 archive.ui.OperationDialog = class OperationDialog {
-	constructor() {
-		
+	constructor(options = {}) {
+		this.options = options || {};
+		this.fiscal_context = this.options.fiscal_context || null;
 		this.extraction_file = null;
 		this.existing_shared_documents = [];
 		this.pending_shared_files = [];
@@ -1595,12 +1596,43 @@ archive.ui.OperationDialog = class OperationDialog {
 	}
 
 	show() {
-
 		this.dialog.show();
+		this.ensure_fiscal_context();
 		this.bind_operation_number_mode();
 		this.bind_operation_number_lookup();
 		this.bind_customer_rate_mode();
 		this.render_shared_documents();
+	}
+
+	async ensure_fiscal_context() {
+		if (!this.fiscal_context) {
+			try {
+				const response = await frappe.call({
+					method: "archive.services.fiscal_year_permissions.get_my_fiscal_context",
+				});
+				this.fiscal_context = response.message || {};
+			} catch (e) {
+				this.fiscal_context = {};
+			}
+		}
+		this.apply_fiscal_context_to_control();
+	}
+
+	apply_fiscal_context_to_control() {
+		const ctrl = this.controls.fiscal_year;
+		if (!ctrl) return;
+		const allowed = Array.isArray(this.fiscal_context?.allowed_add_years)
+			? this.fiscal_context.allowed_add_years
+			: [];
+		const default_year =
+			this.fiscal_context?.default_add_fiscal_year
+			|| allowed[0]
+			|| "";
+		ctrl.df.options = allowed.join("\n");
+		ctrl.refresh();
+		if (default_year && (!ctrl.get_value() || !allowed.includes(ctrl.get_value()))) {
+			ctrl.set_value(default_year);
+		}
 	}
 
 	render() {
@@ -1839,9 +1871,37 @@ archive.ui.OperationDialog = class OperationDialog {
 
 
 	make_controls() {
+		const allowed_add_years = Array.isArray(this.fiscal_context?.allowed_add_years)
+			? this.fiscal_context.allowed_add_years
+			: [];
+		const default_fiscal_year =
+			this.fiscal_context?.default_add_fiscal_year
+			|| allowed_add_years[0]
+			|| "";
+
 		this.make_group_controls(
 			".archive-operation-number-fields",
 			[
+				{
+					fieldname:
+						"fiscal_year",
+
+					label:
+						"السنة المالية",
+
+					fieldtype:
+						"Select",
+
+					options:
+						allowed_add_years.join("\n"),
+
+					default:
+						default_fiscal_year,
+
+					reqd:
+						1,
+				},
+
 				{
 					fieldname:
 						"operation_no",

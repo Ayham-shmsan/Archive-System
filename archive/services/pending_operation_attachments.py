@@ -625,7 +625,10 @@ def serialize_pending_attachments(
         for row in files
     }
 
+    from urllib.parse import urlencode
+
     result = []
+    op_name = cstr(getattr(doc, "name", "")).strip()
 
     for row in rows:
         file_id = cstr(
@@ -634,6 +637,18 @@ def serialize_pending_attachments(
 
         file_data = file_map.get(
             file_id
+        )
+
+        file_url = (
+            file_data.file_url
+            if file_data
+            else row.file
+        )
+
+        download_url = (
+            f"/api/method/archive.api.pending_operation_attachments.download_pending_attachment?{urlencode({'operation_name': op_name, 'file_id': file_id})}"
+            if (op_name and file_id)
+            else file_url
         )
 
         result.append(
@@ -645,11 +660,10 @@ def serialize_pending_attachments(
                     file_id,
 
                 "file":
-                    (
-                        file_data.file_url
-                        if file_data
-                        else row.file
-                    ),
+                    file_url,
+
+                "download_url":
+                    download_url,
 
                 "file_name":
                     (

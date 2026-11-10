@@ -51,6 +51,11 @@ from archive.services.pending_operation_permissions import (
     get_pending_capabilities as get_pending_capabilities_service,
     get_pending_record_permissions,
 )
+from archive.services.fiscal_year_permissions import (
+    get_screen_fiscal_context,
+    resolve_fiscal_year_filter,
+    resolve_target_fiscal_year_for_create,
+)
 
 
 PENDING_DOCTYPE = (
@@ -595,7 +600,9 @@ def get_pending_capabilities():
 @frappe.whitelist(
     methods=["GET"]
 )
-def get_pending_operations_context():
+def get_pending_operations_context(
+    fiscal_year: str | None = None,
+):
     """
     Snapshot الرئيسي لشاشة المعلقات.
 
@@ -615,16 +622,23 @@ def get_pending_operations_context():
             user=user
         )
     )
+    fiscal_ctx = get_screen_fiscal_context(user)
 
     if capabilities.get(
         "can_view"
     ):
+        allowed_years = resolve_fiscal_year_filter(
+            fiscal_year,
+            user=user,
+            action="view",
+        )
         operations = (
             get_pending_context_rows(
                 user=user,
                 scope=capabilities.get(
                     "scope"
                 ),
+                allowed_fiscal_years=allowed_years,
             )
         )
 
@@ -652,12 +666,16 @@ def get_pending_operations_context():
         "capabilities":
             capabilities,
 
+        "fiscal_context":
+            fiscal_ctx,
+
         "operations":
             operations,
     }
 
 
 _CREATE_ALLOWED_FIELDS = {
+    "fiscal_year",
     "bank",
     "card_name",
     "account_number",
@@ -1195,9 +1213,16 @@ def create_pending_operation(
         )
     )
 
+    target_fiscal_year = resolve_target_fiscal_year_for_create(
+        data.get("fiscal_year")
+    )
+
     doc_data = {
         "doctype":
             PENDING_DOCTYPE,
+
+        "fiscal_year":
+            target_fiscal_year,
 
         "currency":
             PENDING_CURRENCY,
@@ -1212,7 +1237,7 @@ def create_pending_operation(
             ) in data.items()
 
             if key
-            != "ledger_entries"
+            not in {"ledger_entries", "fiscal_year"}
         },
 
         "ledger_entries":
@@ -2696,6 +2721,19 @@ def _build_pending_operation_details(
 
         "serial_no":
             doc.serial_no,
+
+        "fiscal_year":
+            getattr(doc, "fiscal_year", None),
+
+        "fiscal_sequence":
+            cint(getattr(doc, "fiscal_sequence", 0)),
+
+        "fiscal_display_no":
+            (
+                cint(getattr(doc, "fiscal_sequence", 0))
+                if cint(getattr(doc, "fiscal_sequence", 0)) > 0
+                else cint(doc.serial_no)
+            ),
 
         "card_name":
             doc.card_name,

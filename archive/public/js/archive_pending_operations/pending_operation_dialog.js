@@ -2,6 +2,7 @@ window.ArchivePendingOperationDialog =
 class ArchivePendingOperationDialog {
     constructor(options = {}) {
         this.options = options;
+        this.fiscal_context = options.fiscal_context || null;
 
         this.on_created =
             typeof options.on_created === "function"
@@ -57,6 +58,14 @@ class ArchivePendingOperationDialog {
 
 
     make_dialog() {
+        const allowed_add_years = Array.isArray(this.fiscal_context?.allowed_add_years)
+            ? this.fiscal_context.allowed_add_years
+            : [];
+        const default_fiscal_year =
+            this.fiscal_context?.default_add_fiscal_year
+            || allowed_add_years[0]
+            || "";
+
         this.dialog =
             new frappe.ui.Dialog({
                 title:
@@ -76,6 +85,26 @@ class ArchivePendingOperationDialog {
 
                         label:
                             "بيانات البطاقة والمعلق",
+                    },
+
+                    {
+                        fieldname:
+                            "fiscal_year",
+
+                        fieldtype:
+                            "Select",
+
+                        label:
+                            "السنة المالية",
+
+                        options:
+                            allowed_add_years.join("\n"),
+
+                        default:
+                            default_fiscal_year,
+
+                        reqd:
+                            1,
                     },
 
                     {
@@ -3144,6 +3173,12 @@ class ArchivePendingOperationDialog {
         }
 
         const payload = {
+            fiscal_year:
+                String(
+                    values.fiscal_year
+                    || ""
+                ).trim(),
+
             bank:
                 values.bank,
 
@@ -3440,6 +3475,7 @@ class ArchivePendingOperationDialog {
         }
 
         this.dialog.show();
+        this.ensure_fiscal_context();
 
         setTimeout(
             () => {
@@ -3453,6 +3489,33 @@ class ArchivePendingOperationDialog {
             },
             100
         );
+    }
+
+    async ensure_fiscal_context() {
+        if (!this.fiscal_context) {
+            try {
+                const response = await frappe.call({
+                    method: "archive.services.fiscal_year_permissions.get_my_fiscal_context",
+                });
+                this.fiscal_context = response.message || {};
+            } catch (e) {
+                this.fiscal_context = {};
+            }
+        }
+        const ctrl = this.dialog?.fields_dict?.fiscal_year;
+        if (!ctrl) return;
+        const allowed = Array.isArray(this.fiscal_context?.allowed_add_years)
+            ? this.fiscal_context.allowed_add_years
+            : [];
+        const default_year =
+            this.fiscal_context?.default_add_fiscal_year
+            || allowed[0]
+            || "";
+        ctrl.df.options = allowed.join("\n");
+        ctrl.refresh();
+        if (default_year && (!ctrl.get_value() || !allowed.includes(ctrl.get_value()))) {
+            ctrl.set_value(default_year);
+        }
     }
 
 

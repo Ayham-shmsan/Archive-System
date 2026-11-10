@@ -81,6 +81,7 @@ def get_pending_operation_timeline(
             "event_datetime desc, "
             "creation desc"
         ),
+        limit_page_length=0,
     )
 
     user_ids = {
@@ -185,6 +186,9 @@ def get_pending_operation_timeline(
 
             "remaining_amount":
                 operation.remaining_amount,
+
+            "attachments_count":
+                len(operation.attachments or []),
         },
 
         "total":

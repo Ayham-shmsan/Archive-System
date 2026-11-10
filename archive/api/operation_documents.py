@@ -72,6 +72,9 @@ def _get_operation(
         "read"
     )
 
+    from archive.services.fiscal_year_permissions import require_fiscal_permission
+    require_fiscal_permission(operation.fiscal_year, "view", check_open=False)
+
     if not operation.operation_group:
         frappe.throw(
             _(
@@ -96,6 +99,8 @@ def _require_manage_permission(
             ),
             frappe.PermissionError,
         )
+    from archive.services.fiscal_year_permissions import require_fiscal_permission
+    require_fiscal_permission(operation.fiscal_year, "edit", check_open=True)
 
 
 def _serialize_document(

@@ -232,6 +232,78 @@ class OperationViewDialog {
 
 		this.$body
 			.off(
+				"click.archive-preview-document",
+				[
+					".archive-preview-attachment",
+					".archive-preview-shared-document",
+				].join(", ")
+			)
+			.on(
+				"click.archive-preview-document",
+				[
+					".archive-preview-attachment",
+					".archive-preview-shared-document",
+				].join(", "),
+				async (event) => {
+
+					event.preventDefault();
+					event.stopPropagation();
+
+					const $button =
+						$(
+							event.currentTarget
+						);
+
+					const attachment_name =
+						$button.attr(
+							"data-attachment-name"
+						)
+						|| null;
+
+					const shared_document_name =
+						$button.attr(
+							"data-shared-document-name"
+						)
+						|| null;
+
+					if (
+						!attachment_name
+						&&
+						!shared_document_name
+					) {
+
+						frappe.msgprint({
+							title:
+								__("تعذر عرض المستند"),
+
+							message:
+								__(
+									"تعذر تحديد المستند المطلوب."
+								),
+
+							indicator:
+								"red",
+						});
+
+						return;
+					}
+
+					await this.preview_operation_document(
+						{
+							attachment_name:
+								attachment_name,
+
+							shared_document_name:
+								shared_document_name,
+						},
+
+						$button
+					);
+				}
+			);
+
+		this.$body
+			.off(
 				"click.archive-download-document",
 				[
 					".archive-download-attachment",
@@ -310,6 +382,298 @@ class OperationViewDialog {
 	}
 
 
+	detect_viewer_file_kind(name_or_url) {
+		const ext = this.file_extension(
+			this.get_file_name(name_or_url)
+		);
+		if (ext === "PDF") {
+			return "pdf";
+		}
+		if (
+			[
+				"PNG",
+				"JPG",
+				"JPEG",
+				"WEBP",
+				"GIF",
+				"BMP",
+				"SVG",
+				"AVIF",
+			].includes(ext)
+		) {
+			return "image";
+		}
+		return "other";
+	}
+
+
+	build_operation_stream_url({
+		attachment_name = null,
+		shared_document_name = null,
+		inline = false,
+	}) {
+		const params = new URLSearchParams({
+			operation_name: this.operation_name || "",
+			inline: inline ? "1" : "0",
+		});
+		if (attachment_name) {
+			params.set("attachment_name", attachment_name);
+		}
+		if (shared_document_name) {
+			params.set("shared_document_name", shared_document_name);
+		}
+		return `/api/method/archive.api.operations.stream_operation_attachment?${params.toString()}`;
+	}
+
+
+	collect_previewable_documents() {
+		const items = [];
+		const seen = new Set();
+
+		const push_attachment = (record) => {
+			if (!record || !record.name || !record.file) {
+				return;
+			}
+			if (this.deleted_attachment_names?.has(record.name)) {
+				return;
+			}
+			const key = `att:${record.name}`;
+			if (seen.has(key)) {
+				return;
+			}
+			seen.add(key);
+			const file_name =
+				record.file_name || this.get_file_name(record.file);
+			items.push({
+				key,
+				attachment_name: record.name,
+				shared_document_name: null,
+				file_name,
+				file_url: record.file,
+				open_url: this.build_operation_stream_url({
+					attachment_name: record.name,
+					inline: true,
+				}),
+				download_url: this.build_operation_stream_url({
+					attachment_name: record.name,
+					inline: false,
+				}),
+				file_kind: this.detect_viewer_file_kind(
+					file_name || record.file
+				),
+			});
+		};
+
+		const extraction_attachment =
+			this.get_persisted_extraction_attachment?.() || null;
+		if (extraction_attachment) {
+			push_attachment(extraction_attachment);
+		}
+
+		for (const doc of this.shared_documents || []) {
+			if (!doc || !doc.name || !doc.file) {
+				continue;
+			}
+			if (this.deleted_shared_document_names?.has(doc.name)) {
+				continue;
+			}
+			const key = `shared:${doc.name}`;
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			const file_name =
+				doc.file_name || this.get_file_name(doc.file);
+			items.push({
+				key,
+				attachment_name: null,
+				shared_document_name: doc.name,
+				file_name,
+				file_url: doc.file,
+				open_url: this.build_operation_stream_url({
+					shared_document_name: doc.name,
+					inline: true,
+				}),
+				download_url: this.build_operation_stream_url({
+					shared_document_name: doc.name,
+					inline: false,
+				}),
+				file_kind: this.detect_viewer_file_kind(
+					file_name || doc.file
+				),
+			});
+		}
+
+		for (const file of this.final_swift_files || []) {
+			push_attachment(file);
+		}
+
+		for (const att of this.existing_attachments || []) {
+			push_attachment(att);
+		}
+
+		return items;
+	}
+
+
+	async ensure_file_viewer() {
+		if (!window.ArchivePendingAttachmentFileViewer) {
+			await new Promise((resolve) => {
+				frappe.require(
+					[
+						"/assets/archive/js/archive_pending_operations/pending_attachment_manager.js",
+						"/assets/archive/css/archive_pending_operations/pending_attachment_manager.css",
+					],
+					() => resolve()
+				);
+			});
+		}
+		if (!this.file_viewer && window.ArchivePendingAttachmentFileViewer) {
+			this.file_viewer = new window.ArchivePendingAttachmentFileViewer();
+		}
+		return this.file_viewer;
+	}
+
+
+	async preview_operation_document(
+		{
+			attachment_name = null,
+			shared_document_name = null,
+		},
+		$button
+	) {
+		if (
+			!attachment_name
+			&&
+			!shared_document_name
+		) {
+			return;
+		}
+
+		const original_html =
+			$button.html();
+
+		$button
+			.prop(
+				"disabled",
+				true
+			)
+			.html(`
+				<i
+					class="
+						fa
+						fa-spinner
+						fa-spin
+					"
+				></i>
+
+				جاري الفتح...
+			`);
+
+		try {
+			const response =
+				await frappe.call({
+					method:
+						"archive.api.operations.register_attachment_view",
+
+					type:
+						"POST",
+
+					args: {
+						operation_name:
+							this.operation_name,
+
+						attachment_name:
+							attachment_name,
+
+						shared_document_name:
+							shared_document_name,
+					},
+				});
+
+			const result =
+				response.message
+				|| {};
+
+			if (!result.open_url && !result.file_url) {
+				frappe.throw(
+					"تعذر العثور على رابط الملف."
+				);
+			}
+
+			const viewer = await this.ensure_file_viewer();
+			if (!viewer) {
+				frappe.throw(
+					"تعذر تهيئة عارض المرفقات."
+				);
+			}
+
+			const target_key = attachment_name
+				? `att:${attachment_name}`
+				: `shared:${shared_document_name}`;
+
+			const items = this.collect_previewable_documents();
+			let start_index = items.findIndex(
+				(item) => item.key === target_key
+			);
+
+			const resolved_item = {
+				key: target_key,
+				attachment_name: result.attachment_name || attachment_name,
+				shared_document_name:
+					result.shared_document_name || shared_document_name,
+				file_name:
+					result.file_name
+					|| this.get_file_name(result.file_url || ""),
+				file_url: result.file_url,
+				open_url: result.open_url || result.file_url,
+				download_url: result.download_url || result.file_url,
+				file_kind:
+					result.file_kind
+					|| this.detect_viewer_file_kind(
+						result.file_name || result.file_url || ""
+					),
+			};
+
+			if (start_index === -1) {
+				items.push(resolved_item);
+				start_index = items.length - 1;
+			} else {
+				items[start_index] = resolved_item;
+			}
+
+			viewer.open(items, start_index, {
+				onNavigate: (navigated_item) => {
+					if (!navigated_item) {
+						return;
+					}
+					frappe.call({
+						method:
+							"archive.api.operations.register_attachment_view",
+						type: "POST",
+						args: {
+							operation_name: this.operation_name,
+							attachment_name:
+								navigated_item.attachment_name || null,
+							shared_document_name:
+								navigated_item.shared_document_name || null,
+						},
+					});
+				},
+			});
+		} finally {
+			$button
+				.prop(
+					"disabled",
+					false
+				)
+				.html(
+					original_html
+				);
+		}
+	}
+
+
 	async download_operation_document(
 		{
 			attachment_name = null,
@@ -324,54 +688,6 @@ class OperationViewDialog {
 			!shared_document_name
 		) {
 			return;
-		}
-
-
-		const target_document =
-			attachment_name
-				? (
-					(this.existing_attachments || []).find(
-						(item) => item.name === attachment_name
-					)
-					|| (this.final_swift_files || []).find(
-						(item) => item.name === attachment_name
-					)
-				)
-				: (this.shared_documents || []).find(
-					(item) => item.name === shared_document_name
-				);
-
-		const is_previewable_file = (name_or_url) => {
-			const ext = this.file_extension(
-				this.get_file_name(name_or_url)
-			);
-			return [
-				"PDF",
-				"PNG",
-				"JPG",
-				"JPEG",
-				"WEBP",
-				"GIF",
-				"BMP",
-				"AVIF",
-			].includes(ext);
-		};
-
-		let preview_opened = false;
-		const initial_file_url = target_document?.file || "";
-		const initial_file_name =
-			target_document?.file_name || initial_file_url;
-
-		if (
-			initial_file_url
-			&& is_previewable_file(initial_file_name)
-		) {
-			window.open(
-				initial_file_url,
-				"_blank",
-				"noopener,noreferrer"
-			);
-			preview_opened = true;
 		}
 
 
@@ -425,23 +741,10 @@ class OperationViewDialog {
 				|| {};
 
 
-			if (!result.file_url) {
+			if (!result.download_url && !result.file_url) {
 
 				frappe.throw(
 					"تعذر العثور على رابط الملف."
-				);
-			}
-
-			if (
-				!preview_opened
-				&& is_previewable_file(
-					result.file_name || result.file_url
-				)
-			) {
-				window.open(
-					result.file_url,
-					"_blank",
-					"noopener,noreferrer"
 				);
 			}
 
@@ -453,7 +756,8 @@ class OperationViewDialog {
 
 
 			link.href =
-				result.file_url;
+				result.download_url
+				|| result.file_url;
 
 
 			link.download =
@@ -835,6 +1139,9 @@ class OperationViewDialog {
 				can_manage_attachments:
 					false,
 
+				can_preview_attachments:
+					false,
+
 				can_attach_final_swift:
 					false,
 
@@ -916,6 +1223,10 @@ class OperationViewDialog {
 		}
 
 		finally {
+
+			if (this.file_viewer) {
+				this.file_viewer.close();
+			}
 
 			this.uploaded_files.clear();
 
@@ -1618,6 +1929,34 @@ class OperationViewDialog {
 		this.make_group_controls(
 			".archive-operation-number-fields",
 			[
+				{
+					fieldname:
+						"fiscal_year",
+
+					label:
+						"السنة المالية",
+
+					fieldtype:
+						"Data",
+
+					force_read_only:
+						true,
+				},
+
+				{
+					fieldname:
+						"fiscal_display_no",
+
+					label:
+						"الترقيم السنوي",
+
+					fieldtype:
+						"Data",
+
+					force_read_only:
+						true,
+				},
+
 				{
 					fieldname:
 						"operation_no",
@@ -4037,6 +4376,37 @@ class OperationViewDialog {
 
 					${
 						this.permissions
+							.can_preview_attachments
+						&&
+						extraction_attachment
+							? `
+								<button
+									type="button"
+									class="
+										btn
+										btn-default
+										btn-sm
+										archive-preview-attachment
+									"
+									data-attachment-name="${this.escape_attribute(
+										extraction_attachment.name
+									)}"
+								>
+									${frappe.utils.icon(
+										"view",
+										"sm"
+									)}
+
+									<span>
+										عرض
+									</span>
+								</button>
+							`
+							: ""
+					}
+
+					${
+						this.permissions
 							.can_manage_attachments
 						&&
 						extraction_attachment
@@ -4763,6 +5133,37 @@ class OperationViewDialog {
 
 							${
 								file_url
+								&&
+								this.permissions
+									.can_preview_attachments
+									? `
+										<button
+											type="button"
+											class="
+												btn
+												btn-default
+												btn-sm
+												archive-preview-shared-document
+											"
+											data-shared-document-name="${this.escape_attribute(
+												document.name
+											)}"
+										>
+											${frappe.utils.icon(
+												"view",
+												"sm"
+											)}
+
+											<span>
+												عرض
+											</span>
+										</button>
+									`
+									: ""
+							}
+
+							${
+								file_url
 									? `
 										<button
 											type="button"
@@ -5032,6 +5433,36 @@ class OperationViewDialog {
 							</span>
 
 
+							${
+								file_url
+								&&
+								this.permissions
+									.can_preview_attachments
+									? `
+										<button
+											type="button"
+											class="
+												btn
+												btn-default
+												btn-sm
+												archive-preview-attachment
+											"
+											data-attachment-name="${this.escape_attribute(
+												file.name
+											)}"
+										>
+											${frappe.utils.icon(
+												"view",
+												"sm"
+											)}
+
+											<span>
+												عرض
+											</span>
+										</button>
+									`
+									: ""
+							}
 							${
 								file_url
 								&&
@@ -6211,6 +6642,38 @@ $list
 							<div
 								class="archive-attachment-actions"
 								>
+
+								${
+								file_url
+								&&
+								!deleted
+								&&
+								this.permissions
+									.can_preview_attachments
+									? `
+										<button
+											type="button"
+											class="
+												btn
+												btn-default
+												btn-sm
+												archive-preview-attachment
+											"
+											data-attachment-name="${this.escape_attribute(
+												item.name
+											)}"
+										>
+											${frappe.utils.icon(
+												"view",
+												"sm"
+											)}
+											<span>
+												عرض
+											</span>
+										</button>
+									`
+									: ""
+							}
 
 								${
 								file_url

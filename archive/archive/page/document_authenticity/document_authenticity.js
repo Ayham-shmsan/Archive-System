@@ -8,6 +8,7 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
     const state = {
         file: null,
         checking: false,
+        check_fiscal_year: null,
         capabilities: {
             loaded: false,
             can_check: false,
@@ -16,11 +17,13 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             can_view_own_checks: false,
             can_view_all_checks: false,
             can_view_technical_details: false,
+            fiscal_context: null,
         },
 
         history: {
             search: "",
             status: "",
+            fiscal_year: "",
             page: 1,
             page_length: 20,
 
@@ -580,6 +583,12 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                     archive-auth-upload-controls
                 "
             >
+                <div class="archive-auth-fiscal-year-wrap" style="display: inline-flex; align-items: center; gap: 6px;">
+                    <label style="margin: 0; font-size: 12px; font-weight: 600; color: #0e7490; white-space: nowrap;">السنة المالية</label>
+                    <select class="form-control archive-auth-check-fiscal-year" style="min-height: 40px; width: auto; min-width: 115px; border-radius: 9px; border-color: #7dd3fc; font-weight: 600; color: #0369a1; padding: 0 12px;">
+                    </select>
+                </div>
+
                 <button
                     type="button"
                     class="
@@ -970,6 +979,10 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             args: {
                 file_id:
                     state.file.name,
+                fiscal_year:
+                    $main.find(".archive-auth-check-fiscal-year").val()
+                    || state.check_fiscal_year
+                    || undefined,
             },
 
             freeze: true,
@@ -1042,6 +1055,33 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
                 state.capabilities.can_view_technical_details =
                     !!capabilities.can_view_technical_details;
+                state.capabilities.fiscal_context =
+                    capabilities.fiscal_context || {};
+
+                const fctx = state.capabilities.fiscal_context;
+                const allowed_add = Array.isArray(fctx.allowed_add_years) ? fctx.allowed_add_years : [];
+                state.check_fiscal_year = fctx.default_add_fiscal_year || allowed_add[0] || "";
+                const $check_fy = $main.find(".archive-auth-check-fiscal-year");
+                if ($check_fy.length) {
+                    $check_fy.html(
+                        allowed_add
+                            .map(
+                                (yr) =>
+                                    `<option value="${frappe.utils.escape_html(yr)}" ${
+                                        yr === state.check_fiscal_year ? "selected" : ""
+                                    }>${frappe.utils.escape_html(yr)}</option>`
+                            )
+                            .join("")
+                    );
+                    $check_fy.off("change").on("change", function () {
+                        state.check_fiscal_year = String($(this).val() || "").trim();
+                    });
+                }
+
+                if (!state.history.fiscal_year) {
+                    state.history.fiscal_year = fctx.default_view_fiscal_year || "";
+                }
+
                 const $check_section =
                     $(".archive-auth-check-section");
 
@@ -2185,6 +2225,30 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                             ${render_history_status_options()}
                         </select>
                     </div>
+
+                    <!-- Fiscal Year -->
+                    <div
+                        class="
+                            archive-auth-filter-group
+                        "
+                    >
+                        <label
+                            class="
+                                archive-auth-filter-label
+                            "
+                        >
+                            ${__("السنة المالية")}
+                        </label>
+
+                        <select
+                            class="
+                                form-control
+                                archive-auth-history-fiscal-year
+                            "
+                        >
+                            ${render_history_fiscal_year_options()}
+                        </select>
+                    </div>
                 </div>
 
 
@@ -2323,6 +2387,24 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             ".archive-auth-history-status",
             function () {
                 state.history.status =
+                    (
+                        $(this).val()
+                        || ""
+                    ).trim();
+
+                state.history.page = 1;
+
+                cancel_history_search_timer();
+
+                load_history_results();
+            }
+        );
+
+        $history.on(
+            "change.archiveAuthHistory",
+            ".archive-auth-history-fiscal-year",
+            function () {
+                state.history.fiscal_year =
                     (
                         $(this).val()
                         || ""
@@ -2481,6 +2563,9 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
                 status:
                     state.history.status,
+
+                fiscal_year:
+                    state.history.fiscal_year || undefined,
 
                 page:
                     state.history.page,
@@ -2660,6 +2745,28 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
         );
     }
 
+
+    function render_history_fiscal_year_options() {
+        const fctx = state.capabilities.fiscal_context || {};
+        const allowed = Array.isArray(fctx.allowed_view_years) ? fctx.allowed_view_years : [];
+        const options = [];
+        if (fctx.can_view_multiple_years && allowed.length > 1) {
+            options.push({ value: "ALL", label: __("جميع السنوات") });
+        }
+        allowed.forEach((yr) => {
+            const meta = (fctx.years || []).find((item) => item.year_name === yr);
+            const closed_suffix = meta && Number(meta.is_closed) === 1 ? " (مغلقة)" : "";
+            options.push({ value: yr, label: `${yr}${closed_suffix}` });
+        });
+        const current = state.history.fiscal_year || fctx.default_view_fiscal_year || (options[0]?.value || "");
+        state.history.fiscal_year = current;
+        return options
+            .map((option) => {
+                const selected = current === option.value ? "selected" : "";
+                return `<option value="${frappe.utils.escape_html(option.value)}" ${selected}>${frappe.utils.escape_html(option.label)}</option>`;
+            })
+            .join("");
+    }
 
     function render_history_status_options() {
         const options = [
@@ -2919,6 +3026,11 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                 row.name || "-"
             );
 
+        const fiscal_display_no =
+            frappe.utils.escape_html(
+                row.fiscal_display_no || row.name || "-"
+            );
+
         const profile =
             frappe.utils.escape_html(
                 row.profile || "-"
@@ -2988,7 +3100,7 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                                 font-size: 12px;
                             "
                         >
-                            ${check_name}
+                            #${fiscal_display_no} (${check_name})
                             ·
                             ${profile}
                         </div>

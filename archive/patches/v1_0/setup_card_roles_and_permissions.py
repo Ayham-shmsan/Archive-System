@@ -19,6 +19,7 @@ from archive.services.card_permissions import (
 )
 from archive.services.operation_permissions import (
 	ROLE_ATTACH_INCOMPLETE_INVOICE,
+	ROLE_PREVIEW_OPERATION_ATTACHMENTS,
 )
 
 ROLE_MATRIX: dict[str, dict[str, int]] = {
@@ -179,6 +180,7 @@ def _ensure_roles() -> None:
 		ROLE_ENFORCE_CARD_IMAGE_BLUR,
 		ROLE_VIEW_CARD_ACTIVITY_TIMELINE,
 		ROLE_ATTACH_INCOMPLETE_INVOICE,
+		ROLE_PREVIEW_OPERATION_ATTACHMENTS,
 		ROLE_DEPOSITS_SCREEN_ACCESS,
 		*NEW_SEPARATED_CARD_ROLES,
 	):
@@ -196,6 +198,7 @@ def _ensure_roles() -> None:
 				ROLE_DEPOSITS_SCREEN_ACCESS,
 				ROLE_ENFORCE_CARD_IMAGE_BLUR,
 				ROLE_VIEW_CARD_ACTIVITY_TIMELINE,
+				ROLE_PREVIEW_OPERATION_ATTACHMENTS,
 				*NEW_SEPARATED_CARD_ROLES,
 			):
 				frappe.db.delete(

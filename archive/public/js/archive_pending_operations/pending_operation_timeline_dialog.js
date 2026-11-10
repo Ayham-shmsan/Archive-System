@@ -10,6 +10,8 @@ class ArchivePendingOperationTimelineDialog {
         this.data = null;
         this.dialog = null;
 
+        this.active_filter = "all";
+
         this.is_loading = false;
         this.is_destroyed = false;
 
@@ -33,10 +35,23 @@ class ArchivePendingOperationTimelineDialog {
                 "إضافة مرفق",
 
             attachment_deleted:
-                "حذف مرفق",
+                "إزالة مرفق",
+
+            attachment_viewed:
+                "عرض مرفق",
+
+            attachment_downloaded:
+                "تنزيل مرفق",
+
+            operation_closed:
+                "إنهاء العملية",
+
+            operation_reopened:
+                "إعادة فتح العملية",
 
             marked_failed:
-                "تغيير الحالة إلى معلقة فاشلة",
+                "تم تغيير حالة المعلقة",
+
             failure_reverted:
                 "إلغاء تحويل العملية إلى فاشلة",
         };
@@ -80,6 +95,9 @@ class ArchivePendingOperationTimelineDialog {
 
             notes:
                 "الملاحظات",
+
+            description:
+                "الوصف",
         };
     }
 
@@ -99,7 +117,7 @@ class ArchivePendingOperationTimelineDialog {
         this.dialog =
             new frappe.ui.Dialog({
                 title:
-                    `مسار العملية ${this.name}`,
+                    `مسار المعلقات ${this.name}`,
 
                 size:
                     "extra-large",
@@ -116,6 +134,7 @@ class ArchivePendingOperationTimelineDialog {
                             `
                                 <div
                                     class="pending-timeline-root"
+                                    dir="rtl"
                                 ></div>
                             `,
                     },
@@ -146,6 +165,26 @@ class ArchivePendingOperationTimelineDialog {
                 ".pending-timeline-refresh",
                 () => {
                     this.load();
+                }
+            )
+            .on(
+                "click.pending_timeline",
+                ".pending-timeline-close-btn",
+                () => {
+                    this.dialog.hide();
+                }
+            )
+            .on(
+                "click.pending_timeline",
+                ".pending-timeline-filter",
+                (e) => {
+                    const filter =
+                        $(e.currentTarget).attr("data-filter") || "all";
+                    if (filter === this.active_filter) {
+                        return;
+                    }
+                    this.active_filter = filter;
+                    this.render();
                 }
             );
 
@@ -255,12 +294,167 @@ class ArchivePendingOperationTimelineDialog {
         `);
     }
 
+    // ========================================================
+    // Filters
+    // ========================================================
+
+    get_filters() {
+        return [
+            {
+                key: "all",
+                label: "الكل",
+                icon_class: "filter-icon-all",
+                icon_svg: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
+            },
+            {
+                key: "added",
+                label: "الإضافة",
+                icon_class: "filter-icon-added",
+                icon_svg: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+            },
+            {
+                key: "deleted",
+                label: "الإزالة",
+                icon_class: "filter-icon-deleted",
+                icon_svg: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
+            },
+            {
+                key: "downloaded",
+                label: "التنزيل",
+                icon_class: "filter-icon-downloaded",
+                icon_svg: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+            },
+            {
+                key: "viewed",
+                label: "المعاينة",
+                icon_class: "filter-icon-viewed",
+                icon_svg: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+            },
+            {
+                key: "edited",
+                label: "التعديل",
+                icon_class: "filter-icon-edited",
+                icon_svg: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`,
+            },
+            {
+                key: "status",
+                label: "الحالة",
+                icon_class: "filter-icon-status",
+                icon_svg: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`,
+            },
+            {
+                key: "other",
+                label: "أخرى",
+                icon_class: "filter-icon-other",
+                icon_svg: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>`,
+            },
+        ];
+    }
+
+    event_matches_filter(event, filter) {
+        if (!filter || filter === "all") {
+            return true;
+        }
+        const t = String(event?.event_type || "").trim();
+        switch (filter) {
+            case "added":
+                return t === "created" || t === "attachment_added";
+            case "deleted":
+                return t === "attachment_deleted";
+            case "downloaded":
+                return t === "attachment_downloaded";
+            case "viewed":
+                return t === "attachment_viewed";
+            case "edited":
+                return t === "manual_edit" || t === "ledger_corrected";
+            case "status":
+                return [
+                    "status_change",
+                    "marked_failed",
+                    "failure_reverted",
+                    "operation_closed",
+                    "operation_reopened",
+                ].includes(t);
+            case "other":
+                return (
+                    t === "return_added"
+                    || ![
+                        "created",
+                        "attachment_added",
+                        "attachment_deleted",
+                        "attachment_downloaded",
+                        "attachment_viewed",
+                        "manual_edit",
+                        "ledger_corrected",
+                        "status_change",
+                        "marked_failed",
+                        "failure_reverted",
+                        "operation_closed",
+                        "operation_reopened",
+                    ].includes(t)
+                );
+            default:
+                return t === filter;
+        }
+    }
+
+    get_filter_count(filter) {
+        const events = this.data?.events || [];
+        if (!filter || filter === "all") {
+            return events.length;
+        }
+        return events.filter((ev) => this.event_matches_filter(ev, filter)).length;
+    }
+
+    get_filtered_events() {
+        const events = this.data?.events || [];
+        return events.filter((ev) => this.event_matches_filter(ev, this.active_filter));
+    }
+
+    render_filters() {
+        return `
+            <div class="pending-timeline-toolbar">
+                <div class="pending-timeline-filter-group">
+                    ${this.get_filters()
+                        .map((filter) => {
+                            const active =
+                                this.active_filter === filter.key ? "is-active" : "";
+                            return `
+                                <button
+                                    type="button"
+                                    class="pending-timeline-filter ${filter.icon_class || ""} ${active}"
+                                    data-filter="${this.escape_attribute(filter.key)}"
+                                >
+                                    <span class="pending-timeline-filter-icon">
+                                        ${filter.icon_svg || ""}
+                                    </span>
+
+                                    <span class="pending-timeline-filter-label">
+                                        ${this.escape(filter.label)}
+                                    </span>
+
+                                    <strong class="pending-timeline-filter-count">
+                                        ${this.get_filter_count(filter.key)}
+                                    </strong>
+                                </button>
+                            `;
+                        })
+                        .join("")}
+                </div>
+            </div>
+        `;
+    }
+
+    // ========================================================
+    // Main Render & Header
+    // ========================================================
+
     render() {
         const operation =
             this.data
                 ?.operation;
 
-        const events =
+        const all_events =
             this.data
                 ?.events
             || [];
@@ -275,30 +469,40 @@ class ArchivePendingOperationTimelineDialog {
             return;
         }
 
+        const filtered_events =
+            this.get_filtered_events();
+
         this.$root.html(`
-            ${this.render_header(
-                operation,
-                events.length
-            )}
+            <div class="pending-timeline-shell" dir="rtl">
 
-            <div class="pending-timeline-list">
+                ${this.render_header(
+                    operation,
+                    all_events.length
+                )}
 
-                ${
-                    events.length
-                        ? events
-                            .map(
-                                (
-                                    event,
-                                    index
-                                ) =>
-                                    this.render_event(
+                ${this.render_filters()}
+
+                <div class="pending-timeline-list">
+
+                    ${
+                        filtered_events.length
+                            ? filtered_events
+                                .map(
+                                    (
                                         event,
                                         index
-                                    )
-                            )
-                            .join("")
-                        : this.render_empty()
-                }
+                                    ) =>
+                                        this.render_event(
+                                            event,
+                                            index,
+                                            filtered_events.length
+                                        )
+                                )
+                                .join("")
+                            : this.render_empty()
+                    }
+
+                </div>
 
             </div>
         `);
@@ -308,84 +512,142 @@ class ArchivePendingOperationTimelineDialog {
         operation,
         total
     ) {
+        const att_count =
+            operation.attachments_count !== undefined
+                ? operation.attachments_count
+                : total;
+
         return `
-            <div class="pending-timeline-header">
+            <div class="pending-timeline-header-section">
 
-                <div class="pending-timeline-operation">
+                <div class="pending-timeline-top-bar">
 
-                    <div>
-                        <strong>
-                            ${this.escape(
-                                operation.name
-                            )}
-                        </strong>
+                    <div class="pending-timeline-brand">
+                        <div class="pending-timeline-brand-icon">
+                            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                            </svg>
+                        </div>
 
-                        <span>
-                            ${this.escape(
-                                operation.card_name
-                            )}
-                        </span>
+                        <div class="pending-timeline-brand-text">
+                            <div class="pending-timeline-main-title">
+                                مسار المعلقات
+                            </div>
+                            <div class="pending-timeline-main-subtitle">
+                                جميع الأحداث والتعديلات المتعلقة بالعملية والمرفقات
+                            </div>
+                        </div>
                     </div>
 
-                    <span
-                        class="
-                            pending-timeline-status
-                            ${this.status_class(
-                                operation.status
-                            )}
-                        "
-                    >
-                        ${this.escape(
-                            operation.status
-                        )}
-                    </span>
+                    <div class="pending-timeline-header-actions">
+                        <button
+                            type="button"
+                            class="pending-timeline-refresh"
+                            title="تحديث المسار"
+                        >
+                            <i class="fa fa-refresh" aria-hidden="true"></i>
+                            <span>تحديث المسار</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            class="pending-timeline-close-btn"
+                            title="إغلاق"
+                            aria-label="إغلاق"
+                        >
+                            ✕
+                        </button>
+                    </div>
 
                 </div>
 
-                <div class="pending-timeline-header-actions">
+                <div class="pending-timeline-header">
 
-                    <span>
-                        ${this.escape(
-                            total
-                        )}
-                        حدث
-                    </span>
+                    <div class="pending-timeline-summary-card pending-timeline-operation">
+                        <div class="pending-timeline-summary-icon is-blue">
+                            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                            </svg>
+                        </div>
 
-                    <button
-                        type="button"
-                        class="
-                            btn
-                            btn-default
-                            btn-sm
-                            pending-timeline-refresh
-                        "
-                    >
-                        تحديث المسار
-                    </button>
+                        <div class="pending-timeline-summary-body">
+                            <span class="pending-timeline-summary-label">رقم العملية</span>
+                            <strong class="pending-timeline-summary-val is-ltr">
+                                ${this.escape(operation.name)}
+                            </strong>
+                            ${
+                                operation.card_name
+                                    ? `<small class="pending-timeline-card-sub">${this.escape(operation.card_name)}</small>`
+                                    : ""
+                            }
+                        </div>
+                    </div>
+
+                    <div class="pending-timeline-summary-card">
+                        <div class="pending-timeline-summary-icon is-sky">
+                            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                        </div>
+
+                        <div class="pending-timeline-summary-body">
+                            <span class="pending-timeline-summary-label">الحالة</span>
+                            <div>
+                                <span
+                                    class="
+                                        pending-timeline-status
+                                        ${this.status_class(operation.status)}
+                                    "
+                                >
+                                    ${this.escape(operation.status)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pending-timeline-summary-card">
+                        <div class="pending-timeline-summary-icon is-purple">
+                            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                            </svg>
+                        </div>
+
+                        <div class="pending-timeline-summary-body">
+                            <span class="pending-timeline-summary-label">عدد الأحداث / المرفقات</span>
+                            <strong class="pending-timeline-summary-val">
+                                ${this.escape(total)} حدث
+                                ${operation.attachments_count !== undefined ? `• ${this.escape(att_count)} مرفق` : ""}
+                            </strong>
+                        </div>
+                    </div>
 
                 </div>
 
-            </div>
+                <div class="pending-timeline-financial-summary">
 
-            <div class="pending-timeline-financial-summary">
+                    ${this.summary_item(
+                        "إجمالي المعلق",
+                        operation.total_suspended,
+                        "suspended"
+                    )}
 
-                ${this.summary_item(
-                    "إجمالي المعلق",
-                    operation.total_suspended,
-                    
-                )}
+                    ${this.summary_item(
+                        "إجمالي المرتجع",
+                        operation.total_returned,
+                        "returned"
+                    )}
 
-                ${this.summary_item(
-                    "إجمالي المرتجع",
-                    operation.total_returned,
-                    
-                )}
+                    ${this.summary_item(
+                        "المتبقي",
+                        operation.remaining_amount,
+                        "remaining"
+                    )}
 
-                ${this.summary_item(
-                    "المتبقي",
-                    operation.remaining_amount,
-                    
-                )}
+                </div>
 
             </div>
         `;
@@ -394,23 +656,26 @@ class ArchivePendingOperationTimelineDialog {
     summary_item(
         label,
         value,
+        kind = "suspended"
     ) {
         return `
-            <div>
+            <div class="pending-timeline-fin-card is-${kind}">
                 <span>
                     ${this.escape(
                         label
                     )}
                 </span>
 
-                <strong>
-                    ${this.format_amount(
-                        value
-                    )}
-                </strong>
-                <small>
-                    ر.س
-                </small>
+                <div class="pending-timeline-fin-val">
+                    <strong>
+                        ${this.format_amount(
+                            value
+                        )}
+                    </strong>
+                    <small>
+                        ر.س
+                    </small>
+                </div>
             </div>
         `;
     }
@@ -431,29 +696,182 @@ class ArchivePendingOperationTimelineDialog {
         `;
     }
 
+    // ========================================================
+    // Event Config & Timeline Rendering
+    // ========================================================
+
+    split_datetime_parts(value) {
+        if (!value) {
+            return { time: "—", date: "" };
+        }
+        const clean = String(value).trim().replace(/\.\d+$/, "");
+        let resolved = clean;
+        try {
+            if (frappe?.datetime?.convert_to_user_tz && /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(clean)) {
+                const converted = frappe.datetime.convert_to_user_tz(clean, true);
+                if (converted && converted !== "Invalid date") {
+                    resolved = String(converted).trim().replace(/\.\d+$/, "");
+                }
+            }
+        } catch {
+            // fallback
+        }
+        const m = resolved.match(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{1,2}):(\d{2})/);
+        if (m) {
+            const h24 = parseInt(m[2], 10);
+            const min = String(m[3]).padStart(2, "0");
+            const period = h24 >= 12 ? "م" : "ص";
+            const h12 = String(h24 % 12 || 12).padStart(2, "0");
+            return {
+                time: `${h12}:${min} ${period}`,
+                date: m[1],
+            };
+        }
+        return {
+            time: this.format_datetime(value),
+            date: "",
+        };
+    }
+
+    get_event_config(type) {
+        const svg_plus = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+        const svg_pencil = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`;
+        const svg_gear = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+        const svg_eye = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+        const svg_download = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+        const svg_trash = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
+        const svg_paperclip = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`;
+        const svg_flag = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`;
+        const svg_check = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+        const svg_return = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>`;
+        const svg_refresh = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`;
+
+        const configs = {
+            manual_edit: {
+                badge_label: "تعديل بيانات العملية",
+                theme_class: "theme-purple",
+                dot_svg: svg_pencil,
+                badge_svg: svg_gear,
+            },
+            attachment_viewed: {
+                badge_label: "عرض مرفق",
+                theme_class: "theme-sky",
+                dot_svg: svg_eye,
+                badge_svg: svg_eye,
+            },
+            attachment_downloaded: {
+                badge_label: "تنزيل مرفق",
+                theme_class: "theme-green",
+                dot_svg: svg_download,
+                badge_svg: svg_download,
+            },
+            attachment_deleted: {
+                badge_label: "إزالة مرفق",
+                theme_class: "theme-red",
+                dot_svg: svg_trash,
+                badge_svg: svg_trash,
+            },
+            attachment_added: {
+                badge_label: "إضافة مرفق",
+                theme_class: "theme-violet",
+                dot_svg: svg_paperclip,
+                badge_svg: svg_paperclip,
+            },
+            status_change: {
+                badge_label: "تغيير حالة العملية",
+                theme_class: "theme-orange",
+                dot_svg: svg_flag,
+                badge_svg: svg_flag,
+            },
+            operation_closed: {
+                badge_label: "إنهاء العملية",
+                theme_class: "theme-teal",
+                dot_svg: svg_check,
+                badge_svg: svg_check,
+            },
+            operation_reopened: {
+                badge_label: "إعادة فتح العملية",
+                theme_class: "theme-indigo",
+                dot_svg: svg_refresh,
+                badge_svg: svg_refresh,
+            },
+            created: {
+                badge_label: "إنشاء العملية",
+                theme_class: "theme-blue",
+                dot_svg: svg_plus,
+                badge_svg: svg_plus,
+            },
+            return_added: {
+                badge_label: "تسجيل مبلغ مرتجع",
+                theme_class: "theme-emerald",
+                dot_svg: svg_return,
+                badge_svg: svg_return,
+            },
+            ledger_corrected: {
+                badge_label: "تعديل الحركة المالية",
+                theme_class: "theme-indigo",
+                dot_svg: svg_pencil,
+                badge_svg: svg_gear,
+            },
+            marked_failed: {
+                badge_label: "تغيير حالة المعلقة",
+                theme_class: "theme-red",
+                dot_svg: svg_flag,
+                badge_svg: svg_flag,
+            },
+            failure_reverted: {
+                badge_label: "إلغاء حالة الفشل",
+                theme_class: "theme-teal",
+                dot_svg: svg_refresh,
+                badge_svg: svg_refresh,
+            },
+        };
+
+        return (
+            configs[type]
+            || {
+                badge_label: this.event_labels[type] || "حدث",
+                theme_class: "theme-blue",
+                dot_svg: svg_paperclip,
+                badge_svg: svg_paperclip,
+            }
+        );
+    }
+
     render_event(
         event,
-        index
+        index,
+        total_filtered = 0
     ) {
         const type =
             event.event_type
             || "";
 
+        const config =
+            this.get_event_config(type);
+
         const title =
-            event.event_title
-            ||
-            this.event_labels[
-                type
-            ]
-            ||
-            type
-            ||
-            "حدث";
+            type === "marked_failed"
+                ? "تم تغيير حالة المعلقة"
+                : (
+                    event.event_title
+                    || this.event_labels[type]
+                    || type
+                    || "حدث"
+                );
+
+        const dt_parts =
+            this.split_datetime_parts(event.event_datetime);
+
+        const total_len =
+            total_filtered
+            || (this.data?.events?.length || 0);
 
         return `
             <article
                 class="
                     pending-timeline-event
+                    ${config.theme_class}
                     pending-timeline-event-${this.escape_attribute(
                         type
                     )}
@@ -469,17 +887,12 @@ class ArchivePendingOperationTimelineDialog {
                                 type
                             )}
                         "
-                    ></span>
+                    >
+                        ${config.dot_svg}
+                    </span>
 
                     ${
-                        index
-                        <
-                        (
-                            this.data
-                                .events
-                                .length
-                            - 1
-                        )
+                        index < total_len - 1
                             ? `
                                 <span
                                     class="pending-timeline-line"
@@ -494,49 +907,78 @@ class ArchivePendingOperationTimelineDialog {
 
                     <div class="pending-timeline-event-head">
 
-                        <div>
+                        <div class="pending-timeline-event-title-wrap">
                             <h4>
                                 ${this.escape(
                                     title
                                 )}
                             </h4>
 
-                            <div
-                                class="pending-timeline-event-meta"
-                            >
-                                ${this.escape(
-                                    event.event_user_full_name
-                                    || event.event_user
-                                )}
+                            <div class="pending-timeline-event-meta">
+                                <span class="pending-timeline-user-item">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                                        <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v3h20v-3c0-3.33-6.67-5-10-5z"/>
+                                    </svg>
+                                    <span>بواسطة:</span>
+                                    <strong dir="auto">
+                                        ${this.escape(
+                                            event.event_user_full_name
+                                            || event.event_user
+                                        )}
+                                    </strong>
+                                </span>
 
-                                <span>•</span>
-
-                                ${this.format_datetime(
-                                    event.event_datetime
-                                )}
-
-                                <span>•</span>
-
-                                ${this.render_source(
-                                    event.event_source
-                                )}
+                                ${
+                                    event.effective_datetime
+                                        ? `
+                                            <span>•</span>
+                                            <span class="pending-timeline-effective-time">
+                                                وقت الحدث:
+                                                ${this.format_datetime(
+                                                    event.effective_datetime
+                                                )}
+                                            </span>
+                                        `
+                                        : ""
+                                }
                             </div>
                         </div>
 
-                        ${
-                            event.effective_datetime
-                                ? `
-                                    <div
-                                        class="pending-timeline-effective-time"
-                                    >
-                                        وقت الحدث:
-                                        ${this.format_datetime(
-                                            event.effective_datetime
-                                        )}
-                                    </div>
-                                `
-                                : ""
-                        }
+                        <div class="pending-timeline-event-head-left">
+
+                            <div class="pending-timeline-event-badge">
+                                <span class="pending-timeline-event-badge-icon">
+                                    ${config.badge_svg}
+                                </span>
+                                <span>${this.escape(config.badge_label)}</span>
+                            </div>
+
+                            <div class="pending-timeline-event-time">
+                                <div class="pending-timeline-time-row">
+                                    <span>${this.escape(dt_parts.time)}</span>
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                </div>
+                                ${
+                                    dt_parts.date
+                                        ? `
+                                            <div class="pending-timeline-date-row">
+                                                <span class="pending-timeline-date-text">${this.escape(dt_parts.date)}</span>
+                                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                                                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                                                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                                                </svg>
+                                            </div>
+                                        `
+                                        : ""
+                                }
+                            </div>
+
+                        </div>
 
                     </div>
 
@@ -575,6 +1017,7 @@ class ArchivePendingOperationTimelineDialog {
                 return this.render_status_change(
                     event
                 );
+
             case "marked_failed":
                 return this.render_marked_failed(
                     event
@@ -587,11 +1030,20 @@ class ArchivePendingOperationTimelineDialog {
 
             case "attachment_added":
             case "attachment_deleted":
+            case "attachment_viewed":
+            case "attachment_downloaded":
                 return this.render_attachment_event(
                     event
                 );
+
             case "failure_reverted":
                 return this.render_status_change(
+                    event
+                );
+
+            case "operation_closed":
+            case "operation_reopened":
+                return this.render_closure_event(
                     event
                 );
 
@@ -601,6 +1053,7 @@ class ArchivePendingOperationTimelineDialog {
                 );
         }
     }
+
     render_attachment_event(
         event
     ) {
@@ -608,20 +1061,37 @@ class ArchivePendingOperationTimelineDialog {
             event.details
             || {};
 
+        const file_name =
+            details.file_name
+            || details.file_id
+            || "—";
+
+        const lower = String(file_name).toLowerCase();
+        const is_img = /\.(png|jpe?g|webp|gif|bmp|svg|avif)$/.test(lower);
+        const badge_text = is_img ? "IMG" : "PDF";
+        const badge_class = is_img ? "is-img" : "is-pdf";
+
         return `
-            <div class="pending-timeline-highlight">
+            <div class="pending-timeline-file-row">
 
-                <span>
-                    الملف
-                </span>
+                <div class="pending-timeline-file-label">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                    <span>الملف</span>
+                </div>
 
-                <strong>
-                    ${this.escape(
-                        details.file_name
-                        || details.file_id
-                        || "—"
-                    )}
-                </strong>
+                <div class="pending-timeline-file-content">
+                    <strong class="pending-timeline-file-name">
+                        ${this.escape(file_name)}
+                    </strong>
+                    <span class="pending-timeline-file-badge ${badge_class}">
+                        ${badge_text}
+                    </span>
+                </div>
 
             </div>
 
@@ -630,6 +1100,7 @@ class ArchivePendingOperationTimelineDialog {
             )}
         `;
     }
+
     render_created(
         event
     ) {
@@ -670,7 +1141,13 @@ class ArchivePendingOperationTimelineDialog {
         }
 
         return `
-            <div class="pending-timeline-changes">
+            <div class="pending-timeline-changes-table">
+
+                <div class="pending-timeline-change-row pending-timeline-change-head">
+                    <div>الحقل</div>
+                    <div>القيمة السابقة</div>
+                    <div>القيمة الجديدة</div>
+                </div>
 
                 ${entries.map(
                     (
@@ -679,19 +1156,21 @@ class ArchivePendingOperationTimelineDialog {
                             change,
                         ]
                     ) => `
-                        <div class="pending-timeline-change">
+                        <div class="pending-timeline-change-row pending-timeline-change">
 
-                            <strong>
-                                ${this.escape(
-                                    this.field_labels[
+                            <div class="pending-timeline-change-field">
+                                <strong>
+                                    ${this.escape(
+                                        this.field_labels[
+                                            fieldname
+                                        ]
+                                        ||
                                         fieldname
-                                    ]
-                                    ||
-                                    fieldname
-                                )}
-                            </strong>
+                                    )}
+                                </strong>
+                            </div>
 
-                            <div>
+                            <div class="pending-timeline-change-before">
                                 <span class="before">
                                     ${this.escape(
                                         fieldname === "operation_datetime" ||
@@ -700,11 +1179,9 @@ class ArchivePendingOperationTimelineDialog {
                                             : (change?.before || "—")
                                     )}
                                 </span>
+                            </div>
 
-                                <span class="arrow">
-                                    ←
-                                </span>
-
+                            <div class="pending-timeline-change-after">
                                 <span class="after">
                                     ${this.escape(
                                         fieldname === "operation_datetime" ||
@@ -727,54 +1204,6 @@ class ArchivePendingOperationTimelineDialog {
         `;
     }
 
-    // render_return_added(
-    //     event
-    //     ) {
-    //     const details =
-    //         event.details
-    //         || {};
-
-    //     const currency =
-    //         details.after
-    //             ?.currency
-    //         ||
-    //         details.before
-    //             ?.currency
-    //         ||
-    //         this.data
-    //             ?.operation
-    //             ?.currency
-    //         ||
-    //         "";
-
-    //     return `
-    //         <div class="pending-timeline-highlight">
-
-    //             <span>
-    //                 المبلغ المرتجع
-    //             </span>
-
-    //             <strong>
-    //                 ${this.format_amount(
-    //                     details.returned_amount
-    //                 )}
-    //                 ${this.escape(
-    //                     currency
-    //                 )}
-    //             </strong>
-
-    //         </div>
-
-    //         ${this.render_financial_transition(
-    //             details.before,
-    //             details.after
-    //         )}
-
-    //         ${this.render_remarks(
-    //             event.remarks
-    //         )}
-    //     `;
-    // }
     render_return_added(
         event
     ) {
@@ -782,68 +1211,69 @@ class ArchivePendingOperationTimelineDialog {
             event.details
             || {};
 
-        return `
-            <div
-                class="
-                    pending-timeline-return-details
-                "
-            >
-                <div
-                    class="
-                        pending-timeline-highlight
-                    "
-                >
-                    <span>
-                        المبلغ المرتجع
-                    </span>
+        const note =
+            String(
+                details.return_note
+                || event.remarks
+                || "بلا ملاحظات"
+            ).trim();
 
-                    <strong>
-                        ${this.format_amount(
-                            details.returned_amount
-                        )}
-                        ر.س
-                    </strong>
+        const return_date_str =
+            details.return_date
+                ? this.format_date(details.return_date)
+                : (this.split_datetime_parts(event.effective_datetime || event.event_datetime).date || "—");
+
+        return `
+            <div class="pending-timeline-return-bar">
+
+                <div class="pending-timeline-return-cell">
+                    <span class="pending-timeline-return-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <ellipse cx="12" cy="5" rx="8" ry="3"></ellipse>
+                            <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"></path>
+                            <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"></path>
+                        </svg>
+                    </span>
+                    <div class="pending-timeline-return-cell-body">
+                        <span class="pending-timeline-return-label">المبلغ المرتجع</span>
+                        <strong class="pending-timeline-return-amount-pill">
+                            <span dir="ltr">${this.format_amount(details.returned_amount)}</span>
+                            <span>ر.س</span>
+                        </strong>
+                    </div>
                 </div>
 
-                ${
-                    details.return_date
-                        ? `
-                            <div
-                                class="
-                                    pending-timeline-return-date
-                                "
-                            >
-                                <span>
-                                    تاريخ الإرجاع
-                                </span>
+                <div class="pending-timeline-return-cell">
+                    <span class="pending-timeline-return-icon">
+                        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                    </span>
+                    <div class="pending-timeline-return-cell-body">
+                        <span class="pending-timeline-return-label">تاريخ الإرجاع</span>
+                        <strong class="pending-timeline-return-value" dir="ltr">
+                            ${this.escape(return_date_str)}
+                        </strong>
+                    </div>
+                </div>
 
-                                <strong>
-                                    ${this.format_date(
-                                        details.return_date
-                                    )}
-                                </strong>
-                            </div>
-                        `
-                        : ""
-                }
+                <div class="pending-timeline-return-cell">
+                    <span class="pending-timeline-return-icon">
+                        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                    </span>
+                    <div class="pending-timeline-return-cell-body">
+                        <span class="pending-timeline-return-label">ملاحظة الإرجاع</span>
+                        <strong class="pending-timeline-return-value">
+                            ${this.escape(note)}
+                        </strong>
+                    </div>
+                </div>
 
-                ${
-                    details.return_note
-                        ? `
-                            <div
-                                class="
-                                    pending-timeline-remarks
-                                "
-                            >
-                                ${this.escape(
-                                    details.return_note
-                                )}
-                            </div>
-                        `
-                        : this.render_remarks(
-                            event.remarks
-                        )
-                }
             </div>
 
             ${this.render_financial_transition(
@@ -852,6 +1282,7 @@ class ArchivePendingOperationTimelineDialog {
             )}
         `;
     }
+
     render_marked_failed(
         event
     ) {
@@ -860,66 +1291,75 @@ class ArchivePendingOperationTimelineDialog {
             || {};
 
         const note =
-            details.failed_note
-            ||
-            event.remarks
-            ||
-            "";
+            String(
+                details.failed_note
+                || event.remarks
+                || ""
+            ).trim();
+
+        const new_status =
+            details.after_status
+            || "معلقة فاشلة";
+
+        const changed_at =
+            details.failed_at
+            || event.effective_datetime
+            || event.event_datetime
+            || "";
 
         return `
-            <div
-                class="
-                    pending-timeline-failed-event
-                "
-            >
-                <div
-                    class="
-                        pending-timeline-highlight
-                    "
-                >
-                    <span>
-                        الحالة الجديدة
-                    </span>
+            <div class="pending-timeline-failed-event">
 
-                    <strong>
-                        معلقة فاشلة
-                    </strong>
+                <div class="pending-timeline-failed-bar">
+
+                    <div class="pending-timeline-failed-cell">
+                        <span class="pending-timeline-failed-icon">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                <line x1="4" y1="22" x2="4" y2="15"></line>
+                            </svg>
+                        </span>
+                        <div class="pending-timeline-failed-cell-body">
+                            <span class="pending-timeline-failed-label">الحالة الجديدة</span>
+                            <strong class="pending-timeline-failed-status-pill">
+                                ${this.escape(new_status)}
+                            </strong>
+                        </div>
+                    </div>
+
+                    <div class="pending-timeline-failed-cell">
+                        <span class="pending-timeline-failed-icon">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                            </svg>
+                        </span>
+                        <div class="pending-timeline-failed-cell-body">
+                            <span class="pending-timeline-failed-label">وقت التغيير</span>
+                            <strong class="pending-timeline-failed-time-val">
+                                ${this.escape(changed_at ? this.format_datetime(changed_at) : "—")}
+                            </strong>
+                        </div>
+                    </div>
+
                 </div>
 
-                ${
-                    details.failed_at
-                        ? `
-                            <div
-                                class="
-                                    pending-timeline-failed-meta
-                                "
-                            >
-                                وقت التغيير:
-                                <strong>
-                                    ${this.format_datetime(
-                                        details.failed_at
-                                    )}
-                                </strong>
-                            </div>
-                        `
-                        : ""
-                }
+                <div class="pending-timeline-failed-note-bar">
+                    <div class="pending-timeline-failed-note-label">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            <line x1="8" y1="9" x2="16" y2="9"></line>
+                            <line x1="8" y1="13" x2="13" y2="13"></line>
+                        </svg>
+                        <span>ملاحظة</span>
+                    </div>
+                    <div class="pending-timeline-failed-note-text">
+                        ${this.escape(note || "بلا ملاحظات")}
+                    </div>
+                </div>
 
-                ${
-                    note
-                        ? `
-                            <div
-                                class="
-                                    pending-timeline-remarks
-                                "
-                            >
-                                ${this.escape(
-                                    note
-                                )}
-                            </div>
-                        `
-                        : ""
-                }
             </div>
         `;
     }
@@ -966,9 +1406,103 @@ class ArchivePendingOperationTimelineDialog {
 
             </div>
 
-            ${this.render_financial_transition(
-                null,
+            ${this.render_status_financial_bar(
                 details.financial_summary
+            )}
+
+            ${this.render_remarks(
+                event.remarks
+            )}
+        `;
+    }
+
+    render_status_financial_bar(
+        summary
+    ) {
+        if (!summary) {
+            return "";
+        }
+
+        return `
+            <div class="pending-timeline-status-fin-bar">
+
+                <div class="pending-timeline-status-fin-cell">
+                    <span class="pending-timeline-status-fin-icon">
+                        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <ellipse cx="10" cy="6" rx="6" ry="2.5"></ellipse>
+                            <path d="M4 6v5c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V6"></path>
+                            <path d="M8 14.5v3c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5v-5c0-1.15-1.86-2.12-4.4-2.4"></path>
+                        </svg>
+                    </span>
+                    <div class="pending-timeline-status-fin-body">
+                        <span class="pending-timeline-status-fin-label">المعلق</span>
+                        <strong class="pending-timeline-status-fin-pill">
+                            <span dir="ltr">${this.format_amount(summary.total_suspended)}</span>
+                            <span>ر.س</span>
+                        </strong>
+                    </div>
+                </div>
+
+                <div class="pending-timeline-status-fin-cell">
+                    <span class="pending-timeline-status-fin-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <ellipse cx="12" cy="5" rx="8" ry="3"></ellipse>
+                            <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"></path>
+                            <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"></path>
+                        </svg>
+                    </span>
+                    <div class="pending-timeline-status-fin-body">
+                        <span class="pending-timeline-status-fin-label">المرتجع</span>
+                        <strong class="pending-timeline-status-fin-pill">
+                            <span dir="ltr">${this.format_amount(summary.total_returned)}</span>
+                            <span>ر.س</span>
+                        </strong>
+                    </div>
+                </div>
+
+                <div class="pending-timeline-status-fin-cell">
+                    <span class="pending-timeline-status-fin-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                            <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                        </svg>
+                    </span>
+                    <div class="pending-timeline-status-fin-body">
+                        <span class="pending-timeline-status-fin-label">المتبقي</span>
+                        <strong class="pending-timeline-status-fin-pill">
+                            <span dir="ltr">${this.format_amount(summary.remaining_amount)}</span>
+                            <span>ر.س</span>
+                        </strong>
+                    </div>
+                </div>
+
+            </div>
+        `;
+    }
+
+    render_closure_event(
+        event
+    ) {
+        const details =
+            event.details
+            || {};
+
+        const note =
+            String(
+                event.remarks
+                || details.closure_note
+                || details.reopen_note
+                || ""
+            ).trim();
+
+        return `
+            <div class="pending-timeline-closure-box">
+                ${this.escape(note || "بلا ملاحظات")}
+            </div>
+
+            ${this.render_financial_transition(
+                details.before || null,
+                details.after || details.financial_summary || null
             )}
         `;
     }
@@ -1006,11 +1540,7 @@ class ArchivePendingOperationTimelineDialog {
                 : 0;
 
         return `
-            <div
-                class="
-                    pending-timeline-diff-summary
-                "
-            >
+            <div class="pending-timeline-diff-summary">
                 <span>
                     صفوف مضافة:
                     <strong>
@@ -1037,12 +1567,20 @@ class ArchivePendingOperationTimelineDialog {
                 details.before,
                 details.after
             )}
+
+            ${this.render_remarks(
+                event.remarks
+            )}
         `;
     }
 
     render_generic_details(
         event
     ) {
+        const details = event.details || {};
+        if (details.file_name || details.file_id) {
+            return this.render_attachment_event(event);
+        }
         return this.render_remarks(
             event.remarks
         );
@@ -1061,11 +1599,7 @@ class ArchivePendingOperationTimelineDialog {
         }
 
         return `
-            <div
-                class="
-                    pending-timeline-financial-transition
-                "
-            >
+            <div class="pending-timeline-financial-transition">
                 ${
                     before
                         ? `
@@ -1100,52 +1634,6 @@ class ArchivePendingOperationTimelineDialog {
             </div>
         `;
     }
-
-    // financial_values(
-    //     summary,
-    //     currency
-    //     ) {
-    //     return `
-    //         <small>
-    //             المعلق:
-    //             <strong>
-    //                 ${this.format_amount(
-    //                     summary.total_suspended
-    //                 )}
-    //             </strong>
-
-    //             ${this.escape(
-    //                 currency
-    //             )}
-    //         </small>
-
-    //         <small>
-    //             المرتجع:
-    //             <strong>
-    //                 ${this.format_amount(
-    //                     summary.total_returned
-    //                 )}
-    //             </strong>
-
-    //             ${this.escape(
-    //                 currency
-    //             )}
-    //         </small>
-
-    //         <small>
-    //             المتبقي:
-    //             <strong>
-    //                 ${this.format_amount(
-    //                     summary.remaining_amount
-    //                 )}
-    //             </strong>
-
-    //             ${this.escape(
-    //                 currency
-    //             )}
-    //         </small>
-    //     `;
-    // }
 
     financial_values(
         summary
@@ -1237,9 +1725,23 @@ class ArchivePendingOperationTimelineDialog {
                 "dot-attachment",
 
             attachment_deleted:
-                "dot-attachment",
+                "dot-deleted",
+
+            attachment_viewed:
+                "dot-viewed",
+
+            attachment_downloaded:
+                "dot-downloaded",
+
+            operation_closed:
+                "dot-closed",
+
+            operation_reopened:
+                "dot-reopened",
+
             marked_failed:
                 "dot-failed",
+
             failure_reverted:
                 "dot-status",
         };
@@ -1250,25 +1752,6 @@ class ArchivePendingOperationTimelineDialog {
         );
     }
 
-    // status_class(
-    //     status
-    //     ) {
-    //     if (
-    //         status
-    //         === "مرتجعة مكتملة"
-    //     ) {
-    //         return "status-complete";
-    //     }
-
-    //     if (
-    //         status
-    //         === "مرتجعة غير مكتملة"
-    //     ) {
-    //         return "status-partial";
-    //     }
-
-    //     return "status-under-action";
-    // }
     status_class(
         status
     ) {
