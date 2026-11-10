@@ -307,6 +307,11 @@ class ArchiveDepositsPage {
 								${DEPOSIT_SVGS.calendar}
 								<span>اليوم</span>
 							</button>
+							<div class="archive-fiscal-year-filter-wrap" style="display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 4px;">
+							<label class="archive-fiscal-year-label" style="margin: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap;">السنة المالية</label>
+							<select class="form-control input-xs archive-fiscal-year-select" data-role="fiscal-year-select" style="width: auto; min-width: 110px; height: 32px; padding: 2px 8px; border-radius: 6px; font-weight: 600;">
+							</select>
+						</div>
 						</div>
 					</div>
 				</div>
@@ -342,12 +347,6 @@ class ArchiveDepositsPage {
 							<span class="ac-tb-label">الفلاتر</span>
 							<span class="archive-deposits-filter-badge" data-role="filter-count" hidden>0</span>
 						</button>
-
-						<div class="archive-fiscal-year-filter-wrap" style="display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 4px;">
-							<label class="archive-fiscal-year-label" style="margin: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap;">السنة المالية</label>
-							<select class="form-control input-xs archive-fiscal-year-select" data-role="fiscal-year-select" style="width: auto; min-width: 110px; height: 32px; padding: 2px 8px; border-radius: 6px; font-weight: 600;">
-							</select>
-						</div>
 
 						<div class="archive-deposits-dropdown-wrap">
 							<button

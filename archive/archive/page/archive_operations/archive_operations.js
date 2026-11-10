@@ -1873,10 +1873,13 @@ class ArchiveOperationsPage {
 						</div>
 					</div>
 
-					<button type="button"
+					<div class="archive-header-fy-actions" style="display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;"><div class="archive-fiscal-year-filter-wrap" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <label class="archive-fiscal-year-label" style="margin: 0; font-size: 12px; font-weight: 600; color: #475569; white-space: nowrap;">السنة المالية:</label>
+                        <select class="form-control archive-fiscal-year-select" style="height: 36px; min-width: 115px; border-radius: 8px; font-size: 13px; font-weight: 600; padding: 0 10px;"></select>
+                    </div><button type="button"
 						class="btn btn-primary archive-create-operation">
 						إنشاء عملية جديدة
-					</button>
+					</button></div>
 				</div>
 
 
@@ -1957,11 +1960,6 @@ class ArchiveOperationsPage {
                             class="archive-operation-search"
                             placeholder="بحث في العمليات..."
                         >
-                    </div>
-
-                    <div class="archive-fiscal-year-filter-wrap" style="display: inline-flex; align-items: center; gap: 6px;">
-                        <label class="archive-fiscal-year-label" style="margin: 0; font-size: 12px; font-weight: 600; color: #475569; white-space: nowrap;">السنة المالية:</label>
-                        <select class="form-control archive-fiscal-year-select" style="height: 36px; min-width: 115px; border-radius: 8px; font-size: 13px; font-weight: 600; padding: 0 10px;"></select>
                     </div>
 
                     <button

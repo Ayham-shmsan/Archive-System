@@ -524,7 +524,11 @@ class ArchivePendingOperationsPage {
                         </div>
                     </div>
 
-                    <button
+                    <div class="archive-header-fy-actions" style="display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;"><div class="archive-fiscal-year-filter-wrap" style="display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 4px;">
+                            <label class="archive-fiscal-year-label" style="margin: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap;">السنة المالية</label>
+                            <select class="form-control input-xs archive-fiscal-year-select" style="width: auto; min-width: 110px; height: 32px; padding: 2px 8px; border-radius: 6px; font-weight: 600;">
+                            </select>
+                        </div><button
                         type="button"
                         class="
                             btn
@@ -534,7 +538,7 @@ class ArchivePendingOperationsPage {
                         style="display: none;"
                     >
                         إنشاء عملية معلقة
-                    </button>
+                    </button></div>
 
                 </div>
 
@@ -625,12 +629,6 @@ class ArchivePendingOperationsPage {
                             <span class="ac-tb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></span>
                             <span class="ac-tb-label">الفلاتر</span>
                         </button>
-
-                        <div class="archive-fiscal-year-filter-wrap" style="display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 4px;">
-                            <label class="archive-fiscal-year-label" style="margin: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap;">السنة المالية</label>
-                            <select class="form-control input-xs archive-fiscal-year-select" style="width: auto; min-width: 110px; height: 32px; padding: 2px 8px; border-radius: 6px; font-weight: 600;">
-                            </select>
-                        </div>
 
                         <div class="archive-cards-dropdown-wrap">
                             <button
