@@ -404,7 +404,7 @@ body[data-route="archive-commercial-registries"] #body,
 	padding: 10px 12px;
 	display: flex;
 	flex-direction: column;
-	justify-content: center;
+	justify-content: flex-start;
 	min-height: 128px;
 	max-height: 168px;
 	overflow-y: auto;
@@ -418,6 +418,7 @@ body[data-route="archive-commercial-registries"] #body,
 	text-align: center;
 	gap: 4px;
 	padding: 10px;
+	margin: auto 0;
 	color: #64748b;
 }
 
@@ -454,7 +455,8 @@ body[data-route="archive-commercial-registries"] #body,
 	flex-direction: column;
 	gap: 8px;
 	width: 100%;
-	margin: auto 0;
+	flex-shrink: 0;
+	margin: 0;
 }
 
 .acr-attachment-item {

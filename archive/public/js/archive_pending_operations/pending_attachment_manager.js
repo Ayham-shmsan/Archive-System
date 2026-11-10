@@ -407,6 +407,7 @@ class ArchivePendingAttachmentManager {
                                         btn-xs
                                         pending-attachment-open
                                     "
+                                    style="display: inline-flex; align-items: center; gap: 4px;"
                                     href="${this.escape(
                                         url
                                     )}"
@@ -417,7 +418,19 @@ class ArchivePendingAttachmentManager {
                                     target="_blank"
                                     rel="noopener"
                                 >
-                                    فتح
+                                    ${
+                                        typeof frappe !== "undefined"
+                                        && frappe?.utils?.icon
+                                            ? frappe.utils.icon(
+                                                "view",
+                                                "sm"
+                                            )
+                                            : ""
+                                    }
+
+                                    <span>
+                                        عرض
+                                    </span>
                                 </a>
                             `
                             : ""

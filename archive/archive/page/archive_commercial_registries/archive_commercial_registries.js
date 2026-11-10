@@ -851,6 +851,7 @@ class ArchiveCommercialRegistriesScreen {
 			.join("");
 
 		this.$upperAttBox.html(`<div class="acr-attachments-list">${itemsHtml}</div>`);
+		this.$upperAttBox.scrollTop(0);
 	}
 
 	open_create_dialog() {
@@ -1371,11 +1372,23 @@ class ArchiveCommercialRegistryViewDialog {
 		});
 
 		if (row.can_edit_record && typeof this.onEdit === "function") {
-			this.dialog.set_secondary_action_label("تعديل");
-			this.dialog.set_secondary_action(() => {
+			const $header = this.dialog.$wrapper.find(".modal-header");
+			const $actions = $header.find(".modal-actions");
+			const $edit = $(
+				`<button type="button" class="btn btn-default btn-sm acr-header-edit-btn" style="margin-inline-end:8px;">تعديل</button>`
+			);
+			$edit.on("click", () => {
 				this.dialog.hide();
 				this.onEdit(row);
 			});
+			const $close = $header.find(".btn-modal-close").first();
+			if ($close.length) {
+				$edit.insertBefore($close);
+			} else if ($actions.length) {
+				$actions.append($edit);
+			} else {
+				$header.append($edit);
+			}
 		}
 
 		this.dialog.$wrapper.addClass("archive-operation-dialog acr-operation-dialog");

@@ -58,7 +58,7 @@ app_include_css = [
 # app_include_js = "/assets/archive/js/archive.js"
 app_include_js = [
     "/assets/archive/js/country_list.js",
-    "/assets/archive/js/archive_sidebar_v4.js",
+    "/assets/archive/js/archive_sidebar_v4.js?v=20261111",
     "/assets/archive/js/user_archive_roles.js?v=20261110",
 ]
 

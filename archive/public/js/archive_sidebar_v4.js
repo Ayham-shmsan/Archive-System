@@ -1022,7 +1022,9 @@
                     ).toLowerCase();
                     if (
                         label === "الإعدادات"
+                        || label === "Settings"
                         || href.includes("system-settings")
+                        || href.includes("archive-settings")
                     ) {
                         const current_href = String(
                             anchor.getAttribute("href") || ""
@@ -1030,8 +1032,25 @@
                         const target_href = current_href.startsWith("/app/")
                             ? "/app/archive-settings"
                             : "/desk/archive-settings";
-                        if (href.includes("system-settings")) {
+                        if (href.includes("system-settings") || !href.includes("archive-settings")) {
                             anchor.setAttribute("href", target_href);
+                        }
+                        if (!anchor.dataset.archiveSettingsBound) {
+                            anchor.dataset.archiveSettingsBound = "1";
+                            anchor.addEventListener(
+                                "click",
+                                (event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    event.stopImmediatePropagation();
+                                    if (typeof window.frappe?.set_route === "function") {
+                                        window.frappe.set_route("Form", "Archive Settings");
+                                    } else {
+                                        window.location.assign(target_href);
+                                    }
+                                },
+                                true
+                            );
                         }
                     }
                 }
