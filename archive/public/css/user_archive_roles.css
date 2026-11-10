@@ -446,12 +446,14 @@
 }
 
 .archive-fiscal-permissions-table th.fiscal-action-col,
-.archive-fiscal-permissions-table td.fiscal-action-label {
+.archive-fiscal-permissions-table td.fiscal-action-label,
+.archive-fiscal-permissions-table th.fiscal-year-col,
+.archive-fiscal-permissions-table td.fiscal-year-label {
 	text-align: right;
 	font-weight: 700;
 	color: #1e293b;
 	background: #f8fafc;
-	width: 160px;
+	width: 170px;
 	white-space: nowrap;
 }
 

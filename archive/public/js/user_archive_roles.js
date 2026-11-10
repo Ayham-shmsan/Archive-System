@@ -156,24 +156,21 @@
 		let activeCount = 0;
 		const totalCount = years.length * FISCAL_ACTION_ROWS.length;
 
-		const headerCols = years
+		const headerCols = FISCAL_ACTION_ROWS.map(
+			(row) => `<th data-fiscal-action-col="${row.key}">${row.label}</th>`
+		).join("");
+
+		const bodyRows = years
 			.map((y) => {
-				const yr = frappe.utils.escape_html(y.year_name);
+				const yr = y.year_name;
+				const yrEsc = frappe.utils.escape_html(yr);
 				const closedBadge = Number(y.is_closed)
 					? `<span class="archive-fiscal-year-badge archive-fiscal-year-badge--closed">مغلقة</span>`
 					: "";
 				const defBadge = Number(y.is_default)
 					? `<span class="archive-fiscal-year-badge archive-fiscal-year-badge--default">افتراضية</span>`
 					: "";
-				return `<th data-fiscal-year-col="${yr}">${yr}${defBadge}${closedBadge}</th>`;
-			})
-			.join("");
-
-		const bodyRows = FISCAL_ACTION_ROWS.map((row) => {
-			const cells = years
-				.map((y) => {
-					const yr = y.year_name;
-					const yrEsc = frappe.utils.escape_html(yr);
+				const cells = FISCAL_ACTION_ROWS.map((row) => {
 					const isChecked = Boolean(state[yr] && state[yr][row.key]);
 					if (isChecked) activeCount += 1;
 					return `
@@ -187,15 +184,15 @@
 							/>
 						</td>
 					`;
-				})
-				.join("");
-			return `
-				<tr data-fiscal-action-row="${row.key}">
-					<td class="fiscal-action-label">${row.label}</td>
-					${cells}
-				</tr>
-			`;
-		}).join("");
+				}).join("");
+				return `
+					<tr data-fiscal-year-row="${yrEsc}">
+						<td class="fiscal-year-label">${yrEsc}${defBadge}${closedBadge}</td>
+						${cells}
+					</tr>
+				`;
+			})
+			.join("");
 
 		$badge
 			.text(`المفعّل: ${activeCount} من ${totalCount}`)
@@ -205,7 +202,7 @@
 			<table class="archive-fiscal-permissions-table">
 				<thead>
 					<tr>
-						<th class="fiscal-action-col">الصلاحية</th>
+						<th class="fiscal-year-col">السنة المالية</th>
 						${headerCols}
 					</tr>
 				</thead>
