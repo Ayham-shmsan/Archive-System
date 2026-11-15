@@ -100,12 +100,36 @@ def normalize_operation_no(
 
 def make_operation_no_hash(
     normalized_value,
+    fiscal_year=None,
 ):
+    fy = cstr(fiscal_year).strip()
+    norm = cstr(normalized_value).strip()
+    if fy:
+        payload = f"{fy}::{norm}"
+    else:
+        payload = norm
     return hashlib.sha256(
-        normalized_value.encode(
+        payload.encode(
             "utf-8"
         )
     ).hexdigest()
+def normalize_final_swift_required(value, default: int = 1) -> int:
+    if value is None:
+        return 1 if cint(default) else 0
+    if isinstance(value, bool):
+        return 1 if value else 0
+    if isinstance(value, (int, float)):
+        return 0 if value == 0 else 1
+    text = cstr(value).strip().lower()
+    if text == "":
+        return 1 if cint(default) else 0
+    if text in ("0", "false", "f", "no", "n", "غير مطلوب"):
+        return 0
+    if text in ("1", "true", "t", "yes", "y", "مطلوب"):
+        return 1
+    return 1 if cint(text) else 0
+
+
 class ArchiveOperation(Document):
     # begin: auto-generated types
     # This code is auto-generated. Do not modify anything in this block.
@@ -218,6 +242,10 @@ class ArchiveOperation(Document):
 
     
     def before_insert(self):
+        self.final_swift_required = normalize_final_swift_required(
+            self.get("final_swift_required"),
+            default=1,
+        )
         if not cint(self.serial_no):
             self.serial_no = (
                 get_next_operation_serial()
@@ -346,12 +374,40 @@ class ArchiveOperation(Document):
                     normalized
                 )
 
+                fiscal_year = cstr(
+                    getattr(self, "fiscal_year", None)
+                ).strip()
+                if not fiscal_year and not self.is_new():
+                    old_fy = frappe.db.get_value(
+                        "Archive Operation",
+                        self.name,
+                        "fiscal_year",
+                    )
+                    fiscal_year = cstr(old_fy).strip()
+                if not fiscal_year:
+                    if not (
+                        getattr(frappe.flags, "in_patch", False)
+                        or getattr(frappe.flags, "in_migrate", False)
+                        or getattr(frappe.flags, "in_install", False)
+                    ):
+                        fiscal_year = resolve_target_fiscal_year_for_create(
+                            getattr(self, "fiscal_year", None)
+                        )
+                    else:
+                        fiscal_year = get_default_fiscal_year()
+                    self.fiscal_year = fiscal_year
+
+                if not fiscal_year:
+                    frappe.throw(
+                        _("السنة المالية مطلوبة لتحديد رقم العملية.")
+                    )
+
 
                 # ========================================================
                 # Existing document
                 #
                 # إذا كان المستند محفوظاً من قبل ورقم العملية
-                # لم يتغير، فلا نعيد معاملته كتكرار جديد.
+                # لم يتغير (ضمن نفس السنة المالية)، فلا نعيد معاملته كتكرار جديد.
                 # ========================================================
 
                 old_doc = None
@@ -372,6 +428,10 @@ class ArchiveOperation(Document):
                         )
                     )
 
+                    old_fiscal_year = cstr(
+                        getattr(old_doc, "fiscal_year", None)
+                    ).strip() or fiscal_year
+
                     old_allow_duplicate = bool(
                         cint(
                             old_doc
@@ -383,6 +443,8 @@ class ArchiveOperation(Document):
                     if (
                         old_normalized
                         == normalized
+                        and old_fiscal_year
+                        == fiscal_year
                     ):
 
                         existing_key = cstr(
@@ -399,7 +461,7 @@ class ArchiveOperation(Document):
 
                         # ====================================================
                         # المستخدم يحاول إلغاء السماح بالتكرار
-                        # عن عملية مكررة بالفعل.
+                        # عن عملية مكررة بالفعل في نفس السنة المالية.
                         # ====================================================
 
                         if (
@@ -408,29 +470,18 @@ class ArchiveOperation(Document):
                             not allow_duplicate
                         ):
 
-                            existing = frappe.get_all(
-                                "Archive Operation",
-
-                                filters=[
-                                    [
-                                        "Archive Operation",
-                                        "operation_no_normalized",
-                                        "=",
-                                        normalized,
-                                    ],
-                                    [
-                                        "Archive Operation",
-                                        "name",
-                                        "!=",
-                                        self.name,
-                                    ],
-                                ],
-
-                                fields=[
-                                    "name",
-                                ],
-
-                                limit=1,
+                            existing = frappe.db.sql(
+                                """
+                                SELECT `name`
+                                FROM `tabArchive Operation`
+                                WHERE `fiscal_year` = %s
+                                  AND `operation_no_normalized` = %s
+                                  AND `name` != %s
+                                LIMIT 1
+                                FOR UPDATE
+                                """,
+                                (fiscal_year, normalized, self.name),
+                                as_dict=True,
                             )
 
 
@@ -450,11 +501,12 @@ class ArchiveOperation(Document):
                                 )
 
 
-                            # لم يعد هناك سجل آخر بنفس الرقم،
+                            # لم يعد هناك سجل آخر بنفس الرقم في نفس السنة المالية،
                             # لذلك يعود هذا السجل هو السجل الأساسي.
                             digest = (
                                 make_operation_no_hash(
-                                    normalized
+                                    normalized,
+                                    fiscal_year,
                                 )
                             )
 
@@ -470,41 +522,33 @@ class ArchiveOperation(Document):
                 # New operation OR operation number changed
                 # ========================================================
 
-                filters = [
-                    [
-                        "Archive Operation",
-                        "operation_no_normalized",
-                        "=",
-                        normalized,
-                    ]
-                ]
-
-
-                if self.name:
-
-                    filters.append(
-                        [
-                            "Archive Operation",
-                            "name",
-                            "!=",
-                            self.name,
-                        ]
+                if self.name and not self.is_new():
+                    existing = frappe.db.sql(
+                        """
+                        SELECT `name`, `operation_no`
+                        FROM `tabArchive Operation`
+                        WHERE `fiscal_year` = %s
+                          AND `operation_no_normalized` = %s
+                          AND `name` != %s
+                        LIMIT 1
+                        FOR UPDATE
+                        """,
+                        (fiscal_year, normalized, self.name),
+                        as_dict=True,
                     )
-
-
-                existing = frappe.get_all(
-                    "Archive Operation",
-
-                    filters=
-                        filters,
-
-                    fields=[
-                        "name",
-                        "operation_no",
-                    ],
-
-                    limit=1,
-                )
+                else:
+                    existing = frappe.db.sql(
+                        """
+                        SELECT `name`, `operation_no`
+                        FROM `tabArchive Operation`
+                        WHERE `fiscal_year` = %s
+                          AND `operation_no_normalized` = %s
+                        LIMIT 1
+                        FOR UPDATE
+                        """,
+                        (fiscal_year, normalized),
+                        as_dict=True,
+                    )
 
 
                 # ========================================================
@@ -564,12 +608,13 @@ class ArchiveOperation(Document):
 
 
                 # ========================================================
-                # DB uniqueness key
+                # DB uniqueness key (scoped by fiscal_year + normalized)
                 # ========================================================
 
                 digest = (
                     make_operation_no_hash(
-                        normalized
+                        normalized,
+                        fiscal_year,
                     )
                 )
 
@@ -594,6 +639,53 @@ class ArchiveOperation(Document):
                     self.operation_no_uniqueness_key = (
                         f"N:{digest}"
                     )
+
+    def db_insert(self, *args, **kwargs):
+        try:
+            return super().db_insert(*args, **kwargs)
+        except frappe.DuplicateEntryError:
+            normalized = cstr(getattr(self, "operation_no_normalized", None)).strip()
+            fiscal_year = cstr(getattr(self, "fiscal_year", None)).strip()
+            if not normalized or not fiscal_year or cint(getattr(self, "is_blocked_operation", 0)):
+                raise
+
+            allow_duplicate = bool(
+                cint(getattr(self, "allow_duplicate_operation_no", 0))
+                or getattr(frappe.flags, "in_import", False)
+            )
+            existing = frappe.db.sql(
+                """
+                SELECT `name`, `operation_no`
+                FROM `tabArchive Operation`
+                WHERE `fiscal_year` = %s
+                  AND `operation_no_normalized` = %s
+                  AND `name` != %s
+                LIMIT 1
+                """,
+                (fiscal_year, normalized, cstr(self.name)),
+                as_dict=True,
+            )
+            if not allow_duplicate:
+                existing_name = existing[0].name if existing else ""
+                frappe.throw(
+                    _(
+                        "رقم العملية {0} مستخدم بالفعل "
+                        "في العملية {1}. "
+                        "إذا كان التكرار مقصودًا فعّل "
+                        "\"السماح بتكرار رقم العملية\"."
+                    ).format(
+                        frappe.bold(cstr(self.operation_no)),
+                        frappe.bold(existing_name),
+                    )
+                )
+
+            self.allow_duplicate_operation_no = 1
+            digest = make_operation_no_hash(normalized, fiscal_year)
+            self.operation_no_uniqueness_key = (
+                f"D:{digest}:{frappe.generate_hash(length=16)}"
+            )
+            ensure_operation_group(self)
+            return super().db_insert(*args, **kwargs)
 
     def validate_customer_rate_rules(
             self,
@@ -1080,6 +1172,10 @@ class ArchiveOperation(Document):
         )
 
     def validate(self):
+        self.final_swift_required = normalize_final_swift_required(
+            self.get("final_swift_required"),
+            default=1,
+        )
         self.validate_fiscal_year_rules()
         self.validate_blocked_creation_mode()
         self.validate_blocked_operation_permission()

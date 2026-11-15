@@ -24,6 +24,7 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             search: "",
             status: "",
             fiscal_year: "",
+            fiscal_years: null,
             page: 1,
             page_length: 20,
 
@@ -1078,9 +1079,20 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                     });
                 }
 
-                if (!state.history.fiscal_year) {
-                    const allowedView = Array.isArray(fctx.allowed_view_years) ? fctx.allowed_view_years : [];
-                    state.history.fiscal_year = fctx.default_view_fiscal_year || allowedView[0] || "";
+                if (!Array.isArray(state.history.fiscal_years)) {
+                    const allowedView = Array.isArray(fctx.allowed_view_years)
+                        ? fctx.allowed_view_years.map((yr) => String(yr))
+                        : [];
+                    const defaultViewFy = String(fctx.default_view_fiscal_year || allowedView[0] || "");
+                    state.history.fiscal_years =
+                        defaultViewFy && allowedView.includes(defaultViewFy)
+                            ? [defaultViewFy]
+                            : allowedView[0]
+                            ? [allowedView[0]]
+                            : [];
+                    state.history.fiscal_year = state.history.fiscal_years.length
+                        ? state.history.fiscal_years.join(",")
+                        : "__none__";
                 }
                 const $historyFy = $main.find(".archive-auth-history-fiscal-year");
                 if ($historyFy.length && state.history.initialized) {
@@ -2245,14 +2257,15 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                             ${__("السنة المالية")}
                         </label>
 
-                        <select
+                        <div
                             class="
-                                form-control
                                 archive-auth-history-fiscal-year
+                                archive-fy-multiselect
                             "
+                            style="position: relative; display: block;"
                         >
                             ${render_history_fiscal_year_options()}
-                        </select>
+                        </div>
                     </div>
                 </div>
 
@@ -2405,23 +2418,55 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             }
         );
 
-        $history.on(
-            "change.archiveAuthHistory",
-            ".archive-auth-history-fiscal-year",
-            function () {
-                state.history.fiscal_year =
-                    (
-                        $(this).val()
-                        || ""
-                    ).trim();
-
+        $history
+            .on("click.archiveAuthHistory", ".archive-fy-multiselect-btn", function (event) {
+                event.stopPropagation();
+                $history.find(".archive-fy-multiselect-menu").toggle();
+            })
+            .on("click.archiveAuthHistory", ".archive-fy-multiselect-menu", function (event) {
+                event.stopPropagation();
+            })
+            .on("change.archiveAuthHistory", ".archive-fy-checkbox", function () {
+                const checked = [];
+                $history.find(".archive-fy-checkbox:checked").each((_, el) => {
+                    const val = String($(el).val() || "").trim();
+                    if (val) checked.push(val);
+                });
+                state.history.fiscal_years = checked;
+                state.history.fiscal_year = checked.length ? checked.join(",") : "__none__";
+                $history
+                    .find(".archive-fy-multiselect-label")
+                    .text(checked.length ? checked.join(", ") : __("لم يتم اختيار سنة"));
                 state.history.page = 1;
-
                 cancel_history_search_timer();
-
                 load_history_results();
-            }
-        );
+            })
+            .on("click.archiveAuthHistory", ".archive-fy-select-all", function (event) {
+                event.preventDefault();
+                const fctx = state.capabilities.fiscal_context || {};
+                const allowed = Array.isArray(fctx.allowed_view_years)
+                    ? fctx.allowed_view_years.map((yr) => String(yr))
+                    : [];
+                state.history.fiscal_years = [...allowed];
+                $history.find(".archive-auth-history-fiscal-year").html(render_history_fiscal_year_options());
+                state.history.page = 1;
+                cancel_history_search_timer();
+                load_history_results();
+            })
+            .on("click.archiveAuthHistory", ".archive-fy-clear-all", function (event) {
+                event.preventDefault();
+                state.history.fiscal_years = [];
+                $history.find(".archive-auth-history-fiscal-year").html(render_history_fiscal_year_options());
+                state.history.page = 1;
+                cancel_history_search_timer();
+                load_history_results();
+            });
+
+        $(document)
+            .off("click.archiveAuthFyMenu")
+            .on("click.archiveAuthFyMenu", function () {
+                $history.find(".archive-fy-multiselect-menu").hide();
+            });
 
 
         /*
@@ -2536,6 +2581,19 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
         * أثناء البحث نبقي النتائج القديمة
         * حتى تصل النتائج الجديدة.
         */
+        const is_initialized = Array.isArray(state.history.fiscal_years);
+        const selected_years = is_initialized ? [...state.history.fiscal_years] : null;
+        if (is_initialized && selected_years.length === 0) {
+            render_history_results({
+                rows: [],
+                total: 0,
+                page: 1,
+                page_length: state.history.page_length,
+                total_pages: 1,
+            });
+            return;
+        }
+
         if (
             show_loading
         ) {
@@ -2570,7 +2628,9 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                     state.history.status,
 
                 fiscal_year:
-                    state.history.fiscal_year || undefined,
+                    selected_years
+                        ? JSON.stringify(selected_years)
+                        : state.history.fiscal_year || undefined,
 
                 page:
                     state.history.page,
@@ -2753,34 +2813,68 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
     function render_history_fiscal_year_options() {
         const fctx = state.capabilities.fiscal_context || {};
-        const allowed = Array.isArray(fctx.allowed_view_years) ? fctx.allowed_view_years : [];
-        const options = [];
-        if (fctx.can_view_multiple_years && allowed.length > 1) {
-            options.push({ value: "ALL", label: __("جميع السنوات") });
+        const has_ctx = Boolean(state.capabilities.fiscal_context && Array.isArray(fctx.allowed_view_years));
+        const allowed = Array.isArray(fctx.allowed_view_years)
+            ? fctx.allowed_view_years.map((yr) => String(yr))
+            : [];
+        const default_fy = String(fctx.default_view_fiscal_year || allowed[0] || "");
+
+        if (!Array.isArray(state.history.fiscal_years)) {
+            if (has_ctx) {
+                state.history.fiscal_years =
+                    default_fy && allowed.includes(default_fy)
+                        ? [default_fy]
+                        : allowed[0]
+                        ? [allowed[0]]
+                        : [];
+            }
+        } else if (has_ctx) {
+            state.history.fiscal_years = state.history.fiscal_years
+                .map((yr) => String(yr))
+                .filter((yr) => allowed.includes(yr));
         }
-        allowed.forEach((yr) => {
-            const meta = (fctx.years || []).find((item) => item.year_name === yr);
-            const closed_suffix = meta && Number(meta.is_closed) === 1 ? " (مغلقة)" : "";
-            options.push({ value: yr, label: `${yr}${closed_suffix}` });
-        });
-        const validValues = new Set(options.map((opt) => opt.value));
-        const normalizedState =
-            state.history.fiscal_year && String(state.history.fiscal_year).toLowerCase() === "all" && validValues.has("ALL")
-                ? "ALL"
-                : state.history.fiscal_year;
-        const current =
-            normalizedState && validValues.has(normalizedState)
-                ? normalizedState
-                : fctx.default_view_fiscal_year && validValues.has(fctx.default_view_fiscal_year)
-                ? fctx.default_view_fiscal_year
-                : (options[0]?.value || "");
-        state.history.fiscal_year = current;
-        return options
-            .map((option) => {
-                const selected = current === option.value ? "selected" : "";
-                return `<option value="${frappe.utils.escape_html(option.value)}" ${selected}>${frappe.utils.escape_html(option.label)}</option>`;
+
+        const selected = Array.isArray(state.history.fiscal_years)
+            ? state.history.fiscal_years
+            : default_fy
+            ? [default_fy]
+            : [];
+        state.history.fiscal_year = selected.length ? selected.join(",") : "__none__";
+
+        if (!allowed.length) {
+            return `
+                <button type="button" class="form-control archive-fy-multiselect-btn" disabled style="width: 100%; min-height: 38px; display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; text-align: right; font-weight: 600;">
+                    <span class="archive-fy-multiselect-label">${__("لا توجد سنوات متاحة")}</span>
+                    <span style="font-size: 10px; opacity: 0.7;">▼</span>
+                </button>
+            `;
+        }
+
+        const label_text = selected.length ? selected.join(", ") : __("لم يتم اختيار سنة");
+        const items_html = allowed
+            .map((yr) => {
+                const meta = (fctx.years || []).find((item) => String(item.year_name) === yr);
+                const closed_suffix = meta && Number(meta.is_closed) === 1 ? " (مغلقة)" : "";
+                const esc = frappe.utils.escape_html(yr);
+                const text_esc = frappe.utils.escape_html(`${yr}${closed_suffix}`);
+                const checked = selected.includes(yr) ? "checked" : "";
+                return `<label class="archive-fy-option-item" style="display: flex; align-items: center; gap: 8px; padding: 5px 8px; margin: 0; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; user-select: none;"><input type="checkbox" class="archive-fy-checkbox" value="${esc}" ${checked} style="margin: 0; cursor: pointer;"><span>${text_esc}</span></label>`;
             })
             .join("");
+
+        return `
+            <button type="button" class="form-control archive-fy-multiselect-btn" style="width: 100%; min-height: 38px; display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; background: #fff; cursor: pointer; text-align: right; font-weight: 600;">
+                <span class="archive-fy-multiselect-label">${frappe.utils.escape_html(label_text)}</span>
+                <span style="font-size: 10px; opacity: 0.7;">▼</span>
+            </button>
+            <div class="archive-fy-multiselect-menu" style="display: none; position: absolute; top: calc(100% + 4px); inset-inline-start: 0; z-index: 1050; min-width: 195px; width: 100%; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12); padding: 6px; direction: rtl; text-align: right;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 2px 4px 6px; border-bottom: 1px solid #f1f5f9; margin-bottom: 4px;">
+                    <button type="button" class="btn btn-xs btn-link archive-fy-select-all" style="padding: 2px 4px; font-size: 11px; font-weight: 600; text-decoration: none;">${__("تحديد الكل")}</button>
+                    <button type="button" class="btn btn-xs btn-link archive-fy-clear-all" style="padding: 2px 4px; font-size: 11px; font-weight: 600; color: #dc2626; text-decoration: none;">${__("إلغاء الكل")}</button>
+                </div>
+                <div class="archive-fy-options-list" style="max-height: 220px; overflow-y: auto;">${items_html}</div>
+            </div>
+        `;
     }
 
     function render_history_status_options() {

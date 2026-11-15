@@ -632,7 +632,8 @@ def check_pdf(
 @frappe.whitelist()
 def get_recent_checks(
     limit: int = 20,
-    fiscal_year: str | None = None,
+    fiscal_year: str | list[str] | None = None,
+    fiscal_years: str | list[str] | None = None,
 ) -> list[dict]:
     """
     Compatibility endpoint.
@@ -675,7 +676,7 @@ def get_recent_checks(
     result = get_check_history(
         page=1,
         page_length=limit,
-        fiscal_year=fiscal_year,
+        fiscal_year=fiscal_year if fiscal_year is not None else fiscal_years,
     )
 
     return (
@@ -692,7 +693,8 @@ def get_check_history(
     status: str = "",
     page: int = 1,
     page_length: int = 20,
-    fiscal_year: str | None = None,
+    fiscal_year: str | list[str] | None = None,
+    fiscal_years: str | list[str] | None = None,
 ) -> dict:
     """
     سجل الفحوصات مع بحث عام سريع والحالة والصفحات.
@@ -713,8 +715,9 @@ def get_check_history(
     history_scope = (
         _get_authenticity_history_scope()
     )
+    requested_fy = fiscal_year if fiscal_year is not None else fiscal_years
     allowed_fiscal_years = resolve_fiscal_year_filter(
-        fiscal_year,
+        requested_fy,
         action="view",
     )
     if not allowed_fiscal_years:

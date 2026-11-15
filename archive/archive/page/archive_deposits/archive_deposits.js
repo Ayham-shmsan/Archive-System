@@ -12,14 +12,14 @@ const DEPOSIT_OVER_LIMIT_MSG = "مبلغ الإيداع لا يمكن أن يت�
 const DEPOSIT_NEGATIVE_MSG = "لا يُسمح بإدخال مبلغ إيداع سالب";
 
 const ARCHIVE_DEPOSITS_COLUMNS = [
-	{ key: "card_name", label: "اسم البطاقة", width: "17.5%", locked: true, sortable: true },
-	{ key: "card_number", label: "رقم البطاقة", width: "11.5%", locked: false, sortable: true },
-	{ key: "bank", label: "البنك", width: "15.5%", locked: false, sortable: true },
-	{ key: "representative", label: "المندوب", width: "11%", locked: false, sortable: true },
-	{ key: "region", label: "المنطقة", width: "10%", locked: false, sortable: true },
-	{ key: "deposit_amount", label: "مبلغ الإيداع", width: "12%", locked: true, sortable: true },
-	{ key: "remaining_limit", label: "مبلغ الحد المتبقي", width: "11%", locked: false, sortable: true },
-	{ key: "status", label: "الحالة", width: "11.5%", locked: true, sortable: true },
+	{ key: "card_name", label: "اسم البطاقة", width: "16%", pct: 16, min_px: 148, locked: true, sortable: true },
+	{ key: "card_number", label: "رقم البطاقة", width: "11%", pct: 11, min_px: 122, locked: false, sortable: true },
+	{ key: "bank", label: "البنك", width: "14.5%", pct: 14.5, min_px: 162, locked: false, sortable: true },
+	{ key: "representative", label: "المندوب", width: "10.5%", pct: 10.5, min_px: 118, locked: false, sortable: true },
+	{ key: "region", label: "المنطقة", width: "8.5%", pct: 8.5, min_px: 96, locked: false, sortable: true },
+	{ key: "deposit_amount", label: "مبلغ الإيداع", width: "14.5%", pct: 14.5, min_px: 162, locked: true, sortable: true },
+	{ key: "remaining_limit", label: "مبلغ الحد المتبقي", width: "11%", pct: 11, min_px: 124, locked: false, sortable: true },
+	{ key: "status", label: "الحالة", width: "14%", pct: 14, min_px: 158, locked: true, sortable: true },
 ];
 
 const DEPOSIT_SVGS = {
@@ -299,7 +299,12 @@ class ArchiveDepositsPage {
 								${DEPOSIT_SVGS.chevron_right}
 							</button>
 
-							<label class="archive-deposits-date-box" title="اختر تاريخ الإيداعات">
+							<div
+								class="archive-deposits-date-box"
+								role="button"
+								tabindex="0"
+								title="اختر تاريخ الإيداعات"
+							>
 								<span class="archive-deposits-date-display" data-role="date-display" dir="ltr">
 									${frappe.utils.escape_html(format_display_date_slash(this.state.deposit_date))}
 								</span>
@@ -310,9 +315,11 @@ class ArchiveDepositsPage {
 									type="date"
 									class="archive-deposits-date-native"
 									data-role="deposit-date-input"
+									tabindex="-1"
+									aria-hidden="true"
 									value="${frappe.utils.escape_html(this.state.deposit_date)}"
 								/>
-							</label>
+							</div>
 
 							<button
 								type="button"
@@ -486,14 +493,35 @@ class ArchiveDepositsPage {
 			}, 240);
 		});
 
-		$main.on("click", ".archive-deposits-date-box", (e) => {
+		const open_deposit_date_picker = () => {
 			const input = $main.find('[data-role="deposit-date-input"]')[0];
-			if (input && typeof input.showPicker === "function" && e.target !== input) {
+			if (!input) {
+				return;
+			}
+			if (typeof input.showPicker === "function") {
 				try {
 					input.showPicker();
+					return;
 				} catch (_) {
 					// native fallback
 				}
+			}
+			input.focus();
+			input.click();
+		};
+
+		$main.on("click", ".archive-deposits-date-box", (e) => {
+			if ($(e.target).is('[data-role="deposit-date-input"]')) {
+				return;
+			}
+			e.preventDefault();
+			open_deposit_date_picker();
+		});
+
+		$main.on("keydown", ".archive-deposits-date-box", (e) => {
+			if (e.key === "Enter" || e.key === " ") {
+				e.preventDefault();
+				open_deposit_date_picker();
 			}
 		});
 
@@ -1593,10 +1621,137 @@ class ArchiveDepositsPage {
 		return lines.join("\n");
 	}
 
+	get_text_measure_context() {
+		if (!this._text_measure_ctx) {
+			const canvas = document.createElement("canvas");
+			this._text_measure_ctx = canvas.getContext("2d");
+		}
+		return this._text_measure_ctx;
+	}
+
+	measure_card_name_column_width($table) {
+		const header_min_px = 148;
+		if (!this.rows.length) {
+			return header_min_px;
+		}
+		const ctx = this.get_text_measure_context();
+		if (!ctx) {
+			return 178;
+		}
+		const table_el = $table && $table.length ? $table[0] : document.body;
+		const style = window.getComputedStyle(table_el);
+		const sample_title = $table && $table.length ? $table.find(".ad-card-title-text")[0] : null;
+		const title_style = sample_title ? window.getComputedStyle(sample_title) : null;
+		const font_family = (title_style && title_style.fontFamily) || style.fontFamily || "sans-serif";
+		const token_sm = parseFloat(style.getPropertyValue("--archive-font-size-sm"));
+		const token_2xs = parseFloat(style.getPropertyValue("--archive-font-size-2xs"));
+		const title_px =
+			(title_style && parseFloat(title_style.fontSize)) ||
+			(Number.isFinite(token_sm) && token_sm > 0 ? token_sm : parseFloat(style.fontSize) || 13);
+		const badge_px =
+			Number.isFinite(token_2xs) && token_2xs > 0 ? token_2xs : Math.max(title_px - 2, 10);
+
+		const top = [];
+		for (let i = 0; i < this.rows.length; i++) {
+			const r = this.rows[i];
+			const name = String(r.base_card_name || r.card_name || "").trim();
+			const copy = String(r.copy_label || "").trim();
+			const status = r.is_historical_inactive ? String(r.card_status || "").trim() : "";
+			const score =
+				name.length * 1.15 + copy.length + status.length + (copy ? 3 : 0) + (status ? 3 : 0);
+			if (top.length < 5 || score > top[top.length - 1].score) {
+				top.push({ name, copy, status, score });
+				top.sort((a, b) => b.score - a.score);
+				if (top.length > 5) {
+					top.length = 5;
+				}
+			}
+		}
+
+		let max_cell_px = header_min_px;
+		for (const item of top) {
+			ctx.font = `700 ${title_px}px ${font_family}`;
+			let w = ctx.measureText(item.name).width;
+			if (item.copy) {
+				ctx.font = `700 ${badge_px}px ${font_family}`;
+				w += 6 + 18 + ctx.measureText(item.copy).width;
+			}
+			if (item.status) {
+				ctx.font = `600 ${Math.max(badge_px - 0.5, 10.5)}px ${font_family}`;
+				w += 6 + 16 + ctx.measureText(item.status).width;
+			}
+			const needed = Math.ceil(24 + w + 18);
+			if (needed > max_cell_px) {
+				max_cell_px = needed;
+			}
+		}
+		return max_cell_px;
+	}
+
+	compute_table_column_layout(visible_cols, $main, $table) {
+		const scroll_el = $main.find('[data-role="table-scroll"]')[0];
+		const raw_container_w = scroll_el ? scroll_el.clientWidth : 0;
+		const container_w =
+			raw_container_w > 0 ? raw_container_w : Math.max(window.innerWidth - 300, 1120);
+
+		const card_col = visible_cols.find((c) => c.key === "card_name");
+		const other_cols = visible_cols.filter((c) => c.key !== "card_name");
+		const total_pct = visible_cols.reduce((sum, c) => sum + c.pct, 0) || 100;
+		const other_pct = other_cols.reduce((sum, c) => sum + c.pct, 0);
+		const other_min_sum = other_cols.reduce((sum, c) => sum + c.min_px, 0);
+		const visible_min_sum = visible_cols.reduce((sum, c) => sum + c.min_px, 0);
+
+		const card_px = card_col
+			? this.rows.length
+				? this.measure_card_name_column_width($table)
+				: Math.max(
+						178,
+						Math.round(Math.max(container_w, visible_min_sum) * (card_col.pct / total_pct))
+				  )
+			: 0;
+
+		const normal_table_w = Math.max(container_w, visible_min_sum);
+		const base_other_sum = other_cols.length
+			? Math.max(other_min_sum, Math.round(normal_table_w * (other_pct / total_pct)))
+			: 0;
+		const target_other_sum = Math.max(base_other_sum, container_w - card_px);
+
+		const widths = new Map();
+		if (card_col) {
+			widths.set("card_name", card_px);
+		}
+
+		let allocated_other = 0;
+		other_cols.forEach((col, idx) => {
+			let px;
+			if (idx === other_cols.length - 1) {
+				px = Math.max(col.min_px, target_other_sum - allocated_other);
+			} else {
+				const share = other_pct > 0 ? col.pct / other_pct : 1 / other_cols.length;
+				px = Math.max(col.min_px, Math.round(target_other_sum * share));
+			}
+			allocated_other += px;
+			widths.set(col.key, px);
+		});
+
+		return {
+			widths,
+			table_width_px: card_px + allocated_other,
+		};
+	}
+
 	render_table() {
+		const $main = $(this.page.main);
 		const visible_cols = this.get_visible_columns();
-		const $head = $(this.page.main).find('[data-role="table-head"]');
-		const $tbody = $(this.page.main).find('[data-role="table-body"]');
+		const $table = $main.find(".archive-deposits-table");
+		const $head = $main.find('[data-role="table-head"]');
+		const $tbody = $main.find('[data-role="table-body"]');
+
+		const layout = this.compute_table_column_layout(visible_cols, $main, $table);
+		$table.css({
+			width: `max(100%, ${layout.table_width_px}px)`,
+			minWidth: `${layout.table_width_px}px`,
+		});
 
 		const head_cells = visible_cols
 			.map((col) => {
@@ -1606,10 +1761,12 @@ class ArchiveDepositsPage {
 						? "▲"
 						: "▼"
 					: "";
+				const col_px = layout.widths.get(col.key);
+				const width_style = col_px ? `width: ${col_px}px; min-width: ${col_px}px;` : `width: ${col.width};`;
 				return `
 					<th
 						class="ac-th ${col.sortable ? "is-sortable" : ""}"
-						style="width: ${col.width}"
+						style="${width_style}"
 						${col.sortable ? `data-sort-col="${col.key}"` : ""}
 					>
 						<span>${frappe.utils.escape_html(col.label)}</span>
@@ -1679,9 +1836,10 @@ class ArchiveDepositsPage {
 						row.card_status
 				  )}</span>`
 				: "";
+			const card_display_name = row.base_card_name || row.card_name || "";
 			return `
-				<td class="ac-td-name" title="${frappe.utils.escape_html(row.card_name)}">
-					<span class="ad-card-title-text">${frappe.utils.escape_html(row.card_name)}</span>
+				<td class="ac-td-name" title="${frappe.utils.escape_html(card_display_name)}">
+					<span class="ad-card-title-text">${frappe.utils.escape_html(card_display_name)}</span>
 					${copy_badge}
 					${inactive_tag}
 				</td>

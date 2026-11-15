@@ -601,7 +601,8 @@ def get_pending_capabilities():
     methods=["GET"]
 )
 def get_pending_operations_context(
-    fiscal_year: str | None = None,
+    fiscal_year: str | list[str] | None = None,
+    fiscal_years: str | list[str] | None = None,
 ):
     """
     Snapshot الرئيسي لشاشة المعلقات.
@@ -616,6 +617,7 @@ def get_pending_operations_context(
     """
 
     user = frappe.session.user
+    requested_fy = fiscal_year if fiscal_year is not None else fiscal_years
 
     capabilities = (
         get_pending_capabilities_service(
@@ -628,7 +630,7 @@ def get_pending_operations_context(
         "can_view"
     ):
         allowed_years = resolve_fiscal_year_filter(
-            fiscal_year,
+            requested_fy,
             user=user,
             action="view",
         )

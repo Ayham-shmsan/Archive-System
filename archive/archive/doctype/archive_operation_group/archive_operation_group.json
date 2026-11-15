@@ -4,11 +4,22 @@
   "doctype": "DocType",
   "engine": "InnoDB",
   "field_order": [
+    "fiscal_year",
     "operation_no",
     "operation_no_normalized",
     "is_incomplete_invoice"
   ],
   "fields": [
+    {
+      "fieldname": "fiscal_year",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "السنة المالية",
+      "options": "Archive Fiscal Year",
+      "read_only": 1,
+      "search_index": 1
+    },
     {
       "fieldname": "operation_no",
       "fieldtype": "Data",
@@ -23,8 +34,7 @@
       "hidden": 1,
       "label": "Normalized Operation No",
       "read_only": 1,
-      "search_index": 1,
-      "unique": 1
+      "search_index": 1
     },
     {
       "default": "0",

@@ -1668,7 +1668,11 @@ def _sort_items(
 		if col == "serial_no":
 			return (cint(row.get("serial_no")), cstr(row.get("card")))
 		if col == "card_name":
-			return (cstr(row.get("card_name")).lower(), cint(row.get("serial_no")))
+			return (
+				cstr(row.get("base_card_name") or row.get("card_name")).lower(),
+				cint(row.get("copy_no")),
+				cint(row.get("serial_no")),
+			)
 		if col == "card_type":
 			return (cstr(row.get("card_type")).lower(), cint(row.get("serial_no")))
 		if col == "card_number":

@@ -10,6 +10,7 @@ class ArchivePendingOperationsPage {
             status: "all",
             search: "",
             fiscal_year: null,
+            fiscal_years: null,
             advanced_filters: {},
             page: 1,
             page_length: "100",
@@ -25,6 +26,7 @@ class ArchivePendingOperationsPage {
         this.operations = [];
         this.capabilities = {};
         this.fiscal_context = null;
+        this._load_request_id = 0;
         this.scope = null;
         this.context_version = null;
 
@@ -524,10 +526,15 @@ class ArchivePendingOperationsPage {
                         </div>
                     </div>
 
-                    <div class="archive-header-fy-actions" style="display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;"><div class="archive-fiscal-year-filter-wrap" style="display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 4px;">
+                    <div class="archive-header-fy-actions" style="display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;"><div class="archive-fiscal-year-filter-wrap" style="position: relative; display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 4px;">
                             <label class="archive-fiscal-year-label" style="margin: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap;">السنة المالية</label>
-                            <select class="form-control input-xs archive-fiscal-year-select" style="width: auto; min-width: 110px; height: 32px; padding: 2px 8px; border-radius: 6px; font-weight: 600;">
-                            </select>
+                            <div class="archive-fy-multiselect" style="position: relative; display: inline-block;">
+                                <button type="button" class="form-control input-xs archive-fy-multiselect-btn" style="width: auto; min-width: 130px; height: 32px; padding: 2px 10px; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; background: #fff; cursor: pointer; text-align: right;">
+                                    <span class="archive-fy-multiselect-label">—</span>
+                                    <span style="font-size: 10px; opacity: 0.7;">▼</span>
+                                </button>
+                                <div class="archive-fy-multiselect-menu" style="display: none; position: absolute; top: calc(100% + 4px); inset-inline-start: 0; z-index: 1050; min-width: 195px; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12); padding: 6px; direction: rtl; text-align: right;"></div>
+                            </div>
                         </div><button
                         type="button"
                         class="
@@ -1615,15 +1622,24 @@ class ArchivePendingOperationsPage {
     }
 
     async load_context() {
-        if (this.is_loading) {
-            return false;
+        const request_id = (this._load_request_id = (this._load_request_id || 0) + 1);
+        const is_initialized = Array.isArray(this.state.fiscal_years);
+        const selected_years = is_initialized ? [...this.state.fiscal_years] : null;
+
+        if (is_initialized && selected_years.length === 0) {
+            this.rebuild_label_maps([]);
+            this.data_source.set_records([]);
+            this.state.page = 1;
+            this.update_scope_badge();
+            this.update_access_ui();
+            this.apply_local_query();
+            this.set_loading(false);
+            return true;
         }
 
         this.set_loading(
             true
         );
-
-        const requested_fiscal_year = this.state.fiscal_year || "";
 
         try {
             const response =
@@ -1636,9 +1652,13 @@ class ArchivePendingOperationsPage {
                         "GET",
 
                     args: {
-                        fiscal_year: requested_fiscal_year || undefined,
+                        fiscal_year: selected_years ? JSON.stringify(selected_years) : undefined,
                     },
                 });
+
+            if (request_id !== this._load_request_id) {
+                return false;
+            }
 
             const result =
                 response.message
@@ -1658,18 +1678,14 @@ class ArchivePendingOperationsPage {
             this.fiscal_context =
                 result.fiscal_context
                 || this.capabilities.fiscal_context
+                || this.fiscal_context
                 || null;
 
-            if (result.selected_fiscal_year) {
-                this.state.fiscal_year = result.selected_fiscal_year;
-            }
             this.render_fiscal_year_filter();
             if (
-                !requested_fiscal_year
-                && this.state.fiscal_year
-                && String(this.state.fiscal_year).toLowerCase() !== "all"
+                !is_initialized
+                && Array.isArray(this.state.fiscal_years)
             ) {
-                this.set_loading(false);
                 return await this.load_context();
             }
 
@@ -1700,6 +1716,9 @@ class ArchivePendingOperationsPage {
             return true;
 
         } catch (error) {
+            if (request_id !== this._load_request_id) {
+                return false;
+            }
             console.error(
                 "Pending operations context loading failed:",
                 error
@@ -1724,9 +1743,11 @@ class ArchivePendingOperationsPage {
             return false;
 
         } finally {
-            this.set_loading(
-                false
-            );
+            if (request_id === this._load_request_id) {
+                this.set_loading(
+                    false
+                );
+            }
         }
     }
 
@@ -1833,46 +1854,68 @@ class ArchivePendingOperationsPage {
     }
 
     render_fiscal_year_filter() {
-        const $select = $(this.wrapper).find(".archive-fiscal-year-select");
-        if (!$select.length) return;
+        const $wrap = $(this.wrapper).find(".archive-fy-multiselect");
+        if (!$wrap.length) return;
         const ctx = this.fiscal_context || {};
-        const allowed = Array.isArray(ctx.allowed_view_years) ? ctx.allowed_view_years : [];
-        const options = [];
-        if (ctx.can_view_multiple_years && allowed.length > 1) {
-            options.push({ value: "ALL", label: "جميع السنوات" });
+        const has_ctx = Boolean(this.fiscal_context && Array.isArray(ctx.allowed_view_years));
+        const allowed = Array.isArray(ctx.allowed_view_years)
+            ? ctx.allowed_view_years.map((yr) => String(yr))
+            : [];
+        const default_fy = String(ctx.default_view_fiscal_year || allowed[0] || "");
+
+        if (!Array.isArray(this.state.fiscal_years)) {
+            if (has_ctx) {
+                this.state.fiscal_years =
+                    default_fy && allowed.includes(default_fy)
+                        ? [default_fy]
+                        : allowed[0]
+                        ? [allowed[0]]
+                        : [];
+            }
+        } else if (has_ctx) {
+            this.state.fiscal_years = this.state.fiscal_years
+                .map((yr) => String(yr))
+                .filter((yr) => allowed.includes(yr));
         }
-        allowed.forEach((yr) => {
-            const meta = (ctx.years || []).find((item) => item.year_name === yr);
-            const closed_suffix = meta && Number(meta.is_closed) === 1 ? " (مغلقة)" : "";
-            options.push({ value: yr, label: `${yr}${closed_suffix}` });
-        });
-        if (!options.length) {
-            $select.html('<option value="">لا توجد سنوات متاحة</option>').prop("disabled", true);
+
+        const selected = Array.isArray(this.state.fiscal_years)
+            ? this.state.fiscal_years
+            : default_fy
+            ? [default_fy]
+            : [];
+        this.state.fiscal_year = selected.length ? selected.join(",") : "__none__";
+
+        const $btn = $wrap.find(".archive-fy-multiselect-btn");
+        const $label = $wrap.find(".archive-fy-multiselect-label");
+        const $menu = $wrap.find(".archive-fy-multiselect-menu");
+
+        if (!allowed.length) {
+            $label.text("لا توجد سنوات متاحة");
+            $btn.prop("disabled", true);
+            $menu.empty().hide();
             return;
         }
-        $select.prop("disabled", false);
-        const validValues = new Set(options.map((o) => o.value));
-        const normalizedState =
-            this.state.fiscal_year && String(this.state.fiscal_year).toLowerCase() === "all" && validValues.has("ALL")
-                ? "ALL"
-                : this.state.fiscal_year;
-        const current =
-            normalizedState && validValues.has(normalizedState)
-                ? normalizedState
-                : ctx.default_view_fiscal_year && validValues.has(ctx.default_view_fiscal_year)
-                ? ctx.default_view_fiscal_year
-                : options[0].value;
-        $select.html(
-            options
-                .map(
-                    (opt) =>
-                        `<option value="${frappe.utils.escape_html(opt.value)}" ${
-                            opt.value === current ? "selected" : ""
-                        }>${frappe.utils.escape_html(opt.label)}</option>`
-                )
-                .join("")
-        );
-        this.state.fiscal_year = current;
+
+        $btn.prop("disabled", false);
+        $label.text(selected.length ? selected.join(", ") : "لم يتم اختيار سنة");
+        const items_html = allowed
+            .map((yr) => {
+                const meta = (ctx.years || []).find((item) => String(item.year_name) === yr);
+                const closed_suffix = meta && Number(meta.is_closed) === 1 ? " (مغلقة)" : "";
+                const esc = frappe.utils.escape_html(yr);
+                const text_esc = frappe.utils.escape_html(`${yr}${closed_suffix}`);
+                const checked = selected.includes(yr) ? "checked" : "";
+                return `<label class="archive-fy-option-item" style="display: flex; align-items: center; gap: 8px; padding: 5px 8px; margin: 0; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; user-select: none;"><input type="checkbox" class="archive-fy-checkbox" value="${esc}" ${checked} style="margin: 0; cursor: pointer;"><span>${text_esc}</span></label>`;
+            })
+            .join("");
+
+        $menu.html(`
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 2px 4px 6px; border-bottom: 1px solid #f1f5f9; margin-bottom: 4px;">
+                <button type="button" class="btn btn-xs btn-link archive-fy-select-all" style="padding: 2px 4px; font-size: 11px; font-weight: 600; text-decoration: none;">تحديد الكل</button>
+                <button type="button" class="btn btn-xs btn-link archive-fy-clear-all" style="padding: 2px 4px; font-size: 11px; font-weight: 600; color: #dc2626; text-decoration: none;">إلغاء الكل</button>
+            </div>
+            <div class="archive-fy-options-list" style="max-height: 220px; overflow-y: auto;">${items_html}</div>
+        `);
     }
 
     update_scope_badge() {
@@ -4502,21 +4545,47 @@ class ArchivePendingOperationsPage {
             );
 
         $wrapper
-            .find(
-                ".archive-fiscal-year-select"
-            )
-            .on(
-                "change",
-                async (event) => {
-                    const next_year = String(event.target.value || "").trim();
-                    if (!next_year || next_year === this.state.fiscal_year) {
-                        return;
-                    }
-                    this.state.fiscal_year = next_year;
-                    this.state.page = 1;
-                    await this.load_context();
-                }
-            );
+            .on("click", ".archive-fy-multiselect-btn", (event) => {
+                event.stopPropagation();
+                $wrapper.find(".archive-fy-multiselect-menu").toggle();
+            })
+            .on("click", ".archive-fy-multiselect-menu", (event) => {
+                event.stopPropagation();
+            })
+            .on("change", ".archive-fy-checkbox", async () => {
+                const checked = [];
+                $wrapper.find(".archive-fy-checkbox:checked").each((_, el) => {
+                    const val = String($(el).val() || "").trim();
+                    if (val) checked.push(val);
+                });
+                this.state.fiscal_years = checked;
+                this.render_fiscal_year_filter();
+                this.state.page = 1;
+                await this.load_context();
+            })
+            .on("click", ".archive-fy-select-all", async (event) => {
+                event.preventDefault();
+                const allowed = Array.isArray(this.fiscal_context?.allowed_view_years)
+                    ? this.fiscal_context.allowed_view_years.map((yr) => String(yr))
+                    : [];
+                this.state.fiscal_years = [...allowed];
+                this.render_fiscal_year_filter();
+                this.state.page = 1;
+                await this.load_context();
+            })
+            .on("click", ".archive-fy-clear-all", async (event) => {
+                event.preventDefault();
+                this.state.fiscal_years = [];
+                this.render_fiscal_year_filter();
+                this.state.page = 1;
+                await this.load_context();
+            });
+
+        $(document)
+            .off("click.archivePendingFyMenu")
+            .on("click.archivePendingFyMenu", () => {
+                $wrapper.find(".archive-fy-multiselect-menu").hide();
+            });
 
         $wrapper
             .find(

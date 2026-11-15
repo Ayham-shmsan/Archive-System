@@ -342,19 +342,62 @@ def get_allowed_fiscal_years(
 
 
 def resolve_fiscal_year_filter(
-	requested_year: str | None = None,
+	requested_year: str | list[str] | tuple[str, ...] | set[str] | None = None,
 	user: str | None = None,
 	action: str = "view",
 ) -> list[str]:
 	"""
 	يحلل فلتر السنة المالية القادم من الواجهة أو الـ API:
-	- إذا كان فارغًا أو 'all' أو 'جميع السنوات': يعيد فقط السنوات المصرح للمستخدم بها.
-	- إذا كان سنة محددة: يتحقق من امتلاك المستخدم صلاحية الإجراء لتلك السنة، ويرفض الوصول إذا لم يمتلكها.
+	- إذا كان None (غير ممرر): يعيد السنوات المصرح للمستخدم بها.
+	- إذا كان 'all' أو 'جميع السنوات': يعيد فقط السنوات المصرح للمستخدم بها.
+	- إذا كان قائمة فارغة [] أو نصاً فارغاً '' أو '[]' أو '__none__': يعيد [] (لا يعرض أي سجلات).
+	- إذا كان سنة واحدة أو قائمة سنوات: يتحقق من وجود كل سنة وامتلاك المستخدم صلاحية الإجراء لها.
 	"""
 	allowed_years = get_allowed_fiscal_years(action=action, user=user, only_open=False)
-	req = cstr(requested_year or "").strip()
-	if not req or req.lower() in ("all", "جميع السنوات", "*"):
+
+	if requested_year is None:
 		return allowed_years
+
+	if isinstance(requested_year, (list, tuple, set)):
+		items = list(requested_year)
+		if not items:
+			return []
+		resolved: list[str] = []
+		for item in items:
+			if item is None or isinstance(item, (list, tuple, set, dict)):
+				frappe.throw(_("صيغة السنة المالية غير صالحة."), frappe.ValidationError)
+			yr = cstr(item).strip()
+			if not yr:
+				require_fiscal_year_exists("")
+			if yr.lower() in ("all", "جميع السنوات", "*"):
+				return allowed_years
+			require_fiscal_permission(yr, action=action, user=user, check_open=False)
+			if yr not in resolved:
+				resolved.append(yr)
+		return resolved
+
+	if isinstance(requested_year, dict):
+		frappe.throw(_("صيغة السنة المالية غير صالحة."), frappe.ValidationError)
+
+	req = cstr(requested_year).strip()
+	if not req or req.lower() in ("none", "__none__", "[]"):
+		return []
+
+	if req.lower() in ("all", "جميع السنوات", "*"):
+		return allowed_years
+
+	if req.startswith("["):
+		try:
+			parsed = frappe.parse_json(req)
+		except Exception:
+			frappe.throw(_("صيغة السنوات المالية غير صالحة."), frappe.ValidationError)
+		if not isinstance(parsed, list):
+			frappe.throw(_("صيغة السنوات المالية غير صالحة."), frappe.ValidationError)
+		return resolve_fiscal_year_filter(parsed, user=user, action=action)
+
+	if "," in req:
+		parts = [part.strip() for part in req.split(",")]
+		return resolve_fiscal_year_filter(parts, user=user, action=action)
 
 	require_fiscal_permission(req, action=action, user=user, check_open=False)
 	return [req]
@@ -374,7 +417,12 @@ def resolve_target_fiscal_year_for_create(
 			getattr(frappe.flags, "import_target_fiscal_year", None) or get_default_fiscal_year()
 		).strip()
 	else:
-		target_year = cstr(requested_year or "").strip() or get_default_fiscal_year()
+		if isinstance(requested_year, (list, tuple, set, dict)):
+			frappe.throw(_("يجب تحديد سنة مالية واحدة فقط عند الإنشاء."), frappe.ValidationError)
+		raw_req = cstr(requested_year or "").strip()
+		if "," in raw_req or raw_req.startswith("[") or raw_req.lower() in ("all", "جميع السنوات", "*"):
+			frappe.throw(_("يجب تحديد سنة مالية واحدة فقط عند الإنشاء."), frappe.ValidationError)
+		target_year = raw_req or get_default_fiscal_year()
 
 	return require_fiscal_permission(target_year, action="add", user=user, check_open=True)
 

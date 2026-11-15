@@ -58,6 +58,7 @@
   "allow_duplicate_operation_no",
   "is_blocked_operation",
   "is_incomplete_invoice",
+  "final_swift_required",
   "operation_no_normalized",
   "operation_no_uniqueness_key",
   "fiscal_year",
@@ -412,6 +413,13 @@
    "label": "الرقم السنوي",
    "no_copy": 1,
    "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "final_swift_required",
+   "fieldtype": "Check",
+   "label": "السويفت النهائي مطلوب",
    "search_index": 1
   }
  ],

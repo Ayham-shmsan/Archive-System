@@ -22,6 +22,7 @@ body[data-route="archive-cards"] .main-section,
 	flex-direction: column;
 	height: 100%;
 	min-height: 0;
+	min-width: 0;
 }
 
 body[data-route="archive-cards"] #body,
@@ -30,6 +31,7 @@ body[data-route="archive-cards"] #body,
 	flex-direction: column;
 	flex: 1 1 0;
 	min-height: 0;
+	min-width: 0;
 	width: 100%;
 }
 
@@ -39,6 +41,7 @@ body[data-route="archive-cards"] #body,
 	flex-direction: column;
 	flex: 1 1 0;
 	min-height: 0;
+	min-width: 0;
 	width: 100%;
 }
 
@@ -53,6 +56,7 @@ body[data-route="archive-cards"] #body,
 	flex-direction: column;
 	flex: 1 1 0;
 	min-height: 0;
+	min-width: 0;
 	width: 100% !important;
 	max-width: 100% !important;
 	box-sizing: border-box;
@@ -1426,63 +1430,78 @@ body[data-route="archive-cards"] #body,
 .archive-cards-table-scroll {
 	flex: 1 1 0;
 	min-height: 0;
+	min-width: 0;
 	max-height: none !important;
 	width: 100%;
 	max-width: 100%;
 	overflow: auto;
+	overscroll-behavior-x: contain;
 	background: var(--archive-color-bg-surface);
 }
 
 .archive-cards-table {
 	width: 100%;
-	min-width: 1400px;
+	min-width: 1638px;
 	border-collapse: collapse;
 	table-layout: fixed;
 	font-size: var(--archive-font-table-cell-size);
 }
 
-.archive-cards-table col {
-	width: auto !important;
-}
-
 .archive-cards-table th.ac-th[data-sort-col="serial_no"] {
 	width: 4%;
+	min-width: 64px;
 }
 .archive-cards-table th.ac-th[data-sort-col="card_name"] {
-	width: 12.5%;
+	width: 12%;
+	min-width: 148px;
+}
+.archive-cards-table th.ac-th[data-sort-col="card_type"] {
+	width: 6.4%;
+	min-width: 102px;
 }
 .archive-cards-table th.ac-th[data-sort-col="account_number"] {
-	width: 8.8%;
+	width: 8.6%;
+	min-width: 145px;
 }
 .archive-cards-table th.ac-th[data-sort-col="card_number"] {
-	width: 9.2%;
+	width: 8.6%;
+	min-width: 145px;
 }
 .archive-cards-table th.ac-th[data-sort-col="bank"] {
-	width: 8%;
+	width: 7.2%;
+	min-width: 100px;
 }
 .archive-cards-table th.ac-th[data-sort-col="representative"] {
-	width: 7.8%;
+	width: 6.8%;
+	min-width: 112px;
 }
 .archive-cards-table th.ac-th[data-sort-col="region"] {
-	width: 6.2%;
+	width: 5.4%;
+	min-width: 92px;
 }
 .archive-cards-table th.ac-th[data-sort-col="card_owner"] {
-	width: 7.8%;
+	width: 6.8%;
+	min-width: 112px;
 }
 .archive-cards-table th.ac-th[data-sort-col="daily_limit"] {
-	width: 6.4%;
+	width: 5.8%;
+	min-width: 100px;
 }
 .archive-cards-table th.ac-th[data-sort-col="received_date"] {
-	width: 6.8%;
+	width: 6%;
+	min-width: 105px;
 }
 .archive-cards-table th.ac-th[data-sort-col="creation"] {
-	width: 10.2%;
+	width: 9%;
+	min-width: 152px;
 }
 .archive-cards-table th.ac-th[data-sort-col="owner_full_name"] {
-	width: 6.2%;
+	width: 5.8%;
+	min-width: 105px;
 }
 .archive-cards-table th.ac-th[data-sort-col="status"] {
-	width: 6.1%;
+	width: 7.6%;
+	min-width: 136px;
 }
 
 .archive-cards-table th.ac-th,
@@ -1500,6 +1519,9 @@ body[data-route="archive-cards"] #body,
 	border-bottom: var(--archive-border-subtle);
 	text-align: right;
 	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	box-sizing: border-box;
 	user-select: none;
 }
 
@@ -1529,6 +1551,16 @@ body[data-route="archive-cards"] #body,
 	overflow: hidden;
 	text-overflow: ellipsis;
 	vertical-align: middle;
+	box-sizing: border-box;
+}
+
+.archive-cards-table th.ac-th[data-sort-col="card_name"],
+.ac-table-row td.ac-td-name,
+.archive-cards-table th.ac-th[data-sort-col="bank"],
+.ac-table-row td.ac-td-bank {
+	white-space: nowrap;
+	overflow: visible;
+	text-overflow: clip;
 }
 
 .ac-table-row {
@@ -1632,10 +1664,11 @@ body[data-route="archive-cards"] #body,
 	color: var(--archive-color-text-heading);
 }
 
-.archive-cards-table:has(thead th:nth-child(5)[data-sort-col="bank"]) .ac-table-row td:nth-child(5),
-.archive-cards-table:has(thead th:nth-child(4)[data-sort-col="bank"]) .ac-table-row td:nth-child(4),
-.archive-cards-table:has(thead th:nth-child(3)[data-sort-col="bank"]) .ac-table-row td:nth-child(3) {
+.ac-table-row td.ac-td-bank,
+.ac-td-bank {
+	font-size: var(--archive-font-table-cell-bold-size);
 	font-weight: var(--archive-font-table-cell-bold-weight);
+	line-height: var(--archive-font-table-cell-bold-lh);
 }
 
 .ac-copy-badge,

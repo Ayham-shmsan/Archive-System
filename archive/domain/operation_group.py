@@ -6,28 +6,59 @@ from frappe.utils import cint, cstr
 
 def get_operation_group_by_number(
     operation_no_normalized,
+    fiscal_year=None,
 ):
     """
-    إيجاد المجموعة المرتبطة برقم العملية الموحد.
+    إيجاد المجموعة المرتبطة برقم العملية الموحد داخل السنة المالية المحددة.
 
     لا نتعامل مع operation_no الخام هنا؛
-    المصدر الحقيقي للمقارنة هو الرقم الموحد.
+    المصدر الحقيقي للمقارنة هو (fiscal_year, operation_no_normalized).
     """
 
     normalized = cstr(
         operation_no_normalized
     ).strip()
 
+    fy = cstr(fiscal_year).strip()
+
     if not normalized:
         return None
+
+    if not fy:
+        frappe.throw(
+            _(
+                "السنة المالية مطلوبة للبحث عن مجموعة العملية."
+            )
+        )
 
     return frappe.db.get_value(
         "Archive Operation Group",
         {
+            "fiscal_year": fy,
             "operation_no_normalized":
                 normalized,
         },
         "name",
+    )
+
+
+def get_group_identity(
+    group_name,
+):
+    if not group_name:
+        return None
+
+    return frappe.db.get_value(
+        "Archive Operation Group",
+        group_name,
+        [
+            "name",
+            "fiscal_year",
+            "operation_no",
+            "operation_no_normalized",
+            "is_incomplete_invoice",
+        ],
+        as_dict=True,
     )
 
 
@@ -46,6 +77,7 @@ def get_group_normalized_number(
 
 def create_operation_group(
     *,
+    fiscal_year=None,
     operation_no=None,
     operation_no_normalized=None,
     is_incomplete_invoice=0,
@@ -59,9 +91,19 @@ def create_operation_group(
     القرار موجود في ensure_operation_group().
     """
 
+    fy = cstr(fiscal_year).strip()
+    if not fy:
+        frappe.throw(
+            _(
+                "السنة المالية مطلوبة لإنشاء مجموعة العملية."
+            )
+        )
+
     group = frappe.new_doc(
         "Archive Operation Group"
     )
+
+    group.fiscal_year = fy
 
     group.operation_no = (
         cstr(operation_no).strip()
@@ -109,31 +151,41 @@ def ensure_numbered_operation_group(
     normalized,
 ):
     """
-    ربط عملية ذات رقم بمجموعة ذلك الرقم.
+    ربط عملية ذات رقم بمجموعة ذلك الرقم داخل نفس السنة المالية.
 
     invariant:
-        لكل operation_no_normalized
+        لكل (fiscal_year, operation_no_normalized)
         مجموعة واحدة فقط.
     """
+
+    fiscal_year = cstr(
+        getattr(operation, "fiscal_year", None)
+    ).strip()
+
+    if not fiscal_year:
+        frappe.throw(
+            _(
+                "تعذر تحديد مجموعة العملية لأن السنة المالية غير محددة."
+            )
+        )
 
     current_group = cstr(
         operation.operation_group
     ).strip()
 
     # --------------------------------------------------------
-    # العملية مرتبطة بالفعل بالمجموعة الصحيحة.
+    # العملية مرتبطة بالفعل بالمجموعة الصحيحة لنفس السنة والرقم.
     # --------------------------------------------------------
 
     if current_group:
-        current_normalized = cstr(
-            get_group_normalized_number(
-                current_group
-            )
-        ).strip()
+        group_info = get_group_identity(
+            current_group
+        )
 
         if (
-            current_normalized
-            == normalized
+            group_info
+            and cstr(group_info.get("fiscal_year")).strip() == fiscal_year
+            and cstr(group_info.get("operation_no_normalized")).strip() == normalized
         ):
             _sync_operation_incomplete_invoice_from_group(
                 operation,
@@ -142,12 +194,13 @@ def ensure_numbered_operation_group(
             return current_group
 
     # --------------------------------------------------------
-    # ربما المجموعة موجودة من جزء سابق.
+    # ربما المجموعة موجودة من جزء سابق في نفس السنة المالية.
     # --------------------------------------------------------
 
     group_name = (
         get_operation_group_by_number(
-            normalized
+            normalized,
+            fiscal_year=fiscal_year,
         )
     )
 
@@ -163,10 +216,10 @@ def ensure_numbered_operation_group(
         return group_name
 
     # --------------------------------------------------------
-    # أول جزء لهذا الرقم.
+    # أول جزء لهذا الرقم في هذه السنة المالية.
     #
-    # يوجد Unique Constraint على
-    # operation_no_normalized.
+    # يوجد Unique Constraint مركب على
+    # (fiscal_year, operation_no_normalized).
     #
     # لذلك نعالج كذلك حالة طلبين متزامنين.
     # --------------------------------------------------------
@@ -180,6 +233,9 @@ def ensure_numbered_operation_group(
     try:
         group_name = (
             create_operation_group(
+                fiscal_year=
+                    fiscal_year,
+
                 operation_no=
                     operation.operation_no,
 
@@ -194,7 +250,8 @@ def ensure_numbered_operation_group(
     except frappe.DuplicateEntryError:
         group_name = (
             get_operation_group_by_number(
-                normalized
+                normalized,
+                fiscal_year=fiscal_year,
             )
         )
 
@@ -219,26 +276,38 @@ def ensure_blocked_operation_group(
     العملية المحضورة لا تملك رقم عملية.
 
     لذلك لا يمكن تجميعها برقم.
-    كل عملية محضورة تحصل على مجموعة مستقلة.
+    كل عملية محضورة تحصل على مجموعة مستقلة مرتبطة بسنتها المالية.
     """
+
+    fiscal_year = cstr(
+        getattr(operation, "fiscal_year", None)
+    ).strip()
+
+    if not fiscal_year:
+        frappe.throw(
+            _(
+                "تعذر تحديد مجموعة العملية المحظورة لأن السنة المالية غير محددة."
+            )
+        )
 
     current_group = cstr(
         operation.operation_group
     ).strip()
 
-    if (
-        current_group
-        and
-        frappe.db.exists(
-            "Archive Operation Group",
-            current_group,
+    if current_group:
+        group_info = get_group_identity(
+            current_group
         )
-    ):
-        _sync_operation_incomplete_invoice_from_group(
-            operation,
-            current_group,
-        )
-        return current_group
+        if (
+            group_info
+            and cstr(group_info.get("fiscal_year")).strip() == fiscal_year
+            and not cstr(group_info.get("operation_no_normalized")).strip()
+        ):
+            _sync_operation_incomplete_invoice_from_group(
+                operation,
+                current_group,
+            )
+            return current_group
 
     is_incomplete = (
         0
@@ -248,6 +317,9 @@ def ensure_blocked_operation_group(
 
     group_name = (
         create_operation_group(
+            fiscal_year=fiscal_year,
+            operation_no=None,
+            operation_no_normalized=None,
             is_incomplete_invoice=is_incomplete,
         )
     )

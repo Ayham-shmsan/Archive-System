@@ -35,6 +35,7 @@ from archive.api.pdf_parser import (
 )
 from archive.archive.doctype.archive_operation.archive_operation import (
     make_operation_no_hash,
+    normalize_final_swift_required,
     normalize_operation_no,
 )
 from archive.services.fiscal_year_permissions import (
@@ -83,6 +84,9 @@ MANUAL_FIELD_LABELS = {
 
     "user_notes":
         "ملاحظات العميل",
+
+    "final_swift_required":
+        "السويفت النهائي مطلوب",
 }
 
 PDF_EXTRACTED_FIELD_LABELS = {
@@ -150,6 +154,7 @@ OPERATION_FIELDS = {
     "notes",
     "allow_duplicate_operation_no",
     "is_blocked_operation",
+    "final_swift_required",
     "user_notes",
 }
 MAX_FINAL_SWIFT_FILES = 10
@@ -479,6 +484,7 @@ MANUAL_EDITABLE_FIELDS = {
     "swift_code",
     "country",
     "transferring_bank",
+    "final_swift_required",
 
     "user_notes",
 }
@@ -974,28 +980,58 @@ def get_final_swift_state(
             )
         )
 
-    final_swift_required = bool(
+    raw_flag = (
+        operation.get("final_swift_required")
+        if isinstance(operation, dict)
+        else getattr(operation, "final_swift_required", None)
+    )
+    final_swift_required_flag = normalize_final_swift_required(
+        raw_flag,
+        default=1,
+    )
+
+    bank_requires_final_swift = bool(
         operation.transferring_bank
         and operation.transferring_bank
         in configured_banks
+    )
+
+    final_swift_required = bool(
+        final_swift_required_flag == 1
+        and bank_requires_final_swift
     )
 
     has_final_swift = (
         final_swift_count > 0
     )
 
+    final_swift_pending = bool(
+        final_swift_required
+        and not has_final_swift
+    )
+
+    if has_final_swift:
+        final_swift_status = "تم الإرفاق"
+    elif final_swift_pending:
+        final_swift_status = "بانتظار السويفت"
+    else:
+        final_swift_status = "غير مطلوب"
+
     return {
         "final_swift_required":
             final_swift_required,
+
+        "final_swift_required_flag":
+            final_swift_required_flag,
 
         "has_final_swift":
             has_final_swift,
 
         "final_swift_pending":
-            (
-                final_swift_required
-                and not has_final_swift
-            ),
+            final_swift_pending,
+
+        "final_swift_status":
+            final_swift_status,
 
         "final_swift_count":
             final_swift_count,
@@ -1832,6 +1868,22 @@ def serialize_operation_for_view(
         "final_swift_files":
             final_swift_files,
 
+        "final_swift_required":
+            normalize_final_swift_required(
+                getattr(
+                    operation,
+                    "final_swift_required",
+                    1,
+                ),
+                default=1,
+            ),
+
+        "final_swift_status":
+            get_final_swift_state(
+                operation,
+                final_swift_count=len(final_swift_files),
+            )["final_swift_status"],
+
         "final_swift_count":
             len(
                 final_swift_files
@@ -1957,6 +2009,23 @@ def create_operation(
     # لا نثق بقيمة request_date القادمة من المتصفح.
     # ========================================================
 
+    source_pending_name = cstr(
+        values.get("source_pending_operation")
+        or values.get("pending_operation")
+        or ""
+    ).strip()
+    if source_pending_name and frappe.db.exists("Archive Pending Operation", source_pending_name):
+        pending_fy = cstr(
+            frappe.db.get_value("Archive Pending Operation", source_pending_name, "fiscal_year")
+        ).strip()
+        require_fiscal_permission(pending_fy, "edit", check_open=True)
+        target_fiscal_year = require_fiscal_permission(pending_fy, "add", check_open=True)
+    else:
+        target_fiscal_year = resolve_target_fiscal_year_for_create(
+            values.get("fiscal_year")
+        )
+    values["fiscal_year"] = target_fiscal_year
+
     if not cint(
         values.get(
             "is_blocked_operation"
@@ -1988,6 +2057,8 @@ def create_operation(
                 frappe.db.get_value(
                     "Archive Operation Group",
                     {
+                        "fiscal_year":
+                            target_fiscal_year,
                         "operation_no_normalized":
                             normalized_operation_no,
                     },
@@ -2004,6 +2075,8 @@ def create_operation(
                     filters={
                         "operation_group":
                             existing_group,
+                        "fiscal_year":
+                            target_fiscal_year,
                     },
 
                     fields=[
@@ -2210,22 +2283,6 @@ def create_operation(
     # Create Archive Operation
     # ========================================================
 
-    source_pending_name = cstr(
-        values.get("source_pending_operation")
-        or values.get("pending_operation")
-        or ""
-    ).strip()
-    if source_pending_name and frappe.db.exists("Archive Pending Operation", source_pending_name):
-        pending_fy = cstr(
-            frappe.db.get_value("Archive Pending Operation", source_pending_name, "fiscal_year")
-        ).strip()
-        require_fiscal_permission(pending_fy, "edit", check_open=True)
-        target_fiscal_year = require_fiscal_permission(pending_fy, "add", check_open=True)
-    else:
-        target_fiscal_year = resolve_target_fiscal_year_for_create(
-            values.get("fiscal_year")
-        )
-
     doc = frappe.new_doc(
         "Archive Operation"
     )
@@ -2247,8 +2304,12 @@ def create_operation(
             fieldname
         )
 
-
-        if value == "":
+        if fieldname == "final_swift_required":
+            value = normalize_final_swift_required(
+                value,
+                default=1,
+            )
+        elif value == "":
             value = None
 
 
@@ -2256,6 +2317,7 @@ def create_operation(
             fieldname,
             value,
         )
+    doc.fiscal_year = target_fiscal_year
 
 
     # ========================================================
@@ -2650,15 +2712,17 @@ def get_operations(
     incomplete_invoice: int = 0,
     start: int = 0,
     page_length: int =100000 ,
-    fiscal_year: str | None = None,
+    fiscal_year: str | list[str] | None = None,
+    fiscal_years: str | list[str] | None = None,
 ) -> dict[str, Any]:
     require_operations_screen_access()
+    requested_fy = fiscal_year if fiscal_year is not None else fiscal_years
 
     if not frappe.has_permission(
         "Archive Operation",
         "read",
     ):
-        if fiscal_year and cstr(fiscal_year).strip().lower() not in ("", "all", "جميع السنوات", "*"):
+        if requested_fy and cstr(requested_fy).strip().lower() not in ("", "[]", "none", "__none__", "all", "جميع السنوات", "*"):
             frappe.throw(_("ليست لديك صلاحية استعراض العمليات."), frappe.PermissionError)
         return {
             "operations": [],
@@ -2675,7 +2739,7 @@ def get_operations(
             },
         }
 
-    allowed_fiscal_years = resolve_fiscal_year_filter(fiscal_year, action="view")
+    allowed_fiscal_years = resolve_fiscal_year_filter(requested_fy, action="view")
     if not allowed_fiscal_years:
         return {
             "operations": [],
@@ -2766,6 +2830,10 @@ def get_operations(
                     configured_final_swift_banks
                 ),
             ]
+
+            filters[
+                "final_swift_required"
+            ] = 1
 
             filters[
                 "final_swift_file"
@@ -2890,6 +2958,7 @@ def get_operations(
                 "status",
 
                 "final_swift_file",
+                "final_swift_required",
                 "operation_group",
                 "is_incomplete_invoice",
 
@@ -3158,11 +3227,16 @@ def get_operations(
     # Search-aware status counters
     # ========================================================
 
+    fy_base_filter = {
+        "fiscal_year": ["in", allowed_fiscal_years],
+    }
+
     counts = {
         "all":
             len(
                 search_operation_names(
-                    search
+                    search,
+                    base_filters=dict(fy_base_filter),
                 )
             ),
 
@@ -3171,6 +3245,7 @@ def get_operations(
                 search_operation_names(
                     search,
                     base_filters={
+                        **fy_base_filter,
                         "status":
                             "غير مؤكدة",
                     },
@@ -3182,6 +3257,7 @@ def get_operations(
                 search_operation_names(
                     search,
                     base_filters={
+                        **fy_base_filter,
                         "status":
                             "مؤكدة",
                     },
@@ -3193,6 +3269,7 @@ def get_operations(
                 search_operation_names(
                     search,
                     base_filters={
+                        **fy_base_filter,
                         "status":
                             "مرتجعة",
                     },
@@ -3204,6 +3281,7 @@ def get_operations(
                 search_operation_names(
                     search,
                     base_filters={
+                        **fy_base_filter,
                         "status":
                             "محضورة",
                     },
@@ -3215,6 +3293,7 @@ def get_operations(
                 search_operation_names(
                     search,
                     base_filters={
+                        **fy_base_filter,
                         "is_incomplete_invoice":
                             1,
                     },
@@ -3231,12 +3310,15 @@ def get_operations(
             search_operation_names(
                 search,
                 base_filters={
+                    **fy_base_filter,
                     "transferring_bank": [
                         "in",
                         list(
                             configured_final_swift_banks
                         ),
                     ],
+
+                    "final_swift_required": 1,
 
                     "final_swift_file": [
                         "is",
@@ -3529,7 +3611,8 @@ def release_pending_operation(
     methods=["GET", "POST"]
 )
 def get_operations_context(
-    fiscal_year: str | None = None,
+    fiscal_year: str | list[str] | None = None,
+    fiscal_years: str | list[str] | None = None,
 ) -> dict[str, Any]:
     """
     تحميل Snapshot كامل وخفيف لواجهة العمليات.
@@ -3544,12 +3627,13 @@ def get_operations_context(
     require_operations_screen_access()
 
     fiscal_ctx = get_screen_fiscal_context()
+    requested_fy = fiscal_year if fiscal_year is not None else fiscal_years
 
     if not frappe.has_permission(
         "Archive Operation",
         "read",
     ):
-        if fiscal_year and cstr(fiscal_year).strip().lower() not in ("", "all", "جميع السنوات", "*"):
+        if requested_fy and cstr(requested_fy).strip().lower() not in ("", "[]", "none", "__none__", "all", "جميع السنوات", "*"):
             frappe.throw(_("ليست لديك صلاحية استعراض العمليات."), frappe.PermissionError)
         return {
             "version": 2,
@@ -3558,7 +3642,7 @@ def get_operations_context(
             "fiscal_context": fiscal_ctx,
         }
 
-    allowed_fiscal_years = resolve_fiscal_year_filter(fiscal_year, action="view")
+    allowed_fiscal_years = resolve_fiscal_year_filter(requested_fy, action="view")
     if not allowed_fiscal_years:
         return {
             "version": 2,
@@ -3621,6 +3705,7 @@ def get_operations_context(
             "status",
 
             "final_swift_file",
+            "final_swift_required",
 
             "search_text",
             "operation_no",
@@ -3677,8 +3762,14 @@ def get_operations_context(
             continue
 
 
+        op_fy = cstr(
+            operation.get(
+                "fiscal_year"
+            )
+        ).strip()
+
         operation_number_groups.setdefault(
-            normalized,
+            (op_fy, normalized),
             [],
         ).append(
             operation
@@ -3931,7 +4022,14 @@ def get_operations_context(
         )
 
 
+        final_swift_required_flag = normalize_final_swift_required(
+            operation.get("final_swift_required"),
+            default=1,
+        )
+
         final_swift_required = bool(
+            final_swift_required_flag == 1
+            and
             operation.transferring_bank
             and
             operation.transferring_bank
@@ -3942,6 +4040,10 @@ def get_operations_context(
         operation[
             "final_swift_required"
         ] = final_swift_required
+
+        operation[
+            "final_swift_required_flag"
+        ] = final_swift_required_flag
 
 
         operation[
@@ -3968,6 +4070,13 @@ def get_operations_context(
             and
             final_swift_count == 0
         )
+
+        if final_swift_count > 0:
+            operation["final_swift_status"] = "تم الإرفاق"
+        elif operation["final_swift_pending"]:
+            operation["final_swift_status"] = "بانتظار السويفت"
+        else:
+            operation["final_swift_status"] = "غير مطلوب"
 
 
         operation[
@@ -6996,7 +7105,16 @@ def save_operation_re_extraction(
         )
 
 
-        if new_value == "":
+        if fieldname == "final_swift_required":
+            old_value = normalize_final_swift_required(
+                old_value,
+                default=1,
+            )
+            new_value = normalize_final_swift_required(
+                new_value,
+                default=1,
+            )
+        elif new_value == "":
             new_value = None
 
 
@@ -7198,7 +7316,12 @@ def save_operation_re_extraction(
         )
 
 
-        if value == "":
+        if fieldname == "final_swift_required":
+            value = normalize_final_swift_required(
+                value,
+                default=1,
+            )
+        elif value == "":
             value = None
 
 
@@ -7538,6 +7661,11 @@ def save_operation_re_extraction(
                 operation
             ),
 
+        "final_swift":
+            get_final_swift_state(
+                operation
+            ),
+
         "group":
             get_operation_group_view_context(
                 operation
@@ -7803,19 +7931,26 @@ def change_operation_number(
 
 
     # ========================================================
-    # Target Group
+    # Target Group (within the same fiscal year)
     # ========================================================
+
+    operation_fy = cstr(
+        getattr(operation, "fiscal_year", None)
+    ).strip()
 
     target_group = frappe.db.get_value(
         "Archive Operation Group",
 
         {
+            "fiscal_year":
+                operation_fy,
             "operation_no_normalized":
                 new_normalized,
         },
 
         [
             "name",
+            "fiscal_year",
             "operation_no",
         ],
 
@@ -7859,6 +7994,8 @@ def change_operation_number(
             filters={
                 "operation_group":
                     target_group_name,
+                "fiscal_year":
+                    operation_fy,
             },
 
             fields=[
@@ -8086,14 +8223,9 @@ def change_operation_number(
             source_shared_documents
         ):
 
-            frappe.db.set_value(
-                "Archive Operation Document",
+            _move_shared_document_to_group(
                 document.name,
-
-                "operation_group",
                 new_group,
-
-                update_modified=False,
             )
 
 
@@ -8192,6 +8324,11 @@ def change_operation_number(
                 operation
             ),
 
+        "final_swift":
+            get_final_swift_state(
+                operation
+            ),
+
         "group":
             get_operation_group_view_context(
                 operation
@@ -8219,6 +8356,38 @@ def change_operation_number(
                 moved_shared_documents
             ),
     }
+
+
+def _move_shared_document_to_group(
+    document_name: str,
+    target_group: str,
+) -> None:
+    doc_info = frappe.db.get_value(
+        "Archive Operation Document",
+        document_name,
+        ["document_role", "content_hash"],
+        as_dict=True,
+    )
+    if not doc_info:
+        return
+
+    role = cstr(doc_info.get("document_role")).strip()
+    content_hash = cstr(doc_info.get("content_hash")).strip()
+    if role == "invoice":
+        new_uniqueness_key = f"invoice:{target_group}"
+    else:
+        new_uniqueness_key = f"attachment:{target_group}:{content_hash}"
+
+    frappe.db.set_value(
+        "Archive Operation Document",
+        document_name,
+        {
+            "operation_group": target_group,
+            "uniqueness_key": new_uniqueness_key,
+        },
+        update_modified=False,
+    )
+
 
 def _build_operation_number_change_plan(
     operation,
@@ -8382,19 +8551,26 @@ def _build_operation_number_change_plan(
 
 
     # ========================================================
-    # Target Group
+    # Target Group (within the same fiscal year)
     # ========================================================
+
+    operation_fy = cstr(
+        getattr(operation, "fiscal_year", None)
+    ).strip()
 
     target_group = frappe.db.get_value(
         "Archive Operation Group",
 
         {
+            "fiscal_year":
+                operation_fy,
             "operation_no_normalized":
                 new_normalized,
         },
 
         [
             "name",
+            "fiscal_year",
             "operation_no",
             "operation_no_normalized",
         ],
@@ -8427,6 +8603,8 @@ def _build_operation_number_change_plan(
                 filters={
                     "operation_group":
                         target_group.name,
+                    "fiscal_year":
+                        operation_fy,
                 },
 
                 fields=[
@@ -9394,7 +9572,16 @@ def save_operation_view_changes(
         )
 
 
-        if new_value == "":
+        if fieldname == "final_swift_required":
+            old_value = normalize_final_swift_required(
+                old_value,
+                default=1,
+            )
+            new_value = normalize_final_swift_required(
+                new_value,
+                default=1,
+            )
+        elif new_value == "":
             new_value = None
 
 
@@ -9447,7 +9634,12 @@ def save_operation_view_changes(
             fieldname
         )
 
-        if value == "":
+        if fieldname == "final_swift_required":
+            value = normalize_final_swift_required(
+                value,
+                default=1,
+            )
+        elif value == "":
             value = None
 
         operation.set(
@@ -9610,6 +9802,9 @@ def save_operation_view_changes(
                 ],
 
                 {
+                    "fiscal_year":
+                        cstr(getattr(operation, "fiscal_year", None)).strip(),
+
                     "operation_no":
                         operation_number_change_plan[
                             "new_operation_no"
@@ -9869,16 +10064,9 @@ def save_operation_view_changes(
                     source_document_names
                 ):
 
-                    frappe.db.set_value(
-                        "Archive Operation Document",
-
+                    _move_shared_document_to_group(
                         document_name,
-
-                        "operation_group",
-
                         current_group,
-
-                        update_modified=False,
                     )
 
 
@@ -9957,7 +10145,8 @@ def save_operation_view_changes(
                                     make_operation_no_hash(
                                         operation_number_change_plan[
                                             "old_normalized"
-                                        ]
+                                        ],
+                                        cstr(getattr(operation, "fiscal_year", None)).strip(),
                                     ),
                             },
 
@@ -10368,6 +10557,10 @@ def save_operation_view_changes(
                 operation
             ),
 
+        "final_swift":
+            get_final_swift_state(
+                operation
+            ),
 
         "group":
             get_operation_group_view_context(

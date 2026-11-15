@@ -32,20 +32,20 @@ window.format_card_status_label = format_card_status_label;
 window.format_copy_badge_label = format_copy_badge_label;
 
 const ARCHIVE_CARDS_COLUMNS = [
-	{ key: "serial_no", label: "الرقم", width: "78px", locked: true, sortable: true },
-	{ key: "card_name", label: "اسم البطاقة", width: "225px", locked: true, sortable: true },
-	{ key: "card_type", label: "نوع البطاقة", width: "110px", locked: false, sortable: true },
-	{ key: "account_number", label: "رقم الحساب", width: "155px", locked: false, sortable: true },
-	{ key: "card_number", label: "رقم البطاقة", width: "160px", locked: false, sortable: true },
-	{ key: "bank", label: "البنك", width: "130px", locked: false, sortable: true },
-	{ key: "representative", label: "المندوب", width: "140px", locked: false, sortable: true },
-	{ key: "region", label: "المنطقة", width: "125px", locked: false, sortable: true },
-	{ key: "card_owner", label: "مالك البطاقة", width: "145px", locked: false, sortable: true },
-	{ key: "daily_limit", label: "الحد اليومي", width: "120px", locked: false, sortable: true },
-	{ key: "received_date", label: "تاريخ الاستلام", width: "120px", locked: false, sortable: true },
-	{ key: "creation", label: "وقت الإدخال", width: "165px", locked: false, sortable: true },
-	{ key: "owner_full_name", label: "اسم المستخدم", width: "130px", locked: false, sortable: true },
-	{ key: "status", label: "الحالة", width: "125px", locked: true, sortable: true },
+	{ key: "serial_no", label: "الرقم", width: "64px", pct: 4.0, min_px: 64, locked: true, sortable: true },
+	{ key: "card_name", label: "اسم البطاقة", width: "178px", pct: 12.0, min_px: 148, locked: true, sortable: true },
+	{ key: "card_type", label: "نوع البطاقة", width: "102px", pct: 6.4, min_px: 102, locked: false, sortable: true },
+	{ key: "account_number", label: "رقم الحساب", width: "145px", pct: 8.6, min_px: 145, locked: false, sortable: true },
+	{ key: "card_number", label: "رقم البطاقة", width: "145px", pct: 8.6, min_px: 145, locked: false, sortable: true },
+	{ key: "bank", label: "البنك", width: "120px", pct: 7.2, min_px: 100, locked: false, sortable: true },
+	{ key: "representative", label: "المندوب", width: "112px", pct: 6.8, min_px: 112, locked: false, sortable: true },
+	{ key: "region", label: "المنطقة", width: "92px", pct: 5.4, min_px: 92, locked: false, sortable: true },
+	{ key: "card_owner", label: "مالك البطاقة", width: "112px", pct: 6.8, min_px: 112, locked: false, sortable: true },
+	{ key: "daily_limit", label: "الحد اليومي", width: "100px", pct: 5.8, min_px: 100, locked: false, sortable: true },
+	{ key: "received_date", label: "تاريخ الاستلام", width: "105px", pct: 6.0, min_px: 105, locked: false, sortable: true },
+	{ key: "creation", label: "وقت الإدخال", width: "152px", pct: 9.0, min_px: 152, locked: false, sortable: true },
+	{ key: "owner_full_name", label: "اسم المستخدم", width: "105px", pct: 5.8, min_px: 105, locked: false, sortable: true },
+	{ key: "status", label: "الحالة", width: "136px", pct: 7.6, min_px: 136, locked: true, sortable: true },
 ];
 
 class ArchiveCardsPage {
@@ -719,13 +719,165 @@ class ArchiveCardsPage {
 		);
 	}
 
+	get_text_measure_context() {
+		if (!this._text_measure_ctx) {
+			const canvas = document.createElement("canvas");
+			this._text_measure_ctx = canvas.getContext("2d");
+		}
+		return this._text_measure_ctx;
+	}
+
+	measure_flexible_column_widths($table) {
+		const card_min_px = 148;
+		const bank_min_px = 100;
+		if (!this.rows.length) {
+			return { card_name: card_min_px, bank: bank_min_px };
+		}
+		const ctx = this.get_text_measure_context();
+		if (!ctx) {
+			return { card_name: 178, bank: 120 };
+		}
+		const table_el = $table && $table.length ? $table[0] : document.body;
+		const style = window.getComputedStyle(table_el);
+		const sample_title = $table && $table.length ? $table.find(".ac-cell-card-name")[0] : null;
+		const title_style = sample_title ? window.getComputedStyle(sample_title) : null;
+		const font_family = (title_style && title_style.fontFamily) || style.fontFamily || "sans-serif";
+		const token_sm = parseFloat(style.getPropertyValue("--archive-font-size-sm"));
+		const token_2xs = parseFloat(style.getPropertyValue("--archive-font-size-2xs"));
+		const title_px =
+			(title_style && parseFloat(title_style.fontSize)) ||
+			(Number.isFinite(token_sm) && token_sm > 0 ? token_sm : parseFloat(style.fontSize) || 13);
+		const badge_px =
+			Number.isFinite(token_2xs) && token_2xs > 0 ? token_2xs : Math.max(title_px - 2, 10);
+
+		const top_cards = [];
+		const top_banks = [];
+		for (let i = 0; i < this.rows.length; i++) {
+			const r = this.rows[i];
+			const name = String(r.base_card_name || r.card_name || "").trim();
+			const copy = String(r.copy_label || format_copy_badge_label(r.card_type, r.copy_no)).trim();
+			const card_score = name.length * 1.15 + copy.length + (copy ? 3 : 0);
+			if (top_cards.length < 5 || card_score > top_cards[top_cards.length - 1].score) {
+				top_cards.push({ name, copy, score: card_score });
+				top_cards.sort((a, b) => b.score - a.score);
+				if (top_cards.length > 5) {
+					top_cards.length = 5;
+				}
+			}
+
+			const bank_name = String(r.bank_name || r.bank || "").trim();
+			if (
+				bank_name &&
+				(top_banks.length < 5 || bank_name.length > top_banks[top_banks.length - 1].length)
+			) {
+				top_banks.push(bank_name);
+				top_banks.sort((a, b) => b.length - a.length);
+				if (top_banks.length > 5) {
+					top_banks.length = 5;
+				}
+			}
+		}
+
+		let max_card_px = card_min_px;
+		for (const item of top_cards) {
+			ctx.font = `700 ${title_px}px ${font_family}`;
+			let w = ctx.measureText(item.name).width;
+			if (item.copy) {
+				ctx.font = `700 ${badge_px}px ${font_family}`;
+				w += 6 + 18 + ctx.measureText(item.copy).width;
+			}
+			const needed = Math.ceil(20 + w + 18);
+			if (needed > max_card_px) {
+				max_card_px = needed;
+			}
+		}
+
+		let max_bank_px = bank_min_px;
+		ctx.font = `700 ${title_px}px ${font_family}`;
+		for (const bank_name of top_banks) {
+			const needed = Math.ceil(20 + ctx.measureText(bank_name).width + 18);
+			if (needed > max_bank_px) {
+				max_bank_px = needed;
+			}
+		}
+
+		return { card_name: max_card_px, bank: max_bank_px };
+	}
+
+	compute_table_column_layout(visible_cols, $main, $table) {
+		const scroll_el = $main.find(".archive-cards-table-scroll")[0];
+		const raw_container_w = scroll_el ? scroll_el.clientWidth : 0;
+		const container_w =
+			raw_container_w > 0 ? raw_container_w : Math.max(window.innerWidth - 300, 1400);
+
+		const total_pct = visible_cols.reduce((sum, c) => sum + c.pct, 0) || 100;
+		const visible_min_sum = visible_cols.reduce((sum, c) => sum + c.min_px, 0);
+		const normal_table_w = Math.max(container_w, visible_min_sum);
+
+		const measured = this.rows.length ? this.measure_flexible_column_widths($table) : null;
+		const flex_keys = new Set(["card_name", "bank"]);
+		const flex_cols = visible_cols.filter((c) => flex_keys.has(c.key));
+		const other_cols = visible_cols.filter((c) => !flex_keys.has(c.key));
+
+		const widths = new Map();
+		let flex_sum = 0;
+		for (const col of flex_cols) {
+			const px = measured
+				? measured[col.key]
+				: Math.max(
+						col.key === "card_name" ? 178 : col.min_px,
+						Math.round(normal_table_w * (col.pct / total_pct))
+				  );
+			widths.set(col.key, px);
+			flex_sum += px;
+		}
+
+		const other_pct = other_cols.reduce((sum, c) => sum + c.pct, 0);
+		const other_min_sum = other_cols.reduce((sum, c) => sum + c.min_px, 0);
+		const base_other_sum = other_cols.length
+			? Math.max(other_min_sum, Math.round(normal_table_w * (other_pct / total_pct)))
+			: 0;
+		const target_other_sum = Math.max(base_other_sum, container_w - flex_sum);
+
+		let allocated_other = 0;
+		other_cols.forEach((col, idx) => {
+			let px;
+			if (idx === other_cols.length - 1) {
+				px = Math.max(col.min_px, target_other_sum - allocated_other);
+			} else {
+				const share = other_pct > 0 ? col.pct / other_pct : 1 / other_cols.length;
+				px = Math.max(col.min_px, Math.round(target_other_sum * share));
+			}
+			allocated_other += px;
+			widths.set(col.key, px);
+		});
+
+		return {
+			widths,
+			table_width_px: flex_sum + allocated_other,
+		};
+	}
+
 	render_table_header() {
+		const $main = $(this.page.main);
 		const visible_cols = this.get_visible_columns();
-		const $colgroup = $(this.page.main).find('[data-role="table-colgroup"]');
-		const $thead = $(this.page.main).find('[data-role="table-thead"]');
+		const $table = $main.find('[data-role="cards-table"]');
+		const $colgroup = $main.find('[data-role="table-colgroup"]');
+		const $thead = $main.find('[data-role="table-thead"]');
+
+		const layout = this.compute_table_column_layout(visible_cols, $main, $table);
+		$table.css({
+			width: `max(100%, ${layout.table_width_px}px)`,
+			minWidth: `${layout.table_width_px}px`,
+		});
 
 		$colgroup.html(
-			visible_cols.map((col) => `<col style="width: ${col.width};" />`).join("")
+			visible_cols
+				.map((col) => {
+					const px = layout.widths.get(col.key);
+					return `<col style="width: ${px ? `${px}px` : col.width};" />`;
+				})
+				.join("")
 		);
 
 		$thead.html(`
@@ -738,9 +890,12 @@ class ArchiveCardsPage {
 								? "▲"
 								: "▼"
 							: "";
+						const px = layout.widths.get(col.key);
+						const width_style = px ? `width: ${px}px; min-width: ${px}px;` : `width: ${col.width};`;
 						return `
 							<th
 								class="ac-th ${col.sortable ? "is-sortable" : ""} ${is_sorted ? "is-sorted" : ""}"
+								style="${width_style}"
 								data-sort-col="${col.key}"
 							>
 								<span>${frappe.utils.escape_html(col.label)}</span>
@@ -818,7 +973,7 @@ class ArchiveCardsPage {
 			return `<td class="ac-td-ltr" dir="ltr">${frappe.utils.escape_html(row.card_number)}</td>`;
 		}
 		if (key === "bank") {
-			return `<td>${frappe.utils.escape_html(row.bank_name || row.bank)}</td>`;
+			return `<td class="ac-td-bank">${frappe.utils.escape_html(row.bank_name || row.bank)}</td>`;
 		}
 		if (key === "representative") {
 			return `<td>${frappe.utils.escape_html(row.representative_name || row.representative)}</td>`;

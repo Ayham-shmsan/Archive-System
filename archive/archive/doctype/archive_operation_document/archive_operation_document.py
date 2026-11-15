@@ -71,14 +71,37 @@ class ArchiveOperationDocument(Document):
         if not self.source_operation:
             return
 
-        operation_group = frappe.db.get_value(
+        source_info = frappe.db.get_value(
             "Archive Operation",
             self.source_operation,
-            "operation_group",
+            ["operation_group", "fiscal_year"],
+            as_dict=True,
         )
 
+        if not source_info:
+            frappe.throw(
+                _("العملية التي تم الإرفاق منها غير موجودة.")
+            )
+
+        group_fy = cstr(
+            frappe.db.get_value(
+                "Archive Operation Group",
+                self.operation_group,
+                "fiscal_year",
+            )
+        ).strip()
+        source_fy = cstr(source_info.get("fiscal_year")).strip()
+
+        if group_fy and source_fy and group_fy != source_fy:
+            frappe.throw(
+                _(
+                    "العملية التي تم الإرفاق منها لا تنتمي إلى السنة المالية لمجموعة العملية المحددة."
+                )
+            )
+
         if (
-            operation_group
+            self.is_new()
+            and source_info.get("operation_group")
             != self.operation_group
         ):
             frappe.throw(

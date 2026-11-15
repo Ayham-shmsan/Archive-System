@@ -1986,6 +1986,20 @@ class OperationViewDialog {
 					fieldtype:
 						"Check",
 				},
+
+				{
+					fieldname:
+						"final_swift_required",
+
+					label:
+						"لا يحتاج سويفت نهائي",
+
+					fieldtype:
+						"Check",
+
+					default:
+						0,
+				},
 			]
 		);
 
@@ -2526,10 +2540,19 @@ class OperationViewDialog {
 		control.refresh();
 
 
-		const value =
+		const raw_value =
 			this.operation[
 				df.fieldname
 			];
+
+		const value =
+			df.fieldname === "final_swift_required"
+				? (
+					raw_value === undefined || raw_value === null || raw_value === ""
+						? 0
+						: (Number(raw_value) ? 0 : 1)
+				)
+				: raw_value;
 
 
 		if (
@@ -6984,7 +7007,9 @@ $list
 					values[
 						fieldname
 					] =
-						control.get_value();
+						fieldname === "final_swift_required"
+							? (Number(control.get_value() || 0) ? 0 : 1)
+							: control.get_value();
 				}
 			);
 
@@ -7145,6 +7170,9 @@ $list
 
 					limit:
 						8,
+
+					fiscal_year:
+						this.operation?.fiscal_year,
 				},
 			});
 
@@ -8091,6 +8119,14 @@ $list
 
 				this.operation =
 					result.operation;
+			}
+
+			if (
+				result.final_swift
+			) {
+
+				this.final_swift =
+					result.final_swift;
 			}
 
 

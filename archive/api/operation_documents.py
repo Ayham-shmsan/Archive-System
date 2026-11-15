@@ -17,6 +17,10 @@ from archive.services.operation_permissions import (
     can_manage_operation_attachments,
     require_operations_screen_access,
 )
+from archive.services.fiscal_year_permissions import (
+    get_default_fiscal_year,
+    require_fiscal_permission,
+)
 from archive.domain.shared_documents import (
     MAX_SHARED_DOCUMENTS,
     create_shared_operation_documents,
@@ -737,13 +741,41 @@ def delete_operation_document(
 # Operation number context
 # ============================================================
 
+_DISALLOWED_LOOKUP_FISCAL_YEARS = frozenset(
+    {"all", "*", "جميع السنوات"}
+)
+
+
+def _resolve_lookup_fiscal_year(
+    fiscal_year: str | None = None,
+) -> str:
+    raw = cstr(fiscal_year or "").strip()
+    if raw and raw.lower() in _DISALLOWED_LOOKUP_FISCAL_YEARS or raw in _DISALLOWED_LOOKUP_FISCAL_YEARS:
+        frappe.throw(
+            _(
+                "يجب تحديد سنة مالية محددة للبحث عن أرقام العمليات ولا يُسمح بخيار «جميع السنوات»."
+            )
+        )
+
+    target_fy = raw or get_default_fiscal_year()
+    return require_fiscal_permission(
+        target_fy,
+        "view",
+        check_open=False,
+    )
+
+
 @frappe.whitelist(
     methods=["GET", "POST"]
 )
 def get_operation_number_context(
     operation_no: str | None = None,
+    fiscal_year: str | None = None,
 ) -> dict[str, Any]:
     require_operations_screen_access()
+    target_fy = _resolve_lookup_fiscal_year(
+        fiscal_year
+    )
 
     from archive.archive.doctype.archive_operation.archive_operation import (
         normalize_operation_no,
@@ -756,6 +788,7 @@ def get_operation_number_context(
     if not operation_no:
         return {
             "exists": False,
+            "fiscal_year": target_fy,
             "operation_group": None,
             "operation_no": None,
             "parts_count": 0,
@@ -773,6 +806,7 @@ def get_operation_number_context(
     if not normalized:
         return {
             "exists": False,
+            "fiscal_year": target_fy,
             "operation_group": None,
             "operation_no": operation_no,
             "parts_count": 0,
@@ -786,11 +820,14 @@ def get_operation_number_context(
     group = frappe.db.get_value(
         "Archive Operation Group",
         {
+            "fiscal_year":
+                target_fy,
             "operation_no_normalized":
                 normalized,
         },
         [
             "name",
+            "fiscal_year",
             "operation_no",
             "is_incomplete_invoice",
         ],
@@ -801,6 +838,7 @@ def get_operation_number_context(
     if not group:
         return {
             "exists": False,
+            "fiscal_year": target_fy,
             "operation_group": None,
             "operation_no": operation_no,
             "operation_no_normalized":
@@ -818,6 +856,8 @@ def get_operation_number_context(
         {
             "operation_group":
                 group.name,
+            "fiscal_year":
+                target_fy,
         },
     )
 
@@ -851,6 +891,9 @@ def get_operation_number_context(
 
     return {
         "exists": True,
+
+        "fiscal_year":
+            target_fy,
 
         "operation_group":
             group.name,
@@ -888,8 +931,12 @@ def get_operation_number_context(
 def get_operation_number_suggestions(
     query: str | None = None,
     limit: int = 10,
+    fiscal_year: str | None = None,
 ) -> list[dict[str, Any]]:
     require_operations_screen_access()
+    target_fy = _resolve_lookup_fiscal_year(
+        fiscal_year
+    )
 
     query = cstr(
         query
@@ -912,7 +959,9 @@ def get_operation_number_suggestions(
     )
 
 
-    filters = {
+    filters: dict[str, Any] = {
+        "fiscal_year":
+            target_fy,
         "operation_no":
             ["is", "set"],
     }
@@ -931,6 +980,7 @@ def get_operation_number_suggestions(
         filters=filters,
         fields=[
             "name",
+            "fiscal_year",
             "operation_no",
         ],
         order_by=
@@ -949,6 +999,8 @@ def get_operation_number_suggestions(
             {
                 "operation_group":
                     group.name,
+                "fiscal_year":
+                    target_fy,
             },
         )
 
@@ -964,6 +1016,9 @@ def get_operation_number_suggestions(
             {
                 "value":
                     group.operation_no,
+
+                "fiscal_year":
+                    target_fy,
 
                 "operation_group":
                     group.name,
@@ -986,6 +1041,7 @@ def get_operation_number_suggestions(
 def lookup_operation_numbers(
     query: str | None = None,
     limit: int = 8,
+    fiscal_year: str | None = None,
 ) -> dict[str, Any]:
     require_operations_screen_access()
 
@@ -995,11 +1051,14 @@ def lookup_operation_numbers(
 
 
     # المستخدم الذي يرى أرقام العمليات السابقة
-    # يجب أن يملك صلاحية القراءة على العمليات.
+    # يجب أن يملك صلاحية القراءة على العمليات وصلاحية عرض السنة المالية.
     frappe.has_permission(
         "Archive Operation",
         "read",
         throw=True,
+    )
+    target_fy = _resolve_lookup_fiscal_year(
+        fiscal_year
     )
 
 
@@ -1039,6 +1098,9 @@ def lookup_operation_numbers(
     if not normalized_query:
 
         return {
+            "fiscal_year":
+                target_fy,
+
             "query":
                 query,
 
@@ -1059,7 +1121,7 @@ def lookup_operation_numbers(
     # ========================================================
     # Lookup
     #
-    # نبحث في الرقم الموحد وليس النص الخام.
+    # نبحث في الرقم الموحد داخل السنة المالية المحددة فقط.
     #
     # Prefix search:
     #
@@ -1082,6 +1144,9 @@ def lookup_operation_numbers(
 
             g.name
                 AS operation_group,
+
+            g.fiscal_year
+                AS fiscal_year,
 
             g.operation_no
                 AS operation_no,
@@ -1115,6 +1180,10 @@ def lookup_operation_numbers(
                 o.operation_group
                 =
                 g.name
+                AND
+                o.fiscal_year
+                =
+                g.fiscal_year
 
         LEFT JOIN
             `tabArchive Operation Document` d
@@ -1126,6 +1195,10 @@ def lookup_operation_numbers(
 
         WHERE
 
+            g.fiscal_year
+                = %(fiscal_year)s
+
+            AND
             g.operation_no_normalized
                 IS NOT NULL
 
@@ -1140,6 +1213,7 @@ def lookup_operation_numbers(
         GROUP BY
 
             g.name,
+            g.fiscal_year,
             g.operation_no,
             g.operation_no_normalized,
             g.is_incomplete_invoice,
@@ -1162,6 +1236,9 @@ def lookup_operation_numbers(
         """,
 
         {
+            "fiscal_year":
+                target_fy,
+
             "prefix":
                 f"{normalized_query}%",
 
@@ -1180,6 +1257,9 @@ def lookup_operation_numbers(
         {
             "value":
                 row.operation_no,
+
+            "fiscal_year":
+                target_fy,
 
             "operation_group":
                 row.operation_group,
@@ -1237,7 +1317,7 @@ def lookup_operation_numbers(
         # Original / parent Part
         #
         # أول جزء في المجموعة هو مصدر تاريخ الطلب
-        # لجميع الأجزاء اللاحقة.
+        # لجميع الأجزاء اللاحقة في نفس السنة المالية.
         # ====================================================
 
         original_parts = frappe.get_all(
@@ -1246,6 +1326,8 @@ def lookup_operation_numbers(
             filters={
                 "operation_group":
                     exact_row.operation_group,
+                "fiscal_year":
+                    target_fy,
             },
 
             fields=[
@@ -1299,6 +1381,9 @@ def lookup_operation_numbers(
             "exists":
                 True,
 
+            "fiscal_year":
+                target_fy,
+
             "value":
                 exact_row.operation_no,
 
@@ -1338,6 +1423,9 @@ def lookup_operation_numbers(
 
 
     return {
+        "fiscal_year":
+            target_fy,
+
         "query":
             query,
 

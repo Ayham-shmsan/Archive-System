@@ -19,6 +19,8 @@ archive.ui.OperationDialog = class OperationDialog {
 
 		this.operation_number_lookup_cache =
 			new Map();
+		this.current_fiscal_year = "";
+		this.request_date_locked_by_group = false;
 
 		this.shared_documents_limit = 10;
 		this.controls = {};
@@ -65,9 +67,45 @@ archive.ui.OperationDialog = class OperationDialog {
 		).trim();
 	}
 
+	get_selected_fiscal_year() {
+		const ctrl = this.controls?.fiscal_year;
+		const val = String(ctrl?.get_value?.() || ctrl?.$input?.val?.() || "").trim();
+		if (val) {
+			return val;
+		}
+		const allowed = Array.isArray(this.fiscal_context?.allowed_add_years)
+			? this.fiscal_context.allowed_add_years
+			: [];
+		return String(
+			this.fiscal_context?.default_add_fiscal_year
+			|| allowed[0]
+			|| ""
+		).trim();
+	}
+
+	normalize_operation_no_client(value) {
+		let val = String(value || "").trim();
+		if (!val) {
+			return "";
+		}
+		const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
+		const easternDigits = "۰۱۲۳۴۵۶۷۸۹";
+		val = val.replace(/[٠-٩]/g, (d) => String(arabicDigits.indexOf(d)));
+		val = val.replace(/[۰-۹]/g, (d) => String(easternDigits.indexOf(d)));
+		val = val.replace(/\s+/g, "");
+		return val.toUpperCase();
+	}
+
+	build_operation_number_cache_key(fiscal_year, query) {
+		const fy = String(fiscal_year || "").trim();
+		const norm = this.normalize_operation_no_client(query);
+		return `${fy}::${norm}`;
+	}
+
 
 	reset_operation_number_context({
 		clear_pending = false,
+		preserve_manual_request_date = false,
 	} = {}) {
 
 		this.operation_group_context =
@@ -85,13 +123,21 @@ archive.ui.OperationDialog = class OperationDialog {
 
 
 		if (request_date) {
+			const should_reset_date =
+				!preserve_manual_request_date
+				|| this.request_date_locked_by_group
+				|| !String(request_date.get_value?.() || "").trim();
 
 			request_date.df.read_only =
 				0;
+			this.request_date_locked_by_group =
+				false;
 
-			request_date.set_value(
-				frappe.datetime.get_today()
-			);
+			if (should_reset_date) {
+				request_date.set_value(
+					frappe.datetime.get_today()
+				);
+			}
 
 			request_date.refresh();
 		}
@@ -200,13 +246,20 @@ archive.ui.OperationDialog = class OperationDialog {
 
 
 			if (request_date) {
+				const should_reset_date =
+					this.request_date_locked_by_group
+					|| !String(request_date.get_value?.() || "").trim();
 
 				request_date.df.read_only =
 					0;
+				this.request_date_locked_by_group =
+					false;
 
-				request_date.set_value(
-					frappe.datetime.get_today()
-				);
+				if (should_reset_date) {
+					request_date.set_value(
+						frappe.datetime.get_today()
+					);
+				}
 
 				request_date.refresh();
 			}
@@ -255,6 +308,8 @@ archive.ui.OperationDialog = class OperationDialog {
 
 			request_date.df.read_only =
 				1;
+			this.request_date_locked_by_group =
+				true;
 
 			request_date.refresh();
 		}
@@ -284,6 +339,8 @@ archive.ui.OperationDialog = class OperationDialog {
 			String(
 				query || ""
 			).trim();
+		const fiscal_year =
+			this.get_selected_fiscal_year();
 
 
 		/*
@@ -295,7 +352,7 @@ archive.ui.OperationDialog = class OperationDialog {
 			++this.operation_number_lookup_request_id;
 
 
-		if (!value) {
+		if (!value || !fiscal_year) {
 
 			this.operation_number_suggestions =
 				[];
@@ -322,18 +379,24 @@ archive.ui.OperationDialog = class OperationDialog {
 		}
 
 
+		const cache_key =
+			this.build_operation_number_cache_key(
+				fiscal_year,
+				value
+			);
+
 		/*
-		* Cache داخل عمر الـDialog فقط.
+		* Cache داخل عمر الـDialog فقط ومقيد بالسنة المالية والرقم الموحد.
 		*/
 		if (
 			this.operation_number_lookup_cache.has(
-				value
+				cache_key
 			)
 		) {
 
 			const cached =
 				this.operation_number_lookup_cache.get(
-					value
+					cache_key
 				);
 
 
@@ -341,6 +404,7 @@ archive.ui.OperationDialog = class OperationDialog {
 				request_id
 				===
 				this.operation_number_lookup_request_id
+				&& fiscal_year === this.get_selected_fiscal_year()
 			) {
 
 				this.apply_operation_number_lookup(
@@ -371,6 +435,9 @@ archive.ui.OperationDialog = class OperationDialog {
 
 						limit:
 							8,
+
+						fiscal_year:
+							fiscal_year,
 					},
 				});
 
@@ -380,6 +447,7 @@ archive.ui.OperationDialog = class OperationDialog {
 				request_id
 				!==
 				this.operation_number_lookup_request_id
+				|| fiscal_year !== this.get_selected_fiscal_year()
 			) {
 				return;
 			}
@@ -388,9 +456,16 @@ archive.ui.OperationDialog = class OperationDialog {
 			const result =
 				response.message || {};
 
+			if (
+				result.fiscal_year
+				&& String(result.fiscal_year).trim() !== fiscal_year
+			) {
+				return;
+			}
+
 
 			this.operation_number_lookup_cache.set(
-				value,
+				cache_key,
 				result
 			);
 
@@ -1303,6 +1378,54 @@ archive.ui.OperationDialog = class OperationDialog {
 		this.update_operation_number_mode();
 	}
 
+	handle_fiscal_year_change() {
+		const new_fy = this.get_selected_fiscal_year();
+		if (new_fy === this.current_fiscal_year) {
+			return;
+		}
+		this.current_fiscal_year = new_fy;
+
+		clearTimeout(this.operation_number_lookup_timer);
+		this.operation_number_lookup_request_id++;
+
+		this.operation_number_suggestions = [];
+		this.operation_number_suggestion_index = -1;
+		this.hide_operation_number_suggestions();
+
+		this.reset_operation_number_context({
+			clear_pending: false,
+			preserve_manual_request_date: true,
+		});
+
+		const blocked = Boolean(
+			Number(this.controls.is_blocked_operation?.get_value?.() || 0)
+		);
+		const typed_no = this.get_operation_number_input_value();
+		if (!blocked && typed_no && new_fy) {
+			const is_dup = Boolean(
+				Number(this.controls.allow_duplicate_operation_no?.get_value?.() || 0)
+			);
+			this.fetch_operation_number_lookup(typed_no, {
+				commit_exact: is_dup,
+			});
+		}
+	}
+
+	bind_fiscal_year_change() {
+		const fy_ctrl = this.controls.fiscal_year;
+		if (!fy_ctrl) {
+			return;
+		}
+		this.current_fiscal_year = this.get_selected_fiscal_year();
+		if (fy_ctrl.$input) {
+			fy_ctrl.$input
+				.off(".archiveFiscalYearLookup")
+				.on("change.archiveFiscalYearLookup", () => {
+					this.handle_fiscal_year_change();
+				});
+		}
+	}
+
 	place_operation_number_suggestions() {
 
 		const operation_no =
@@ -1598,6 +1721,7 @@ archive.ui.OperationDialog = class OperationDialog {
 	show() {
 		this.dialog.show();
 		this.ensure_fiscal_context();
+		this.bind_fiscal_year_change();
 		this.bind_operation_number_mode();
 		this.bind_operation_number_lookup();
 		this.bind_customer_rate_mode();
@@ -1637,6 +1761,7 @@ archive.ui.OperationDialog = class OperationDialog {
 		if (default_year && (!ctrl.get_value() || !allowed.includes(ctrl.get_value()))) {
 			ctrl.set_value(default_year);
 		}
+		this.bind_fiscal_year_change();
 	}
 
 	render() {
@@ -1904,6 +2029,10 @@ archive.ui.OperationDialog = class OperationDialog {
 
 					reqd:
 						1,
+
+					change: () => {
+						this.handle_fiscal_year_change();
+					},
 				},
 
 				{
@@ -1969,6 +2098,23 @@ archive.ui.OperationDialog = class OperationDialog {
 
 					description:
 						"فعّل هذا الخيار إذا كانت الفاتورة المشتركة للعملية غير مكتملة وسيتم إرفاقها لاحقاً.",
+				},
+
+				{
+					fieldname:
+						"final_swift_required",
+
+					label:
+						"لا يحتاج سويفت نهائي",
+
+					fieldtype:
+						"Check",
+
+					default:
+						0,
+
+					description:
+						"فعّل هذا الخيار إذا كانت هذه العملية لا تتطلب إرفاق سويفت نهائي.",
 				},
 			]
 		);
@@ -3608,7 +3754,9 @@ archive.ui.OperationDialog = class OperationDialog {
 		Object.entries(this.controls).forEach(
 			([fieldname, control]) => {
 				values[fieldname] =
-					control.get_value();
+					fieldname === "final_swift_required"
+						? (Number(control.get_value() || 0) ? 0 : 1)
+						: control.get_value();
 			}
 		);
 
