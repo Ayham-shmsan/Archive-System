@@ -79,9 +79,6 @@ frappe.provide("archive.operations");
 		// Preload once when the dialog opens so typing is instant without per-keystroke requests
 		loadCountryCodeMap();
 
-		let lastAutoCountry = "";
-		let userManuallySelectedCountry = false;
-		let isProgrammaticCountryUpdate = false;
 		let seqCounter = 0;
 
 		const readRawSwift = () => {
@@ -98,6 +95,8 @@ frappe.provide("archive.operations");
 			const val =
 				typeof countryControl.get_value === "function"
 					? countryControl.get_value()
+					: countryControl.value !== undefined
+					? countryControl.value
 					: countryControl.$input
 					? countryControl.$input.val()
 					: "";
@@ -105,20 +104,32 @@ frappe.provide("archive.operations");
 		};
 
 		const setCountrySafely = async (nextCountry) => {
-			if (readCurrentCountry() === nextCountry) {
-				lastAutoCountry = nextCountry;
-				return;
-			}
-			isProgrammaticCountryUpdate = true;
-			try {
-				if (typeof countryControl.set_value === "function") {
-					await countryControl.set_value(nextCountry);
-				} else if (countryControl.$input) {
-					countryControl.$input.val(nextCountry);
+			const target = String(nextCountry || "").trim();
+			countryControl.value = target;
+			if (typeof countryControl.set_model_value === "function") {
+				try {
+					await countryControl.set_model_value(target);
+				} catch (_) {
+					// fallback below
 				}
-				lastAutoCountry = nextCountry;
-			} finally {
-				isProgrammaticCountryUpdate = false;
+			}
+			if (typeof countryControl.set_value === "function") {
+				try {
+					await countryControl.set_value(target);
+				} catch (_) {
+					// fallback below
+				}
+			}
+			if (countryControl.$input && countryControl.$input.length) {
+				countryControl.$input.val(target);
+			}
+			if (typeof countryControl.set_disp_area === "function") {
+				countryControl.set_disp_area(target);
+			} else if (countryControl.disp_area) {
+				$(countryControl.disp_area).text(target ? __(target) : "");
+			}
+			if (typeof countryControl.refresh === "function") {
+				countryControl.refresh();
 			}
 		};
 
@@ -126,13 +137,10 @@ frappe.provide("archive.operations");
 			const seq = ++seqCounter;
 			const rawSwift = explicitSwift !== undefined ? String(explicitSwift || "") : readRawSwift();
 			const iso2 = extractSwiftCountryCode(rawSwift);
-			const currentCountry = readCurrentCountry();
 
 			if (!iso2) {
-				if (currentCountry && (countryControl.df?.read_only || currentCountry === lastAutoCountry)) {
+				if (readCurrentCountry()) {
 					await setCountrySafely("");
-				} else {
-					lastAutoCountry = "";
 				}
 				return;
 			}
@@ -143,61 +151,21 @@ frappe.provide("archive.operations");
 			}
 
 			const matchedCountry = map.get(iso2) || "";
-			const latestCountry = readCurrentCountry();
 
 			if (!matchedCountry) {
-				if (latestCountry && (countryControl.df?.read_only || latestCountry === lastAutoCountry)) {
+				if (readCurrentCountry()) {
 					await setCountrySafely("");
-				} else {
-					lastAutoCountry = "";
 				}
 				return;
 			}
 
-			// Preserve an independent manual country selection made by the user (only when country field is manually editable)
-			if (
-				!countryControl.df?.read_only
-				&& userManuallySelectedCountry
-				&& latestCountry
-				&& latestCountry !== lastAutoCountry
-			) {
-				return;
-			}
-
-			await setCountrySafely(matchedCountry);
-			userManuallySelectedCountry = false;
-		};
-
-		const markManualCountryEdit = () => {
-			if (isProgrammaticCountryUpdate) {
-				return;
-			}
-			const val = readCurrentCountry();
-			if (!val) {
-				userManuallySelectedCountry = false;
-				lastAutoCountry = "";
-			} else if (val !== lastAutoCountry) {
-				userManuallySelectedCountry = true;
+			if (readCurrentCountry() !== matchedCountry) {
+				await setCountrySafely(matchedCountry);
 			}
 		};
-
-		if (countryControl.$input) {
-			countryControl.$input.on("change.archiveSwiftCountry awesomplete-selectcomplete.archiveSwiftCountry", () => {
-				markManualCountryEdit();
-			});
-		}
-		if (countryControl.df) {
-			const origCountryOnChange = countryControl.df.onchange;
-			countryControl.df.onchange = function () {
-				markManualCountryEdit();
-				if (typeof origCountryOnChange === "function") {
-					return origCountryOnChange.apply(this, arguments);
-				}
-			};
-		}
 
 		if (swiftControl.$input) {
-			swiftControl.$input.on("input.archiveSwiftCountry change.archiveSwiftCountry", () =>
+			swiftControl.$input.on("input.archiveSwiftCountry keyup.archiveSwiftCountry change.archiveSwiftCountry", () =>
 				syncCountryFromSwift()
 			);
 			swiftControl.$input.on("paste.archiveSwiftCountry", () => {

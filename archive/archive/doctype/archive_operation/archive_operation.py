@@ -1218,6 +1218,21 @@ class ArchiveOperation(Document):
             self.swift_code,
             allow_empty=True,
         )
+        if self.swift_code and len(self.swift_code) >= 6:
+            iso2 = self.swift_code[4:6]
+            matched_country = frappe.db.get_value(
+                "Country",
+                {"code": ["in", [iso2.lower(), iso2.upper()]]},
+                "name",
+            )
+            if not matched_country and not cint(self.is_blocked_operation):
+                frappe.throw(
+                    _("رمز السويفت المدخل لا يحتوي على رمز دولة صحيح في الخانة الخامسة والسادسة."),
+                    frappe.ValidationError,
+                )
+            self.country = matched_country or None
+        elif not self.swift_code:
+            self.country = None
 
     def validate(self):
         self.final_swift_required = normalize_final_swift_required(

@@ -7853,6 +7853,16 @@ $list
 			if (this.controls.swift_code && this.controls.swift_code.get_value() !== submitted_swift) {
 				this.controls.swift_code.set_value(submitted_swift);
 			}
+			const current_country = String(this.controls.country?.get_value?.() ?? this.controls.country?.value ?? "").trim();
+			if (submitted_swift && submitted_swift !== original_swift && !current_country) {
+				frappe.msgprint({
+					title: __("رمز السويفت غير صحيح"),
+					message: __("رمز السويفت المدخل لا يحتوي على رمز دولة صحيح في الخانة الخامسة والسادسة."),
+					indicator: "orange",
+				});
+				this.controls.swift_code?.$input?.trigger("focus");
+				return;
+			}
 		}
 
 		// ========================================================
