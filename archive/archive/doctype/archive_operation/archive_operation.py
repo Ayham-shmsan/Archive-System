@@ -229,32 +229,6 @@ class ArchiveOperation(Document):
     )
     
 
-    def before_insert(self):
-        if not cint(
-            self.serial_no
-        ):
-            self.serial_no = (
-                get_next_operation_serial()
-            )
-        if not getattr(
-            frappe.flags,
-            "in_import",
-            False,
-        ):
-            if cint(
-                self.is_blocked_operation
-            ):
-                self.status = (
-                    "محضورة"
-                )
-
-            else:
-                self.status = (
-                    "معلقة"
-                )
-
-        self.set_search_text()
-
     def set_search_text(
         self,
     ):

@@ -1047,8 +1047,24 @@ class ArchiveOperationsPage {
 
                     search_accessor:
                         (operation) =>
-                            operation.search_text
-                            || "",
+                            [
+                                operation.search_text || "",
+                                custom.data_grid.utils.normalize_search_text(
+                                    [
+                                        operation.country || "",
+                                        operation.country
+                                            ? __(String(operation.country).trim())
+                                            : "",
+                                        operation.status || "",
+                                        operation.status
+                                            ? __(String(operation.status).trim())
+                                            : "",
+                                        operation.created_by_name || "",
+                                    ].join(" ")
+                                ),
+                            ]
+                                .filter(Boolean)
+                                .join(" "),
 
                     search_tokenizer:
                         custom.data_grid

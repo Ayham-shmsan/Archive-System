@@ -22,6 +22,7 @@ from archive.services.operation_permissions import (
     require_operations_screen_access,
 )
 from archive.api.operation_search import (
+    get_dynamic_operation_search_text,
     search_operation_names,
 )
 
@@ -4024,7 +4025,7 @@ def get_operations_context(
         # ========================================================
         # Search text
         #
-        # إضافة اسم منشئ العملية إلى البحث المحلي.
+        # إضافة اسم منشئ العملية والترجمات الحالية إلى البحث المحلي.
         # ========================================================
 
         operation[
@@ -4038,11 +4039,20 @@ def get_operations_context(
                     )
                 ).strip(),
 
-                cstr(
-                    operation.get(
-                        "created_by_name"
-                    )
-                ).strip(),
+                get_dynamic_operation_search_text(
+                    country=cstr(
+                        operation.get("country")
+                    ).strip(),
+                    status=cstr(
+                        operation.get("status")
+                    ).strip(),
+                    created_by_name=cstr(
+                        operation.get("created_by_name")
+                    ).strip(),
+                    owner=cstr(
+                        operation.get("owner")
+                    ).strip(),
+                ),
             ]
             if value
         )

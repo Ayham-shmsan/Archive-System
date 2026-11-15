@@ -399,6 +399,72 @@ def _append_country_values(
             arabic_country,
         )
 
+    current_country = frappe._(
+        country
+    )
+    if (
+        current_country
+        and current_country != country
+        and current_country != arabic_country
+    ):
+        _append_search_value(
+            parts,
+            current_country,
+        )
+
+
+def _append_owner_values(
+    parts: list[str],
+    operation,
+) -> None:
+    owner = (
+        getattr(operation, "owner", None)
+        or operation.get("owner")
+        or getattr(frappe.session, "user", None)
+        or ""
+    ).strip()
+
+    if not owner:
+        return
+
+    _append_search_value(parts, owner)
+
+    full_name = frappe.db.get_value(
+        "User",
+        owner,
+        "full_name",
+    )
+    if full_name:
+        _append_search_value(
+            parts,
+            full_name,
+        )
+
+
+def get_dynamic_operation_search_text(
+    country: str | None = None,
+    status: str | None = None,
+    created_by_name: str | None = None,
+    owner: str | None = None,
+) -> str:
+    parts: list[str] = []
+    for raw_val in (country, status):
+        val = (raw_val or "").strip()
+        if not val:
+            continue
+        _append_search_value(parts, val)
+        ar_val = frappe._(val, lang="ar")
+        if ar_val and ar_val != val:
+            _append_search_value(parts, ar_val)
+        cur_val = frappe._(val)
+        if cur_val and cur_val not in (val, ar_val):
+            _append_search_value(parts, cur_val)
+    if created_by_name:
+        _append_search_value(parts, created_by_name)
+    if owner:
+        _append_search_value(parts, owner)
+    return " ".join(dict.fromkeys(parts))
+
 # ============================================================
 # Build complete operation search text
 # ============================================================
@@ -446,6 +512,10 @@ def build_operation_search_text(
         operation,
     )
     _append_country_values(
+        parts,
+        operation,
+    )
+    _append_owner_values(
         parts,
         operation,
     )
@@ -588,29 +658,73 @@ def search_operation_names(
     # Search tokens
     # ========================================================
 
-    for token in tokens:
-
-        filters.append(
-            [
-                "search_text",
-                "like",
-                f"%{token}%",
-            ]
+    if not tokens:
+        return frappe.get_list(
+            "Archive Operation",
+            filters=filters,
+            pluck="name",
+            order_by="creation desc",
+            limit_page_length=0,
         )
 
-
-    return frappe.get_list(
+    rows = frappe.get_list(
         "Archive Operation",
-
-        filters=
-            filters,
-
-        pluck=
+        filters=filters,
+        fields=[
             "name",
-
-        order_by=
-            "creation desc",
-
-        limit_page_length=
-            0,
+            "search_text",
+            "country",
+            "status",
+            "owner",
+        ],
+        order_by="creation desc",
+        limit_page_length=0,
     )
+
+    if not rows:
+        return []
+
+    owner_ids = list(
+        {
+            (row.get("owner") or "").strip()
+            for row in rows
+            if (row.get("owner") or "").strip()
+        }
+    )
+    owner_names = (
+        {
+            u.name: (u.full_name or u.name)
+            for u in frappe.get_all(
+                "User",
+                filters={"name": ["in", owner_ids]},
+                fields=["name", "full_name"],
+                limit_page_length=0,
+            )
+        }
+        if owner_ids
+        else {}
+    )
+
+    dynamic_cache: dict[tuple[str, str, str], str] = {}
+    matched_names: list[str] = []
+
+    for row in rows:
+        country = (row.get("country") or "").strip()
+        status = (row.get("status") or "").strip()
+        owner = (row.get("owner") or "").strip()
+        cache_key = (country, status, owner)
+        extra_text = dynamic_cache.get(cache_key)
+        if extra_text is None:
+            extra_text = get_dynamic_operation_search_text(
+                country=country,
+                status=status,
+                created_by_name=owner_names.get(owner, owner),
+                owner=owner,
+            )
+            dynamic_cache[cache_key] = extra_text
+
+        haystack = f"{row.get('search_text') or ''} {extra_text}".strip()
+        if all(token in haystack for token in tokens):
+            matched_names.append(row["name"])
+
+    return matched_names

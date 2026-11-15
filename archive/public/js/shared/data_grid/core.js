@@ -1196,7 +1196,8 @@ frappe.provide("custom.data_grid");
 
 
         let text =
-            String(value);
+            String(value)
+                .normalize("NFKC");
 
 
         text = text.replace(
