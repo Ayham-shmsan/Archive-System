@@ -381,3 +381,6 @@ require_type_annotated_api_methods = True
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+# Preserve Arabic Hong Kong display name
+before_request = ([globals().get('before_request')] if isinstance(globals().get('before_request'),str) else list(globals().get('before_request') or [])) + ['archive.country_display_override.ensure_ar_country_label']

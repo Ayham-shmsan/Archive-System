@@ -2542,6 +2542,15 @@ class OperationViewDialog {
 
 		control.refresh();
 
+		if (
+			df.fieldname === "swift_code"
+			&& control.$input?.length
+		) {
+			control.$input.attr({
+				minlength: 8,
+				maxlength: 11,
+			});
+		}
 
 		const raw_value =
 			this.operation[
@@ -7826,6 +7835,27 @@ $list
 			can_edit
 				? this.get_values()
 				: {};
+
+		if (
+			can_edit
+			&& Object.prototype.hasOwnProperty.call(values, "swift_code")
+		) {
+			const submitted_swift = String(values.swift_code ?? "").trim();
+			const original_swift = String(this.operation?.swift_code ?? "").trim();
+			if (
+				submitted_swift
+				&& submitted_swift !== original_swift
+				&& !/^[A-Za-z0-9]{8,11}$/.test(submitted_swift)
+			) {
+				frappe.msgprint({
+					title: __("رمز السويفت غير صحيح"),
+					message: __("رمز السويفت يجب أن يتكون من 8 إلى 11 خانة من الأحرف أو الأرقام فقط."),
+					indicator: "orange",
+				});
+				this.controls.swift_code?.$input?.trigger("focus");
+				return;
+			}
+		}
 
 		// ========================================================
 		// Re-extraction values

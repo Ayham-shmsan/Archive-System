@@ -3144,6 +3144,15 @@ archive.ui.OperationDialog = class OperationDialog {
 
 		control.refresh();
 
+		if (
+			df.fieldname === "swift_code"
+			&& control.$input?.length
+		) {
+			control.$input.attr({
+				minlength: 8,
+				maxlength: 11,
+			});
+		}
 
 		if (
 			df.default
@@ -4412,6 +4421,23 @@ archive.ui.OperationDialog = class OperationDialog {
 
 		return false;
 	}
+
+	validate_swift_code(values) {
+		const raw = String(values?.swift_code ?? "").trim();
+		if (!raw) {
+			return true;
+		}
+		if (!/^[A-Za-z0-9]{8,11}$/.test(raw)) {
+			frappe.msgprint({
+				title: __("رمز السويفت غير صحيح"),
+				message: __("رمز السويفت يجب أن يتكون من 8 إلى 11 خانة من الأحرف أو الأرقام فقط."),
+				indicator: "orange",
+			});
+			this.controls.swift_code?.$input?.trigger("focus");
+			return false;
+		}
+		return true;
+	}
 	
 	async save() {
 
@@ -4421,6 +4447,14 @@ archive.ui.OperationDialog = class OperationDialog {
 
 		if (
 			!this.validate_operation_number_mode(
+				values
+			)
+		) {
+			return;
+		}
+
+		if (
+			!this.validate_swift_code(
 				values
 			)
 		) {

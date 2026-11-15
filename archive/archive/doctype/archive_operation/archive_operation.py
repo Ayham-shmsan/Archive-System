@@ -39,6 +39,31 @@ CUSTOMER_RATE_CURRENCIES = {
     "سعودي",
 }
 
+SWIFT_CODE_PATTERN = re.compile(r"^[A-Za-z0-9]{8,11}$")
+
+
+def normalize_and_validate_swift_code(
+    value,
+    *,
+    allow_empty: bool = True,
+) -> str | None:
+    normalized = cstr(value).translate(_OPERATION_NUMBER_DIGITS).strip().upper()
+    if not normalized:
+        if allow_empty:
+            return None
+        frappe.throw(
+            _("رمز السويفت مطلوب."),
+            frappe.ValidationError,
+        )
+
+    if not (8 <= len(normalized) <= 11) or not SWIFT_CODE_PATTERN.fullmatch(normalized):
+        frappe.throw(
+            _("رمز السويفت يجب أن يتكون من 8 إلى 11 خانة من الأحرف أو الأرقام فقط."),
+            frappe.ValidationError,
+        )
+
+    return normalized
+
 
 
 
@@ -1171,6 +1196,25 @@ class ArchiveOperation(Document):
             )
         )
 
+    def validate_swift_code_rules(self):
+        is_system_migration = bool(
+            getattr(frappe.flags, "in_patch", False)
+            or getattr(frappe.flags, "in_migrate", False)
+            or getattr(frappe.flags, "in_install", False)
+        )
+        if is_system_migration:
+            return
+
+        if not self.is_new():
+            old_doc = self.get_doc_before_save()
+            if old_doc and cstr(self.swift_code).strip() == cstr(old_doc.swift_code).strip():
+                return
+
+        self.swift_code = normalize_and_validate_swift_code(
+            self.swift_code,
+            allow_empty=True,
+        )
+
     def validate(self):
         self.final_swift_required = normalize_final_swift_required(
             self.get("final_swift_required"),
@@ -1180,6 +1224,7 @@ class ArchiveOperation(Document):
         self.validate_blocked_creation_mode()
         self.validate_blocked_operation_permission()
 
+        self.validate_swift_code_rules()
         self.validate_customer_rate_rules()
 
         self.validate_operation_dates()
