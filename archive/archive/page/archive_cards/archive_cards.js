@@ -674,8 +674,7 @@ class ArchiveCardsPage {
 						${render_ro_field("تاريخ الاستلام", card.received_date || "—", { ltr: true })}
 						${render_ro_field("الرمز السري", "••••", { raw_html: pin_surface_html })}
 						${render_ro_field("الحد اليومي", card.daily_limit_formatted || "—")}
-						${render_ro_field("المتبقي اليوم", card.remaining_limit_formatted || "—")}
-						${render_ro_field("مالك البطاقة", card.card_owner_name || card.card_owner)}
+						${render_ro_field("مالك البطاقة", card.card_owner_name || card.card_owner, { full: true })}
 					</div>
 				</div>
 

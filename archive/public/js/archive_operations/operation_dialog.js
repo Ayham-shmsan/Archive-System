@@ -2286,6 +2286,7 @@ archive.ui.OperationDialog = class OperationDialog {
 					label: "الجهة (الدولة)",
 					fieldtype: "Link",
 					options: "Country",
+					read_only: 1,
 					reqd:
 						1,
 				},
@@ -3144,15 +3145,6 @@ archive.ui.OperationDialog = class OperationDialog {
 
 		control.refresh();
 
-		if (
-			df.fieldname === "swift_code"
-			&& control.$input?.length
-		) {
-			control.$input.attr({
-				minlength: 8,
-				maxlength: 11,
-			});
-		}
 
 		if (
 			df.default
@@ -4423,18 +4415,24 @@ archive.ui.OperationDialog = class OperationDialog {
 	}
 
 	validate_swift_code(values) {
-		const raw = String(values?.swift_code ?? "").trim();
-		if (!raw) {
+		const raw = String(values?.swift_code ?? "");
+		const cleaned = raw.replace(/\s+/g, "").toUpperCase();
+		if (!cleaned) {
+			values.swift_code = "";
 			return true;
 		}
-		if (!/^[A-Za-z0-9]{8,11}$/.test(raw)) {
+		if (!/^[A-Za-z0-9]{8,11}$/.test(cleaned)) {
 			frappe.msgprint({
 				title: __("رمز السويفت غير صحيح"),
-				message: __("رمز السويفت يجب أن يتكون من 8 إلى 11 خانة من الأحرف أو الأرقام فقط."),
+				message: __("يوجد خطأ في رمز السويفت؛ بعد إزالة المسافات يجب ألا يقل عن 8 خانات وألا يزيد عن 11 خانة من الأحرف أو الأرقام."),
 				indicator: "orange",
 			});
 			this.controls.swift_code?.$input?.trigger("focus");
 			return false;
+		}
+		values.swift_code = cleaned;
+		if (this.controls.swift_code && this.controls.swift_code.get_value() !== cleaned) {
+			this.controls.swift_code.set_value(cleaned);
 		}
 		return true;
 	}

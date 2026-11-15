@@ -68,7 +68,7 @@ frappe.provide("archive.operations");
 		if (!swiftControl || !countryControl) {
 			return;
 		}
-		if (swiftControl.df?.read_only || countryControl.df?.read_only) {
+		if (swiftControl.df?.read_only) {
 			return;
 		}
 		if (swiftControl._archiveSwiftCountryBound) {
@@ -129,7 +129,7 @@ frappe.provide("archive.operations");
 			const currentCountry = readCurrentCountry();
 
 			if (!iso2) {
-				if (currentCountry && currentCountry === lastAutoCountry) {
+				if (currentCountry && (countryControl.df?.read_only || currentCountry === lastAutoCountry)) {
 					await setCountrySafely("");
 				} else {
 					lastAutoCountry = "";
@@ -146,7 +146,7 @@ frappe.provide("archive.operations");
 			const latestCountry = readCurrentCountry();
 
 			if (!matchedCountry) {
-				if (latestCountry && latestCountry === lastAutoCountry) {
+				if (latestCountry && (countryControl.df?.read_only || latestCountry === lastAutoCountry)) {
 					await setCountrySafely("");
 				} else {
 					lastAutoCountry = "";
@@ -154,8 +154,13 @@ frappe.provide("archive.operations");
 				return;
 			}
 
-			// Preserve an independent manual country selection made by the user
-			if (userManuallySelectedCountry && latestCountry && latestCountry !== lastAutoCountry) {
+			// Preserve an independent manual country selection made by the user (only when country field is manually editable)
+			if (
+				!countryControl.df?.read_only
+				&& userManuallySelectedCountry
+				&& latestCountry
+				&& latestCountry !== lastAutoCountry
+			) {
 				return;
 			}
 

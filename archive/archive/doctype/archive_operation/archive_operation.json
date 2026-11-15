@@ -237,7 +237,8 @@
    "fieldname": "country",
    "fieldtype": "Link",
    "label": "الجهة (الدولة)",
-   "options": "Country"
+   "options": "Country",
+   "read_only": 1
   },
   {
    "fieldname": "sender_section",

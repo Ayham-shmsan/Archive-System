@@ -2279,6 +2279,9 @@ class OperationViewDialog {
 					options:
 						"Country",
 
+					force_read_only:
+						true,
+
 					reqd:
 						1,
 				},
@@ -2542,15 +2545,6 @@ class OperationViewDialog {
 
 		control.refresh();
 
-		if (
-			df.fieldname === "swift_code"
-			&& control.$input?.length
-		) {
-			control.$input.attr({
-				minlength: 8,
-				maxlength: 11,
-			});
-		}
 
 		const raw_value =
 			this.operation[
@@ -7840,8 +7834,9 @@ $list
 			can_edit
 			&& Object.prototype.hasOwnProperty.call(values, "swift_code")
 		) {
-			const submitted_swift = String(values.swift_code ?? "").trim();
-			const original_swift = String(this.operation?.swift_code ?? "").trim();
+			const submitted_swift = String(values.swift_code ?? "").replace(/\s+/g, "").toUpperCase();
+			const original_swift = String(this.operation?.swift_code ?? "").replace(/\s+/g, "").toUpperCase();
+			values.swift_code = submitted_swift;
 			if (
 				submitted_swift
 				&& submitted_swift !== original_swift
@@ -7849,11 +7844,14 @@ $list
 			) {
 				frappe.msgprint({
 					title: __("رمز السويفت غير صحيح"),
-					message: __("رمز السويفت يجب أن يتكون من 8 إلى 11 خانة من الأحرف أو الأرقام فقط."),
+					message: __("يوجد خطأ في رمز السويفت؛ بعد إزالة المسافات يجب ألا يقل عن 8 خانات وألا يزيد عن 11 خانة من الأحرف أو الأرقام."),
 					indicator: "orange",
 				});
 				this.controls.swift_code?.$input?.trigger("focus");
 				return;
+			}
+			if (this.controls.swift_code && this.controls.swift_code.get_value() !== submitted_swift) {
+				this.controls.swift_code.set_value(submitted_swift);
 			}
 		}
 

@@ -47,8 +47,12 @@ def normalize_and_validate_swift_code(
     *,
     allow_empty: bool = True,
 ) -> str | None:
-    normalized = cstr(value).translate(_OPERATION_NUMBER_DIGITS).strip().upper()
-    if not normalized:
+    cleaned = re.sub(
+        r"\s+",
+        "",
+        cstr(value).translate(_OPERATION_NUMBER_DIGITS),
+    ).upper()
+    if not cleaned:
         if allow_empty:
             return None
         frappe.throw(
@@ -56,13 +60,13 @@ def normalize_and_validate_swift_code(
             frappe.ValidationError,
         )
 
-    if not (8 <= len(normalized) <= 11) or not SWIFT_CODE_PATTERN.fullmatch(normalized):
+    if not (8 <= len(cleaned) <= 11) or not SWIFT_CODE_PATTERN.fullmatch(cleaned):
         frappe.throw(
-            _("رمز السويفت يجب أن يتكون من 8 إلى 11 خانة من الأحرف أو الأرقام فقط."),
+            _("رمز السويفت غير صحيح؛ بعد إزالة المسافات يجب أن يتكون من 8 إلى 11 خانة من الأحرف أو الأرقام فقط."),
             frappe.ValidationError,
         )
 
-    return normalized
+    return cleaned
 
 
 
