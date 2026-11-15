@@ -435,6 +435,7 @@
   {
    "create": 1,
    "delete": 1,
+   "edit_imported_operation_fields": 1,
    "email": 1,
    "export": 1,
    "print": 1,
@@ -518,6 +519,16 @@
    "role": "صلاحية عرض سجل مستخدم العملية في شاشة العمليات",
    "share": 1,
    "view_operation_timeline": 1
+  },
+  {
+   "edit_imported_operation_fields": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "صلاحية تعديل الحقول المستوردة في العمليات",
+   "share": 1
   }
  ],
  "row_format": "Dynamic",

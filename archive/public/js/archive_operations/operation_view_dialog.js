@@ -2469,7 +2469,10 @@ class OperationViewDialog {
 			)
 		);
 		return (
-			Boolean(this.permissions?.can_edit)
+			Boolean(
+				this.permissions?.can_edit_manual_fields
+				?? this.permissions?.can_edit
+			)
 			&& !is_currently_incomplete
 			&& !is_completed
 		);
@@ -2485,8 +2488,8 @@ class OperationViewDialog {
 			df.fieldname === "operation_no"
 			&&
 			Boolean(
-				this.permissions
-					?.can_edit
+				this.permissions?.can_edit_manual_fields
+				?? this.permissions?.can_edit
 			)
 			&&
 			!Boolean(
@@ -7023,8 +7026,8 @@ $list
 
 		if (
 			Boolean(
-				this.permissions
-					?.can_edit
+				this.permissions?.can_edit_manual_fields
+				?? this.permissions?.can_edit
 			)
 			&&
 			!Boolean(

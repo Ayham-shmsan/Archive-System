@@ -15,6 +15,7 @@ from archive.services.uploaded_files import (
 
 from archive.services.operation_permissions import (
     can_attach_incomplete_invoice,
+    can_edit_imported_operation_fields,
     can_manage_operation_attachments,
     can_preview_operation_attachments,
     can_re_extract_operation_data,
@@ -488,6 +489,46 @@ MANUAL_EDITABLE_FIELDS = {
 
     "user_notes",
 }
+
+IMPORTED_EDITABLE_FIELDS = {
+    "amount",
+    "currency",
+    "beneficiary_name",
+    "beneficiary_account",
+    "beneficiary_bank",
+    "sender_name",
+    "sender_account",
+    "reference_no",
+    "bank_transfer_rate",
+    "notes",
+}
+
+EDITABLE_FIELD_LABELS = {
+    **MANUAL_FIELD_LABELS,
+    **PDF_EXTRACTED_FIELD_LABELS,
+}
+
+
+def get_allowed_editable_fields_set(
+    operation,
+    *,
+    can_edit_manual: bool | None = None,
+    can_edit_imported: bool | None = None,
+    can_edit_fiscal_year: bool = True,
+) -> set[str]:
+    if not can_edit_fiscal_year:
+        return set()
+    if can_edit_manual is None:
+        can_edit_manual = bool(operation.has_permission("write"))
+    if can_edit_imported is None:
+        can_edit_imported = bool(can_edit_imported_operation_fields(operation))
+    allowed = set()
+    if can_edit_manual:
+        allowed.update(MANUAL_EDITABLE_FIELDS)
+    if can_edit_imported:
+        allowed.update(IMPORTED_EDITABLE_FIELDS)
+    return allowed
+
 
 
 # ============================================================
@@ -4275,20 +4316,32 @@ def get_operation_for_view(
     # سنعيد تصميم editable fields في مرحلة Edit لاحقاً.
     # ========================================================
 
-    can_edit = bool(
+    can_edit_manual = bool(
         operation.has_permission(
             "write"
         )
         and can_edit_fiscal_year
     )
 
-
-    editable_fields = (
-        sorted(
-            MANUAL_EDITABLE_FIELDS
+    can_edit_imported = bool(
+        can_edit_imported_operation_fields(
+            operation
         )
-        if can_edit
-        else []
+        and can_edit_fiscal_year
+    )
+
+    can_edit = bool(
+        can_edit_manual
+        or can_edit_imported
+    )
+
+    editable_fields = sorted(
+        get_allowed_editable_fields_set(
+            operation,
+            can_edit_manual=can_edit_manual,
+            can_edit_imported=can_edit_imported,
+            can_edit_fiscal_year=can_edit_fiscal_year,
+        )
     )
 
 
@@ -4407,6 +4460,12 @@ def get_operation_for_view(
 
             "can_edit":
                 can_edit,
+
+            "can_edit_manual_fields":
+                can_edit_manual,
+
+            "can_edit_imported_fields":
+                can_edit_imported,
 
             "editable_fields":
                 editable_fields,
@@ -6733,10 +6792,21 @@ def save_operation_re_extraction(
     # يجب أن يملك Write.
     # ========================================================
 
-    can_edit = bool(
+    can_edit_manual = bool(
         operation.has_permission(
             "write"
         )
+    )
+
+    can_edit_imported = bool(
+        can_edit_imported_operation_fields(
+            operation
+        )
+    )
+
+    can_edit = bool(
+        can_edit_manual
+        or can_edit_imported
     )
 
     can_manage_attachments = (
@@ -6887,9 +6957,16 @@ def save_operation_re_extraction(
         received_fields,
     )
 
+    allowed_re_extraction_fields = get_allowed_editable_fields_set(
+        operation,
+        can_edit_manual=can_edit_manual,
+        can_edit_imported=can_edit_imported,
+        can_edit_fiscal_year=True,
+    )
+
     forbidden_fields = (
         received_fields
-        - MANUAL_EDITABLE_FIELDS
+        - allowed_re_extraction_fields
     )
 
 
@@ -7684,13 +7761,15 @@ def save_operation_re_extraction(
             "can_edit":
                 can_edit,
 
+            "can_edit_manual_fields":
+                can_edit_manual,
+
+            "can_edit_imported_fields":
+                can_edit_imported,
+
             "editable_fields":
-                (
-                    sorted(
-                        MANUAL_EDITABLE_FIELDS
-                    )
-                    if can_edit
-                    else []
+                sorted(
+                    allowed_re_extraction_fields
                 ),
 
             "can_re_extract":
@@ -8936,20 +9015,34 @@ def save_operation_view_changes(
         "read"
     )
     require_fiscal_permission(operation.fiscal_year, "edit", check_open=True)
-    if isinstance(values, dict):
-        values.pop("fiscal_year", None)
-        values.pop("fiscal_sequence", None)
-        values.pop("serial_no", None)
 
 
     # ========================================================
     # Permissions
     # ========================================================
 
-    can_edit = bool(
+    can_edit_manual = bool(
         operation.has_permission(
             "write"
         )
+    )
+
+    can_edit_imported = bool(
+        can_edit_imported_operation_fields(
+            operation
+        )
+    )
+
+    can_edit = bool(
+        can_edit_manual
+        or can_edit_imported
+    )
+
+    allowed_editable_fields = get_allowed_editable_fields_set(
+        operation,
+        can_edit_manual=can_edit_manual,
+        can_edit_imported=can_edit_imported,
+        can_edit_fiscal_year=True,
     )
 
     can_manage_attachments = (
@@ -9235,6 +9328,26 @@ def save_operation_view_changes(
         "operation_no"
         in received_fields
     ):
+        submitted_operation_no = cstr(
+            values.get(
+                "operation_no"
+            )
+        ).strip()
+        current_operation_no = cstr(
+            operation.operation_no
+        ).strip()
+
+        if (
+            submitted_operation_no
+            != current_operation_no
+            and not can_edit_manual
+        ):
+            frappe.throw(
+                _(
+                    "ليس لديك صلاحية تغيير رقم العملية."
+                ),
+                frappe.PermissionError,
+            )
 
         operation_number_change_plan = (
             _build_operation_number_change_plan(
@@ -9384,13 +9497,26 @@ def save_operation_view_changes(
 
     forbidden_fields = (
         received_fields
-        - MANUAL_EDITABLE_FIELDS
+        - allowed_editable_fields
         - {
             "operation_no",
         }
     )
 
     if forbidden_fields:
+        if forbidden_fields <= IMPORTED_EDITABLE_FIELDS and not can_edit_imported:
+            frappe.throw(
+                _(
+                    "ليس لديك صلاحية تعديل الحقول المستوردة للعملية: {0}"
+                ).format(
+                    ", ".join(
+                        sorted(
+                            forbidden_fields
+                        )
+                    )
+                ),
+                frappe.PermissionError,
+            )
         frappe.throw(
             _(
                 "لا يسمح بتعديل الحقول التالية: {0}"
@@ -9552,7 +9678,7 @@ def save_operation_view_changes(
 
 
     for fieldname in (
-        MANUAL_EDITABLE_FIELDS
+        allowed_editable_fields
     ):
 
         if fieldname not in values:
@@ -9607,7 +9733,7 @@ def save_operation_view_changes(
                     fieldname,
 
                 "label":
-                    MANUAL_FIELD_LABELS.get(
+                    EDITABLE_FIELD_LABELS.get(
                         fieldname,
                         fieldname,
                     ),
@@ -9620,11 +9746,11 @@ def save_operation_view_changes(
             }
         )
     # ========================================================
-    # Manual fields
+    # Editable fields (manual + imported if permitted)
     # ========================================================
 
     for fieldname in (
-        MANUAL_EDITABLE_FIELDS
+        allowed_editable_fields
     ):
 
         if fieldname not in values:
@@ -10580,6 +10706,12 @@ def save_operation_view_changes(
             "can_edit":
                 can_edit,
 
+            "can_edit_manual_fields":
+                can_edit_manual,
+
+            "can_edit_imported_fields":
+                can_edit_imported,
+
             "can_manage_attachments":
                 can_manage_attachments,
 
@@ -10590,12 +10722,8 @@ def save_operation_view_changes(
                 ),
 
             "editable_fields":
-                (
-                    sorted(
-                        MANUAL_EDITABLE_FIELDS
-                    )
-                    if can_edit
-                    else []
+                sorted(
+                    allowed_editable_fields
                 ),
         },
     }

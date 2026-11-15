@@ -27,6 +27,14 @@ ROLE_PREVIEW_OPERATION_ATTACHMENTS = (
     "معاينة مرفقات العمليات"
 )
 
+EDIT_IMPORTED_OPERATION_FIELDS_PERMISSION = (
+    "edit_imported_operation_fields"
+)
+
+ROLE_EDIT_IMPORTED_OPERATION_FIELDS = (
+    "صلاحية تعديل الحقول المستوردة في العمليات"
+)
+
 
 def can_preview_operation_attachments(
     operation=None,
@@ -221,5 +229,65 @@ def can_re_extract_operation_data(
 
             user=
                 user,
+        )
+    )
+
+
+def can_edit_imported_operation_fields(
+    operation=None,
+    user: str | None = None,
+) -> bool:
+    """
+    صلاحية مستقلة لتعديل الحقول المستوردة من Excel / المستخرجة في تفاصيل العملية.
+    ممنوحة للمدير (Administrator / System Manager) ولمن يمتلك الصلاحية أو الدور المخصص.
+    """
+    resolved_user = user or frappe.session.user or "Guest"
+    if not resolved_user or resolved_user == "Guest":
+        return False
+    if resolved_user == "Administrator":
+        return True
+    if not cint(frappe.db.get_value("User", resolved_user, "enabled")):
+        return False
+
+    has_perm = bool(
+        frappe.db.exists(
+            "Has Role",
+            {
+                "parenttype": "User",
+                "parent": resolved_user,
+                "role": [
+                    "in",
+                    [
+                        "System Manager",
+                        ROLE_EDIT_IMPORTED_OPERATION_FIELDS,
+                        EDIT_IMPORTED_OPERATION_FIELDS_PERMISSION,
+                    ],
+                ],
+            },
+        )
+        or frappe.has_permission(
+            "Archive Operation",
+            ptype=EDIT_IMPORTED_OPERATION_FIELDS_PERMISSION,
+            user=resolved_user,
+        )
+    )
+    if not has_perm:
+        return False
+
+    if operation is not None:
+        return bool(
+            frappe.has_permission(
+                "Archive Operation",
+                ptype="read",
+                doc=operation,
+                user=resolved_user,
+            )
+        )
+
+    return bool(
+        frappe.has_permission(
+            "Archive Operation",
+            ptype="read",
+            user=resolved_user,
         )
     )

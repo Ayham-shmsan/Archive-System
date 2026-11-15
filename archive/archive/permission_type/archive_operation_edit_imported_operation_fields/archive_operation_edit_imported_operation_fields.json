@@ -1,0 +1,7 @@
+{
+ "doc_type": "Archive Operation",
+ "doctype": "Permission Type",
+ "module": "Archive",
+ "name": "archive_operation_edit_imported_operation_fields",
+ "perm_type": "edit_imported_operation_fields"
+}

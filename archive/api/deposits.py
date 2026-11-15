@@ -477,6 +477,7 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 	)
 	from archive.services.operation_permissions import (
 		ROLE_ATTACH_INCOMPLETE_INVOICE,
+		ROLE_EDIT_IMPORTED_OPERATION_FIELDS,
 		ROLE_OPERATIONS_SCREEN_ACCESS,
 		ROLE_PREVIEW_OPERATION_ATTACHMENTS,
 		ROLE_VIEW_OPERATION_TIMELINE,
@@ -578,6 +579,7 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 				ROLE_PREVIEW_OPERATION_ATTACHMENTS,
 				ROLE_ATTACH_INCOMPLETE_INVOICE,
 				ROLE_VIEW_OPERATION_TIMELINE,
+				ROLE_EDIT_IMPORTED_OPERATION_FIELDS,
 			],
 		},
 		{
