@@ -2638,11 +2638,9 @@ class ArchiveDepositsPage {
 			const r = this.rows[i];
 			const name = String(r.base_card_name || r.card_name || "").trim();
 			const copy = String(r.copy_label || "").trim();
-			const status = r.is_historical_inactive ? String(r.card_status || "").trim() : "";
-			const score =
-				name.length * 1.15 + copy.length + status.length + (copy ? 3 : 0) + (status ? 3 : 0);
+			const score = name.length * 1.15 + copy.length + (copy ? 3 : 0);
 			if (top.length < 5 || score > top[top.length - 1].score) {
-				top.push({ name, copy, status, score });
+				top.push({ name, copy, score });
 				top.sort((a, b) => b.score - a.score);
 				if (top.length > 5) {
 					top.length = 5;
@@ -2657,10 +2655,6 @@ class ArchiveDepositsPage {
 			if (item.copy) {
 				ctx.font = `700 ${badge_px}px ${font_family}`;
 				w += 6 + 18 + ctx.measureText(item.copy).width;
-			}
-			if (item.status) {
-				ctx.font = `600 ${Math.max(badge_px - 0.5, 10.5)}px ${font_family}`;
-				w += 6 + 16 + ctx.measureText(item.status).width;
 			}
 			const needed = Math.ceil(24 + w + 18);
 			if (needed > max_cell_px) {
@@ -2928,21 +2922,11 @@ class ArchiveDepositsPage {
 			const copy_badge = row.copy_label
 				? `<span class="ad-copy-badge" style="margin-right:6px;">${frappe.utils.escape_html(row.copy_label)}</span>`
 				: "";
-			const inactive_tag = row.is_historical_inactive
-				? `<span class="ad-historical-tag" title="حالة البطاقة في ذلك التاريخ — سجل محفوظ للقراءة فقط">${frappe.utils.escape_html(
-						row.card_status
-				  )}</span>`
-				: row.is_currently_active === false
-				? `<span class="ad-historical-tag" title="البطاقة غير نشطة حالياً — السجل التاريخي للقراءة فقط">${frappe.utils.escape_html(
-						row.current_card_status || "موقوفة"
-				  )}</span>`
-				: "";
 			const card_display_name = row.base_card_name || row.card_name || "";
 			return `
 				<td class="ac-td-name" title="${frappe.utils.escape_html(card_display_name)}">
 					<span class="ad-card-title-text">${frappe.utils.escape_html(card_display_name)}</span>
 					${copy_badge}
-					${inactive_tag}
 				</td>
 			`;
 		}

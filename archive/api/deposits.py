@@ -1838,6 +1838,10 @@ def _load_period_dataset(
 		sp["_serial_no"] = cint(sp.get("serial_no"))
 		sp["_is_active"] = cint(sp.get("is_active")) == 1 and cint(sp.get("is_deleted")) == 0
 		sp["_is_non_deleted"] = cint(sp.get("is_deleted")) == 0
+		sp["_is_currently_active"] = (
+			cstr(sp.get("current_card_status") or ACTIVE_CARD_STATUS).strip() == ACTIVE_CARD_STATUS
+			and cint(sp.get("current_is_deleted") or 0) == 0
+		)
 		owner_search_norm = normalize_search_text(f"{owner_id} {owner_name}")
 		if not sp.get("search_norm"):
 			sp["_search_norm"] = normalize_search_text(
@@ -2160,7 +2164,7 @@ def _load_period_dataset(
 				span_by_card_on_d[cid] = sp
 				if sp["_is_non_deleted"]:
 					non_deleted_spans_on_d.append(sp)
-				if sp["_is_active"]:
+				if sp["_is_active"] and sp["_is_currently_active"]:
 					active_spans_on_d.append(sp)
 
 		seen_cards_on_d: set[str] = set()
@@ -2171,9 +2175,8 @@ def _load_period_dataset(
 			seen_cards_on_d.add(cid)
 			ordered_card_entries.append((cid, sp, deps_on_d.get(cid)))
 
-		# Include saved historical deposit records even if the card was stopped/deleted on or after `d_str`,
-		# ONLY when the record represents a real transaction/state (amount > 0, stopped_for_reason = 1, or is_approved = 1)
-		# AND `d_str` is not before the card's actual creation date.
+		# Stopped/inactive cards appear on `d_str` ONLY when they have an actual saved deposit
+		# with deposit_amount > 0 on `d_str` (and `d_str` is not before the card's creation date).
 		eligible_deps_on_d: dict[str, dict[str, Any]] = {}
 		for cid in seen_cards_on_d:
 			if cid in deps_on_d:
@@ -2182,18 +2185,14 @@ def _load_period_dataset(
 		for cid, dr in deps_on_d.items():
 			if cid not in seen_cards_on_d:
 				sp_cand = span_by_card_on_d.get(cid)
-				has_meaningful_dep = (
-					flt(dr.get("deposit_amount") or 0, 2) > 0
-					or cint(dr.get("stopped_for_reason")) == 1
-					or cint(dr.get("is_approved")) == 1
-				)
+				has_positive_dep = flt(dr.get("deposit_amount") or 0, 2) > 0
 				c_creation_d = cstr(
 					dr.get("card_creation_date")
 					or (sp_cand.get("card_creation_date") if sp_cand else "")
 					or ""
 				).strip()
 				is_on_or_after_creation = (not c_creation_d) or (d_str >= c_creation_d)
-				if has_meaningful_dep and is_on_or_after_creation:
+				if has_positive_dep and is_on_or_after_creation:
 					seen_cards_on_d.add(cid)
 					eligible_deps_on_d[cid] = dr
 					ordered_card_entries.append((cid, sp_cand, dr))

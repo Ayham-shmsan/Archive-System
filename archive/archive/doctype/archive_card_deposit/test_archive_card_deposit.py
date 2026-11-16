@@ -654,8 +654,30 @@ class TestArchiveCardDeposit(unittest.TestCase):
 		with self.assertRaises(frappe.ValidationError):
 			approve_deposit(card="CRD-00023", deposit_date="2026-11-11", expected_amount=35000)
 
+		# On 2026-11-10 (when CRD-00023 was historically active, but has no deposit > 0),
+		# while CRD-00023 is currently stopped, it must NOT appear at all (even if stopped_for_reason=1 with 0.00)
+		frappe.db.delete("Archive Card Deposit", {"card": "CRD-00023", "deposit_date": "2026-11-10"})
+		ctx_nov10_stopped = get_deposits_context(
+			deposit_date="2026-11-10",
+			period_mode="day",
+			page_size="all",
+		)
+		self.assertIsNone(next((r for r in ctx_nov10_stopped["rows"] if r["card"] == "CRD-00023"), None))
+
+		# And in range 2026-11-10..2026-11-13 while CRD-00023 is stopped, it appears ONLY on 2026-11-11 (where deposit_amount > 0)
+		frappe.db.delete("Archive Card Deposit", {"card": "CRD-00023", "deposit_date": ("in", ["2026-11-12", "2026-11-13"])})
+		ctx_range_stopped = get_deposits_context(
+			period_mode="range",
+			date_from="2026-11-10",
+			date_to="2026-11-13",
+			page_size="all",
+		)
+		c23_dates_while_stopped = [
+			r["deposit_date"] for r in ctx_range_stopped["rows"] if r["card"] == "CRD-00023"
+		]
+		self.assertEqual(c23_dates_while_stopped, ["2026-11-11"])
+
 		# On 2026-11-13 (during stopped period with no deposit), CRD-00023 must NOT appear
-		frappe.db.delete("Archive Card Deposit", {"card": "CRD-00023", "deposit_date": "2026-11-13"})
 		ctx_nov13_stopped = get_deposits_context(
 			deposit_date="2026-11-13",
 			period_mode="day",
