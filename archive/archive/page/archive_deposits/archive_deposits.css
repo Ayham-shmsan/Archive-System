@@ -1094,38 +1094,40 @@ body[data-route="archive-deposits"] #body,
 	width: 100%;
 	max-width: 100%;
 	min-width: 0;
+	padding: 3px 2px;
 	overflow: hidden;
+	box-sizing: border-box;
 }
 
-.ad-bank-icon {
-	width: 24px;
-	height: 24px;
-	border-radius: 6px;
+.ad-bank-icon,
+.ad-bank-icon.tone-0,
+.ad-bank-icon.tone-1,
+.ad-bank-icon.tone-2,
+.ad-bank-icon.tone-3,
+.ad-bank-icon.tone-4 {
+	width: 26px;
+	height: 26px;
+	border-radius: 8px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
+	box-sizing: border-box;
+	color: #4a5d79;
+	background: linear-gradient(180deg, #f8fafd 0%, #e7eef6 100%);
+	border: 1px solid #d5e0ec;
+	border-bottom-color: #c2d0e0;
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.95),
+		inset 0 -1px 1px rgba(148, 163, 184, 0.14),
+		0 1px 2px rgba(15, 23, 42, 0.08),
+		0 2px 5px rgba(51, 65, 85, 0.07);
 }
 
-.ad-bank-icon.tone-0 {
-	background: #dcfce7;
-	color: #15803d;
-}
-.ad-bank-icon.tone-1 {
-	background: #fef3c7;
-	color: #b45309;
-}
-.ad-bank-icon.tone-2 {
-	background: #dbeafe;
-	color: #1d4ed8;
-}
-.ad-bank-icon.tone-3 {
-	background: #ffedd5;
-	color: #c2410c;
-}
-.ad-bank-icon.tone-4 {
-	background: #f3e8ff;
-	color: #7e22ce;
+.ad-bank-icon svg {
+	width: 14px;
+	height: 14px;
+	display: block;
 }
 
 .ad-bank-name {
@@ -1455,26 +1457,32 @@ body[data-route="archive-deposits"] #body,
    CARD COPY / TYPE BADGE & SERIAL COLUMN
    ========================================================= */
 
+.archive-deposits-page .archive-deposits-table .ad-copy-badge,
+.archive-deposits-page .ad-copy-badge,
 .archive-deposits-page .ac-copy-badge,
-.archive-deposits-page .ac-row-copy-badge {
+.archive-deposits-page .ac-row-copy-badge,
+.archive-deposits-page .ac-row-copy-badge.is-duplicate {
 	display: inline-flex;
 	align-items: center;
-	height: 19px;
-	padding: 0 7px;
-	border-radius: 999px;
-	font-size: var(--archive-font-size-2xs, 11px);
-	font-weight: 700;
-	color: #0369a1;
-	background: #e0f2fe;
-	border: 1px solid #bae6fd;
+	justify-content: center;
+	height: 19px !important;
+	padding: 0 7px !important;
+	border-radius: 999px !important;
+	box-sizing: border-box;
+	font-size: var(--archive-font-size-2xs, 11px) !important;
+	font-weight: 700 !important;
+	line-height: 1 !important;
+	color: #4a5d79 !important;
+	background: linear-gradient(180deg, #f8fafd 0%, #e7eef6 100%) !important;
+	border: 1px solid #d5e0ec !important;
+	border-bottom-color: #c2d0e0 !important;
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.95),
+		inset 0 -1px 1px rgba(148, 163, 184, 0.14),
+		0 1px 2px rgba(15, 23, 42, 0.08),
+		0 2px 5px rgba(51, 65, 85, 0.07) !important;
 	white-space: nowrap;
 	flex-shrink: 0;
-}
-
-.archive-deposits-page .ac-row-copy-badge.is-duplicate {
-	color: #0f766e;
-	background: #ccfbf1;
-	border-color: #99f6e4;
 }
 
 .ad-th-serial,
@@ -1660,23 +1668,23 @@ body[data-route="archive-deposits"] #body,
 /* 4. Sibling copy in same (deposit_date, group_key) when any copy has deposit > 0 */
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-sibling-deposited,
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-sibling-deposited > td {
-	background-color: #f0fdf4 !important;
+	background-color: #ffffff !important;
 }
 
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-sibling-deposited:hover,
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-sibling-deposited:hover > td {
-	background-color: #e3fbe9 !important;
+	background-color: #f8fafc !important;
 }
 
 /* 3. Deposited row (effective_amount > 0) */
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-deposited,
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-deposited > td {
-	background-color: #dcfce7 !important;
+	background-color: #ffffff !important;
 }
 
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-deposited:hover,
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-deposited:hover > td {
-	background-color: #bbf7d0 !important;
+	background-color: #f8fafc !important;
 }
 
 /* 2. Stopped for reason row (white background with calm muted/disabled-like content) */
@@ -1698,6 +1706,7 @@ body[data-route="archive-deposits"] #body,
 }
 
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-stopped-reason .ad-serial-badge,
+.archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-stopped-reason .ad-copy-badge,
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-stopped-reason .ac-copy-badge,
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-stopped-reason .ad-bank-icon {
 	opacity: 0.56;

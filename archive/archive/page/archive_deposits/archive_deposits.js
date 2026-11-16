@@ -2588,7 +2588,7 @@ class ArchiveDepositsPage {
 
 		if (key === "card_name") {
 			const copy_badge = row.copy_label
-				? `<span class="ac-copy-badge" style="margin-right:6px;">${frappe.utils.escape_html(row.copy_label)}</span>`
+				? `<span class="ad-copy-badge" style="margin-right:6px;">${frappe.utils.escape_html(row.copy_label)}</span>`
 				: "";
 			const inactive_tag = row.is_historical_inactive
 				? `<span class="ad-historical-tag" title="حالة البطاقة في ذلك التاريخ — سجل محفوظ">${frappe.utils.escape_html(

@@ -1683,24 +1683,37 @@ body[data-route="archive-cards"] #body,
 	line-height: var(--archive-font-table-cell-bold-lh);
 }
 
-.ac-copy-badge,
-.ac-row-copy-badge,
-.ac-row-copy-badge.is-duplicate {
+.archive-cards-page .archive-cards-table .ac-row-copy-badge,
+.archive-cards-page .ac-info-header-badges .ac-copy-badge,
+.archive-cards-page .ac-copy-badge,
+.archive-cards-page .ac-row-copy-badge,
+.archive-cards-page .ac-row-copy-badge.is-duplicate,
+.archive-cards-page .acd-copy-pill {
 	display: inline-flex;
 	align-items: center;
-	padding: 1px var(--archive-space-2);
-	border-radius: 999px;
-	font-size: var(--archive-font-badge-size);
-	font-weight: var(--archive-font-badge-weight);
-	line-height: var(--archive-font-badge-lh);
-	background: #e0f2fe !important;
-	color: #0369a1 !important;
-	border: var(--archive-border-width-thin) var(--archive-border-style-solid) #bae6fd;
+	justify-content: center;
+	height: 19px !important;
+	padding: 0 7px !important;
+	border-radius: 999px !important;
+	box-sizing: border-box;
+	font-size: var(--archive-font-size-2xs, 11px) !important;
+	font-weight: 700 !important;
+	line-height: 1 !important;
+	color: #4a5d79 !important;
+	background: linear-gradient(180deg, #f8fafd 0%, #e7eef6 100%) !important;
+	border: 1px solid #d5e0ec !important;
+	border-bottom-color: #c2d0e0 !important;
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.95),
+		inset 0 -1px 1px rgba(148, 163, 184, 0.14),
+		0 1px 2px rgba(15, 23, 42, 0.08),
+		0 2px 5px rgba(51, 65, 85, 0.07) !important;
 	white-space: nowrap;
+	flex-shrink: 0;
 }
 
-.ac-row-copy-badge {
-	margin-right: 6px;
+.archive-cards-page .ac-row-copy-badge {
+	margin-right: 6px !important;
 }
 
 .ac-table-empty-state {
