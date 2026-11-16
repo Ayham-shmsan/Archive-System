@@ -1198,12 +1198,27 @@ body[data-route="archive-operations"] .main-section > #body,
    Important numeric values
    ========================= */
 
+.archive-operations-table td.archive-operation-serial-cell {
+	text-align: center !important;
+	vertical-align: middle !important;
+	direction: ltr;
+}
+
 .archive-operations-table .archive-operation-serial,
 .archive-operation-serial {
-	font-size: var(--archive-font-table-cell-bold-size);
-	font-weight: var(--archive-font-table-cell-bold-weight);
-	line-height: var(--archive-font-table-cell-bold-lh);
-	color: var(--text-color);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 26px;
+	height: 22px;
+	padding: 0 6px;
+	border-radius: 6px;
+	background: #f1f5f9;
+	color: #475569;
+	font-size: var(--archive-font-size-xs, 12px);
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
 }
 
 

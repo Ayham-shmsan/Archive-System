@@ -1114,13 +1114,25 @@ body[data-route="archive-commercial-registries"] #body,
 .acr-table tbody tr.acr-row td.acr-col-serial,
 .acr-col-serial {
 	width: 90px;
-	font-size: var(--archive-font-table-cell-bold-size);
-	font-weight: var(--archive-font-table-cell-bold-weight);
-	line-height: var(--archive-font-table-cell-bold-lh);
-	font-variant-numeric: tabular-nums;
-	color: var(--archive-color-text-heading);
 	direction: ltr;
-	text-align: right;
+	text-align: center !important;
+	vertical-align: middle !important;
+}
+
+.acr-serial-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 26px;
+	height: 22px;
+	padding: 0 6px;
+	border-radius: 6px;
+	background: #f1f5f9;
+	color: #475569;
+	font-size: var(--archive-font-size-xs, 12px);
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
 }
 
 .acr-table tbody tr.acr-row td.acr-col-registry-no,
@@ -1140,6 +1152,36 @@ body[data-route="archive-commercial-registries"] #body,
 	font-weight: var(--archive-font-table-cell-bold-weight);
 	line-height: var(--archive-font-table-cell-bold-lh);
 	color: var(--archive-color-text-heading);
+}
+
+.acr-registry-name-wrap {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 100%;
+	min-width: 0;
+	vertical-align: middle;
+}
+
+.acr-registry-name-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--archive-color-primary, #2563eb);
+	flex-shrink: 0;
+}
+
+.acr-registry-name-icon svg {
+	width: 15px;
+	height: 15px;
+	display: block;
+}
+
+.acr-registry-name-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
 }
 
 .acr-att-pill {

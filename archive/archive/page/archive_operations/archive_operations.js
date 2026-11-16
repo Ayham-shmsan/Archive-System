@@ -3476,14 +3476,14 @@ class ArchiveOperationsPage {
             >
 
                 <!-- الرقم التسلسلي -->
-                <td>
-                    <div class="archive-operation-serial">
+                <td class="archive-operation-serial-cell" dir="ltr">
+                    <span class="archive-operation-serial">
                         ${this.escape_value(
                             operation.fiscal_sequence
                                 || operation.serial_no
                                 || operation.name
                         )}
-                    </div>
+                    </span>
                 </td>
 
                 <!-- رقم العملية -->

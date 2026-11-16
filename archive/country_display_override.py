@@ -2,7 +2,7 @@ import frappe
 from frappe.translate import MERGED_TRANSLATION_KEY, get_all_translations, change_translation_version
 
 def ensure_ar_country_label():
-    if frappe.local.site != 'archive.localhost' or frappe.local.lang != 'ar':
+    if frappe.local.site != 'archive-site' or frappe.local.lang != 'ar':
         return
     custom_translation = frappe.db.get_value(
         'Translation',

@@ -2632,10 +2632,12 @@ class ArchivePendingOperationsPage {
                 title="تحديد العملية"
             >
 
-                <td class="archive-pending-serial">
-                    ${this.escape_value(
-                        operation.fiscal_display_no || operation.serial_no
-                    )}
+                <td class="archive-pending-serial" dir="ltr">
+                    <span class="archive-pending-serial-badge">
+                        ${this.escape_value(
+                            operation.fiscal_display_no || operation.serial_no
+                        )}
+                    </span>
                 </td>
 
                 <td>

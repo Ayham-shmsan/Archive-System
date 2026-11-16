@@ -10,9 +10,12 @@
     "card",
     "deposit_date",
     "deposit_amount",
+    "stopped_for_reason",
+    "is_approved",
     "column_break_deposit_1",
     "daily_limit_snapshot",
     "previous_amount",
+    "approved_amount",
     "snapshot_section",
     "card_name_snapshot",
     "base_card_name_snapshot",
@@ -30,9 +33,15 @@
     "audit_section",
     "recorded_by",
     "recorded_at",
+    "stopped_reason_by",
+    "stopped_reason_at",
     "column_break_audit_1",
     "last_modified_by",
     "last_modified_at",
+    "approved_by",
+    "approved_at",
+    "unapproved_by",
+    "unapproved_at",
     "audit_history_section",
     "audit_history_json",
     "fiscal_year"
@@ -73,6 +82,23 @@
       "reqd": 1
     },
     {
+      "default": "0",
+      "fieldname": "stopped_for_reason",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "موقف لسبب",
+      "search_index": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "is_approved",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "معتمد",
+      "read_only": 1,
+      "search_index": 1
+    },
+    {
       "fieldname": "column_break_deposit_1",
       "fieldtype": "Column Break"
     },
@@ -90,6 +116,14 @@
       "fieldname": "previous_amount",
       "fieldtype": "Float",
       "label": "المبلغ السابق",
+      "precision": "2",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "approved_amount",
+      "fieldtype": "Float",
+      "label": "المبلغ المعتمد",
       "precision": "2",
       "read_only": 1
     },
@@ -197,6 +231,19 @@
       "read_only": 1
     },
     {
+      "fieldname": "stopped_reason_by",
+      "fieldtype": "Link",
+      "label": "تم تحديث موقف لسبب بواسطة",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "stopped_reason_at",
+      "fieldtype": "Datetime",
+      "label": "وقت تحديث موقف لسبب",
+      "read_only": 1
+    },
+    {
       "fieldname": "column_break_audit_1",
       "fieldtype": "Column Break"
     },
@@ -211,6 +258,32 @@
       "fieldname": "last_modified_at",
       "fieldtype": "Datetime",
       "label": "وقت آخر تعديل",
+      "read_only": 1
+    },
+    {
+      "fieldname": "approved_by",
+      "fieldtype": "Link",
+      "label": "تم الاعتماد بواسطة",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "approved_at",
+      "fieldtype": "Datetime",
+      "label": "وقت الاعتماد",
+      "read_only": 1
+    },
+    {
+      "fieldname": "unapproved_by",
+      "fieldtype": "Link",
+      "label": "تم إلغاء الاعتماد بواسطة",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "unapproved_at",
+      "fieldtype": "Datetime",
+      "label": "وقت إلغاء الاعتماد",
       "read_only": 1
     },
     {

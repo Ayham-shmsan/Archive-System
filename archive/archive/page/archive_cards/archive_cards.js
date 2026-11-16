@@ -950,7 +950,7 @@ class ArchiveCardsPage {
 
 	render_table_cell(row, key) {
 		if (key === "serial_no") {
-			return `<td class="ac-td-mono">${row.serial_no}</td>`;
+			return `<td class="ac-td-mono" dir="ltr"><span class="ac-serial-badge">${row.serial_no}</span></td>`;
 		}
 		if (key === "card_name") {
 			const badge_text = row.copy_label || format_copy_badge_label(row.card_type, row.copy_no);

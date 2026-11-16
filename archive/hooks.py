@@ -53,13 +53,13 @@ use_json_request_body = True
 app_include_css = [
     "/assets/archive/css/shared/archive_tokens.css",
     "/assets/archive/css/archive_sidebar_v4.css",
-    "/assets/archive/css/user_archive_roles.css?v=20261110",
+    "/assets/archive/css/user_archive_roles.css?v=20261118",
 ]
 # app_include_js = "/assets/archive/js/archive.js"
 app_include_js = [
     "/assets/archive/js/country_list.js",
     "/assets/archive/js/archive_sidebar_v4.js?v=20261111",
-    "/assets/archive/js/user_archive_roles.js?v=20261110",
+    "/assets/archive/js/user_archive_roles.js?v=20261118",
 ]
 
 doctype_js = {
@@ -258,6 +258,20 @@ doc_events = {
             "archive.api.deposits.validate_user_deposit_day_limits",
             "archive.services.fiscal_year_permissions.save_user_fiscal_permissions_on_user_validate",
         ],
+    },
+    "Archive Card": {
+        "after_insert": "archive.services.card_audit.sync_card_state_spans_on_doc_event",
+        "on_update": "archive.services.card_audit.sync_card_state_spans_on_doc_event",
+        "on_trash": "archive.services.card_audit.sync_card_state_spans_on_trash",
+    },
+    "Archive Bank": {
+        "on_update": "archive.services.card_audit.sync_card_state_spans_for_master",
+    },
+    "Archive Representative": {
+        "on_update": "archive.services.card_audit.sync_card_state_spans_for_master",
+    },
+    "Archive Region": {
+        "on_update": "archive.services.card_audit.sync_card_state_spans_for_master",
     },
 }
 

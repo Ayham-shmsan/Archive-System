@@ -12,14 +12,33 @@ const DEPOSIT_OVER_LIMIT_MSG = "مبلغ الإيداع لا يمكن أن يت�
 const DEPOSIT_NEGATIVE_MSG = "لا يُسمح بإدخال مبلغ إيداع سالب";
 
 const ARCHIVE_DEPOSITS_COLUMNS = [
-	{ key: "card_name", label: "اسم البطاقة", width: "16%", pct: 16, min_px: 148, locked: true, sortable: true },
-	{ key: "card_number", label: "رقم البطاقة", width: "11%", pct: 11, min_px: 122, locked: false, sortable: true },
-	{ key: "bank", label: "البنك", width: "14.5%", pct: 14.5, min_px: 162, locked: false, sortable: true },
-	{ key: "representative", label: "المندوب", width: "10.5%", pct: 10.5, min_px: 118, locked: false, sortable: true },
-	{ key: "region", label: "المنطقة", width: "8.5%", pct: 8.5, min_px: 96, locked: false, sortable: true },
-	{ key: "deposit_amount", label: "مبلغ الإيداع", width: "14.5%", pct: 14.5, min_px: 162, locked: true, sortable: true },
-	{ key: "remaining_limit", label: "مبلغ الحد المتبقي", width: "11%", pct: 11, min_px: 124, locked: false, sortable: true },
-	{ key: "status", label: "الحالة", width: "14%", pct: 14, min_px: 158, locked: true, sortable: true },
+	{ key: "serial_no", label: "م", width: "4.5%", pct: 4.5, min_px: 52, locked: true, sortable: true },
+	{ key: "card_name", label: "اسم البطاقة", width: "13%", pct: 13, min_px: 148, locked: true, sortable: true },
+	{ key: "deposit_date", label: "تاريخ الإيداع", width: "9%", pct: 9, min_px: 110, locked: false, sortable: true, period_only: true },
+	{ key: "card_number", label: "رقم البطاقة", width: "9.5%", pct: 9.5, min_px: 118, locked: false, sortable: true },
+	{ key: "bank", label: "البنك", width: "11%", pct: 11, min_px: 144, locked: false, sortable: true },
+	{ key: "representative", label: "المندوب", width: "8.5%", pct: 8.5, min_px: 108, locked: false, sortable: true },
+	{ key: "region", label: "المنطقة", width: "7.5%", pct: 7.5, min_px: 90, locked: false, sortable: true },
+	{ key: "deposit_amount", label: "مبلغ الإيداع", width: "12.5%", pct: 12.5, min_px: 154, locked: true, sortable: true },
+	{ key: "remaining_limit", label: "مبلغ الحد المتبقي", width: "9%", pct: 9, min_px: 116, locked: false, sortable: true },
+	{ key: "stopped_for_reason", label: "موقف لسبب", width: "6.5%", pct: 6.5, min_px: 84, locked: false, sortable: true },
+	{ key: "status", label: "الحالة", width: "9%", pct: 9, min_px: 132, locked: true, sortable: true },
+	{ key: "approval", label: "الاعتماد", width: "8%", pct: 8, min_px: 120, locked: true, sortable: true },
+];
+
+const ARABIC_MONTHS = [
+	{ value: 1, label: "01 — يناير" },
+	{ value: 2, label: "02 — فبراير" },
+	{ value: 3, label: "03 — مارس" },
+	{ value: 4, label: "04 — أبريل" },
+	{ value: 5, label: "05 — مايو" },
+	{ value: 6, label: "06 — يونيو" },
+	{ value: 7, label: "07 — يوليو" },
+	{ value: 8, label: "08 — أغسطس" },
+	{ value: 9, label: "09 — سبتمبر" },
+	{ value: 10, label: "10 — أكتوبر" },
+	{ value: 11, label: "11 — نوفمبر" },
+	{ value: 12, label: "12 — ديسمبر" },
 ];
 
 const DEPOSIT_SVGS = {
@@ -35,6 +54,7 @@ const DEPOSIT_SVGS = {
 	stat_all: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>`,
 	stat_deposited: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
 	stat_not_deposited: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>`,
+	stat_stopped_reason: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="9" y1="10" x2="9" y2="14"/><line x1="15" y1="10" x2="15" y2="14"/></svg>`,
 	stat_amount: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="15" cy="6" rx="6" ry="2.5"/><path d="M9 6v4c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V6"/><path d="M9 10v4c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5v-4"/><circle cx="7.5" cy="15.5" r="4.5"/><path d="M7.5 13.8v3.4"/></svg>`,
 	stat_target: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
 	save_disk: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`,
@@ -43,8 +63,17 @@ const DEPOSIT_SVGS = {
 	columns_grid: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`,
 	status_check: `<svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>`,
 	status_cross: `<svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>`,
+	status_pause: `<svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`,
 	bank_badge: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>`,
 };
+
+function make_row_key(card, deposit_date) {
+	return `${String(card || "").trim()}::${String(deposit_date || "").trim()}`;
+}
+
+function make_account_day_key(account_key, deposit_date) {
+	return `${String(deposit_date || "").trim()}::${String(account_key || "").trim()}`;
+}
 
 function format_deposit_number(value, empty_when_zero = false) {
 	if (value === null || value === undefined || value === "") {
@@ -130,9 +159,16 @@ class ArchiveDepositsPage {
 		const initial_today = frappe.datetime?.get_today
 			? frappe.datetime.get_today()
 			: new Date().toISOString().slice(0, 10);
+		const initial_year = Number(initial_today.slice(0, 4)) || new Date().getFullYear();
+		const initial_month = Number(initial_today.slice(5, 7)) || new Date().getMonth() + 1;
 
 		this.state = {
+			period_mode: "day",
 			deposit_date: initial_today,
+			period_month: initial_month,
+			period_year: initial_year,
+			date_from: `${initial_year}-${String(initial_month).padStart(2, "0")}-01`,
+			date_to: initial_today,
 			fiscal_year: null,
 			today: initial_today,
 			status_filter: "all",
@@ -151,6 +187,7 @@ class ArchiveDepositsPage {
 		};
 
 		this.rows = [];
+		this.rows_by_key = new Map();
 		this.rows_by_card = new Map();
 		this.accounts_baseline = new Map();
 		this.dirty_deposits = new Map();
@@ -158,22 +195,34 @@ class ArchiveDepositsPage {
 			total_cards: 0,
 			deposited_count: 0,
 			not_deposited_count: 0,
+			stopped_for_reason_count: 0,
 			total_deposited_amount: 0,
 			total_deposited_amount_formatted: "0",
 			total_daily_target: 0,
 			total_daily_target_formatted: "0",
+			target_is_frozen: false,
 		};
 		this.pagination = { page: 1, page_size: 50, total_count: 0, total_pages: 1 };
 		this.masters = { banks: [], representatives: [], regions: [] };
-		this.permissions = { can_view: false, can_save: false };
+		this.permissions = {
+			can_view: false,
+			can_save: false,
+			can_edit_amount: false,
+			can_toggle_stopped_reason: false,
+			can_approve: false,
+			has_approve_role: false,
+			has_stopped_reason_role: false,
+		};
 		this.fiscal_context = null;
 		this.fiscal_year_is_closed = false;
 
 		this._search_timer = null;
 		this._load_seq = 0;
+		this._table_render_token = 0;
 		this.is_loading = false;
 		this.is_refreshing = false;
 		this.is_saving = false;
+		this.approving_keys = new Set();
 		this._suppress_route_guard = false;
 
 		this.make_page();
@@ -252,11 +301,13 @@ class ArchiveDepositsPage {
 			);
 			if (!this.state.fiscal_year && default_fy) {
 				this.state.fiscal_year = default_fy;
+				this.state.period_year = Number(default_fy) || this.state.period_year;
 				if (!String(this.state.deposit_date || "").startsWith(`${default_fy}-`)) {
 					this.state.deposit_date = "";
 				}
 			}
 			this.render_fiscal_year_filter();
+			this.render_period_controls();
 		}
 
 		this.mount_pagination();
@@ -266,6 +317,13 @@ class ArchiveDepositsPage {
 	}
 
 	render_shell() {
+		const month_options_html = ARABIC_MONTHS.map(
+			(m) =>
+				`<option value="${m.value}" ${
+					m.value === this.state.period_month ? "selected" : ""
+				}>${frappe.utils.escape_html(m.label)}</option>`
+		).join("");
+
 		$(this.page.main).html(`
 			<div class="archive-deposits-shell" dir="rtl">
 				<div class="archive-deposits-header">
@@ -275,75 +333,110 @@ class ArchiveDepositsPage {
 						</span>
 						<div class="archive-deposits-brand-text">
 							<h1>الإيداعات</h1>
-							<span class="archive-deposits-subtitle">متابعة الإيداعات اليومية للبطاقات النشطة</span>
+							<span class="archive-deposits-subtitle">متابعة الإيداعات اليومية والفترات الزمنية للبطاقات النشطة</span>
 						</div>
 					</div>
 
 					<div class="archive-deposits-date-bar">
-						<div class="archive-deposits-date-meta">
-							<span class="archive-deposits-date-title">تاريخ الإيداعات</span>
-							<span class="archive-deposits-date-hint">
-								${DEPOSIT_SVGS.info_circle}
-								<span>اختر التاريخ لعرض إيداعات ذلك اليوم</span>
-							</span>
-						</div>
-
 						<div class="archive-deposits-date-controls">
-							<button
-								type="button"
-								class="archive-deposits-day-step"
-								data-action="prev-day"
-								title="اليوم السابق"
-								aria-label="اليوم السابق"
-							>
-								${DEPOSIT_SVGS.chevron_right}
-							</button>
-
-							<div
-								class="archive-deposits-date-box"
-								role="button"
-								tabindex="0"
-								title="اختر تاريخ الإيداعات"
-							>
-								<span class="archive-deposits-date-display" data-role="date-display" dir="ltr">
-									${frappe.utils.escape_html(format_display_date_slash(this.state.deposit_date))}
-								</span>
-								<span class="archive-deposits-date-cal-icon" aria-hidden="true">
-									${DEPOSIT_SVGS.calendar}
-								</span>
-								<input
-									type="date"
-									class="archive-deposits-date-native"
-									data-role="deposit-date-input"
-									tabindex="-1"
-									aria-hidden="true"
-									value="${frappe.utils.escape_html(this.state.deposit_date)}"
-								/>
+							<div class="ad-period-mode-wrap">
+								<select
+									class="form-control input-xs ad-period-mode-select"
+									data-role="period-mode-select"
+									aria-label="نطاق الفترة الزمنية"
+								>
+									<option value="day" selected>خلال يوم</option>
+									<option value="month">خلال شهر</option>
+									<option value="year">خلال عام</option>
+									<option value="range">خلال فترة</option>
+								</select>
 							</div>
 
-							<button
-								type="button"
-								class="archive-deposits-day-step"
-								data-action="next-day"
-								title="اليوم التالي"
-								aria-label="اليوم التالي"
-							>
-								${DEPOSIT_SVGS.chevron_left}
-							</button>
+							<div class="ad-period-day-group" data-role="period-day-group">
+								<button
+									type="button"
+									class="archive-deposits-day-step"
+									data-action="prev-day"
+									title="اليوم السابق"
+									aria-label="اليوم السابق"
+								>
+									${DEPOSIT_SVGS.chevron_right}
+								</button>
 
-							<button
-								type="button"
-								class="btn archive-deposits-today-btn"
-								data-action="go-today"
-							>
-								${DEPOSIT_SVGS.calendar}
-								<span>اليوم</span>
-							</button>
-							<div class="archive-fiscal-year-filter-wrap" style="display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 4px;">
-							<label class="archive-fiscal-year-label" style="margin: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap;">السنة المالية</label>
-							<select class="form-control input-xs archive-fiscal-year-select" data-role="fiscal-year-select" style="width: auto; min-width: 110px; height: 32px; padding: 2px 8px; border-radius: 6px; font-weight: 600;">
-							</select>
-						</div>
+								<div
+									class="archive-deposits-date-box"
+									role="button"
+									tabindex="0"
+									title="اختر تاريخ الإيداعات"
+								>
+									<span class="archive-deposits-date-display" data-role="date-display" dir="ltr">
+										${frappe.utils.escape_html(format_display_date_slash(this.state.deposit_date))}
+									</span>
+									<span class="archive-deposits-date-cal-icon" aria-hidden="true">
+										${DEPOSIT_SVGS.calendar}
+									</span>
+									<input
+										type="date"
+										class="archive-deposits-date-native"
+										data-role="deposit-date-input"
+										tabindex="-1"
+										aria-hidden="true"
+										value="${frappe.utils.escape_html(this.state.deposit_date)}"
+									/>
+								</div>
+
+								<button
+									type="button"
+									class="archive-deposits-day-step"
+									data-action="next-day"
+									title="اليوم التالي"
+									aria-label="اليوم التالي"
+								>
+									${DEPOSIT_SVGS.chevron_left}
+								</button>
+							</div>
+
+							<div class="ad-period-month-group" data-role="period-month-group" hidden>
+								<label class="ad-period-inline-label">الشهر</label>
+								<select class="form-control input-xs ad-period-month-select" data-role="period-month-select">
+									${month_options_html}
+								</select>
+							</div>
+
+							<div class="ad-period-year-group" data-role="period-year-group" hidden>
+								<label class="ad-period-inline-label">السنة</label>
+								<select class="form-control input-xs ad-period-year-select" data-role="period-year-select">
+								</select>
+							</div>
+
+							<div class="ad-period-range-group" data-role="period-range-group" hidden>
+								<div class="ad-period-range-item">
+									<label class="ad-period-inline-label">من تاريخ</label>
+									<input
+										type="date"
+										class="form-control input-xs ad-period-date-input"
+										data-role="date-from-input"
+										dir="ltr"
+										value="${frappe.utils.escape_html(this.state.date_from)}"
+									/>
+								</div>
+								<div class="ad-period-range-item">
+									<label class="ad-period-inline-label">إلى تاريخ</label>
+									<input
+										type="date"
+										class="form-control input-xs ad-period-date-input"
+										data-role="date-to-input"
+										dir="ltr"
+										value="${frappe.utils.escape_html(this.state.date_to)}"
+									/>
+								</div>
+							</div>
+
+							<div class="archive-fiscal-year-filter-wrap ad-period-year-group" data-role="fiscal-year-wrap">
+								<label class="ad-period-inline-label archive-fiscal-year-label">السنة</label>
+								<select class="form-control input-xs ad-period-year-select archive-fiscal-year-select" data-role="fiscal-year-select">
+								</select>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -472,6 +565,50 @@ class ArchiveDepositsPage {
 		`);
 
 		this.render_columns_menu();
+		this.render_period_controls();
+	}
+
+	render_period_controls() {
+		const $main = $(this.page.main);
+		if (!$main.length) return;
+
+		const mode = this.state.period_mode || "day";
+		$main.find('[data-role="period-mode-select"]').val(mode);
+
+		const is_day = mode === "day";
+		const is_month = mode === "month";
+		const is_year = mode === "year";
+		const is_range = mode === "range";
+
+		$main.find('[data-role="period-day-group"]').prop("hidden", !is_day);
+		$main.find('[data-role="period-month-group"]').prop("hidden", !is_month);
+		$main.find('[data-role="period-year-group"]').prop("hidden", !(is_month || is_year));
+		$main.find('[data-role="period-range-group"]').prop("hidden", !is_range);
+		$main.find('[data-role="fiscal-year-wrap"]').prop("hidden", !is_day);
+
+		const $year_sel = $main.find('[data-role="period-year-select"]');
+		if ($year_sel.length) {
+			const ctx = this.fiscal_context || {};
+			const allowed = Array.isArray(ctx.allowed_view_years) && ctx.allowed_view_years.length
+				? ctx.allowed_view_years
+				: [String(this.state.period_year || new Date().getFullYear())];
+			const cur_yr = String(this.state.period_year || allowed[0]);
+			$year_sel.html(
+				allowed
+					.map((yr) => {
+						const meta = (ctx.years || []).find((item) => item.year_name === yr);
+						const closed_suffix = meta && Number(meta.is_closed) === 1 ? " (مغلقة)" : "";
+						return `<option value="${frappe.utils.escape_html(yr)}" ${
+							String(yr) === cur_yr ? "selected" : ""
+						}>${frappe.utils.escape_html(`${yr}${closed_suffix}`)}</option>`;
+					})
+					.join("")
+			);
+		}
+
+		$main.find('[data-role="period-month-select"]').val(String(this.state.period_month));
+		$main.find('[data-role="date-from-input"]').val(this.state.date_from || "");
+		$main.find('[data-role="date-to-input"]').val(this.state.date_to || "");
 	}
 
 	bind_events() {
@@ -534,6 +671,44 @@ class ArchiveDepositsPage {
 			this.request_date_change(next_date);
 		});
 
+		$main.on("change", '[data-role="period-mode-select"]', (e) => {
+			const next_mode = String($(e.currentTarget).val() || "day").trim();
+			if (next_mode === this.state.period_mode) return;
+			this.request_period_change({ period_mode: next_mode });
+		});
+
+		$main.on("change", '[data-role="period-month-select"]', (e) => {
+			const next_month = Number($(e.currentTarget).val() || this.state.period_month);
+			if (next_month === this.state.period_month) return;
+			this.request_period_change({ period_month: next_month });
+		});
+
+		$main.on("change", '[data-role="period-year-select"]', (e) => {
+			const next_year = Number($(e.currentTarget).val() || this.state.period_year);
+			if (next_year === this.state.period_year) return;
+			this.request_period_change({
+				period_year: next_year,
+				fiscal_year: String(next_year),
+			});
+		});
+
+		$main.on("change", '[data-role="date-from-input"], [data-role="date-to-input"]', () => {
+			const next_from = String($main.find('[data-role="date-from-input"]').val() || "").trim();
+			const next_to = String($main.find('[data-role="date-to-input"]').val() || "").trim();
+			if (!next_from || !next_to) return;
+			if (next_from > next_to) {
+				frappe.show_alert({
+					message: "تاريخ البداية لا يمكن أن يكون بعد تاريخ النهاية.",
+					indicator: "red",
+				});
+				$main.find('[data-role="date-from-input"]').val(this.state.date_from);
+				$main.find('[data-role="date-to-input"]').val(this.state.date_to);
+				return;
+			}
+			if (next_from === this.state.date_from && next_to === this.state.date_to) return;
+			this.request_period_change({ date_from: next_from, date_to: next_to });
+		});
+
 		$main.on("change", '[data-role="fiscal-year-select"]', (e) => {
 			const next_year = String($(e.currentTarget).val() || "").trim();
 			if (!next_year || next_year === this.state.fiscal_year) {
@@ -544,6 +719,7 @@ class ArchiveDepositsPage {
 				? today_str
 				: `${next_year}-01-01`;
 			this.state.fiscal_year = next_year;
+			this.state.period_year = Number(next_year) || this.state.period_year;
 			this.request_date_change(target_date);
 		});
 
@@ -568,14 +744,14 @@ class ArchiveDepositsPage {
 
 		$main.on("click", "[data-status-card]", (e) => {
 			const next_filter = String($(e.currentTarget).attr("data-status-card") || "all");
-			if (!["all", "deposited", "not_deposited"].includes(next_filter)) {
+			if (!["all", "deposited", "not_deposited", "stopped_for_reason"].includes(next_filter)) {
 				return;
 			}
-			if (this.state.status_filter === next_filter && next_filter !== "all") {
-				this.state.status_filter = "all";
-			} else {
-				this.state.status_filter = next_filter;
+			const current_filter = this.state.status_filter || "all";
+			if (current_filter === next_filter) {
+				return;
 			}
+			this.state.status_filter = next_filter;
 			this.state.page = 1;
 			this.render_stats();
 			this.load_context(true);
@@ -591,6 +767,7 @@ class ArchiveDepositsPage {
 			this.state.filters[key] = $(e.currentTarget).val() || "";
 			this.state.page = 1;
 			this.update_filter_badge();
+			this.render_stats();
 			this.load_context(true);
 		});
 
@@ -604,6 +781,7 @@ class ArchiveDepositsPage {
 			$main.find("[data-filter]").val("");
 			this.state.page = 1;
 			this.update_filter_badge();
+			this.render_stats();
 			this.load_context(true);
 		});
 
@@ -646,18 +824,24 @@ class ArchiveDepositsPage {
 
 		// Inline deposit cell editing
 		$main.on("focus", ".ad-deposit-input", (e) => {
-			if (!this.permissions?.can_save) return;
 			const $input = $(e.currentTarget);
+			if ($input.prop("disabled") || $input.prop("readonly")) return;
+			const row_key = String($input.attr("data-row-key") || "");
 			const card_id = String($input.attr("data-card") || "");
-			const row = this.rows_by_card.get(card_id);
+			const row = this.rows_by_key.get(row_key) || this.rows_by_card.get(card_id);
 			if (!row) return;
 
-			if (this.dirty_deposits.has(card_id)) {
-				const dirty = this.dirty_deposits.get(card_id);
-				$input.val(dirty.raw);
+			const resolved_key = row.row_key || make_row_key(row.card, row.deposit_date);
+			if (this.dirty_deposits.has(resolved_key)) {
+				const dirty = this.dirty_deposits.get(resolved_key);
+				if (dirty.raw !== undefined && dirty.raw !== null) {
+					$input.val(dirty.raw);
+				} else {
+					$input.val(dirty.amount > 0 ? String(dirty.amount) : "");
+				}
 			} else if (Number(row.deposit_amount || 0) > 0) {
 				$input.val(String(row.deposit_amount));
-			} else if (row.has_saved_record && Number(row.deposit_amount || 0) === 0) {
+			} else if (row.has_saved_record && Number(row.deposit_amount || 0) === 0 && !row.stopped_for_reason) {
 				$input.val("0");
 			} else {
 				$input.val("");
@@ -672,30 +856,37 @@ class ArchiveDepositsPage {
 		});
 
 		$main.on("input", ".ad-deposit-input", (e) => {
-			if (!this.permissions?.can_save) return;
 			const $input = $(e.currentTarget);
+			if ($input.prop("disabled") || $input.prop("readonly")) return;
 			const raw_val = $input.val() || "";
+			const row_key = String($input.attr("data-row-key") || "");
 			const card_id = String($input.attr("data-card") || "");
+			const row = this.rows_by_key.get(row_key) || this.rows_by_card.get(card_id);
+			if (!row) return;
+			const resolved_key = row.row_key || make_row_key(row.card, row.deposit_date);
+
 			const norm_trimmed = normalize_western_digits(raw_val).trim();
 			if (norm_trimmed.startsWith("-")) {
-				this.handle_inline_amount_change(card_id, norm_trimmed, $input, true);
+				this.handle_inline_amount_change(resolved_key, norm_trimmed, $input, true);
 				return;
 			}
 			const sanitized = sanitize_deposit_input_text(raw_val);
 			if (sanitized !== raw_val) {
 				$input.val(sanitized);
 			}
-			this.handle_inline_amount_change(card_id, sanitized, $input, false);
+			this.handle_inline_amount_change(resolved_key, sanitized, $input, false);
 		});
 
 		$main.on("blur", ".ad-deposit-input", (e) => {
 			const $input = $(e.currentTarget);
+			const row_key = String($input.attr("data-row-key") || "");
 			const card_id = String($input.attr("data-card") || "");
-			const row = this.rows_by_card.get(card_id);
+			const row = this.rows_by_key.get(row_key) || this.rows_by_card.get(card_id);
 			if (!row) return;
+			const resolved_key = row.row_key || make_row_key(row.card, row.deposit_date);
 
-			if (this.dirty_deposits.has(card_id)) {
-				const dirty = this.dirty_deposits.get(card_id);
+			if (this.dirty_deposits.has(resolved_key)) {
+				const dirty = this.dirty_deposits.get(resolved_key);
 				if (dirty.is_negative) {
 					$input.val(dirty.raw);
 				} else if (dirty.raw === "") {
@@ -705,7 +896,7 @@ class ArchiveDepositsPage {
 				}
 			} else if (Number(row.deposit_amount || 0) > 0) {
 				$input.val(format_deposit_number(row.deposit_amount, true));
-			} else if (row.has_saved_record && Number(row.deposit_amount || 0) === 0) {
+			} else if (row.has_saved_record && Number(row.deposit_amount || 0) === 0 && !row.stopped_for_reason) {
 				$input.val("0");
 			} else {
 				$input.val("");
@@ -713,7 +904,8 @@ class ArchiveDepositsPage {
 		});
 
 		$main.on("keydown", ".ad-deposit-input", (e) => {
-			if (!this.permissions?.can_save) {
+			const $input = $(e.currentTarget);
+			if ($input.prop("disabled") || $input.prop("readonly")) {
 				if (e.key !== "Tab") {
 					e.preventDefault();
 				}
@@ -735,6 +927,39 @@ class ArchiveDepositsPage {
 					$(e.currentTarget).trigger("blur");
 				}
 			}
+		});
+
+		// Stopped for reason checkbox toggle
+		$main.on("change", ".ad-stopped-reason-checkbox", (e) => {
+			const $cb = $(e.currentTarget);
+			const row_key = String($cb.attr("data-row-key") || "");
+			const card_id = String($cb.attr("data-card") || "");
+			const row = this.rows_by_key.get(row_key) || this.rows_by_card.get(card_id);
+			if (!row) return;
+			const resolved_key = row.row_key || make_row_key(row.card, row.deposit_date);
+			const want_checked = $cb.is(":checked");
+			this.handle_stopped_reason_toggle(resolved_key, want_checked, $cb);
+		});
+
+		// Approve / Unapprove deposit buttons
+		$main.on("click", '[data-action="approve-deposit"]', (e) => {
+			e.preventDefault();
+			const $btn = $(e.currentTarget);
+			const row_key = String($btn.attr("data-row-key") || "");
+			const card_id = String($btn.attr("data-card") || "");
+			const row = this.rows_by_key.get(row_key) || this.rows_by_card.get(card_id);
+			if (!row) return;
+			this.handle_approve_deposit(row);
+		});
+
+		$main.on("click", '[data-action="unapprove-deposit"]', (e) => {
+			e.preventDefault();
+			const $btn = $(e.currentTarget);
+			const row_key = String($btn.attr("data-row-key") || "");
+			const card_id = String($btn.attr("data-card") || "");
+			const row = this.rows_by_key.get(row_key) || this.rows_by_card.get(card_id);
+			if (!row) return;
+			this.handle_unapprove_deposit(row);
 		});
 
 		$main.on("click", '[data-action="save-deposits"]', () => {
@@ -766,7 +991,7 @@ class ArchiveDepositsPage {
 					}, 50);
 
 					frappe.confirm(
-						"لديك تعديلات إيداعات غير محفوظة في هذا اليوم. هل تريد مغادرة الشاشة وتجاهل التعديلات غير المحفوظة؟",
+						"لديك تعديلات إيداعات غير محفوظة. هل تريد مغادرة الشاشة وتجاهل التعديلات غير المحفوظة؟",
 						() => {
 							this.dirty_deposits.clear();
 							this.update_save_button_state();
@@ -780,6 +1005,53 @@ class ArchiveDepositsPage {
 				}
 			});
 		}
+	}
+
+	request_period_change(patch) {
+		if (this.dirty_deposits.size === 0) {
+			this.apply_period_change(patch);
+			return;
+		}
+
+		this.render_period_controls();
+		frappe.confirm(
+			"توجد تعديلات غير محفوظة في العرض الحالي. هل تريد تغيير الفترة الزمنية وتجاهل التعديلات غير المحفوظة؟",
+			() => {
+				this.dirty_deposits.clear();
+				this.update_save_button_state();
+				this.apply_period_change(patch);
+			}
+		);
+	}
+
+	apply_period_change(patch) {
+		Object.assign(this.state, patch);
+		if (patch.period_mode && patch.period_mode !== "day") {
+			if (!this.state.period_year) {
+				this.state.period_year =
+					Number(this.state.fiscal_year) ||
+					Number(String(this.state.deposit_date || "").slice(0, 4)) ||
+					new Date().getFullYear();
+			}
+			if (!this.state.period_month) {
+				this.state.period_month =
+					Number(String(this.state.deposit_date || "").slice(5, 7)) ||
+					new Date().getMonth() + 1;
+			}
+			if (patch.period_mode === "range" && (!this.state.date_from || !this.state.date_to)) {
+				const yr = this.state.period_year;
+				const mo = String(this.state.period_month).padStart(2, "0");
+				this.state.date_from = `${yr}-${mo}-01`;
+				this.state.date_to = this.state.deposit_date || `${yr}-${mo}-01`;
+			}
+		}
+		this.state.page = 1;
+		this.dirty_deposits.clear();
+		this.accounts_baseline.clear();
+		this.update_save_button_state();
+		this.render_period_controls();
+		this.render_columns_menu();
+		this.load_context(true);
 	}
 
 	request_date_change(next_date) {
@@ -817,8 +1089,15 @@ class ArchiveDepositsPage {
 		this.load_context(true);
 	}
 
-	compute_account_live_state(account_key, fallback_row = null) {
-		const key = String(account_key || fallback_row?.account_key || fallback_row?.card || "");
+	compute_account_live_state(account_day_key, fallback_row = null) {
+		const resolved_day = String(fallback_row?.deposit_date || this.state.deposit_date || "").trim();
+		const raw_acc = String(fallback_row?.account_key || fallback_row?.card || "").trim();
+		const key = String(
+			account_day_key ||
+				fallback_row?.account_day_key ||
+				(resolved_day && raw_acc ? make_account_day_key(raw_acc, resolved_day) : raw_acc)
+		);
+
 		let base = this.accounts_baseline.get(key) || null;
 		if (!base && fallback_row) {
 			base = {
@@ -848,12 +1127,13 @@ class ArchiveDepositsPage {
 						? fallback_row.account_saved_total
 						: fallback_row.deposit_amount || 0
 				),
+				group_size: Number(fallback_row.group_size || fallback_row.account_copy_count || 1),
 				has_limit_conflict: Boolean(fallback_row.has_limit_conflict),
 			};
 		}
 		if (!base) {
 			for (const d of this.dirty_deposits.values()) {
-				if (d.account_key === key) {
+				if (d.account_day_key === key || d.account_key === key) {
 					base = {
 						has_business: Boolean(d.has_business || d.card_type === "أعمال"),
 						has_mada: Boolean(d.has_mada || d.card_type === "مدى"),
@@ -865,6 +1145,7 @@ class ArchiveDepositsPage {
 						legacy_saved_total: Number(d.legacy_saved_total || 0),
 						daily_limit: Number(d.daily_limit || 0),
 						account_saved_total: Number(d.account_saved_total || 0),
+						group_size: Number(d.group_size || d.account_copy_count || 1),
 						has_limit_conflict: Boolean(d.has_limit_conflict),
 					};
 					break;
@@ -892,7 +1173,7 @@ class ArchiveDepositsPage {
 		let delta_legacy = 0;
 		let delta_all = 0;
 		for (const entry of this.dirty_deposits.values()) {
-			if (entry.account_key === key && !entry.is_negative) {
+			if ((entry.account_day_key === key || entry.account_key === key) && !entry.is_negative) {
 				const d = Number(entry.amount || 0) - Number(entry.saved_amount || 0);
 				delta_all += d;
 				if (entry.card_type === "أعمال") {
@@ -949,7 +1230,7 @@ class ArchiveDepositsPage {
 		const is_over_limit = is_over_for_type(row_ctype);
 
 		return {
-			account_key: key,
+			account_day_key: key,
 			daily_limit,
 			base_saved,
 			effective_total,
@@ -957,39 +1238,134 @@ class ArchiveDepositsPage {
 			is_over_limit,
 			remaining_for_type,
 			is_over_for_type,
+			group_size: Math.max(
+				Number(base?.group_size || 1),
+				Number(fallback_row?.group_size || fallback_row?.account_copy_count || 1)
+			),
 			has_limit_conflict: Boolean(base?.has_limit_conflict),
 		};
 	}
 
-	sync_account_dom_rows(account_key, fallback_row = null) {
-		const acct_state = this.compute_account_live_state(account_key, fallback_row);
+	resolve_row_visual_state(row, acct_state = null) {
+		const row_key = row.row_key || make_row_key(row.card, row.deposit_date);
+		const is_dirty = this.dirty_deposits.has(row_key);
+		const dirty_entry = is_dirty ? this.dirty_deposits.get(row_key) : null;
+		const saved_amount = Math.round(Number(row.deposit_amount || 0) * 100) / 100;
+		const effective_amount = is_dirty
+			? dirty_entry.is_negative
+				? saved_amount
+				: Math.round(Number(dirty_entry.amount || 0) * 100) / 100
+			: saved_amount;
+		const effective_stopped = is_dirty
+			? Boolean(dirty_entry.stopped_for_reason)
+			: Boolean(row.stopped_for_reason);
+		const is_approved = Boolean(row.is_approved);
+
+		const resolved_acct =
+			acct_state ||
+			this.compute_account_live_state(
+				row.account_day_key || make_account_day_key(row.account_key || row.card, row.deposit_date),
+				row
+			);
+		const group_has_deposit = Number(resolved_acct.effective_total || 0) > 0;
+		const group_count = Math.max(
+			Number(row.group_size || row.account_copy_count || 1),
+			Number(resolved_acct.group_size || 1)
+		);
+
+		const is_row_approved = is_approved;
+		const is_row_stopped = !is_row_approved && effective_stopped;
+		const is_row_deposited = !is_row_approved && !is_row_stopped && effective_amount > 0;
+		const is_row_sibling_deposited =
+			!is_row_approved &&
+			!is_row_stopped &&
+			!is_row_deposited &&
+			group_count > 1 &&
+			group_has_deposit;
+
+		return {
+			row_key,
+			is_dirty,
+			dirty_entry,
+			saved_amount,
+			effective_amount,
+			effective_stopped,
+			is_approved,
+			is_row_approved,
+			is_row_stopped,
+			is_row_deposited,
+			is_row_sibling_deposited,
+		};
+	}
+
+	sync_account_dom_rows(account_day_key, fallback_row = null) {
+		const acct_state = this.compute_account_live_state(account_day_key, fallback_row);
 		const $tbody = $(this.page.main).find('[data-role="table-body"]');
 		if (!$tbody.length) return;
 
 		$tbody.find("tr.ad-table-row").each((_, trEl) => {
 			const $tr = $(trEl);
+			const row_key = String($tr.attr("data-row-key") || "");
 			const cid = String($tr.attr("data-card-id") || "");
-			const r = this.rows_by_card.get(cid);
+			const r = this.rows_by_key.get(row_key) || this.rows_by_card.get(cid);
 			if (!r) return;
-			const row_acc_key = String(r.account_key || r.card);
-			if (row_acc_key !== acct_state.account_key) return;
+			const r_acct_day_key =
+				r.account_day_key || make_account_day_key(r.account_key || r.card, r.deposit_date);
+			if (r_acct_day_key !== acct_state.account_day_key) return;
 
-			const is_dirty = this.dirty_deposits.has(cid);
-			const dirty_entry = is_dirty ? this.dirty_deposits.get(cid) : null;
-			const invalid_msg = dirty_entry?.invalid_msg || "";
-			const saved_amount = Math.round(Number(r.deposit_amount || 0) * 100) / 100;
+			const v = this.resolve_row_visual_state(r, acct_state);
+			const invalid_msg = v.dirty_entry?.invalid_msg || "";
 
-			$tr.toggleClass("is-dirty-row", is_dirty).toggleClass(
-				"has-deposit-error",
-				Boolean(invalid_msg)
-			);
+			$tr.toggleClass("is-dirty-row", v.is_dirty)
+				.toggleClass("has-deposit-error", Boolean(invalid_msg))
+				.toggleClass("is-row-approved", v.is_row_approved)
+				.toggleClass("is-row-stopped-reason", v.is_row_stopped)
+				.toggleClass("is-row-deposited", v.is_row_deposited)
+				.toggleClass("is-row-sibling-deposited", v.is_row_sibling_deposited);
+
+			const can_edit_row_amount =
+				Boolean(r.row_permissions?.can_edit_date) &&
+				!v.is_approved &&
+				!v.effective_stopped &&
+				!this.is_saving;
 
 			const $inp = $tr.find(".ad-deposit-input");
 			if ($inp.length) {
-				$inp.toggleClass("is-invalid", Boolean(invalid_msg))
-					.toggleClass("is-dirty", is_dirty && !invalid_msg)
-					.toggleClass("is-saved-positive", !is_dirty && !invalid_msg && saved_amount > 0)
+				$inp.prop("disabled", !can_edit_row_amount)
+					.prop("readonly", !can_edit_row_amount)
+					.toggleClass("is-invalid", Boolean(invalid_msg))
+					.toggleClass("is-dirty", v.is_dirty && !invalid_msg)
+					.toggleClass("is-saved-positive", !v.is_dirty && !invalid_msg && v.saved_amount > 0)
 					.attr("aria-invalid", invalid_msg ? "true" : "false");
+				if (can_edit_row_amount) {
+					$inp.removeAttr("disabled").removeAttr("readonly");
+				}
+			}
+
+			const can_toggle_stopped =
+				Boolean(r.row_permissions?.can_toggle_stopped_date) &&
+				!v.is_approved &&
+				!this.is_saving;
+			const $cb = $tr.find(".ad-stopped-reason-checkbox");
+			if ($cb.length) {
+				$cb.prop("checked", v.effective_stopped).prop("disabled", !can_toggle_stopped);
+				if (can_toggle_stopped) {
+					$cb.removeAttr("disabled");
+				}
+			}
+			const $cb_lbl = $tr.find(".ad-stopped-reason-label");
+			if ($cb_lbl.length) {
+				let disabled_title = "";
+				if (v.is_approved) {
+					disabled_title = "الإيداع معتمد ومقفول";
+				} else if (!r.row_permissions?.can_toggle_stopped_date) {
+					disabled_title = "ليست لديك صلاحية لتغيير «موقف لسبب» في هذا التاريخ";
+				}
+				if (disabled_title) {
+					$cb_lbl.attr("title", disabled_title);
+				} else {
+					$cb_lbl.removeAttr("title");
+				}
 			}
 
 			const $err = $tr.find('[data-role="deposit-error"]');
@@ -1004,9 +1380,14 @@ class ArchiveDepositsPage {
 				$rem.removeClass("is-over-limit");
 			}
 
-			const $dirty_pill = $tr.find('[data-role="unsaved-indicator"]');
-			if ($dirty_pill.length) {
-				$dirty_pill.prop("hidden", !is_dirty);
+			const $status_td = $tr.find(".ad-td-status");
+			if ($status_td.length) {
+				$status_td.replaceWith(this.render_table_cell(r, "status", v));
+			}
+
+			const $approval_td = $tr.find(".ad-td-approval");
+			if ($approval_td.length) {
+				$approval_td.replaceWith(this.render_table_cell(r, "approval", v));
 			}
 		});
 	}
@@ -1018,14 +1399,15 @@ class ArchiveDepositsPage {
 		return false;
 	}
 
-	handle_inline_amount_change(card_id, sanitized_raw, $input, is_negative = false) {
-		const row = this.rows_by_card.get(card_id);
-		if (!row) return;
-
+	build_dirty_meta_fields(row) {
+		const row_key = row.row_key || make_row_key(row.card, row.deposit_date);
 		const account_key = String(row.account_key || row.card);
+		const account_day_key =
+			row.account_day_key || make_account_day_key(account_key, row.deposit_date);
 		const card_type = String(row.card_type || "").trim();
 		const daily_limit = Math.max(0, Math.round(Number(row.daily_limit || 0) * 100) / 100);
 		const saved_amount = Math.round(Number(row.deposit_amount || 0) * 100) / 100;
+		const saved_stopped = Boolean(row.stopped_for_reason);
 		const account_saved_total = Math.round(
 			Number(
 				row.account_saved_total !== undefined ? row.account_saved_total : saved_amount
@@ -1033,10 +1415,16 @@ class ArchiveDepositsPage {
 		) / 100;
 		const has_limit_conflict = Boolean(row.has_limit_conflict);
 
-		const meta_fields = {
+		return {
+			row_key,
+			card: row.card,
+			deposit_date: row.deposit_date,
 			account_key,
+			account_day_key,
 			card_type,
 			daily_limit,
+			saved_amount,
+			saved_stopped_for_reason: saved_stopped,
 			account_saved_total,
 			has_business: Boolean(row.has_business || card_type === "أعمال"),
 			has_mada: Boolean(row.has_mada || card_type === "مدى"),
@@ -1046,14 +1434,43 @@ class ArchiveDepositsPage {
 			business_saved_total: Number(row.business_saved_total || 0),
 			mada_saved_total: Number(row.mada_saved_total || 0),
 			legacy_saved_total: Number(row.legacy_saved_total || 0),
+			group_size: Number(row.group_size || row.account_copy_count || 1),
 			has_limit_conflict,
 		};
+	}
+
+	sync_all_dom_rows() {
+		const seen = new Set();
+		for (const r of this.rows) {
+			const acc_day_key =
+				r.account_day_key || make_account_day_key(r.account_key || r.card, r.deposit_date);
+			if (!seen.has(acc_day_key)) {
+				seen.add(acc_day_key);
+				this.sync_account_dom_rows(acc_day_key, r);
+			}
+		}
+	}
+
+	handle_inline_amount_change(row_key, sanitized_raw, $input, is_negative = false) {
+		const row = this.rows_by_key.get(row_key) || this.rows_by_card.get(row_key);
+		if (!row) return;
+		if (row.is_approved) return;
+
+		const meta = this.build_dirty_meta_fields(row);
+		const existing_dirty = this.dirty_deposits.get(meta.row_key);
+		const current_stopped = existing_dirty
+			? Boolean(existing_dirty.stopped_for_reason)
+			: meta.saved_stopped_for_reason;
+
+		if (current_stopped) {
+			return;
+		}
 
 		if (is_negative) {
-			this.dirty_deposits.set(card_id, {
-				amount: saved_amount,
-				saved_amount,
-				...meta_fields,
+			this.dirty_deposits.set(meta.row_key, {
+				...meta,
+				amount: meta.saved_amount,
+				stopped_for_reason: current_stopped,
 				raw: sanitized_raw,
 				is_negative: true,
 				invalid_msg: DEPOSIT_NEGATIVE_MSG,
@@ -1064,27 +1481,95 @@ class ArchiveDepositsPage {
 					? 0
 					: Math.round(Number(sanitized_raw) * 100) / 100;
 
-			this.dirty_deposits.set(card_id, {
+			this.dirty_deposits.set(meta.row_key, {
+				...meta,
 				amount: parsed_num,
-				saved_amount,
-				...meta_fields,
+				stopped_for_reason: current_stopped,
 				raw: sanitized_raw,
 				is_negative: false,
 				invalid_msg: "",
 			});
 		}
 
-		const acct_state = this.compute_account_live_state(account_key, row);
+		this.revalidate_account_day_dirty_entries(meta.account_day_key, row, meta.row_key);
+		this.sync_account_dom_rows(meta.account_day_key, row);
+		this.update_save_button_state();
+	}
 
-		for (const [cid, entry] of [...this.dirty_deposits.entries()]) {
-			if (entry.account_key !== account_key) continue;
+	handle_stopped_reason_toggle(row_key, want_checked, $cb) {
+		const row = this.rows_by_key.get(row_key) || this.rows_by_card.get(row_key);
+		if (!row) return;
+
+		if (row.is_approved) {
+			$cb.prop("checked", Boolean(row.stopped_for_reason));
+			frappe.show_alert({
+				message: "هذا الإيداع معتمد ومقفول. يجب إلغاء الاعتماد أولاً.",
+				indicator: "red",
+			});
+			return;
+		}
+
+		if (!row.row_permissions?.can_toggle_stopped_date) {
+			$cb.prop("checked", Boolean(row.stopped_for_reason));
+			frappe.show_alert({
+				message: "ليست لديك صلاحية لتعديل حالة «موقف لسبب» في هذا التاريخ.",
+				indicator: "red",
+			});
+			return;
+		}
+
+		const meta = this.build_dirty_meta_fields(row);
+		const existing_dirty = this.dirty_deposits.get(meta.row_key);
+		const current_amount = existing_dirty
+			? Number(existing_dirty.amount || 0)
+			: meta.saved_amount;
+
+		if (want_checked) {
+			if (meta.saved_amount > 0) {
+				$cb.prop("checked", false);
+				frappe.show_alert({
+					message:
+						"لا يمكن تفعيل «موقف لسبب» لوجود مبلغ إيداع محفوظ مسبقاً. يجب تصفير المبلغ وحفظه أولاً ثم تفعيل «موقف لسبب».",
+					indicator: "red",
+				});
+				return;
+			}
+			if (current_amount > 0 || existing_dirty?.is_negative) {
+				$cb.prop("checked", false);
+				frappe.show_alert({
+					message: "لا يمكن تفعيل «موقف لسبب» مع وجود مبلغ إيداع أكبر من صفر.",
+					indicator: "red",
+				});
+				return;
+			}
+		}
+
+		this.dirty_deposits.set(meta.row_key, {
+			...meta,
+			amount: want_checked ? 0 : current_amount,
+			stopped_for_reason: Boolean(want_checked),
+			raw: existing_dirty?.raw ?? (current_amount > 0 ? String(current_amount) : ""),
+			is_negative: false,
+			invalid_msg: "",
+		});
+
+		this.revalidate_account_day_dirty_entries(meta.account_day_key, row, meta.row_key);
+		this.sync_account_dom_rows(meta.account_day_key, row);
+		this.update_save_button_state();
+	}
+
+	revalidate_account_day_dirty_entries(account_day_key, row, edited_row_key = "") {
+		const acct_state = this.compute_account_live_state(account_day_key, row);
+
+		for (const [rkey, entry] of [...this.dirty_deposits.entries()]) {
+			if (entry.account_day_key !== account_day_key) continue;
 
 			if (entry.is_negative) {
 				entry.invalid_msg = DEPOSIT_NEGATIVE_MSG;
 				continue;
 			}
 
-			if (acct_state.has_limit_conflict) {
+			if (acct_state.has_limit_conflict && entry.amount > 0) {
 				entry.invalid_msg =
 					"يوجد تعارض مسبق في الحد اليومي لنسخ هذا الحساب؛ يرجى توحيده من شاشة البطاقات أولاً";
 				continue;
@@ -1093,7 +1578,8 @@ class ArchiveDepositsPage {
 			const entry_over = acct_state.is_over_for_type(entry.card_type);
 			if (
 				entry_over &&
-				(cid === card_id ||
+				entry.amount > 0 &&
+				(rkey === edited_row_key ||
 					entry.amount > entry.saved_amount ||
 					Math.round(entry.amount * 100) > Math.round(entry.daily_limit * 100))
 			) {
@@ -1102,16 +1588,121 @@ class ArchiveDepositsPage {
 			}
 
 			entry.invalid_msg = "";
-			if (
+			const amount_unchanged =
 				Math.abs(entry.amount - entry.saved_amount) < 0.0001 &&
-				(entry.saved_amount > 0 ? entry.raw !== "" : true)
-			) {
-				this.dirty_deposits.delete(cid);
+				(entry.saved_amount > 0 ? entry.raw !== "" : true);
+			const stopped_unchanged =
+				Boolean(entry.stopped_for_reason) === Boolean(entry.saved_stopped_for_reason);
+
+			if (amount_unchanged && stopped_unchanged) {
+				this.dirty_deposits.delete(rkey);
 			}
 		}
+	}
 
-		this.sync_account_dom_rows(account_key, row);
-		this.update_save_button_state();
+	async handle_approve_deposit(row) {
+		const row_key = row.row_key || make_row_key(row.card, row.deposit_date);
+		if (this.approving_keys.has(row_key) || this.is_saving) return;
+
+		if (this.dirty_deposits.has(row_key)) {
+			frappe.show_alert({
+				message: "يوجد تعديل غير محفوظ على هذا الصف. يرجى حفظ التعديلات أولاً قبل الاعتماد.",
+				indicator: "orange",
+			});
+			return;
+		}
+
+		if (!row.has_saved_record || Number(row.deposit_amount || 0) <= 0 || row.stopped_for_reason) {
+			frappe.show_alert({
+				message: "لا يمكن اعتماد هذا الصف إلا بعد حفظ مبلغ إيداع أكبر من صفر.",
+				indicator: "red",
+			});
+			return;
+		}
+
+		this.approving_keys.add(row_key);
+		const acct_day_key =
+			row.account_day_key || make_account_day_key(row.account_key || row.card, row.deposit_date);
+		this.sync_account_dom_rows(acct_day_key, row);
+
+		try {
+			const res = await frappe.call({
+				method: "archive.api.deposits.approve_deposit",
+				type: "POST",
+				args: {
+					card: row.card,
+					deposit_date: row.deposit_date,
+					expected_amount: row.deposit_amount,
+				},
+			});
+			const out = res?.message || {};
+			row.is_approved = true;
+			row.approved_amount = out.approved_amount ?? row.deposit_amount;
+			row.approved_amount_formatted = format_deposit_number(row.approved_amount, false);
+			if (out.audit) {
+				row.audit = out.audit;
+			}
+			if (row.row_permissions) {
+				row.row_permissions.can_edit = false;
+				row.row_permissions.can_toggle_stopped = false;
+				row.row_permissions.can_approve = false;
+				row.row_permissions.can_unapprove = Boolean(row.row_permissions.can_approve_date);
+			}
+			frappe.show_alert({
+				message: "تم اعتماد الإيداع بنجاح.",
+				indicator: "green",
+			});
+		} finally {
+			this.approving_keys.delete(row_key);
+			this.sync_account_dom_rows(acct_day_key, row);
+		}
+	}
+
+	handle_unapprove_deposit(row) {
+		const row_key = row.row_key || make_row_key(row.card, row.deposit_date);
+		if (this.approving_keys.has(row_key) || this.is_saving) return;
+
+		frappe.confirm("هل تريد إلغاء اعتماد هذا الإيداع؟", async () => {
+			this.approving_keys.add(row_key);
+			const acct_day_key =
+				row.account_day_key || make_account_day_key(row.account_key || row.card, row.deposit_date);
+			this.sync_account_dom_rows(acct_day_key, row);
+
+			try {
+				const res = await frappe.call({
+					method: "archive.api.deposits.unapprove_deposit",
+					type: "POST",
+					args: {
+						card: row.card,
+						deposit_date: row.deposit_date,
+					},
+				});
+				const out = res?.message || {};
+				row.is_approved = false;
+				if (out.audit) {
+					row.audit = out.audit;
+				}
+				if (row.row_permissions) {
+					row.row_permissions.can_edit =
+						Boolean(row.row_permissions.can_edit_date) && !row.stopped_for_reason;
+					row.row_permissions.can_toggle_stopped =
+						Boolean(row.row_permissions.can_toggle_stopped_date) &&
+						Number(row.deposit_amount || 0) <= 0;
+					row.row_permissions.can_approve =
+						Boolean(row.row_permissions.can_approve_date) &&
+						Number(row.deposit_amount || 0) > 0 &&
+						!row.stopped_for_reason;
+					row.row_permissions.can_unapprove = false;
+				}
+				frappe.show_alert({
+					message: "تم إلغاء اعتماد الإيداع بنجاح.",
+					indicator: "blue",
+				});
+			} finally {
+				this.approving_keys.delete(row_key);
+				this.sync_account_dom_rows(acct_day_key, row);
+			}
+		});
 	}
 
 	update_save_button_state() {
@@ -1127,7 +1718,7 @@ class ArchiveDepositsPage {
 		$btn.toggleClass("is-read-only-date", !can_save);
 		$btn.attr(
 			"title",
-			!can_save ? "التاريخ المختار متاح للعرض فقط حسب صلاحياتك" : ""
+			!can_save ? "الفترة أو التاريخ المختار متاح للعرض فقط حسب صلاحياتك" : ""
 		);
 
 		const $badge = $main.find('[data-role="dirty-count"]');
@@ -1156,7 +1747,7 @@ class ArchiveDepositsPage {
 		}
 
 		frappe.confirm(
-			"توجد مبالغ إيداع معدلة غير محفوظة في التاريخ الحالي. هل تريد تحديث البيانات وتجاهل التعديلات غير المحفوظة؟",
+			"توجد تعديلات غير محفوظة في العرض الحالي. هل تريد تحديث البيانات وتجاهل التعديلات غير المحفوظة؟",
 			() => {
 				this.dirty_deposits.clear();
 				this.accounts_baseline.clear();
@@ -1227,7 +1818,15 @@ class ArchiveDepositsPage {
 				type: "GET",
 				args: {
 					deposit_date: this.state.deposit_date,
-					fiscal_year: this.state.fiscal_year || undefined,
+					period_mode: this.state.period_mode || "day",
+					period_month: this.state.period_month,
+					period_year: this.state.period_year,
+					date_from: this.state.date_from,
+					date_to: this.state.date_to,
+					fiscal_year:
+						this.state.period_mode === "range"
+							? undefined
+							: this.state.fiscal_year || undefined,
 					status_filter: this.state.status_filter === "all" ? "" : this.state.status_filter,
 					search: this.state.search,
 					bank: this.state.filters.bank,
@@ -1243,21 +1842,42 @@ class ArchiveDepositsPage {
 			if (seq !== this._load_seq) return;
 			const data = res?.message || {};
 
+			this.state.period_mode = data.period_mode || this.state.period_mode || "day";
 			this.state.deposit_date = data.deposit_date || this.state.deposit_date;
-			this.state.fiscal_year = data.fiscal_year || String(this.state.deposit_date || "").slice(0, 4);
+			if (data.period_month) this.state.period_month = Number(data.period_month);
+			if (data.period_year) this.state.period_year = Number(data.period_year);
+			if (data.date_from) this.state.date_from = data.date_from;
+			if (data.date_to) this.state.date_to = data.date_to;
+			if (data.fiscal_year && data.fiscal_year !== "all") {
+				this.state.fiscal_year = data.fiscal_year;
+			}
 			this.fiscal_year_is_closed = Boolean(data.fiscal_year_is_closed);
 			this.fiscal_context = data.fiscal_context || this.fiscal_context || {};
 			this.render_fiscal_year_filter();
+			this.render_period_controls();
+			this.render_columns_menu();
+
 			this.state.today = data.today || this.state.today;
 			this.rows = data.rows || [];
+			this.rows_by_key.clear();
 			this.rows_by_card.clear();
 			if (this.dirty_deposits.size === 0) {
 				this.accounts_baseline.clear();
 			}
 			for (const r of this.rows) {
-				this.rows_by_card.set(r.card, r);
+				const rkey = r.row_key || make_row_key(r.card, r.deposit_date);
+				r.row_key = rkey;
 				const acc_key = String(r.account_key || r.card);
-				this.accounts_baseline.set(acc_key, {
+				const acc_day_key = r.account_day_key || make_account_day_key(acc_key, r.deposit_date);
+				r.account_day_key = acc_day_key;
+
+				this.rows_by_key.set(rkey, r);
+				this.rows_by_card.set(rkey, r);
+				if (!this.rows_by_card.has(r.card)) {
+					this.rows_by_card.set(r.card, r);
+				}
+
+				this.accounts_baseline.set(acc_day_key, {
 					has_business: Boolean(r.has_business || r.card_type === "أعمال"),
 					has_mada: Boolean(r.has_mada || r.card_type === "مدى"),
 					business_limit: Number(r.business_limit || 0),
@@ -1272,6 +1892,7 @@ class ArchiveDepositsPage {
 							? r.account_saved_total
 							: r.deposit_amount || 0
 					),
+					group_size: Number(r.group_size || r.account_copy_count || 1),
 					has_limit_conflict: Boolean(r.has_limit_conflict),
 				});
 			}
@@ -1297,7 +1918,11 @@ class ArchiveDepositsPage {
 			window.sync_archive_deposits_sidebar_visibility?.();
 
 			const $main = $(this.page.main);
-			$main.find(".archive-deposits-date-bar, [data-role='stats-bar'], .archive-deposits-toolbar, [data-role='table-head'], [data-role='pagination-bar']").prop("hidden", false);
+			$main
+				.find(
+					".archive-deposits-date-bar, [data-role='stats-bar'], .archive-deposits-toolbar, [data-role='table-head'], [data-role='pagination-bar']"
+				)
+				.prop("hidden", false);
 			$main.find('[data-role="deposit-date-input"]').val(this.state.deposit_date);
 			$main
 				.find('[data-role="date-display"]')
@@ -1347,16 +1972,19 @@ class ArchiveDepositsPage {
 		}
 
 		const payload_items = [];
-		for (const [card, entry] of this.dirty_deposits.entries()) {
+		for (const [, entry] of this.dirty_deposits.entries()) {
 			payload_items.push({
-				card,
+				card: entry.card,
+				deposit_date: entry.deposit_date || this.state.deposit_date,
 				amount: entry.amount,
+				stopped_for_reason: entry.stopped_for_reason ? 1 : 0,
 			});
 		}
 
 		this.is_saving = true;
 		this.update_save_button_state();
 		this.update_refresh_button_state();
+		let context_reloaded = false;
 
 		try {
 			const res = await frappe.call({
@@ -1375,11 +2003,13 @@ class ArchiveDepositsPage {
 			frappe.show_alert({
 				message:
 					out.saved_count > 0
-						? `تم حفظ إيداعات اليوم (${out.saved_count} بطاقة) بنجاح.`
+						? `تم حفظ التعديلات (${out.saved_count} سجل) بنجاح.`
 						: "تم تحديث حالة الإيداعات بنجاح.",
 				indicator: "green",
 			});
 
+			this.is_saving = false;
+			context_reloaded = true;
 			await this.load_context(true);
 		} catch (err) {
 			if (
@@ -1388,10 +2018,15 @@ class ArchiveDepositsPage {
 				err?.xhr?.status === 403
 			) {
 				this.dirty_deposits.clear();
+				this.is_saving = false;
+				context_reloaded = true;
 				await this.load_context(true);
 			}
 		} finally {
 			this.is_saving = false;
+			if (!context_reloaded) {
+				this.sync_all_dom_rows();
+			}
 			this.update_save_button_state();
 			this.update_refresh_button_state();
 		}
@@ -1405,6 +2040,7 @@ class ArchiveDepositsPage {
 			frappe?.boot?.archive_can_access_deposits === false;
 
 		this.rows = [];
+		this.rows_by_key.clear();
 		this.rows_by_card.clear();
 		this.dirty_deposits.clear();
 		this.permissions = { can_view: false, can_save: false };
@@ -1428,7 +2064,7 @@ class ArchiveDepositsPage {
 			: err?.message || "تعذر جلب بيانات شاشة الإيداعات.";
 		$tbody.html(`
 					<tr>
-						<td colspan="8">
+						<td colspan="10">
 							<div class="ac-table-empty-state">
 								${DEPOSIT_SVGS.lock}
 								<span>${frappe.utils.escape_html(msg)}</span>
@@ -1464,6 +2100,12 @@ class ArchiveDepositsPage {
 	render_stats() {
 		const s = this.stats || {};
 		const cur_filter = this.state.status_filter || "all";
+		const is_day = (this.state.period_mode || "day") === "day";
+		const target_frozen = Boolean(
+			s.target_is_frozen ||
+				this.state.filters.representative ||
+				this.state.filters.region
+		);
 
 		const cards = [
 			{
@@ -1471,7 +2113,7 @@ class ArchiveDepositsPage {
 				clickable: true,
 				active: cur_filter === "all",
 				label: "كل الإيداعات",
-				sub: "إجمالي البطاقات النشطة في اليوم",
+				sub: is_day ? "إجمالي البطاقات النشطة في اليوم" : "إجمالي سجلات البطاقات خلال الفترة",
 				value: format_deposit_number(s.total_cards || 0, false),
 				tone: "violet",
 				icon: DEPOSIT_SVGS.stat_all,
@@ -1481,9 +2123,9 @@ class ArchiveDepositsPage {
 				clickable: true,
 				active: cur_filter === "deposited",
 				label: "المودعين",
-				sub: "عدد البطاقات التي تم الإيداع لها",
+				sub: "عدد السجلات التي تم الإيداع لها",
 				value: format_deposit_number(s.deposited_count || 0, false),
-				tone: "blue",
+				tone: "green",
 				icon: DEPOSIT_SVGS.stat_deposited,
 			},
 			{
@@ -1491,28 +2133,47 @@ class ArchiveDepositsPage {
 				clickable: true,
 				active: cur_filter === "not_deposited",
 				label: "لم يودعوا",
-				sub: "بطاقات لم يتم الإيداع لها حتى الآن",
+				sub: "سجلات لم يتم الإيداع لها",
 				value: format_deposit_number(s.not_deposited_count || 0, false),
 				tone: "red",
 				icon: DEPOSIT_SVGS.stat_not_deposited,
+			},
+			{
+				id: "stopped_for_reason",
+				clickable: true,
+				active: cur_filter === "stopped_for_reason",
+				label: "موقف لسبب",
+				sub: "سجلات مستثناة من عدم الإيداع لسبب",
+				value: format_deposit_number(s.stopped_for_reason_count || 0, false),
+				tone: "amber",
+				icon: DEPOSIT_SVGS.stat_stopped_reason,
 			},
 			{
 				id: "total_deposited",
 				clickable: false,
 				active: false,
 				label: "إجمالي المبلغ المودع",
-				sub: "إجمالي ما تم إيداعه اليوم",
-				value: s.total_deposited_amount_formatted ?? format_deposit_number(s.total_deposited_amount || 0, false),
-				tone: "green",
+				sub: is_day ? "إجمالي ما تم إيداعه اليوم" : "إجمالي المبالغ المودعة خلال الفترة",
+				value:
+					s.total_deposited_amount_formatted ??
+					format_deposit_number(s.total_deposited_amount || 0, false),
+				tone: "blue",
 				icon: DEPOSIT_SVGS.stat_amount,
 			},
 			{
 				id: "daily_target",
 				clickable: false,
 				active: false,
-				label: "إجمالي الهدف اليومي",
-				sub: "مجموع الحدود اليومية للبطاقات النشطة",
-				value: s.total_daily_target_formatted ?? format_deposit_number(s.total_daily_target || 0, false),
+				frozen: target_frozen,
+				label: is_day ? "إجمالي الهدف اليومي" : "إجمالي الهدف",
+				sub: target_frozen
+					? "مجمّد عند التصفية بالمندوب أو المنطقة"
+					: is_day
+					? "مجموع الحدود اليومية للبطاقات النشطة"
+					: "مجموع الحدود اليومية خلال الفترة",
+				value:
+					s.total_daily_target_formatted ??
+					format_deposit_number(s.total_daily_target || 0, false),
 				tone: "violet",
 				icon: DEPOSIT_SVGS.stat_target,
 			},
@@ -1523,19 +2184,21 @@ class ArchiveDepositsPage {
 				const tag = c.clickable ? "button" : "div";
 				const attrs = c.clickable
 					? `type="button" data-status-card="${c.id}"`
-					: `aria-label="${frappe.utils.escape_html(c.label)}"`;
+					: `data-stat-id="${c.id}" aria-label="${frappe.utils.escape_html(c.label)}"`;
 				return `
 					<${tag}
 						class="ad-stat-card tone-${c.tone} ${c.clickable ? "is-clickable" : ""} ${
 					c.active ? "is-active" : ""
-				}"
+				} ${c.frozen ? "is-target-frozen" : ""}"
 						${attrs}
 					>
 						<div class="ad-stat-top">
 							<span class="ad-stat-icon" aria-hidden="true">${c.icon}</span>
 							<span class="ad-stat-label">${frappe.utils.escape_html(c.label)}</span>
 						</div>
-						<div class="ad-stat-value" dir="ltr">${frappe.utils.escape_html(String(c.value))}</div>
+						<div class="ad-stat-value ${c.frozen ? "is-blurred-target" : ""}" dir="ltr">${frappe.utils.escape_html(
+					String(c.value)
+				)}</div>
 						<div class="ad-stat-sub">${frappe.utils.escape_html(c.sub)}</div>
 					</${tag}>
 				`;
@@ -1546,9 +2209,11 @@ class ArchiveDepositsPage {
 	}
 
 	render_columns_menu() {
-		const html = ARCHIVE_DEPOSITS_COLUMNS.map((col) => {
-			const checked = !this.state.hidden_columns.has(col.key);
-			return `
+		const is_day = (this.state.period_mode || "day") === "day";
+		const html = ARCHIVE_DEPOSITS_COLUMNS.filter((col) => !(col.period_only && is_day))
+			.map((col) => {
+				const checked = !this.state.hidden_columns.has(col.key);
+				return `
 				<label class="ad-col-menu-item ${col.locked ? "is-locked" : ""}">
 					<input
 						type="checkbox"
@@ -1559,13 +2224,18 @@ class ArchiveDepositsPage {
 					<span>${frappe.utils.escape_html(col.label)}</span>
 				</label>
 			`;
-		}).join("");
+			})
+			.join("");
 
 		$(this.page.main).find('[data-role="columns-menu"]').html(html);
 	}
 
 	get_visible_columns() {
-		return ARCHIVE_DEPOSITS_COLUMNS.filter((c) => !this.state.hidden_columns.has(c.key));
+		const is_day = (this.state.period_mode || "day") === "day";
+		return ARCHIVE_DEPOSITS_COLUMNS.filter((c) => {
+			if (c.period_only && is_day) return false;
+			return !this.state.hidden_columns.has(c.key);
+		});
 	}
 
 	format_audit_datetime(value) {
@@ -1598,13 +2268,15 @@ class ArchiveDepositsPage {
 
 	build_audit_tooltip(row) {
 		const a = row.audit;
-		if (!a || !a.recorded_by) {
+		if (!a) {
 			return "";
 		}
 		const lines = [];
-		lines.push(`تم التسجيل بواسطة: ${a.recorded_by_name || a.recorded_by}`);
-		if (a.recorded_at) {
-			lines.push(`وقت التسجيل: ${this.format_audit_datetime(a.recorded_at)}`);
+		if (a.recorded_by) {
+			lines.push(`تم التسجيل بواسطة: ${a.recorded_by_name || a.recorded_by}`);
+			if (a.recorded_at) {
+				lines.push(`وقت التسجيل: ${this.format_audit_datetime(a.recorded_at)}`);
+			}
 		}
 		if (
 			a.last_modified_by &&
@@ -1616,6 +2288,27 @@ class ArchiveDepositsPage {
 			}
 			if (a.previous_amount !== null && a.previous_amount !== undefined) {
 				lines.push(`المبلغ السابق: ${format_deposit_number(a.previous_amount, false)}`);
+			}
+		}
+		if (a.stopped_reason_by) {
+			lines.push(`موقف لسبب بواسطة: ${a.stopped_reason_by_name || a.stopped_reason_by}`);
+			if (a.stopped_reason_at) {
+				lines.push(`وقت تغيير موقف لسبب: ${this.format_audit_datetime(a.stopped_reason_at)}`);
+			}
+		}
+		if (a.approved_by) {
+			lines.push(`تم الاعتماد بواسطة: ${a.approved_by_name || a.approved_by}`);
+			if (a.approved_at) {
+				lines.push(`وقت الاعتماد: ${this.format_audit_datetime(a.approved_at)}`);
+			}
+			if (a.approved_amount !== null && a.approved_amount !== undefined) {
+				lines.push(`المبلغ المعتمد: ${format_deposit_number(a.approved_amount, false)}`);
+			}
+		}
+		if (a.unapproved_by) {
+			lines.push(`أُلغي الاعتماد بواسطة: ${a.unapproved_by_name || a.unapproved_by}`);
+			if (a.unapproved_at) {
+				lines.push(`وقت إلغاء الاعتماد: ${this.format_audit_datetime(a.unapproved_at)}`);
 			}
 		}
 		return lines.join("\n");
@@ -1652,7 +2345,8 @@ class ArchiveDepositsPage {
 			Number.isFinite(token_2xs) && token_2xs > 0 ? token_2xs : Math.max(title_px - 2, 10);
 
 		const top = [];
-		for (let i = 0; i < this.rows.length; i++) {
+		const sample_limit = Math.min(this.rows.length, 400);
+		for (let i = 0; i < sample_limit; i++) {
 			const r = this.rows[i];
 			const name = String(r.base_card_name || r.card_name || "").trim();
 			const copy = String(r.copy_label || "").trim();
@@ -1740,12 +2434,43 @@ class ArchiveDepositsPage {
 		};
 	}
 
+	build_row_html(row, visible_cols, row_idx = 0) {
+		const v = this.resolve_row_visual_state(row);
+		const has_error = Boolean(v.dirty_entry?.invalid_msg);
+		const cells = visible_cols.map((col) => this.render_table_cell(row, col.key, v, row_idx)).join("");
+		const classes = [
+			"ad-table-row",
+			v.is_dirty ? "is-dirty-row" : "",
+			has_error ? "has-deposit-error" : "",
+			v.is_row_approved ? "is-row-approved" : "",
+			v.is_row_stopped ? "is-row-stopped-reason" : "",
+			v.is_row_deposited ? "is-row-deposited" : "",
+			v.is_row_sibling_deposited ? "is-row-sibling-deposited" : "",
+		]
+			.filter(Boolean)
+			.join(" ");
+
+		return `
+			<tr
+				class="${classes}"
+				data-row-key="${frappe.utils.escape_html(v.row_key)}"
+				data-card-id="${frappe.utils.escape_html(row.card)}"
+				data-deposit-date="${frappe.utils.escape_html(row.deposit_date || "")}"
+				data-account-key="${frappe.utils.escape_html(String(row.account_key || row.card))}"
+				data-account-day-key="${frappe.utils.escape_html(String(row.account_day_key || ""))}"
+			>
+				${cells}
+			</tr>
+		`;
+	}
+
 	render_table() {
 		const $main = $(this.page.main);
 		const visible_cols = this.get_visible_columns();
 		const $table = $main.find(".archive-deposits-table");
 		const $head = $main.find('[data-role="table-head"]');
 		const $tbody = $main.find('[data-role="table-body"]');
+		const render_token = ++this._table_render_token;
 
 		const layout = this.compute_table_column_layout(visible_cols, $main, $table);
 		$table.css({
@@ -1763,10 +2488,18 @@ class ArchiveDepositsPage {
 					: "";
 				const col_px = layout.widths.get(col.key);
 				const width_style = col_px ? `width: ${col_px}px; min-width: ${col_px}px;` : `width: ${col.width};`;
+				const is_centered_th =
+					col.key === "serial_no" ||
+					col.key === "stopped_for_reason" ||
+					col.key === "status" ||
+					col.key === "approval";
 				return `
 					<th
-						class="ac-th ${col.sortable ? "is-sortable" : ""}"
+						class="ac-th ${col.key === "serial_no" ? "ad-th-serial" : ""} ${
+					is_centered_th ? "ad-th-centered" : ""
+				} ${col.sortable ? "is-sortable" : ""}"
 						style="${width_style}"
+						data-col-key="${col.key}"
 						${col.sortable ? `data-sort-col="${col.key}"` : ""}
 					>
 						<span>${frappe.utils.escape_html(col.label)}</span>
@@ -1784,7 +2517,7 @@ class ArchiveDepositsPage {
 					<td colspan="${visible_cols.length}">
 						<div class="ac-table-empty-state">
 							${DEPOSIT_SVGS.stat_all}
-							<span>لا توجد بطاقات مطابقة لمعايير البحث أو الفلترة في هذا اليوم.</span>
+							<span>لا توجد بطاقات مطابقة لمعايير البحث أو الفلترة في هذه الفترة.</span>
 						</div>
 					</td>
 				</tr>
@@ -1792,47 +2525,73 @@ class ArchiveDepositsPage {
 			return;
 		}
 
-		const html = this.rows
-			.map((row) => {
-				const is_dirty = this.dirty_deposits.has(row.card);
-				const dirty_entry = is_dirty ? this.dirty_deposits.get(row.card) : null;
-				const has_error = Boolean(dirty_entry?.invalid_msg);
-				const cells = visible_cols
-					.map((col) => this.render_table_cell(row, col.key))
-					.join("");
-				return `
-					<tr
-						class="ad-table-row ${is_dirty ? "is-dirty-row" : ""} ${has_error ? "has-deposit-error" : ""}"
-						data-card-id="${frappe.utils.escape_html(row.card)}"
-						data-account-key="${frappe.utils.escape_html(String(row.account_key || row.card))}"
-					>
-						${cells}
-					</tr>
-				`;
-			})
+		// Chunked rendering for large datasets (e.g. "all" page size across multi-month/year period)
+		const initial_chunk = Math.min(this.rows.length, 300);
+		const first_html = this.rows
+			.slice(0, initial_chunk)
+			.map((row, idx) => this.build_row_html(row, visible_cols, idx))
 			.join("");
+		$tbody.html(first_html);
 
-		$tbody.html(html);
+		if (this.rows.length > initial_chunk) {
+			let offset = initial_chunk;
+			const chunk_size = 350;
+			const append_next_chunk = () => {
+				if (render_token !== this._table_render_token) return;
+				const slice = this.rows.slice(offset, offset + chunk_size);
+				if (!slice.length) return;
+				const chunk_html = slice
+					.map((r, sIdx) => this.build_row_html(r, visible_cols, offset + sIdx))
+					.join("");
+				$tbody[0].insertAdjacentHTML("beforeend", chunk_html);
+				offset += chunk_size;
+				if (offset < this.rows.length) {
+					window.requestAnimationFrame(append_next_chunk);
+				}
+			};
+			window.requestAnimationFrame(append_next_chunk);
+		}
 	}
 
-	render_table_cell(row, key) {
-		const is_dirty = this.dirty_deposits.has(row.card);
-		const dirty_entry = is_dirty ? this.dirty_deposits.get(row.card) : null;
+	render_table_cell(row, key, precomputed_v = null, row_idx = 0) {
+		const v = precomputed_v || this.resolve_row_visual_state(row);
+		const {
+			row_key,
+			is_dirty,
+			dirty_entry,
+			saved_amount,
+			effective_amount,
+			effective_stopped,
+			is_approved,
+		} = v;
 		const invalid_msg = dirty_entry?.invalid_msg || "";
-		const saved_amount = Number(row.deposit_amount || 0);
 		const acct_state = this.compute_account_live_state(
-			String(row.account_key || row.card),
+			row.account_day_key || make_account_day_key(row.account_key || row.card, row.deposit_date),
 			row
 		);
 		const remaining = acct_state.remaining;
-		const can_save = Boolean(this.permissions?.can_save);
+
+		if (key === "serial_no") {
+			const raw_ps = this.pagination?.page_size ?? this.state.page_size ?? 50;
+			const cur_page = Math.max(1, Number(this.pagination?.page || this.state.page || 1));
+			const page_offset =
+				String(raw_ps).toLowerCase() === "all" || Number(raw_ps) <= 0
+					? 0
+					: (cur_page - 1) * Number(raw_ps);
+			const seq_num = page_offset + (Number.isFinite(row_idx) ? row_idx : 0) + 1;
+			return `
+				<td class="ad-td-serial" dir="ltr">
+					<span class="ad-serial-badge">${frappe.utils.escape_html(String(seq_num))}</span>
+				</td>
+			`;
+		}
 
 		if (key === "card_name") {
 			const copy_badge = row.copy_label
 				? `<span class="ac-copy-badge" style="margin-right:6px;">${frappe.utils.escape_html(row.copy_label)}</span>`
 				: "";
 			const inactive_tag = row.is_historical_inactive
-				? `<span class="ad-historical-tag" title="بطاقة موقفة حالياً — سجل إيداع تاريخي محفوظ">${frappe.utils.escape_html(
+				? `<span class="ad-historical-tag" title="حالة البطاقة في ذلك التاريخ — سجل محفوظ">${frappe.utils.escape_html(
 						row.card_status
 				  )}</span>`
 				: "";
@@ -1844,6 +2603,12 @@ class ArchiveDepositsPage {
 					${inactive_tag}
 				</td>
 			`;
+		}
+
+		if (key === "deposit_date") {
+			return `<td class="ac-td-ltr ad-td-date" dir="ltr">${frappe.utils.escape_html(
+				row.deposit_date || "—"
+			)}</td>`;
 		}
 
 		if (key === "card_number") {
@@ -1882,9 +2647,15 @@ class ArchiveDepositsPage {
 				}
 			} else if (saved_amount > 0) {
 				display_val = format_deposit_number(saved_amount, true);
-			} else if (row.has_saved_record && saved_amount === 0) {
+			} else if (row.has_saved_record && saved_amount === 0 && !effective_stopped) {
 				display_val = "0";
 			}
+
+			const can_edit_row_amount =
+				Boolean(row.row_permissions?.can_edit_date) &&
+				!is_approved &&
+				!effective_stopped &&
+				!this.is_saving;
 
 			const audit_tip = this.build_audit_tooltip(row);
 			const audit_badge = audit_tip
@@ -1904,10 +2675,12 @@ class ArchiveDepositsPage {
 									invalid_msg ? "is-invalid" : is_dirty ? "is-dirty" : ""
 								} ${!is_dirty && !invalid_msg && saved_amount > 0 ? "is-saved-positive" : ""}"
 								aria-invalid="${invalid_msg ? "true" : "false"}"
+								data-row-key="${frappe.utils.escape_html(row_key)}"
 								data-card="${frappe.utils.escape_html(row.card)}"
+								data-deposit-date="${frappe.utils.escape_html(row.deposit_date || "")}"
 								value="${frappe.utils.escape_html(display_val)}"
 								placeholder=""
-								${!can_save ? "disabled readonly" : ""}
+								${!can_edit_row_amount ? "disabled readonly" : ""}
 								${audit_tip ? `title="${frappe.utils.escape_html(audit_tip)}"` : ""}
 							/>
 							${audit_badge}
@@ -1934,16 +2707,60 @@ class ArchiveDepositsPage {
 			`;
 		}
 
+		if (key === "stopped_for_reason") {
+			const can_toggle =
+				Boolean(row.row_permissions?.can_toggle_stopped_date) &&
+				!is_approved &&
+				!this.is_saving;
+			let disabled_title = "";
+			if (is_approved) {
+				disabled_title = "الإيداع معتمد ومقفول";
+			} else if (!row.row_permissions?.can_toggle_stopped_date) {
+				disabled_title = "ليست لديك صلاحية لتغيير «موقف لسبب» في هذا التاريخ";
+			}
+			return `
+				<td class="ad-td-stopped-reason">
+					<label class="ad-stopped-reason-label" ${
+						disabled_title ? `title="${frappe.utils.escape_html(disabled_title)}"` : ""
+					}>
+						<input
+							type="checkbox"
+							class="ad-stopped-reason-checkbox"
+							aria-label="موقف لسبب"
+							data-row-key="${frappe.utils.escape_html(row_key)}"
+							data-card="${frappe.utils.escape_html(row.card)}"
+							data-deposit-date="${frappe.utils.escape_html(row.deposit_date || "")}"
+							${effective_stopped ? "checked" : ""}
+							${!can_toggle ? "disabled" : ""}
+						/>
+					</label>
+				</td>
+			`;
+		}
+
 		if (key === "status") {
-			const is_deposited = row.status === "deposited";
+			let pill_class = "is-not-deposited";
+			let pill_icon = DEPOSIT_SVGS.status_cross;
+			let pill_label = "لم يتم الإيداع";
+
+			if (effective_stopped) {
+				pill_class = "is-stopped-reason";
+				pill_icon = DEPOSIT_SVGS.status_pause;
+				pill_label = "موقف لسبب";
+			} else if (effective_amount > 0) {
+				pill_class = "is-deposited";
+				pill_icon = DEPOSIT_SVGS.status_check;
+				pill_label = "تم الإيداع";
+			}
+
 			return `
 				<td class="ad-td-status">
 					<div class="ad-status-wrap">
-						<span class="ad-status-pill ${is_deposited ? "is-deposited" : "is-not-deposited"}">
+						<span class="ad-status-pill ${pill_class}">
 							<span class="ad-status-pill-icon" aria-hidden="true">
-								${is_deposited ? DEPOSIT_SVGS.status_check : DEPOSIT_SVGS.status_cross}
+								${pill_icon}
 							</span>
-							<span>${is_deposited ? "تم الإيداع" : "لم يتم الإيداع"}</span>
+							<span>${pill_label}</span>
 						</span>
 						<span
 							class="ad-unsaved-dot"
@@ -1951,6 +2768,64 @@ class ArchiveDepositsPage {
 							title="تعديل غير محفوظ — اضغط حفظ الإيداعات لاعتماده"
 							${is_dirty ? "" : "hidden"}
 						>غير محفوظ</span>
+					</div>
+				</td>
+			`;
+		}
+
+		if (key === "approval") {
+			const is_busy_approving = this.approving_keys.has(row_key);
+			const can_approve_date = Boolean(row.row_permissions?.can_approve_date);
+			let approval_html = "";
+
+			if (is_approved) {
+				if (can_approve_date) {
+					approval_html = `
+						<button
+							type="button"
+							class="btn btn-xs ad-approval-btn ad-unapprove-btn"
+							data-action="unapprove-deposit"
+							data-row-key="${frappe.utils.escape_html(row_key)}"
+							data-card="${frappe.utils.escape_html(row.card)}"
+							data-deposit-date="${frappe.utils.escape_html(row.deposit_date || "")}"
+							${is_busy_approving || this.is_saving ? "disabled" : ""}
+							title="إلغاء اعتماد هذا الإيداع"
+						>إلغاء الاعتماد</button>
+					`;
+				} else {
+					approval_html = `<span class="ad-approved-badge" title="تم اعتماد هذا الإيداع">معتمد</span>`;
+				}
+			} else if (can_approve_date) {
+				const can_click_approve =
+					Boolean(row.has_saved_record) &&
+					saved_amount > 0 &&
+					!effective_stopped &&
+					!is_dirty &&
+					!is_busy_approving &&
+					!this.is_saving;
+				const approve_title = is_dirty
+					? "احفظ التعديلات أولاً قبل الاعتماد"
+					: saved_amount <= 0
+					? "يتطلب حفظ مبلغ إيداع أكبر من صفر أولاً"
+					: "اعتماد الإيداع المحفوظ";
+				approval_html = `
+					<button
+						type="button"
+						class="btn btn-xs ad-approval-btn ad-approve-btn"
+						data-action="approve-deposit"
+						data-row-key="${frappe.utils.escape_html(row_key)}"
+						data-card="${frappe.utils.escape_html(row.card)}"
+						data-deposit-date="${frappe.utils.escape_html(row.deposit_date || "")}"
+						${can_click_approve ? "" : "disabled"}
+						title="${frappe.utils.escape_html(approve_title)}"
+					>اعتماد</button>
+				`;
+			}
+
+			return `
+				<td class="ad-td-approval">
+					<div class="ad-approval-wrap">
+						${approval_html || '<span class="ad-approval-empty">—</span>'}
 					</div>
 				</td>
 			`;

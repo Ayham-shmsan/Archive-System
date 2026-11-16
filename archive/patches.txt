@@ -36,3 +36,4 @@ archive.patches.v1_0.migrate_operations_to_fiscal_year_groups # 2026-11-14
 archive.patches.v1_0.set_default_final_swift_required_for_existing_operations # 2026-11-15
 archive.patches.v1_0.setup_edit_imported_operation_fields_permission # 2026-11-15
 archive.patches.v1_0.rebuild_operation_search_text_v4 # 2026-11-15
+archive.patches.v1_0.setup_deposits_history_and_permissions # 2026-11-16

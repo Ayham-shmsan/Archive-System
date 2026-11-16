@@ -78,6 +78,8 @@
 					"صلاحية تعديل إيداعات اليوم",
 					"صلاحية تعديل إيداعات الأيام السابقة",
 					"صلاحية تعديل إيداعات الأيام القادمة",
+					"صلاحية اعتماد الإيداعات وإلغاء اعتمادها",
+					"صلاحية تفعيل وإلغاء موقف لسبب",
 				],
 			},
 			{
@@ -142,6 +144,186 @@
 		{ key: "can_delete", label: "حذف" },
 		{ key: "can_export", label: "تصدير" },
 	];
+
+	const DEPOSIT_ROLE_DAY_FIELDS = {
+		"صلاحية تعديل إيداعات الأيام السابقة": [
+			{ fieldname: "allowed_past_deposit_days", label: "عدد الأيام السابقة" },
+		],
+		"صلاحية تعديل إيداعات الأيام القادمة": [
+			{ fieldname: "allowed_future_deposit_days", label: "عدد الأيام القادمة" },
+		],
+		"صلاحية اعتماد الإيداعات وإلغاء اعتمادها": [
+			{ fieldname: "allowed_past_approval_days", label: "الأيام السابقة" },
+			{ fieldname: "allowed_future_approval_days", label: "الأيام القادمة" },
+		],
+		"صلاحية تفعيل وإلغاء موقف لسبب": [
+			{ fieldname: "allowed_past_stopped_reason_days", label: "الأيام السابقة" },
+			{ fieldname: "allowed_future_stopped_reason_days", label: "الأيام القادمة" },
+		],
+	};
+
+	const ALL_DEPOSIT_DAY_FIELDNAMES = [
+		"allowed_past_deposit_days",
+		"allowed_future_deposit_days",
+		"allowed_past_approval_days",
+		"allowed_future_approval_days",
+		"allowed_past_stopped_reason_days",
+		"allowed_future_stopped_reason_days",
+	];
+
+	function hideSeparateDepositDaySections(frm) {
+		const targetFrm = frm || window.cur_frm;
+		if (!targetFrm || targetFrm.doctype !== "User") return;
+		[
+			"archive_deposit_permissions_section",
+			"archive_deposit_approval_permissions_section",
+			"archive_deposit_stopped_permissions_section",
+			...ALL_DEPOSIT_DAY_FIELDNAMES,
+		].forEach((fn) => {
+			const fieldObj = targetFrm.fields_dict && targetFrm.fields_dict[fn];
+			if (fieldObj && fieldObj.wrapper) {
+				$(fieldObj.wrapper).hide();
+			}
+		});
+	}
+
+	function syncDepositRoleDayInputs(rolesEditor) {
+		if (!rolesEditor || !rolesEditor.wrapper) return;
+		const frm = rolesEditor.frm || window.cur_frm;
+		if (!frm || !frm.doc) return;
+		hideSeparateDepositDaySections(frm);
+
+		$(rolesEditor.wrapper)
+			.find(".archive-role-day-input[data-user-day-field]")
+			.each(function () {
+				const fn = $(this).attr("data-user-day-field");
+				if (!fn) return;
+				const rawVal = frm.doc[fn];
+				const numVal = Math.max(0, parseInt(rawVal, 10) || 0);
+				if (document.activeElement !== this) {
+					$(this).val(String(numVal));
+				}
+			});
+	}
+
+	function applyUserDayFieldValue(frm, fn, cleanVal) {
+		const activeFrm = frm || window.cur_frm;
+		if (!activeFrm || !activeFrm.doc || !fn) return;
+
+		const prevVal = activeFrm.doc[fn];
+		const hasChanged = prevVal === undefined || prevVal === null || Number(prevVal) !== cleanVal;
+
+		if (
+			hasChanged &&
+			window.frappe &&
+			frappe.model &&
+			typeof frappe.model.set_value === "function" &&
+			activeFrm.doctype &&
+			activeFrm.docname
+		) {
+			frappe.model.set_value(activeFrm.doctype, activeFrm.docname, fn, cleanVal);
+		}
+
+		activeFrm.doc[fn] = cleanVal;
+		if (window.locals && locals[activeFrm.doctype] && locals[activeFrm.doctype][activeFrm.docname]) {
+			locals[activeFrm.doctype][activeFrm.docname][fn] = cleanVal;
+		}
+
+		const ctrl = activeFrm.fields_dict && activeFrm.fields_dict[fn];
+		if (ctrl) {
+			ctrl.value = cleanVal;
+			if (ctrl.$input && ctrl.$input.length) {
+				ctrl.$input.val(String(cleanVal));
+			}
+		}
+
+		if (hasChanged && typeof activeFrm.dirty === "function") {
+			activeFrm.dirty();
+		}
+	}
+
+	function flushDepositRoleDayInputsToDoc(frm) {
+		const activeFrm = frm || window.cur_frm;
+		if (!activeFrm || !activeFrm.doc) return;
+		const $root =
+			activeFrm.roles_editor && activeFrm.roles_editor.wrapper
+				? $(activeFrm.roles_editor.wrapper)
+				: $(activeFrm.wrapper || document);
+		$root.find(".archive-role-day-input[data-user-day-field]").each(function () {
+			const fn = String($(this).attr("data-user-day-field") || "").trim();
+			if (!fn) return;
+			const raw = String($(this).val() ?? "").replace(/[^0-9]/g, "");
+			const cleanVal = raw === "" ? 0 : Math.max(0, parseInt(raw, 10) || 0);
+			$(this).val(String(cleanVal));
+			applyUserDayFieldValue(activeFrm, fn, cleanVal);
+		});
+	}
+
+	function attachInlineDepositDayFields(rolesEditor, roleName, $checkboxUnit) {
+		const dayFields = DEPOSIT_ROLE_DAY_FIELDS[roleName];
+		if (!dayFields || !dayFields.length || !$checkboxUnit || !$checkboxUnit.length) {
+			return;
+		}
+
+		$checkboxUnit
+			.addClass("has-inline-day-fields")
+			.toggleClass("is-dual-day-card", dayFields.length > 1)
+			.toggleClass("is-single-day-card", dayFields.length === 1);
+		$checkboxUnit.find(".archive-role-days-panel").remove();
+
+		const frm = rolesEditor.frm || window.cur_frm;
+		const fieldsHtml = dayFields
+			.map((f) => {
+				const curVal =
+					frm && frm.doc && frm.doc[f.fieldname] !== undefined
+						? Math.max(0, parseInt(frm.doc[f.fieldname], 10) || 0)
+						: 0;
+				return `
+					<div class="archive-role-day-field">
+						<span class="archive-role-day-field__label">${frappe.utils.escape_html(f.label)}</span>
+						<div class="archive-role-day-field__control">
+							<input
+								type="number"
+								min="0"
+								step="1"
+								inputmode="numeric"
+								dir="ltr"
+								class="archive-role-day-input"
+								data-user-day-field="${frappe.utils.escape_html(f.fieldname)}"
+								value="${curVal}"
+							/>
+							<span class="archive-role-day-field__unit">يوم</span>
+						</div>
+					</div>
+				`;
+			})
+			.join("");
+
+		const $panel = $(`
+			<div class="archive-role-days-panel ${dayFields.length > 1 ? "is-dual-fields" : "is-single-field"}">
+				${fieldsHtml}
+			</div>
+		`);
+
+		$panel.on("click mousedown keydown", function (e) {
+			e.stopPropagation();
+		});
+
+		$panel.on("input change blur", ".archive-role-day-input", function (e) {
+			e.stopPropagation();
+			const fn = String($(this).attr("data-user-day-field") || "").trim();
+			if (!fn) return;
+			const raw = String($(this).val() ?? "").replace(/[^0-9]/g, "");
+			const cleanVal = raw === "" ? 0 : Math.max(0, parseInt(raw, 10) || 0);
+			if (e.type === "change" || e.type === "blur") {
+				$(this).val(String(cleanVal));
+			}
+			const activeFrm = rolesEditor.frm || window.cur_frm;
+			applyUserDayFieldValue(activeFrm, fn, cleanVal);
+		});
+
+		$checkboxUnit.append($panel);
+	}
 
 	function renderFiscalPermissionsCard(rolesEditor, $section) {
 		const $fiscalCard = $section.find(".archive-fiscal-permissions-card");
@@ -511,6 +693,7 @@
 					$entryWrap.find(".archive-role-card__entry-slot").append(opt.$checkbox);
 					$body.prepend($entryWrap);
 				} else {
+					attachInlineDepositDayFields(rolesEditor, roleName, opt.$checkbox);
 					$grid.append(opt.$checkbox);
 				}
 			});
@@ -572,6 +755,7 @@
 
 		rolesEditor.set_enable_disable();
 		updateArchiveContainerCounts(rolesEditor);
+		syncDepositRoleDayInputs(rolesEditor);
 	}
 
 	function enhanceRoleEditorInstance(rolesEditor) {
@@ -593,6 +777,7 @@
 		multicheck.select_options = function () {
 			origSelectOptions.apply(this, arguments);
 			updateArchiveContainerCounts(rolesEditor);
+			syncDepositRoleDayInputs(rolesEditor);
 		};
 
 		// Scope "Select All / Unselect All" buttons above General Roles so they only toggle General Roles
@@ -635,6 +820,7 @@
 			enhanceRoleEditorInstance(this);
 			const res = origShow.apply(this, arguments);
 			updateArchiveContainerCounts(this);
+			syncDepositRoleDayInputs(this);
 			return res;
 		};
 	}
@@ -644,19 +830,29 @@
 	frappe.ui.form.on("User", {
 		onload: function (frm) {
 			patchRoleEditorClass();
+			hideSeparateDepositDaySections(frm);
 			if (frm.roles_editor) {
 				frm.roles_editor.frm = frm;
 				enhanceRoleEditorInstance(frm.roles_editor);
+				syncDepositRoleDayInputs(frm.roles_editor);
 			}
 		},
 		refresh: function (frm) {
 			patchRoleEditorClass();
+			hideSeparateDepositDaySections(frm);
 			if (frm.roles_editor) {
 				frm.roles_editor.frm = frm;
 				enhanceRoleEditorInstance(frm.roles_editor);
 				updateArchiveContainerCounts(frm.roles_editor);
+				syncDepositRoleDayInputs(frm.roles_editor);
 				fetchUserFiscalPermissions(frm.roles_editor, frm.is_new() ? "" : frm.doc.name);
 			}
+		},
+		validate: function (frm) {
+			flushDepositRoleDayInputsToDoc(frm);
+		},
+		before_save: function (frm) {
+			flushDepositRoleDayInputsToDoc(frm);
 		},
 		after_save: function (frm) {
 			if (

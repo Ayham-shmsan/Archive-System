@@ -46,6 +46,12 @@ class ArchiveCardDeposit(Document):
 	# end: auto-generated types
 
 	def check_permission(self, permtype: str = "read", permlevel: str | int | None = None) -> None:
+		if (
+			getattr(self.flags, "ignore_permissions", False)
+			or getattr(self.flags, "from_deposits_batch_api", False)
+			or getattr(self.flags, "from_deposits_approval_api", False)
+		):
+			return
 		from archive.api.deposits import has_deposit_permission
 
 		if not has_deposit_permission(self, permtype, user=frappe.session.user):
@@ -64,17 +70,25 @@ class ArchiveCardDeposit(Document):
 			["status", "is_deleted", "card_name"],
 			as_dict=True,
 		)
-		if (
-			not card_state
-			or int(card_state.get("is_deleted") or 0) != 0
-			or cstr(card_state.get("status")) != "نشطة"
-		):
+		if not card_state:
 			frappe.throw(
-				_("لا يمكن حفظ أو تعديل إيداع للبطاقة غير النشطة ({0}).").format(
-					cstr((card_state or {}).get("card_name") or self.card)
-				),
+				_("البطاقة ({0}) غير موجودة.").format(cstr(self.card)),
 				frappe.ValidationError,
 			)
+
+		if not getattr(self.flags, "allow_historical_active_card", False) and not getattr(
+			self.flags, "from_deposits_approval_api", False
+		):
+			if (
+				int(card_state.get("is_deleted") or 0) != 0
+				or cstr(card_state.get("status")) != "نشطة"
+			):
+				frappe.throw(
+					_("لا يمكن حفظ أو تعديل إيداع للبطاقة غير النشطة ({0}).").format(
+						cstr(card_state.get("card_name") or self.card)
+					),
+					frappe.ValidationError,
+				)
 
 		if not self.deposit_date:
 			frappe.throw(_("يجب تحديد تاريخ الإيداع."), frappe.ValidationError)
@@ -86,6 +100,7 @@ class ArchiveCardDeposit(Document):
 			self.fiscal_year = derived_year
 			if (
 				not getattr(self.flags, "from_deposits_batch_api", False)
+				and not getattr(self.flags, "from_deposits_approval_api", False)
 				and not getattr(frappe.flags, "in_migrate", False)
 				and not getattr(frappe.flags, "in_patch", False)
 			):
@@ -103,6 +118,7 @@ class ArchiveCardDeposit(Document):
 				self.fiscal_year = derived_year
 			if (
 				not getattr(self.flags, "from_deposits_batch_api", False)
+				and not getattr(self.flags, "from_deposits_approval_api", False)
 				and not getattr(frappe.flags, "in_migrate", False)
 				and not getattr(frappe.flags, "in_patch", False)
 			):
@@ -110,6 +126,7 @@ class ArchiveCardDeposit(Document):
 
 		if (
 			not getattr(self.flags, "from_deposits_batch_api", False)
+			and not getattr(self.flags, "from_deposits_approval_api", False)
 			and not getattr(frappe.flags, "in_migrate", False)
 			and not getattr(frappe.flags, "in_patch", False)
 		):
@@ -130,6 +147,38 @@ class ArchiveCardDeposit(Document):
 			frappe.throw(_("لا يُسمح بإدخال مبلغ إيداع سالب أو غير صالح."), frappe.ValidationError)
 
 		self.deposit_amount = flt(numeric_amount, 2)
+		self.stopped_for_reason = 1 if int(getattr(self, "stopped_for_reason", 0) or 0) else 0
+		self.is_approved = 1 if int(getattr(self, "is_approved", 0) or 0) else 0
+
+		if self.stopped_for_reason and self.deposit_amount > 0:
+			frappe.throw(
+				_("لا يمكن تفعيل «موقف لسبب» إذا كان مبلغ الإيداع أكبر من صفر."),
+				frappe.ValidationError,
+			)
+
+		if self.is_approved and (self.deposit_amount <= 0 or self.stopped_for_reason):
+			frappe.throw(
+				_("لا يمكن اعتماد سجل إيداع بمبلغ صفر أو بحالة «موقف لسبب»."),
+				frappe.ValidationError,
+			)
+
+		if not self.is_new() and not getattr(self.flags, "from_deposits_approval_api", False):
+			db_state = frappe.db.get_value(
+				"Archive Card Deposit",
+				self.name,
+				["is_approved", "deposit_amount", "stopped_for_reason"],
+				as_dict=True,
+			)
+			if db_state and int(db_state.get("is_approved") or 0) == 1:
+				if (
+					abs(flt(db_state.get("deposit_amount") or 0, 2) - self.deposit_amount) >= 0.0001
+					or int(db_state.get("stopped_for_reason") or 0) != self.stopped_for_reason
+					or self.is_approved == 0
+				):
+					frappe.throw(
+						_("لا يمكن تعديل سجل إيداع معتمد قبل إلغاء اعتماده أولاً بصلاحية الاعتماد."),
+						frappe.ValidationError,
+					)
 
 		duplicate = frappe.db.get_value(
 			"Archive Card Deposit",

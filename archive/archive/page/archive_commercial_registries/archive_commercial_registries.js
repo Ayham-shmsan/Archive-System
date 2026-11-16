@@ -712,13 +712,24 @@ class ArchiveCommercialRegistriesScreen {
 				const cellsHtml = visibleCols
 					.map((col) => {
 						if (col.key === "serial_no") {
-							return `<td class="acr-col-serial">${Number(row.serial_no || 0)}</td>`;
+							return `<td class="acr-col-serial" dir="ltr"><span class="acr-serial-badge">${Number(row.serial_no || 0)}</span></td>`;
 						}
 						if (col.key === "commercial_registry_no") {
 							return `<td class="acr-col-registry-no">${frappe.utils.escape_html(row.commercial_registry_no || "—")}</td>`;
 						}
 						if (col.key === "registry_name") {
-							return `<td class="acr-col-registry-name">${frappe.utils.escape_html(row.registry_name || "—")}</td>`;
+							const regName = String(row.registry_name || "").trim();
+							if (!regName) {
+								return `<td class="acr-col-registry-name">—</td>`;
+							}
+							return `
+								<td class="acr-col-registry-name">
+									<span class="acr-registry-name-wrap">
+										<span class="acr-registry-name-icon" aria-hidden="true">${ACR_SVG.header_doc}</span>
+										<span class="acr-registry-name-text">${frappe.utils.escape_html(regName)}</span>
+									</span>
+								</td>
+							`;
 						}
 						if (col.key === "account_owner_name") {
 							return `<td>${frappe.utils.escape_html(row.account_owner_name || row.account_owner || "—")}</td>`;
