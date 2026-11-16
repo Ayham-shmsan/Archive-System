@@ -134,12 +134,25 @@ class TestArchiveCardDeposit(unittest.TestCase):
 		self.assertIsNotNone(row_nov5)
 		self.assertFalse(row_nov5["is_historical_inactive"])
 
-		# Verify get_deposits_context on 2026-11-06 preserves CRD-00023 when a saved deposit exists,
-		# and hides it when no saved deposit exists on that stopped day
+		# Verify get_deposits_context on 2026-11-06 hides CRD-00023 when only a zeroed deposit exists,
+		# and preserves CRD-00023 as read-only when a meaningful historical deposit (> 0) exists
+		ctx_nov6_zero = get_deposits_context(deposit_date="2026-11-06", period_mode="day", page_size="all")
+		row_nov6_zero = next((r for r in ctx_nov6_zero["rows"] if r["card"] == "CRD-00023"), None)
+		self.assertIsNone(row_nov6_zero)
+
+		frappe.db.set_value(
+			"Archive Card Deposit",
+			{"card": "CRD-00023", "deposit_date": "2026-11-06"},
+			"deposit_amount",
+			20000.0,
+			update_modified=False,
+		)
 		ctx_nov6_with_dep = get_deposits_context(deposit_date="2026-11-06", period_mode="day", page_size="all")
 		row_nov6_with_dep = next((r for r in ctx_nov6_with_dep["rows"] if r["card"] == "CRD-00023"), None)
 		self.assertIsNotNone(row_nov6_with_dep)
 		self.assertTrue(row_nov6_with_dep["is_historical_inactive"])
+		self.assertFalse(row_nov6_with_dep["row_permissions"]["can_edit_amount"])
+		self.assertFalse(row_nov6_with_dep["row_permissions"]["can_approve"])
 		self.assertEqual(flt(row_nov6_with_dep["daily_limit"]), 520000.0)
 
 		frappe.db.delete("Archive Card Deposit", {"card": "CRD-00023", "deposit_date": "2026-11-06"})
@@ -238,6 +251,11 @@ class TestArchiveCardDeposit(unittest.TestCase):
 	def test_04_stopped_for_reason_and_two_step_exemption_rule(self) -> None:
 		"""Verify stopped_for_reason creation without prior deposit, and mandatory 2-step exemption when deposit > 0."""
 		# First verify that without explicit role grant, even Administrator does not have stopped_for_reason role by default
+		frappe.db.delete(
+			"Has Role",
+			{"parent": "Administrator", "role": ("in", [ROLE_DEPOSITS_APPROVE, ROLE_DEPOSITS_STOPPED_REASON])},
+		)
+		frappe.clear_cache(user="Administrator")
 		self.assertFalse(has_deposit_stopped_reason_role("Administrator"))
 		self._grant_admin_new_deposit_roles(past_days=30, future_days=30)
 		self.assertTrue(has_deposit_stopped_reason_role("Administrator"))
@@ -310,6 +328,11 @@ class TestArchiveCardDeposit(unittest.TestCase):
 
 	def test_05_approval_and_unapproval_lifecycle_and_server_lock(self) -> None:
 		"""Verify approve_deposit, server lock against any modification, and unapprove_deposit."""
+		frappe.db.delete(
+			"Has Role",
+			{"parent": "Administrator", "role": ("in", [ROLE_DEPOSITS_APPROVE, ROLE_DEPOSITS_STOPPED_REASON])},
+		)
+		frappe.clear_cache(user="Administrator")
 		self.assertFalse(has_deposit_approval_role("Administrator"))
 		self._grant_admin_new_deposit_roles(past_days=30, future_days=30)
 		self.assertTrue(has_deposit_approval_role("Administrator"))
@@ -552,3 +575,229 @@ class TestArchiveCardDeposit(unittest.TestCase):
 		self.assertEqual(stats["total_cards"], len(sorted_items))
 		# Must complete well under 2.5 seconds for 36,500+ rows
 		self.assertLess(elapsed, 2.5, f"36,500-row period dataset took {elapsed:.3f}s")
+
+	def test_09_card_eligibility_historical_protection_and_reactivation(self) -> None:
+		"""Verify all 5 target cards (CRD-00002, CRD-00015, CRD-00023, CRD-00027, CRD-00024) and read-only/reactivation rules."""
+		self._grant_admin_new_deposit_roles(past_days=30, future_days=30)
+
+		# 1. CRD-00002 and CRD-00015 must have 0 active spans and 0 rows in Nov 2026 (since they have no valid deposits)
+		ctx_nov = get_deposits_context(
+			period_mode="month",
+			period_month=11,
+			period_year=2026,
+			page_size="all",
+		)
+		nov_rows_c2 = [r for r in ctx_nov["rows"] if r["card"] == "CRD-00002"]
+		nov_rows_c15 = [r for r in ctx_nov["rows"] if r["card"] == "CRD-00015"]
+		self.assertEqual(len(nov_rows_c2), 0)
+		self.assertEqual(len(nov_rows_c15), 0)
+
+		# 2. Zeroed or pre-creation deposits on CRD-00023 (2026-11-06), CRD-00027 (2026-11-07), CRD-00024 (2026-11-06) must NOT show
+		self.assertFalse(
+			any(r["card"] == "CRD-00023" and r["deposit_date"] == "2026-11-06" for r in ctx_nov["rows"])
+		)
+		self.assertFalse(
+			any(r["card"] == "CRD-00027" and r["deposit_date"] == "2026-11-07" for r in ctx_nov["rows"])
+		)
+		self.assertFalse(
+			any(r["card"] == "CRD-00024" and r["deposit_date"] == "2026-11-06" for r in ctx_nov["rows"])
+		)
+
+		# 3. Active card CRD-00023 on active date 2026-11-11: save deposit 35,000, then stop the card currently
+		frappe.db.delete("Archive Card Deposit", {"card": "CRD-00023", "deposit_date": "2026-11-11"})
+		save_daily_deposits(
+			deposit_date="2026-11-11",
+			items=[{"card": "CRD-00023", "deposit_date": "2026-11-11", "amount": 35000}],
+		)
+
+		# Stop CRD-00023 currently (e.g. temporary stop on 2026-11-12)
+		from archive.api.cards import change_card_status
+
+		change_card_status(
+			"CRD-00023",
+			"موقفة مؤقتاً",
+			reason="اختبار إيقاف مؤقت",
+			event_date="2026-11-12",
+		)
+
+		# On 2026-11-11, CRD-00023 MUST still appear because it has a saved historical deposit (35,000),
+		# AND because its CURRENT status is stopped, the row MUST be completely Read-Only!
+		ctx_nov11_stopped = get_deposits_context(
+			deposit_date="2026-11-11",
+			period_mode="day",
+			page_size="all",
+		)
+		row_nov11_stopped = next((r for r in ctx_nov11_stopped["rows"] if r["card"] == "CRD-00023"), None)
+		self.assertIsNotNone(row_nov11_stopped)
+		self.assertEqual(flt(row_nov11_stopped["deposit_amount"]), 35000.0)
+		self.assertFalse(row_nov11_stopped["is_currently_active"])
+		for perm_k in (
+			"can_edit_date",
+			"can_edit_amount",
+			"can_toggle_stopped_date",
+			"can_toggle_stopped_reason",
+			"can_approve_date",
+			"can_approve",
+			"can_unapprove",
+		):
+			self.assertFalse(
+				row_nov11_stopped["row_permissions"][perm_k],
+				f"Permission {perm_k} must be False while card is currently stopped",
+			)
+
+		# Server MUST reject modifying amount, stopped_for_reason, or approving while card is currently stopped
+		with self.assertRaises(frappe.ValidationError):
+			save_daily_deposits(
+				deposit_date="2026-11-11",
+				items=[{"card": "CRD-00023", "deposit_date": "2026-11-11", "amount": 40000}],
+			)
+		with self.assertRaises(frappe.ValidationError):
+			approve_deposit(card="CRD-00023", deposit_date="2026-11-11", expected_amount=35000)
+
+		# On 2026-11-13 (during stopped period with no deposit), CRD-00023 must NOT appear
+		frappe.db.delete("Archive Card Deposit", {"card": "CRD-00023", "deposit_date": "2026-11-13"})
+		ctx_nov13_stopped = get_deposits_context(
+			deposit_date="2026-11-13",
+			period_mode="day",
+			page_size="all",
+		)
+		self.assertIsNone(next((r for r in ctx_nov13_stopped["rows"] if r["card"] == "CRD-00023"), None))
+
+		# 4. Reactivate CRD-00023 on 2026-11-14
+		change_card_status(
+			"CRD-00023",
+			"نشطة",
+			event_date="2026-11-14",
+		)
+
+		# Stopped period (2026-11-12..2026-11-13) still has no rows generated
+		ctx_nov13_after = get_deposits_context(
+			deposit_date="2026-11-13",
+			period_mode="day",
+			page_size="all",
+		)
+		self.assertIsNone(next((r for r in ctx_nov13_after["rows"] if r["card"] == "CRD-00023"), None))
+
+		# Reactivated date (2026-11-14) shows CRD-00023 as active and editable
+		ctx_nov14_after = get_deposits_context(
+			deposit_date="2026-11-14",
+			period_mode="day",
+			page_size="all",
+		)
+		row_nov14 = next((r for r in ctx_nov14_after["rows"] if r["card"] == "CRD-00023"), None)
+		self.assertIsNotNone(row_nov14)
+		self.assertTrue(row_nov14["is_currently_active"])
+		self.assertTrue(row_nov14["row_permissions"]["can_edit_amount"])
+
+		# Historical active date (2026-11-11) is now editable and approvable again!
+		ctx_nov11_reactivated = get_deposits_context(
+			deposit_date="2026-11-11",
+			period_mode="day",
+			page_size="all",
+		)
+		row_nov11_reactivated = next(
+			(r for r in ctx_nov11_reactivated["rows"] if r["card"] == "CRD-00023"), None
+		)
+		self.assertIsNotNone(row_nov11_reactivated)
+		self.assertTrue(row_nov11_reactivated["is_currently_active"])
+		self.assertTrue(row_nov11_reactivated["row_permissions"]["can_edit_amount"])
+		self.assertTrue(row_nov11_reactivated["row_permissions"]["can_approve"])
+
+		app_res = approve_deposit(card="CRD-00023", deposit_date="2026-11-11", expected_amount=35000)
+		self.assertTrue(app_res["is_approved"])
+		unapp_res = unapprove_deposit(card="CRD-00023", deposit_date="2026-11-11")
+		self.assertFalse(unapp_res["is_approved"])
+
+	def test_10_total_deposited_amount_counts_only_approved_deposits(self) -> None:
+		"""Verify total_deposited_amount sums ONLY approved deposits across all 4 period modes, filters, pagination, and historical stopped cards."""
+		self._grant_admin_new_deposit_roles(past_days=30, future_days=30)
+
+		d1 = "2026-11-14"
+		d2 = "2026-11-15"
+		frappe.db.delete("Archive Card Deposit", {"deposit_date": ("in", [d1, d2])})
+
+		# 1. Save two deposits on d1: CRD-00023 (40,000) and CRD-00009 (25,000), both initially unapproved
+		save_res = save_daily_deposits(
+			deposit_date=d1,
+			items=[
+				{"card": "CRD-00023", "deposit_date": d1, "amount": 40000},
+				{"card": "CRD-00009", "deposit_date": d1, "amount": 25000},
+			],
+		)
+		# Neither is approved yet -> total_deposited_amount MUST be 0.0 (while deposited_count is 2)
+		self.assertEqual(flt(save_res["stats"]["total_deposited_amount"]), 0.0)
+		self.assertEqual(cint(save_res["stats"]["deposited_count"]), 2)
+
+		ctx_d1 = get_deposits_context(deposit_date=d1, period_mode="day", page_size=1)
+		self.assertEqual(flt(ctx_d1["stats"]["total_deposited_amount"]), 0.0)
+
+		# 2. Editing an unapproved deposit (CRD-00009 from 25,000 to 30,000) keeps total_deposited_amount at 0.0
+		save_res_edit = save_daily_deposits(
+			deposit_date=d1,
+			items=[{"card": "CRD-00009", "deposit_date": d1, "amount": 30000}],
+		)
+		self.assertEqual(flt(save_res_edit["stats"]["total_deposited_amount"]), 0.0)
+
+		# 3. Approve CRD-00023 (40,000) -> total_deposited_amount becomes 40,000.0 (CRD-00009's 30,000 is still excluded)
+		approve_deposit(card="CRD-00023", deposit_date=d1, expected_amount=40000)
+		ctx_after_one = get_deposits_context(deposit_date=d1, period_mode="day", page_size=1)
+		self.assertEqual(flt(ctx_after_one["stats"]["total_deposited_amount"]), 40000.0)
+
+		# 4. Save and approve a deposit on d2 for CRD-00009 (35,000)
+		save_daily_deposits(
+			deposit_date=d2,
+			items=[{"card": "CRD-00009", "deposit_date": d2, "amount": 35000}],
+		)
+		approve_deposit(card="CRD-00009", deposit_date=d2, expected_amount=35000)
+
+		# Verify range (d1..d2) sums ONLY approved deposits across both days: 40,000 + 35,000 = 75,000 (excluding unapproved 30,000 on d1)
+		ctx_range = get_deposits_context(
+			period_mode="range",
+			date_from=d1,
+			date_to=d2,
+			page_size=1,
+		)
+		self.assertEqual(flt(ctx_range["stats"]["total_deposited_amount"]), 75000.0)
+
+		# Verify month and year modes include only approved deposits as well
+		ctx_month = get_deposits_context(
+			period_mode="month",
+			period_month=11,
+			period_year=2026,
+			search="CRD-00023",
+			page_size=1,
+		)
+		expected_c23_approved_nov = sum(
+			flt(r["deposit_amount"], 2)
+			for r in get_deposits_context(
+				period_mode="month",
+				period_month=11,
+				period_year=2026,
+				search="CRD-00023",
+				page_size="all",
+			)["rows"]
+			if r.get("is_approved")
+		)
+		self.assertEqual(flt(ctx_month["stats"]["total_deposited_amount"]), flt(expected_c23_approved_nov, 2))
+
+		# 5. Unapprove CRD-00009 on d2 -> range total immediately drops from 75,000 to 40,000
+		unapprove_deposit(card="CRD-00009", deposit_date=d2)
+		ctx_range_after_unapprove = get_deposits_context(
+			period_mode="range",
+			date_from=d1,
+			date_to=d2,
+			page_size=1,
+		)
+		self.assertEqual(flt(ctx_range_after_unapprove["stats"]["total_deposited_amount"]), 40000.0)
+
+		# 6. Historical approved deposit on CRD-00023 (d1 = 40,000) stays counted even if CRD-00023 is later stopped!
+		from archive.api.cards import change_card_status
+
+		change_card_status(
+			"CRD-00023",
+			"موقفة مؤقتاً",
+			reason="اختبار احتساب المعتمد التاريخي بعد الإيقاف",
+			event_date=d2,
+		)
+		ctx_d1_after_stop = get_deposits_context(deposit_date=d1, period_mode="day", page_size=1)
+		self.assertEqual(flt(ctx_d1_after_stop["stats"]["total_deposited_amount"]), 40000.0)

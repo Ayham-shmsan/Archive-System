@@ -1655,8 +1655,13 @@ class ArchiveDepositsPage {
 				},
 			});
 			const out = res?.message || {};
+			const was_approved = Boolean(row.is_approved);
+			const approved_val = Math.max(
+				0,
+				Number(out.approved_amount ?? row.deposit_amount) || 0
+			);
 			row.is_approved = true;
-			row.approved_amount = out.approved_amount ?? row.deposit_amount;
+			row.approved_amount = approved_val;
 			row.approved_amount_formatted = format_deposit_number(row.approved_amount, false);
 			if (out.audit) {
 				row.audit = out.audit;
@@ -1666,6 +1671,13 @@ class ArchiveDepositsPage {
 				row.row_permissions.can_toggle_stopped = false;
 				row.row_permissions.can_approve = false;
 				row.row_permissions.can_unapprove = Boolean(row.row_permissions.can_approve_date);
+			}
+			if (!was_approved && this.stats && approved_val > 0) {
+				const prev_total = Math.max(0, Number(this.stats.total_deposited_amount) || 0);
+				const next_total = Math.max(0, Number((prev_total + approved_val).toFixed(2)));
+				this.stats.total_deposited_amount = next_total;
+				this.stats.total_deposited_amount_formatted = format_deposit_number(next_total, true);
+				this.render_stats(true);
 			}
 			frappe.show_alert({
 				message: "تم اعتماد الإيداع بنجاح.",
@@ -1697,6 +1709,11 @@ class ArchiveDepositsPage {
 					},
 				});
 				const out = res?.message || {};
+				const was_approved = Boolean(row.is_approved);
+				const unapproved_val = Math.max(
+					0,
+					Number(out.deposit_amount ?? row.approved_amount ?? row.deposit_amount) || 0
+				);
 				row.is_approved = false;
 				if (out.audit) {
 					row.audit = out.audit;
@@ -1712,6 +1729,13 @@ class ArchiveDepositsPage {
 						Number(row.deposit_amount || 0) > 0 &&
 						!row.stopped_for_reason;
 					row.row_permissions.can_unapprove = false;
+				}
+				if (was_approved && this.stats && unapproved_val > 0) {
+					const prev_total = Math.max(0, Number(this.stats.total_deposited_amount) || 0);
+					const next_total = Math.max(0, Number((prev_total - unapproved_val).toFixed(2)));
+					this.stats.total_deposited_amount = next_total;
+					this.stats.total_deposited_amount_formatted = format_deposit_number(next_total, true);
+					this.render_stats(true);
 				}
 				frappe.show_alert({
 					message: "تم إلغاء اعتماد الإيداع بنجاح.",
@@ -2905,8 +2929,12 @@ class ArchiveDepositsPage {
 				? `<span class="ad-copy-badge" style="margin-right:6px;">${frappe.utils.escape_html(row.copy_label)}</span>`
 				: "";
 			const inactive_tag = row.is_historical_inactive
-				? `<span class="ad-historical-tag" title="حالة البطاقة في ذلك التاريخ — سجل محفوظ">${frappe.utils.escape_html(
+				? `<span class="ad-historical-tag" title="حالة البطاقة في ذلك التاريخ — سجل محفوظ للقراءة فقط">${frappe.utils.escape_html(
 						row.card_status
+				  )}</span>`
+				: row.is_currently_active === false
+				? `<span class="ad-historical-tag" title="البطاقة غير نشطة حالياً — السجل التاريخي للقراءة فقط">${frappe.utils.escape_html(
+						row.current_card_status || "موقوفة"
 				  )}</span>`
 				: "";
 			const card_display_name = row.base_card_name || row.card_name || "";
@@ -2974,13 +3002,24 @@ class ArchiveDepositsPage {
 				display_val = "0";
 			}
 
+			const is_card_inactive_readonly =
+				row.is_currently_active === false || Boolean(row.is_historical_inactive);
 			const can_edit_row_amount =
 				Boolean(row.row_permissions?.can_edit_date) &&
+				!is_card_inactive_readonly &&
 				!is_approved &&
 				!effective_stopped &&
 				!this.is_saving;
 
 			const audit_tip = this.build_audit_tooltip(row);
+			const input_tip = is_card_inactive_readonly
+				? [
+						`البطاقة غير نشطة حالياً (${row.current_card_status || row.card_status || "موقوفة"}) — السجل التاريخي للقراءة فقط`,
+						audit_tip,
+				  ]
+						.filter(Boolean)
+						.join("\n")
+				: audit_tip;
 			const audit_badge = audit_tip
 				? `<span class="ad-audit-info" title="${frappe.utils.escape_html(audit_tip)}" aria-label="سجل الإيداع">${DEPOSIT_SVGS.info_circle}</span>`
 				: "";
@@ -3004,7 +3043,7 @@ class ArchiveDepositsPage {
 								value="${frappe.utils.escape_html(display_val)}"
 								placeholder=""
 								${!can_edit_row_amount ? "disabled readonly" : ""}
-								${audit_tip ? `title="${frappe.utils.escape_html(audit_tip)}"` : ""}
+								${input_tip ? `title="${frappe.utils.escape_html(input_tip)}"` : ""}
 							/>
 							${audit_badge}
 						</div>
@@ -3031,12 +3070,17 @@ class ArchiveDepositsPage {
 		}
 
 		if (key === "stopped_for_reason") {
+			const is_card_inactive_readonly =
+				row.is_currently_active === false || Boolean(row.is_historical_inactive);
 			const can_toggle =
 				Boolean(row.row_permissions?.can_toggle_stopped_date) &&
+				!is_card_inactive_readonly &&
 				!is_approved &&
 				!this.is_saving;
 			let disabled_title = "";
-			if (is_approved) {
+			if (is_card_inactive_readonly) {
+				disabled_title = "البطاقة غير نشطة حالياً — السجل التاريخي للقراءة فقط";
+			} else if (is_approved) {
 				disabled_title = "الإيداع معتمد ومقفول";
 			} else if (!row.row_permissions?.can_toggle_stopped_date) {
 				disabled_title = "ليست لديك صلاحية لتغيير «موقف لسبب» في هذا التاريخ";

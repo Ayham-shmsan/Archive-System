@@ -76,19 +76,16 @@ class ArchiveCardDeposit(Document):
 				frappe.ValidationError,
 			)
 
-		if not getattr(self.flags, "allow_historical_active_card", False) and not getattr(
-			self.flags, "from_deposits_approval_api", False
+		if (
+			int(card_state.get("is_deleted") or 0) != 0
+			or cstr(card_state.get("status")).strip() != "نشطة"
 		):
-			if (
-				int(card_state.get("is_deleted") or 0) != 0
-				or cstr(card_state.get("status")) != "نشطة"
-			):
-				frappe.throw(
-					_("لا يمكن حفظ أو تعديل إيداع للبطاقة غير النشطة ({0}).").format(
-						cstr(card_state.get("card_name") or self.card)
-					),
-					frappe.ValidationError,
-				)
+			frappe.throw(
+				_("لا يمكن حفظ أو تعديل إيداع للبطاقة غير النشطة ({0}).").format(
+					cstr(card_state.get("card_name") or self.card)
+				),
+				frappe.ValidationError,
+			)
 
 		if not self.deposit_date:
 			frappe.throw(_("يجب تحديد تاريخ الإيداع."), frappe.ValidationError)

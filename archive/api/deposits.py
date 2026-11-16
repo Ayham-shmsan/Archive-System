@@ -1725,6 +1725,7 @@ def _load_period_dataset(
 				s.daily_limit,
 				s.history_confidence,
 				s.search_norm,
+				CAST(DATE(c.creation) AS CHAR) AS card_creation_date,
 				IFNULL(c.status, s.status) AS current_card_status,
 				IFNULL(c.is_deleted, s.is_deleted) AS current_is_deleted
 			FROM `tabArchive Card State Span` s
@@ -1776,6 +1777,7 @@ def _load_period_dataset(
 				c.daily_limit,
 				'current_only' AS history_confidence,
 				'' AS search_norm,
+				CAST(DATE(c.creation) AS CHAR) AS card_creation_date,
 				c.status AS current_card_status,
 				IFNULL(c.is_deleted, 0) AS current_is_deleted
 			FROM `tabArchive Card` c
@@ -1917,6 +1919,7 @@ def _load_period_dataset(
 			IFNULL(c.card_owner, '') AS card_owner,
 			COALESCE(NULLIF(acc.account_name, ''), NULLIF(co.card_owner_name, ''), IFNULL(c.card_owner, '')) AS card_owner_name,
 			c.daily_limit,
+			CAST(DATE(c.creation) AS CHAR) AS card_creation_date,
 			c.status AS current_card_status,
 			IFNULL(c.is_deleted, 0) AS current_is_deleted
 		FROM `tabArchive Card Deposit` d
@@ -2160,13 +2163,6 @@ def _load_period_dataset(
 				if sp["_is_active"]:
 					active_spans_on_d.append(sp)
 
-		day_group_map = _compute_day_groups(
-			non_deleted_spans_on_d=non_deleted_spans_on_d,
-			deps_on_d=deps_on_d,
-			is_past_date=is_past_date,
-			span_by_card_on_d=span_by_card_on_d,
-		)
-
 		seen_cards_on_d: set[str] = set()
 		ordered_card_entries: list[tuple[str, dict[str, Any] | None, dict[str, Any] | None]] = []
 
@@ -2175,11 +2171,42 @@ def _load_period_dataset(
 			seen_cards_on_d.add(cid)
 			ordered_card_entries.append((cid, sp, deps_on_d.get(cid)))
 
-		# Include saved historical deposit records even if the card was stopped/deleted on or after `d_str`
+		# Include saved historical deposit records even if the card was stopped/deleted on or after `d_str`,
+		# ONLY when the record represents a real transaction/state (amount > 0, stopped_for_reason = 1, or is_approved = 1)
+		# AND `d_str` is not before the card's actual creation date.
+		eligible_deps_on_d: dict[str, dict[str, Any]] = {}
+		for cid in seen_cards_on_d:
+			if cid in deps_on_d:
+				eligible_deps_on_d[cid] = deps_on_d[cid]
+
 		for cid, dr in deps_on_d.items():
 			if cid not in seen_cards_on_d:
-				seen_cards_on_d.add(cid)
-				ordered_card_entries.append((cid, span_by_card_on_d.get(cid), dr))
+				sp_cand = span_by_card_on_d.get(cid)
+				has_meaningful_dep = (
+					flt(dr.get("deposit_amount") or 0, 2) > 0
+					or cint(dr.get("stopped_for_reason")) == 1
+					or cint(dr.get("is_approved")) == 1
+				)
+				c_creation_d = cstr(
+					dr.get("card_creation_date")
+					or (sp_cand.get("card_creation_date") if sp_cand else "")
+					or ""
+				).strip()
+				is_on_or_after_creation = (not c_creation_d) or (d_str >= c_creation_d)
+				if has_meaningful_dep and is_on_or_after_creation:
+					seen_cards_on_d.add(cid)
+					eligible_deps_on_d[cid] = dr
+					ordered_card_entries.append((cid, sp_cand, dr))
+
+		eligible_spans_for_groups = [
+			sp for sp in non_deleted_spans_on_d if sp["_cid"] in seen_cards_on_d
+		]
+		day_group_map = _compute_day_groups(
+			non_deleted_spans_on_d=eligible_spans_for_groups,
+			deps_on_d=eligible_deps_on_d,
+			is_past_date=is_past_date,
+			span_by_card_on_d=span_by_card_on_d,
+		)
 
 		for cid, sp, dr in ordered_card_entries:
 			has_deposit_doc = dr is not None
@@ -2193,6 +2220,23 @@ def _load_period_dataset(
 				if (has_deposit_doc and is_deposited and not stopped_for_reason)
 				else False
 			)
+			cur_card_status = cstr(
+				(
+					sp.get("current_card_status")
+					if sp is not None
+					else (dr.get("current_card_status") if dr is not None else ACTIVE_CARD_STATUS)
+				)
+				or ACTIVE_CARD_STATUS
+			).strip()
+			cur_is_deleted = cint(
+				(
+					sp.get("current_is_deleted")
+					if sp is not None
+					else (dr.get("current_is_deleted") if dr is not None else 0)
+				)
+				or 0
+			)
+			is_currently_active = cur_card_status == ACTIVE_CARD_STATUS and cur_is_deleted == 0
 
 			if not has_deposit_doc and sp is not None:
 				# Fast path for the 95%+ of rows that have no deposit record on `d_str`
@@ -2420,7 +2464,7 @@ def _load_period_dataset(
 			if has_deposit_doc:
 				extra_search = f"{d_search_token} {dep_amount_fmt} {int(saved_amount) if saved_amount == int(saved_amount) else saved_amount} { 'موقف لسبب' if stopped_for_reason else '' } { 'معتمد' if is_approved else '' }"
 
-			can_edit_card_on_d = not is_hist_inactive
+			can_edit_card_on_d = (not is_hist_inactive) and is_currently_active
 			row_key = f"{cid}::{d_str}"
 			account_day_key = f"{d_str}::{account_key}"
 
@@ -2450,6 +2494,8 @@ def _load_period_dataset(
 					"card_owner": effective_card_owner,
 					"card_owner_name": effective_card_owner_name,
 					"card_status": card_status_at_d,
+					"current_card_status": cur_card_status,
+					"is_currently_active": is_currently_active,
 					"is_historical_inactive": is_hist_inactive,
 					"daily_limit": effective_daily_limit,
 					"daily_limit_formatted": daily_limit_fmt,
@@ -2491,16 +2537,20 @@ def _load_period_dataset(
 							and not is_approved
 							and saved_amount <= 0
 						),
-						"can_approve_date": d_perms["can_approve"],
+						"can_approve_date": d_perms["can_approve"] and can_edit_card_on_d,
 						"can_approve": (
 							d_perms["can_approve"]
+							and can_edit_card_on_d
 							and has_deposit_doc
 							and is_deposited
 							and not stopped_for_reason
 							and not is_approved
 						),
 						"can_unapprove": (
-							d_perms["can_approve"] and has_deposit_doc and is_approved
+							d_perms["can_approve"]
+							and can_edit_card_on_d
+							and has_deposit_doc
+							and is_approved
 						),
 					},
 					"audit": None,
@@ -2576,7 +2626,11 @@ def _compute_day_stats(
 
 	amount_source = status_filtered_items if status_filtered_items is not None else base_items
 	total_deposited_amount = flt(
-		sum(flt(item.get("deposit_amount"), 2) for item in amount_source if flt(item.get("deposit_amount"), 2) > 0),
+		sum(
+			flt(item.get("deposit_amount"), 2)
+			for item in amount_source
+			if bool(item.get("is_approved")) and flt(item.get("deposit_amount"), 2) > 0
+		),
 		2,
 	)
 
@@ -3387,21 +3441,26 @@ def save_daily_deposits(
 				entry_info = date_entries[cid]
 				card_label = cstr(eff_card.get("card_name") or cur_card.get("card_name") or cid)
 
-				if is_past_date:
-					is_eligible = (
-						bool(eff_card.get("_existed_on_date", True))
-						and cint(eff_card.get("is_deleted")) == 0
-						and cstr(eff_card.get("status")) == ACTIVE_CARD_STATUS
-					) or (existing is not None)
-				else:
-					is_eligible = (
-						cint(cur_card.get("is_deleted")) == 0
-						and cstr(cur_card.get("status")) == ACTIVE_CARD_STATUS
-					)
-
-				if not is_eligible:
+				is_cur_active = (
+					cint(cur_card.get("is_deleted")) == 0
+					and cstr(cur_card.get("status")).strip() == ACTIVE_CARD_STATUS
+				)
+				if not is_cur_active:
 					frappe.throw(
 						_("لا يمكن حفظ أو تعديل إيداع للبطاقة غير النشطة ({0}).").format(card_label),
+						frappe.ValidationError,
+					)
+
+				is_eligible_on_date = (
+					bool(eff_card.get("_existed_on_date", True))
+					and cint(eff_card.get("is_deleted")) == 0
+					and cstr(eff_card.get("status")).strip() == ACTIVE_CARD_STATUS
+				)
+				if not is_eligible_on_date:
+					frappe.throw(
+						_("لا يمكن حفظ أو تعديل إيداع للبطاقة غير النشطة ({0}) في تاريخ ({1}).").format(
+							card_label, d_str
+						),
 						frappe.ValidationError,
 					)
 
@@ -3934,6 +3993,45 @@ def approve_deposit(
 	require_fiscal_year_open(derived_fy)
 	require_fiscal_permission(derived_fy, "edit", check_open=True)
 
+	card_state = frappe.db.get_value(
+		"Archive Card",
+		clean_card,
+		["name", "card_name", "status", "is_deleted", "creation"],
+		as_dict=True,
+	)
+	if not card_state:
+		frappe.throw(_("البطاقة ({0}) غير موجودة.").format(clean_card), frappe.ValidationError)
+	card_label = cstr(card_state.get("card_name") or clean_card)
+	if cint(card_state.get("is_deleted")) != 0 or cstr(card_state.get("status")).strip() != ACTIVE_CARD_STATUS:
+		frappe.throw(
+			_("لا يمكن اعتماد إيداع للبطاقة غير النشطة ({0}).").format(card_label),
+			frappe.ValidationError,
+		)
+	if frappe.db.table_exists("Archive Card State Span"):
+		span_on_date = frappe.db.sql(
+			"""
+			SELECT is_active, is_deleted, status
+			FROM `tabArchive Card State Span`
+			WHERE card = %(card)s
+			  AND valid_from <= %(d_str)s
+			  AND valid_to >= %(d_str)s
+			LIMIT 1
+			""",
+			{"card": clean_card, "d_str": resolved_date},
+			as_dict=True,
+		)
+		if span_on_date and (
+			cint(span_on_date[0].get("is_active")) == 0
+			or cint(span_on_date[0].get("is_deleted")) != 0
+			or cstr(span_on_date[0].get("status")).strip() != ACTIVE_CARD_STATUS
+		):
+			frappe.throw(
+				_("لا يمكن اعتماد إيداع للبطاقة ({0}) في تاريخ ({1}) لأنها كانت موقوفة في ذلك التاريخ.").format(
+					card_label, resolved_date
+				),
+				frappe.ValidationError,
+			)
+
 	rows = frappe.db.sql(
 		"""
 		SELECT
@@ -4058,6 +4156,45 @@ def unapprove_deposit(
 	derived_fy = derive_fiscal_year_from_date(resolved_date)
 	require_fiscal_year_open(derived_fy)
 	require_fiscal_permission(derived_fy, "edit", check_open=True)
+
+	card_state = frappe.db.get_value(
+		"Archive Card",
+		clean_card,
+		["name", "card_name", "status", "is_deleted", "creation"],
+		as_dict=True,
+	)
+	if not card_state:
+		frappe.throw(_("البطاقة ({0}) غير موجودة.").format(clean_card), frappe.ValidationError)
+	card_label = cstr(card_state.get("card_name") or clean_card)
+	if cint(card_state.get("is_deleted")) != 0 or cstr(card_state.get("status")).strip() != ACTIVE_CARD_STATUS:
+		frappe.throw(
+			_("لا يمكن اعتماد إيداع للبطاقة غير النشطة ({0}).").format(card_label),
+			frappe.ValidationError,
+		)
+	if frappe.db.table_exists("Archive Card State Span"):
+		span_on_date = frappe.db.sql(
+			"""
+			SELECT is_active, is_deleted, status
+			FROM `tabArchive Card State Span`
+			WHERE card = %(card)s
+			  AND valid_from <= %(d_str)s
+			  AND valid_to >= %(d_str)s
+			LIMIT 1
+			""",
+			{"card": clean_card, "d_str": resolved_date},
+			as_dict=True,
+		)
+		if span_on_date and (
+			cint(span_on_date[0].get("is_active")) == 0
+			or cint(span_on_date[0].get("is_deleted")) != 0
+			or cstr(span_on_date[0].get("status")).strip() != ACTIVE_CARD_STATUS
+		):
+			frappe.throw(
+				_("لا يمكن اعتماد إيداع للبطاقة ({0}) في تاريخ ({1}) لأنها كانت موقوفة في ذلك التاريخ.").format(
+					card_label, resolved_date
+				),
+				frappe.ValidationError,
+			)
 
 	rows = frappe.db.sql(
 		"""

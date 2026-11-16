@@ -482,18 +482,90 @@ def rebuild_card_state_spans(
 						coerced_d = _coerce_optional_date(old_v)
 						if coerced_d:
 							initial_state["received_date"] = coerced_d
-					elif f_name in initial_state and old_v is not None:
+					elif f_name in initial_state and f_name != "status" and old_v is not None:
 						initial_state[f_name] = cstr(old_v).strip()
-		elif ev_type == "status_change":
-			if details.get("old_status"):
-				initial_state["status"] = cstr(details.get("old_status")).strip()
 		elif ev_type == "deleted":
 			initial_state["is_deleted"] = 0
 
-	# 3. Roll back Archive Card Event status changes in reverse order
-	for ev_row in reversed(event_rows):
-		if ev_row.get("previous_status"):
-			initial_state["status"] = cstr(ev_row.get("previous_status")).strip()
+	# 3. Build unified chronological status history across Archive Card Event, Archive Card Log, and Version
+	def _ts_Close(ts_a: str, ts_b: str, max_sec: float = 15.0) -> bool:
+		if not ts_a or not ts_b:
+			return False
+		try:
+			return abs((get_datetime(ts_a) - get_datetime(ts_b)).total_seconds()) <= max_sec
+		except Exception:
+			return _coerce_optional_date(ts_a) == _coerce_optional_date(ts_b)
+
+	status_events: list[tuple[str, int, str, str, str]] = []
+	for idx_e, ev_row in enumerate(event_rows):
+		ev_ts = cstr(ev_row.get("recorded_at") or ev_row.get("creation") or "")
+		ev_d = max(
+			creation_date,
+			_coerce_optional_date(ev_row.get("event_date"))
+			or _coerce_optional_date(ev_ts)
+			or creation_date,
+		)
+		old_st = cstr(ev_row.get("previous_status") or "").strip()
+		new_st = cstr(ev_row.get("new_status") or "").strip()
+		if new_st:
+			status_events.append((ev_ts, 3000 + idx_e, ev_d, old_st, new_st))
+
+	for idx_l, l_row in enumerate(log_rows):
+		ev_type = cstr(l_row.get("event_type") or "").strip()
+		l_ts = cstr(l_row.get("event_datetime") or l_row.get("creation") or "")
+		details = _safe_parse_json(l_row.get("details_json"), {})
+		if not isinstance(details, dict):
+			details = {}
+		old_st = ""
+		new_st = ""
+		ev_d = max(creation_date, _coerce_optional_date(l_ts) or creation_date)
+		if ev_type == "status_change":
+			old_st = cstr(details.get("old_status") or "").strip()
+			new_st = cstr(details.get("new_status") or "").strip()
+			ev_d = max(
+				creation_date,
+				_coerce_optional_date(details.get("event_date")) or ev_d,
+			)
+		elif ev_type == "manual_edit":
+			ch_fields = details.get("changed_fields")
+			if isinstance(ch_fields, dict) and isinstance(ch_fields.get("status"), dict):
+				st_diff = ch_fields["status"]
+				old_st = cstr(st_diff.get("old") or "").strip()
+				new_st = cstr(st_diff.get("new") or "").strip()
+		if new_st:
+			already_covered = any(
+				ev_new == new_st and _ts_Close(l_ts, ev_ts)
+				for ev_ts, _p, _d, _o, ev_new in status_events
+			)
+			if not already_covered:
+				status_events.append((l_ts, 2000 + idx_l, ev_d, old_st, new_st))
+
+	for idx_v, v_row in enumerate(version_rows):
+		v_ts = cstr(v_row.get("creation") or "")
+		v_data = _safe_parse_json(v_row.get("data"), {})
+		if not isinstance(v_data, dict):
+			continue
+		for item in v_data.get("changed") or []:
+			if not isinstance(item, (list, tuple)) or len(item) < 3:
+				continue
+			if cstr(item[0]).strip() != "status":
+				continue
+			old_st = cstr(item[1] or "").strip()
+			new_st = cstr(item[2] or "").strip()
+			if not new_st:
+				continue
+			ev_d = max(creation_date, _coerce_optional_date(v_ts) or creation_date)
+			already_covered = any(
+				ev_new == new_st and _ts_Close(v_ts, ev_ts)
+				for ev_ts, _p, _d, _o, ev_new in status_events
+			)
+			if not already_covered:
+				status_events.append((v_ts, 10 + idx_v, ev_d, old_st, new_st))
+
+	status_events.sort(key=lambda item: (item[0], item[1]))
+	for _ts, _prio, _eff_d, old_st, _new_st in reversed(status_events):
+		if old_st:
+			initial_state["status"] = old_st
 
 	# 4. Anchor initial assignment and `created` log
 	for t_row in transfer_rows:
@@ -551,7 +623,6 @@ def rebuild_card_state_spans(
 	# 5. Build chronological forward transitions grouped by effective date
 	# Each entry: (effective_date, sort_ts, priority_order, updates_dict)
 	transitions: list[tuple[str, str, int, dict[str, Any]]] = []
-	has_card_events = bool(event_rows)
 
 	for idx_v, v_row in enumerate(version_rows):
 		v_ts = cstr(v_row.get("creation") or "")
@@ -566,10 +637,7 @@ def rebuild_card_state_spans(
 				continue
 			f_name = cstr(item[0]).strip()
 			new_val = item[2]
-			if f_name not in version_scalar_fields:
-				continue
-			if f_name == "status" and has_card_events:
-				# Status effective dates are governed by `Archive Card Event.event_date`
+			if f_name not in version_scalar_fields or f_name == "status":
 				continue
 			if f_name == "daily_limit":
 				updates["daily_limit"] = flt(new_val or 0, 2) if new_val is not None else 0.0
@@ -613,7 +681,7 @@ def rebuild_card_state_spans(
 
 	for idx_l, l_row in enumerate(log_rows):
 		ev_type = cstr(l_row.get("event_type") or "").strip()
-		if ev_type == "created":
+		if ev_type in ("created", "status_change"):
 			continue
 		l_ts = cstr(l_row.get("event_datetime") or l_row.get("creation") or "")
 		eff_d = max(creation_date, _coerce_optional_date(l_ts) or creation_date)
@@ -659,6 +727,8 @@ def rebuild_card_state_spans(
 			ch_fields = details.get("changed_fields")
 			if isinstance(ch_fields, dict):
 				for f_name, diff_obj in ch_fields.items():
+					if f_name == "status":
+						continue
 					if not isinstance(diff_obj, dict) or "new" not in diff_obj:
 						continue
 					new_v = diff_obj.get("new")
@@ -678,29 +748,23 @@ def rebuild_card_state_spans(
 							updates["received_date"] = coerced_d
 					elif f_name in initial_state and new_v is not None:
 						updates[f_name] = cstr(new_v).strip()
-		elif ev_type == "status_change" and not has_card_events:
-			ev_d = _coerce_optional_date(details.get("event_date")) or eff_d
-			eff_d = max(creation_date, ev_d)
-			if details.get("new_status"):
-				updates["status"] = cstr(details.get("new_status")).strip()
 		elif ev_type == "deleted":
 			updates["is_deleted"] = 1
 
 		if updates:
 			transitions.append((eff_d, l_ts, 2000 + idx_l, updates))
 
-	for idx_e, ev_row in enumerate(event_rows):
-		ev_d = max(
-			creation_date,
-			_coerce_optional_date(ev_row.get("event_date"))
-			or _coerce_optional_date(ev_row.get("recorded_at"))
-			or creation_date,
-		)
-		ev_ts = cstr(ev_row.get("recorded_at") or ev_row.get("creation") or "")
-		if ev_row.get("new_status"):
-			transitions.append(
-				(ev_d, ev_ts, 3000 + idx_e, {"status": cstr(ev_row.get("new_status")).strip()})
-			)
+	# Resolve status transitions in recording order so a later-recorded backdated status event
+	# supersedes any earlier-recorded status event whose effective_date was >= the backdated date
+	resolved_status_events: list[tuple[str, str, int, str]] = []
+	for rec_ts, s_prio, eff_d, _old_st, new_st in status_events:
+		resolved_status_events = [
+			prev for prev in resolved_status_events if prev[0] < eff_d
+		]
+		resolved_status_events.append((eff_d, rec_ts, s_prio, new_st))
+
+	for eff_d, rec_ts, s_prio, new_st in resolved_status_events:
+		transitions.append((eff_d, rec_ts, s_prio, {"status": new_st}))
 
 	if cint(card_row.get("is_deleted")) == 1:
 		del_d = max(
@@ -740,8 +804,8 @@ def rebuild_card_state_spans(
 	# Ensure the final open-ended span reflects the live `tabArchive Card` state
 	if raw_spans:
 		last_span = raw_spans[-1]
-		live_differs = any(
-			last_span["state"].get(k) != current_state.get(k)
+		diff_keys = [
+			k
 			for k in (
 				"status",
 				"is_deleted",
@@ -756,12 +820,18 @@ def rebuild_card_state_spans(
 				"representative",
 				"region",
 			)
-		)
-		if live_differs:
-			mod_date = max(
-				last_span["valid_from"],
-				_coerce_optional_date(card_row.get("modified")) or cstr(today()),
-			)
+			if last_span["state"].get(k) != current_state.get(k)
+		]
+		if diff_keys:
+			if diff_keys == ["status"]:
+				fallback_live_d = (
+					_coerce_optional_date(card_row.get("status_changed_at"))
+					or _coerce_optional_date(card_row.get("modified"))
+					or cstr(today())
+				)
+			else:
+				fallback_live_d = _coerce_optional_date(card_row.get("modified")) or cstr(today())
+			mod_date = max(last_span["valid_from"], fallback_live_d)
 			if mod_date <= last_span["valid_from"]:
 				last_span["state"] = dict(current_state)
 			else:
