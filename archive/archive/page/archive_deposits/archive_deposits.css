@@ -284,14 +284,18 @@ body[data-route="archive-deposits"] #body,
 
 .archive-deposits-stats {
 	display: grid;
-	grid-template-columns: repeat(6, minmax(0, 1fr));
+	grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(430px, 2.35fr);
 	gap: 10px;
+	align-items: stretch;
 	flex-shrink: 0;
 }
 
 @media (max-width: 1360px) {
 	.archive-deposits-stats {
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+	.archive-deposits-stats > .stats-container {
+		grid-column: 1 / -1;
 	}
 }
 
@@ -447,6 +451,240 @@ body[data-route="archive-deposits"] #body,
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+/* =========================================================
+   UNIFIED FINANCIAL STATS CONTAINER + PROGRESS BAR & SHIMMER
+   ========================================================= */
+
+.archive-deposits-page .stats-container {
+	background: #ffffff;
+	border: 1px solid #e2e8f0;
+	border-radius: 16px;
+	box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+	width: 100%;
+	max-width: none;
+	min-width: 0;
+	margin: 0;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	box-sizing: border-box;
+	direction: rtl;
+	font-family: var(--archive-font-sans, "Cairo", "Tajawal", sans-serif);
+}
+
+.archive-deposits-page .stats-grid {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 12px 20px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.archive-deposits-page .stat-item {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.archive-deposits-page .stat-divider {
+	width: 1px;
+	height: 54px;
+	background-color: #e2e8f0;
+	margin: 0 18px;
+	flex-shrink: 0;
+}
+
+.archive-deposits-page .stat-icon {
+	width: clamp(46px, 3.2vw, 54px);
+	height: clamp(46px, 3.2vw, 54px);
+	border-radius: 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.archive-deposits-page .stat-icon svg {
+	width: clamp(22px, 1.6vw, 26px);
+	height: clamp(22px, 1.6vw, 26px);
+	display: block;
+}
+
+.archive-deposits-page .stat-icon.blue {
+	background-color: #eff6ff;
+	color: #1d4ed8;
+}
+
+.archive-deposits-page .stat-icon.purple {
+	background-color: #f5f3ff;
+	color: #6d28d9;
+}
+
+.archive-deposits-page .stat-info {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	text-align: right;
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.archive-deposits-page .stat-title {
+	font-size: 14px;
+	font-weight: 700;
+	color: #334155;
+	margin-bottom: 2px;
+	line-height: 1.25;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+}
+
+.archive-deposits-page .stat-value {
+	font-size: clamp(22px, 1.75vw, 28px);
+	font-weight: 800;
+	line-height: 1.2;
+	letter-spacing: -0.5px;
+	font-variant-numeric: tabular-nums;
+	direction: ltr;
+	unicode-bidi: isolate;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+}
+
+.archive-deposits-page .stat-value.blue-text {
+	color: #1d4ed8;
+}
+
+.archive-deposits-page .stat-value.purple-text {
+	color: #6d28d9;
+}
+
+.archive-deposits-page .stat-value.is-blurred-target {
+	filter: blur(5px);
+	user-select: none;
+	opacity: 0.55;
+	transition: filter 0.18s ease, opacity 0.18s ease;
+}
+
+.archive-deposits-page .stat-desc {
+	font-size: 12px;
+	color: #64748b;
+	margin-top: 2px;
+	line-height: 1.3;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+}
+
+.archive-deposits-page .stats-footer {
+	background-color: #f8fafc;
+	padding: 9px 20px;
+	border-top: 1px solid #f1f5f9;
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
+.archive-deposits-page .progress-bar {
+	flex: 1;
+	height: 10px;
+	background-color: #e2e8f0;
+	border-radius: 99px;
+	overflow: hidden;
+	position: relative;
+}
+
+.archive-deposits-page .progress-fill {
+	height: 100%;
+	width: 0%;
+	background: linear-gradient(90deg, #1d4ed8, #7c3aed);
+	border-radius: 99px;
+	position: relative;
+	overflow: hidden;
+	transition: width 1.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.archive-deposits-page .progress-fill::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	right: 0;
+	background: linear-gradient(
+		90deg,
+		rgba(255, 255, 255, 0) 0%,
+		rgba(255, 255, 255, 0.35) 50%,
+		rgba(255, 255, 255, 0) 100%
+	);
+	animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+	0% {
+		transform: translateX(100%);
+	}
+	100% {
+		transform: translateX(-100%);
+	}
+}
+
+.archive-deposits-page .progress-text {
+	font-size: 13px;
+	font-weight: 700;
+	color: #475569;
+	white-space: nowrap;
+	min-width: 175px;
+	font-variant-numeric: tabular-nums;
+}
+
+.archive-deposits-page .progress-percentage {
+	color: #6d28d9;
+	font-weight: 800;
+	direction: ltr;
+	display: inline-block;
+}
+
+.archive-deposits-page .stats-container.is-target-frozen .progress-bar {
+	opacity: 0.5;
+}
+
+@media (max-width: 640px) {
+	.archive-deposits-page .stats-grid {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 20px;
+	}
+	.archive-deposits-page .stat-divider {
+		width: 100%;
+		height: 1px;
+		margin: 0;
+	}
+	.archive-deposits-page .stats-footer {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 8px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.archive-deposits-page .progress-fill {
+		transition: none;
+	}
+	.archive-deposits-page .progress-fill::after {
+		animation: none;
+	}
 }
 
 /* =========================================================
@@ -973,8 +1211,13 @@ body[data-route="archive-deposits"] #body,
 }
 
 .archive-deposits-table th.ac-th[data-sort-col="region"] {
-	width: 8.5%;
-	min-width: 96px;
+	width: 7.5%;
+	min-width: 90px;
+}
+
+.archive-deposits-table th.ac-th[data-sort-col="card_owner"] {
+	width: 9.5%;
+	min-width: 112px;
 }
 
 .archive-deposits-table th.ac-th[data-sort-col="deposit_amount"] {
@@ -983,8 +1226,9 @@ body[data-route="archive-deposits"] #body,
 }
 
 .archive-deposits-table th.ac-th[data-sort-col="remaining_limit"] {
-	width: 11%;
-	min-width: 124px;
+	width: 6.5%;
+	min-width: 92px;
+	padding: 0 8px;
 }
 
 .archive-deposits-table th.ac-th[data-sort-col="status"],
@@ -1256,6 +1500,18 @@ body[data-route="archive-deposits"] #body,
 }
 
 /* Remaining Limit */
+.ad-table-row td.ad-td-remaining {
+	padding: 0 8px;
+}
+
+.ad-card-owner-name {
+	display: block;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .ad-remaining-val {
 	display: block;
 	max-width: 100%;
@@ -1701,6 +1957,7 @@ body[data-route="archive-deposits"] #body,
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-stopped-reason > td:not(.ad-td-status):not(.ad-td-stopped-reason):not(.ad-td-approval),
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-stopped-reason .ad-card-title-text,
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-stopped-reason .ad-bank-name,
+.archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-stopped-reason .ad-card-owner-name,
 .archive-deposits-page .archive-deposits-table tbody tr.ad-table-row.is-row-stopped-reason .ad-remaining-val {
 	color: #94a3b8 !important;
 }

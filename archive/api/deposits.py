@@ -91,6 +91,7 @@ SORTABLE_COLUMNS = (
 	"bank",
 	"representative",
 	"region",
+	"card_owner",
 	"deposit_amount",
 	"remaining_limit",
 	"stopped_for_reason",
@@ -1271,10 +1272,25 @@ def _fetch_masters() -> dict[str, list[dict[str, Any]]]:
 		fields=["name", "region_name"],
 		order_by="region_name asc",
 	)
+	raw_owners = frappe.get_all(
+		"Archive Account",
+		fields=["name", "account_name"],
+		order_by="account_name asc",
+	)
+	card_owners = [
+		{
+			"name": r.get("name"),
+			"account_name": r.get("account_name") or r.get("name"),
+			"card_owner_name": r.get("account_name") or r.get("name"),
+		}
+		for r in raw_owners
+		if r.get("name")
+	]
 	return {
 		"banks": banks,
 		"representatives": representatives,
 		"regions": regions,
+		"card_owners": card_owners,
 	}
 
 
@@ -1704,6 +1720,8 @@ def _load_period_dataset(
 				COALESCE(rep.representative_name, s.representative_name, s.representative) AS representative_name,
 				s.region,
 				COALESCE(reg.region_name, s.region_name, s.region) AS region_name,
+				IFNULL(c.card_owner, '') AS card_owner,
+				COALESCE(NULLIF(acc.account_name, ''), NULLIF(co.card_owner_name, ''), IFNULL(c.card_owner, '')) AS card_owner_name,
 				s.daily_limit,
 				s.history_confidence,
 				s.search_norm,
@@ -1714,6 +1732,8 @@ def _load_period_dataset(
 			LEFT JOIN `tabArchive Bank` b ON b.name = s.bank
 			LEFT JOIN `tabArchive Representative` rep ON rep.name = s.representative
 			LEFT JOIN `tabArchive Region` reg ON reg.name = s.region
+			LEFT JOIN `tabArchive Account` acc ON acc.name = c.card_owner
+			LEFT JOIN `tabArchive Card Owner` co ON co.name = c.card_owner
 			WHERE s.valid_from <= %(end_date)s
 			  AND s.valid_to >= %(start_date)s
 			ORDER BY serial_no DESC, s.card ASC, s.valid_from ASC
@@ -1751,6 +1771,8 @@ def _load_period_dataset(
 				rep.representative_name,
 				c.region,
 				reg.region_name,
+				IFNULL(c.card_owner, '') AS card_owner,
+				COALESCE(NULLIF(acc.account_name, ''), NULLIF(co.card_owner_name, ''), IFNULL(c.card_owner, '')) AS card_owner_name,
 				c.daily_limit,
 				'current_only' AS history_confidence,
 				'' AS search_norm,
@@ -1760,6 +1782,8 @@ def _load_period_dataset(
 			LEFT JOIN `tabArchive Bank` b ON b.name = c.bank
 			LEFT JOIN `tabArchive Representative` rep ON rep.name = c.representative
 			LEFT JOIN `tabArchive Region` reg ON reg.name = c.region
+			LEFT JOIN `tabArchive Account` acc ON acc.name = c.card_owner
+			LEFT JOIN `tabArchive Card Owner` co ON co.name = c.card_owner
 			ORDER BY c.serial_no DESC, c.name ASC
 			""",
 			{"active_status": ACTIVE_CARD_STATUS},
@@ -1782,6 +1806,8 @@ def _load_period_dataset(
 		rep_name = cstr(sp.get("representative_name") or rep_id)
 		reg_id = cstr(sp.get("region") or "")
 		reg_name = cstr(sp.get("region_name") or reg_id)
+		owner_id = cstr(sp.get("card_owner") or "")
+		owner_name = cstr(sp.get("card_owner_name") or owner_id)
 		c_num = cstr(sp.get("card_number") or "")
 		d_lim = max(0.0, flt(sp.get("daily_limit") or 0, 2))
 		copy_label = format_copy_badge_label(c_type, c_copy)
@@ -1802,12 +1828,15 @@ def _load_period_dataset(
 		sp["_rep_name"] = rep_name
 		sp["_region"] = reg_id
 		sp["_region_name"] = reg_name
+		sp["_card_owner"] = owner_id
+		sp["_card_owner_name"] = owner_name
 		sp["_daily_limit"] = d_lim
 		sp["_daily_limit_fmt"] = format_financial_amount(d_lim, zero_as_zero=True)
 		sp["_group_key"] = g_key
 		sp["_serial_no"] = cint(sp.get("serial_no"))
 		sp["_is_active"] = cint(sp.get("is_active")) == 1 and cint(sp.get("is_deleted")) == 0
 		sp["_is_non_deleted"] = cint(sp.get("is_deleted")) == 0
+		owner_search_norm = normalize_search_text(f"{owner_id} {owner_name}")
 		if not sp.get("search_norm"):
 			sp["_search_norm"] = normalize_search_text(
 				" ".join(
@@ -1823,12 +1852,18 @@ def _load_period_dataset(
 						bank_name,
 						rep_name,
 						reg_name,
+						owner_id,
+						owner_name,
 						cstr(sp["_serial_no"]),
 					]
 				)
 			)
 		else:
-			sp["_search_norm"] = cstr(sp.get("search_norm"))
+			sp["_search_norm"] = (
+				f"{cstr(sp.get('search_norm'))} {owner_search_norm}".strip()
+				if owner_search_norm
+				else cstr(sp.get("search_norm"))
+			)
 
 	dep_rows = frappe.db.sql(
 		"""
@@ -1879,6 +1914,8 @@ def _load_period_dataset(
 			rep.representative_name,
 			c.region,
 			reg.region_name,
+			IFNULL(c.card_owner, '') AS card_owner,
+			COALESCE(NULLIF(acc.account_name, ''), NULLIF(co.card_owner_name, ''), IFNULL(c.card_owner, '')) AS card_owner_name,
 			c.daily_limit,
 			c.status AS current_card_status,
 			IFNULL(c.is_deleted, 0) AS current_is_deleted
@@ -1887,6 +1924,8 @@ def _load_period_dataset(
 		LEFT JOIN `tabArchive Bank` b ON b.name = c.bank
 		LEFT JOIN `tabArchive Representative` rep ON rep.name = c.representative
 		LEFT JOIN `tabArchive Region` reg ON reg.name = c.region
+		LEFT JOIN `tabArchive Account` acc ON acc.name = c.card_owner
+		LEFT JOIN `tabArchive Card Owner` co ON co.name = c.card_owner
 		WHERE d.deposit_date BETWEEN %(start_date)s AND %(end_date)s
 		ORDER BY d.deposit_date DESC, c.serial_no DESC, d.card ASC
 		""",
@@ -2170,6 +2209,8 @@ def _load_period_dataset(
 				effective_rep_name = sp["_rep_name"]
 				effective_region = sp["_region"]
 				effective_region_name = sp["_region_name"]
+				effective_card_owner = sp["_card_owner"]
+				effective_card_owner_name = sp["_card_owner_name"]
 				account_key = sp["_group_key"]
 				serial_no = sp["_serial_no"]
 				card_status_at_d = cstr(sp.get("card_status") or ACTIVE_CARD_STATUS)
@@ -2260,6 +2301,15 @@ def _load_period_dataset(
 						f_source.get("region_name") or effective_region
 					)
 
+				effective_card_owner = cstr(
+					f_source.get("card_owner") or (dr.get("card_owner") if dr else "") or ""
+				)
+				effective_card_owner_name = cstr(
+					f_source.get("card_owner_name")
+					or (dr.get("card_owner_name") if dr else "")
+					or effective_card_owner
+				)
+
 				effective_copy_label = format_copy_badge_label(
 					effective_card_type, effective_copy_no
 				)
@@ -2284,6 +2334,8 @@ def _load_period_dataset(
 							effective_bank_name,
 							effective_rep_name,
 							effective_region_name,
+							effective_card_owner,
+							effective_card_owner_name,
 							cstr(serial_no),
 						]
 					)
@@ -2395,6 +2447,8 @@ def _load_period_dataset(
 					"representative_name": effective_rep_name,
 					"region": effective_region,
 					"region_name": effective_region_name,
+					"card_owner": effective_card_owner,
+					"card_owner_name": effective_card_owner_name,
 					"card_status": card_status_at_d,
 					"is_historical_inactive": is_hist_inactive,
 					"daily_limit": effective_daily_limit,
@@ -2584,6 +2638,8 @@ def _sort_items(
 			return (cstr(row.get("representative_name")).lower(), d_str, s_no)
 		if col == "region":
 			return (cstr(row.get("region_name")).lower(), d_str, s_no)
+		if col == "card_owner":
+			return (cstr(row.get("card_owner_name") or row.get("card_owner")).lower(), d_str, s_no)
 		if col == "deposit_amount":
 			return (flt(row.get("deposit_amount"), 2), d_str, s_no)
 		if col == "remaining_limit":
@@ -2799,6 +2855,7 @@ def get_deposits_context(
 	bank: str = "",
 	representative: str = "",
 	region: str = "",
+	card_owner: str = "",
 	page: int | str = 1,
 	page_size: int | str = 50,
 	sort_by: str = "serial_no",
@@ -2851,6 +2908,7 @@ def get_deposits_context(
 	clean_bank = cstr(bank or "").strip()
 	clean_rep = cstr(representative or "").strip()
 	clean_region = cstr(region or "").strip()
+	clean_card_owner = cstr(card_owner or "").strip()
 	clean_status = cstr(status_filter or "").strip().lower()
 	if clean_status not in VALID_DEPOSIT_FILTERS:
 		clean_status = ""
@@ -2858,7 +2916,7 @@ def get_deposits_context(
 	norm_search = normalize_search_text(search or "")
 	search_tokens = [tok for tok in norm_search.split(" ") if tok] if norm_search else []
 
-	# 1. Apply context filters (bank + representative + region + search) to form base set `S`
+	# 1. Apply context filters (bank + representative + region + card_owner + search) to form base set `S`
 	base_filtered: list[dict[str, Any]] = []
 	for item in all_period_items:
 		if clean_bank and item["bank"] != clean_bank:
@@ -2866,6 +2924,12 @@ def get_deposits_context(
 		if clean_rep and item["representative"] != clean_rep:
 			continue
 		if clean_region and item["region"] != clean_region:
+			continue
+		if (
+			clean_card_owner
+			and item.get("card_owner") != clean_card_owner
+			and item.get("card_owner_name") != clean_card_owner
+		):
 			continue
 		if search_tokens:
 			blob = item.get("_search_blob") or ""

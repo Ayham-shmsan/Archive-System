@@ -4,6 +4,7 @@ frappe.pages["archive-deposits"].on_page_load = function (wrapper) {
 
 frappe.pages["archive-deposits"].on_page_show = function () {
 	if (frappe.archive_deposits && frappe.archive_deposits._initialized) {
+		frappe.archive_deposits.prepare_screen_entry_animation?.();
 		frappe.archive_deposits.load_context(true);
 	}
 };
@@ -19,8 +20,9 @@ const ARCHIVE_DEPOSITS_COLUMNS = [
 	{ key: "bank", label: "البنك", width: "11%", pct: 11, min_px: 116, locked: false, sortable: true },
 	{ key: "representative", label: "المندوب", width: "8.5%", pct: 8.5, min_px: 108, locked: false, sortable: true },
 	{ key: "region", label: "المنطقة", width: "7.5%", pct: 7.5, min_px: 90, locked: false, sortable: true },
+	{ key: "card_owner", label: "مالك البطاقة", width: "9.5%", pct: 9.5, min_px: 112, locked: false, sortable: true },
 	{ key: "deposit_amount", label: "مبلغ الإيداع", width: "12.5%", pct: 12.5, min_px: 154, locked: true, sortable: true },
-	{ key: "remaining_limit", label: "مبلغ الحد المتبقي", width: "9%", pct: 9, min_px: 116, locked: false, sortable: true },
+	{ key: "remaining_limit", label: "مبلغ الحد المتبقي", width: "6.5%", pct: 6.5, min_px: 92, locked: false, sortable: true },
 	{ key: "stopped_for_reason", label: "موقف لسبب", width: "6.5%", pct: 6.5, min_px: 84, locked: false, sortable: true },
 	{ key: "status", label: "الحالة", width: "9%", pct: 9, min_px: 132, locked: true, sortable: true },
 	{ key: "approval", label: "الاعتماد", width: "8%", pct: 8, min_px: 120, locked: true, sortable: true },
@@ -55,8 +57,8 @@ const DEPOSIT_SVGS = {
 	stat_deposited: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
 	stat_not_deposited: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>`,
 	stat_stopped_reason: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="9" y1="10" x2="9" y2="14"/><line x1="15" y1="10" x2="15" y2="14"/></svg>`,
-	stat_amount: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="15" cy="6" rx="6" ry="2.5"/><path d="M9 6v4c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V6"/><path d="M9 10v4c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5v-4"/><circle cx="7.5" cy="15.5" r="4.5"/><path d="M7.5 13.8v3.4"/></svg>`,
-	stat_target: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+	stat_amount: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>`,
+	stat_target: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>`,
 	save_disk: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`,
 	refresh: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`,
 	filter_funnel: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>`,
@@ -177,6 +179,7 @@ class ArchiveDepositsPage {
 				bank: "",
 				representative: "",
 				region: "",
+				card_owner: "",
 			},
 			page: 1,
 			page_size: 50,
@@ -203,7 +206,7 @@ class ArchiveDepositsPage {
 			target_is_frozen: false,
 		};
 		this.pagination = { page: 1, page_size: 50, total_count: 0, total_pages: 1 };
-		this.masters = { banks: [], representatives: [], regions: [] };
+		this.masters = { banks: [], representatives: [], regions: [], card_owners: [] };
 		this.permissions = {
 			can_view: false,
 			can_save: false,
@@ -224,6 +227,15 @@ class ArchiveDepositsPage {
 		this.is_saving = false;
 		this.approving_keys = new Set();
 		this._suppress_route_guard = false;
+		this._pending_entry_stats_anim = true;
+		this._fin_stats_anim = {
+			timer_id: null,
+			raf_ids: { deposited: null, target: null, percent: null },
+			last_deposited: null,
+			last_target: null,
+			last_percent: null,
+			last_frozen: null,
+		};
 
 		this.make_page();
 		this.render_shell();
@@ -543,6 +555,12 @@ class ArchiveDepositsPage {
 								<option value="">الكل</option>
 							</select>
 						</div>
+						<div class="ad-filter-field">
+							<label>مالك البطاقة</label>
+							<select class="form-control" data-filter="card_owner">
+								<option value="">الكل</option>
+							</select>
+						</div>
 						<div class="ad-filter-actions">
 							<button type="button" class="btn btn-default btn-sm ad-reset-filter-btn" data-action="reset-filters">
 								${DEPOSIT_SVGS.undo}
@@ -753,7 +771,7 @@ class ArchiveDepositsPage {
 			}
 			this.state.status_filter = next_filter;
 			this.state.page = 1;
-			this.render_stats();
+			this.render_stats(false);
 			this.load_context(true);
 		});
 
@@ -767,7 +785,7 @@ class ArchiveDepositsPage {
 			this.state.filters[key] = $(e.currentTarget).val() || "";
 			this.state.page = 1;
 			this.update_filter_badge();
-			this.render_stats();
+			this.render_stats(false);
 			this.load_context(true);
 		});
 
@@ -776,12 +794,13 @@ class ArchiveDepositsPage {
 				bank: "",
 				representative: "",
 				region: "",
+				card_owner: "",
 			};
 			this.state.status_filter = "all";
 			$main.find("[data-filter]").val("");
 			this.state.page = 1;
 			this.update_filter_badge();
-			this.render_stats();
+			this.render_stats(false);
 			this.load_context(true);
 		});
 
@@ -1832,6 +1851,7 @@ class ArchiveDepositsPage {
 					bank: this.state.filters.bank,
 					representative: this.state.filters.representative,
 					region: this.state.filters.region,
+					card_owner: this.state.filters.card_owner,
 					page: this.state.page,
 					page_size: this.state.page_size,
 					sort_by: this.state.sort_by,
@@ -2095,9 +2115,109 @@ class ArchiveDepositsPage {
 		fill_select("bank", m.banks, "bank_name");
 		fill_select("representative", m.representatives, "representative_name");
 		fill_select("region", m.regions, "region_name");
+		fill_select("card_owner", m.card_owners, "card_owner_name");
 	}
 
-	render_stats() {
+	cancel_financial_stats_animations() {
+		if (!this._fin_stats_anim) return;
+		if (this._fin_stats_anim.timer_id) {
+			clearTimeout(this._fin_stats_anim.timer_id);
+			this._fin_stats_anim.timer_id = null;
+		}
+		for (const k of ["deposited", "target", "percent"]) {
+			if (this._fin_stats_anim.raf_ids[k]) {
+				window.cancelAnimationFrame(this._fin_stats_anim.raf_ids[k]);
+				this._fin_stats_anim.raf_ids[k] = null;
+			}
+		}
+	}
+
+	prepare_screen_entry_animation() {
+		this.cancel_financial_stats_animations();
+		this._pending_entry_stats_anim = true;
+		if (this._fin_stats_anim) {
+			this._fin_stats_anim.last_deposited = null;
+			this._fin_stats_anim.last_target = null;
+			this._fin_stats_anim.last_percent = null;
+			this._fin_stats_anim.last_frozen = null;
+		}
+		const $box = $(this.page?.main).find('[data-role="financial-stats-box"]');
+		if ($box.length) {
+			$box.find('[data-role="deposited-value"]').text("0");
+			const is_frozen = $box.hasClass("is-target-frozen");
+			$box.find('[data-role="target-value"]').text(is_frozen ? "—" : "0");
+			$box.find('[data-role="progress-percent"]').text(is_frozen ? "—" : "0%");
+			const fillEl = $box.find('[data-role="progress-fill"]')[0];
+			if (fillEl) {
+				fillEl.style.transition = "none";
+				fillEl.style.width = "0%";
+				void fillEl.offsetWidth;
+				fillEl.style.transition = "";
+			}
+		}
+	}
+
+	animate_stat_number(key, element, start, end, duration = 1600, suffix = "", is_currency = false) {
+		if (!element) return;
+		if (this._fin_stats_anim.raf_ids[key]) {
+			window.cancelAnimationFrame(this._fin_stats_anim.raf_ids[key]);
+			this._fin_stats_anim.raf_ids[key] = null;
+		}
+
+		const format_val = (val, is_final) => {
+			if (!is_currency) {
+				return Math.round(val).toLocaleString("en-US") + suffix;
+			}
+			if (is_final) {
+				return format_deposit_number(end, false) + suffix;
+			}
+			const has_decimals =
+				Math.abs(end - Math.round(end)) > 0.0001 ||
+				Math.abs(start - Math.round(start)) > 0.0001;
+			if (has_decimals) {
+				return (
+					Number(val.toFixed(2)).toLocaleString("en-US", {
+						minimumFractionDigits: 2,
+						maximumFractionDigits: 2,
+					}) + suffix
+				);
+			}
+			const current_int = end >= start ? Math.floor(val) : Math.ceil(val);
+			return current_int.toLocaleString("en-US") + suffix;
+		};
+
+		const reduced_motion =
+			typeof window !== "undefined" &&
+			window.matchMedia &&
+			window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+		if (reduced_motion || duration <= 0 || Math.abs(end - start) < 0.0001) {
+			element.textContent = format_val(end, true);
+			return;
+		}
+
+		let startTimestamp = null;
+		const step = (timestamp) => {
+			if (typeof document !== "undefined" && document.body && !document.body.contains(element)) {
+				this._fin_stats_anim.raf_ids[key] = null;
+				return;
+			}
+			if (!startTimestamp) startTimestamp = timestamp;
+			const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+			const easeOut = 1 - Math.pow(1 - progress, 3);
+			const currentVal = easeOut * (end - start) + start;
+
+			if (progress < 1) {
+				element.textContent = format_val(currentVal, false);
+				this._fin_stats_anim.raf_ids[key] = window.requestAnimationFrame(step);
+			} else {
+				element.textContent = format_val(end, true);
+				this._fin_stats_anim.raf_ids[key] = null;
+			}
+		};
+		this._fin_stats_anim.raf_ids[key] = window.requestAnimationFrame(step);
+	}
+
+	render_stats(animate_financial = true) {
 		const s = this.stats || {};
 		const cur_filter = this.state.status_filter || "all";
 		const is_day = (this.state.period_mode || "day") === "day";
@@ -2148,64 +2268,208 @@ class ArchiveDepositsPage {
 				tone: "amber",
 				icon: DEPOSIT_SVGS.stat_stopped_reason,
 			},
-			{
-				id: "total_deposited",
-				clickable: false,
-				active: false,
-				label: "إجمالي المبلغ المودع",
-				sub: is_day ? "إجمالي ما تم إيداعه اليوم" : "إجمالي المبالغ المودعة خلال الفترة",
-				value:
-					s.total_deposited_amount_formatted ??
-					format_deposit_number(s.total_deposited_amount || 0, false),
-				tone: "blue",
-				icon: DEPOSIT_SVGS.stat_amount,
-			},
-			{
-				id: "daily_target",
-				clickable: false,
-				active: false,
-				frozen: target_frozen,
-				label: is_day ? "إجمالي الهدف اليومي" : "إجمالي الهدف",
-				sub: target_frozen
-					? "مجمّد عند التصفية بالمندوب أو المنطقة"
-					: is_day
-					? "مجموع الحدود اليومية للبطاقات النشطة"
-					: "مجموع الحدود اليومية خلال الفترة",
-				value:
-					s.total_daily_target_formatted ??
-					format_deposit_number(s.total_daily_target || 0, false),
-				tone: "violet",
-				icon: DEPOSIT_SVGS.stat_target,
-			},
 		];
 
-		const html = cards
-			.map((c) => {
-				const tag = c.clickable ? "button" : "div";
-				const attrs = c.clickable
-					? `type="button" data-status-card="${c.id}"`
-					: `data-stat-id="${c.id}" aria-label="${frappe.utils.escape_html(c.label)}"`;
-				return `
-					<${tag}
-						class="ad-stat-card tone-${c.tone} ${c.clickable ? "is-clickable" : ""} ${
-					c.active ? "is-active" : ""
-				} ${c.frozen ? "is-target-frozen" : ""}"
-						${attrs}
-					>
-						<div class="ad-stat-top">
-							<span class="ad-stat-icon" aria-hidden="true">${c.icon}</span>
-							<span class="ad-stat-label">${frappe.utils.escape_html(c.label)}</span>
-						</div>
-						<div class="ad-stat-value ${c.frozen ? "is-blurred-target" : ""}" dir="ltr">${frappe.utils.escape_html(
-					String(c.value)
-				)}</div>
-						<div class="ad-stat-sub">${frappe.utils.escape_html(c.sub)}</div>
-					</${tag}>
-				`;
-			})
-			.join("");
+		const deposited_amount = Math.max(0, Number(s.total_deposited_amount) || 0);
+		const target_amount = Math.max(0, Number(s.total_daily_target) || 0);
+		const raw_pct = !target_frozen && target_amount > 0 ? (deposited_amount / target_amount) * 100 : 0;
+		const percentage = !target_frozen && target_amount > 0 ? Math.max(0, Math.min(Math.round(raw_pct), 100)) : 0;
 
-		$(this.page.main).find('[data-role="stats-bar"]').html(html);
+		const deposited_title = "إجمالي المبلغ المودع";
+		const deposited_desc = is_day ? "إجمالي ما تم إيداعه اليوم" : "إجمالي المبالغ المودعة خلال الفترة";
+		const target_title = is_day ? "إجمالي الهدف اليومي" : "إجمالي الهدف";
+		const target_desc = target_frozen
+			? "مجمّد عند التصفية بالمندوب أو المنطقة"
+			: is_day
+			? "مجموع الحدود اليومية للبطاقات النشطة"
+			: "مجموع الحدود اليومية خلال الفترة";
+		const progress_label = is_day ? "نسبة تحقيق الهدف اليومي:" : "نسبة تحقيق الهدف:";
+
+		const $statsBar = $(this.page.main).find('[data-role="stats-bar"]');
+		if (!$statsBar.length) return;
+
+		let $finBox = $statsBar.find('[data-role="financial-stats-box"]');
+		if (!$finBox.length) {
+			const cards_html = cards
+				.map((c) => {
+					return `
+						<button
+							type="button"
+							data-status-card="${c.id}"
+							class="ad-stat-card tone-${c.tone} is-clickable ${c.active ? "is-active" : ""}"
+						>
+							<div class="ad-stat-top">
+								<span class="ad-stat-icon" aria-hidden="true">${c.icon}</span>
+								<span class="ad-stat-label">${frappe.utils.escape_html(c.label)}</span>
+							</div>
+							<div class="ad-stat-value" dir="ltr">${frappe.utils.escape_html(String(c.value))}</div>
+							<div class="ad-stat-sub">${frappe.utils.escape_html(c.sub)}</div>
+						</button>
+					`;
+				})
+				.join("");
+
+			const fin_html = `
+				<div
+					class="stats-container ${target_frozen ? "is-target-frozen" : ""}"
+					data-role="financial-stats-box"
+					data-deposited="${deposited_amount}"
+					data-target="${target_amount}"
+				>
+					<div class="stats-grid">
+						<div class="stat-item">
+							<div class="stat-icon blue" aria-hidden="true">
+								${DEPOSIT_SVGS.stat_amount}
+							</div>
+							<div class="stat-info">
+								<span class="stat-title" data-role="deposited-title">${frappe.utils.escape_html(deposited_title)}</span>
+								<span class="stat-value blue-text" data-role="deposited-value">0</span>
+								<span class="stat-desc" data-role="deposited-desc">${frappe.utils.escape_html(deposited_desc)}</span>
+							</div>
+						</div>
+
+						<div class="stat-divider" aria-hidden="true"></div>
+
+						<div class="stat-item">
+							<div class="stat-icon purple" aria-hidden="true">
+								${DEPOSIT_SVGS.stat_target}
+							</div>
+							<div class="stat-info">
+								<span class="stat-title" data-role="target-title">${frappe.utils.escape_html(target_title)}</span>
+								<span class="stat-value purple-text ${target_frozen ? "is-blurred-target" : ""}" data-role="target-value">${target_frozen ? "—" : "0"}</span>
+								<span class="stat-desc" data-role="target-desc">${frappe.utils.escape_html(target_desc)}</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="stats-footer">
+						<span class="progress-text">
+							<span data-role="progress-label">${frappe.utils.escape_html(progress_label)}</span>
+							<span class="progress-percentage" data-role="progress-percent">${target_frozen ? "—" : "0%"}</span>
+						</span>
+						<div class="progress-bar">
+							<div class="progress-fill" data-role="progress-fill"></div>
+						</div>
+					</div>
+				</div>
+			`;
+
+			$statsBar.html(cards_html + fin_html);
+			$finBox = $statsBar.find('[data-role="financial-stats-box"]');
+		} else {
+			cards.forEach((c) => {
+				const $card = $statsBar.find(`[data-status-card="${c.id}"]`);
+				if ($card.length) {
+					$card.toggleClass("is-active", Boolean(c.active));
+					$card.find(".ad-stat-label").text(c.label);
+					$card.find(".ad-stat-value").text(String(c.value));
+					$card.find(".ad-stat-sub").text(c.sub);
+				}
+			});
+
+			$finBox
+				.attr("data-deposited", String(deposited_amount))
+				.attr("data-target", String(target_amount))
+				.toggleClass("is-target-frozen", target_frozen);
+			$finBox.find('[data-role="deposited-title"]').text(deposited_title);
+			$finBox.find('[data-role="deposited-desc"]').text(deposited_desc);
+			$finBox.find('[data-role="target-title"]').text(target_title);
+			$finBox.find('[data-role="target-desc"]').text(target_desc);
+			$finBox
+				.find('[data-role="target-value"]')
+				.toggleClass("is-blurred-target", target_frozen);
+			$finBox.find('[data-role="progress-label"]').text(progress_label);
+		}
+
+		if (!animate_financial) {
+			return;
+		}
+
+		const depositedEl = $finBox.find('[data-role="deposited-value"]')[0];
+		const targetEl = $finBox.find('[data-role="target-value"]')[0];
+		const progressPercentEl = $finBox.find('[data-role="progress-percent"]')[0];
+		const progressFillEl = $finBox.find('[data-role="progress-fill"]')[0];
+		if (!depositedEl || !targetEl || !progressPercentEl || !progressFillEl) return;
+
+		const animState = this._fin_stats_anim;
+		const is_entry = Boolean(this._pending_entry_stats_anim || animState.last_deposited === null);
+
+		if (is_entry) {
+			this._pending_entry_stats_anim = false;
+			this.cancel_financial_stats_animations();
+
+			depositedEl.textContent = "0";
+			targetEl.textContent = target_frozen ? "—" : "0";
+			progressPercentEl.textContent = target_frozen ? "—" : "0%";
+			progressFillEl.style.transition = "none";
+			progressFillEl.style.width = "0%";
+			void progressFillEl.offsetWidth;
+			progressFillEl.style.transition = "";
+
+			animState.last_deposited = deposited_amount;
+			animState.last_target = target_amount;
+			animState.last_percent = percentage;
+			animState.last_frozen = target_frozen;
+
+			animState.timer_id = setTimeout(() => {
+				animState.timer_id = null;
+				this.animate_stat_number("deposited", depositedEl, 0, deposited_amount, 1600, "", true);
+				if (target_frozen) {
+					targetEl.textContent = "—";
+					progressPercentEl.textContent = "—";
+					progressFillEl.style.width = "0%";
+				} else {
+					progressFillEl.style.width = percentage + "%";
+					this.animate_stat_number("percent", progressPercentEl, 0, percentage, 1600, "%", false);
+					this.animate_stat_number("target", targetEl, 0, target_amount, 1600, "", true);
+				}
+			}, 150);
+			return;
+		}
+
+		const dep_changed = Math.abs(deposited_amount - (animState.last_deposited ?? 0)) > 0.0001;
+		const tgt_changed = Math.abs(target_amount - (animState.last_target ?? 0)) > 0.0001;
+		const pct_changed = percentage !== (animState.last_percent ?? 0);
+		const frz_changed = target_frozen !== Boolean(animState.last_frozen);
+
+		if (!dep_changed && !tgt_changed && !pct_changed && !frz_changed) {
+			return;
+		}
+
+		const prev_dep = animState.last_deposited ?? 0;
+		const prev_tgt = animState.last_frozen ? 0 : animState.last_target ?? 0;
+		const prev_pct = animState.last_frozen ? 0 : animState.last_percent ?? 0;
+
+		animState.last_deposited = deposited_amount;
+		animState.last_target = target_amount;
+		animState.last_percent = percentage;
+		animState.last_frozen = target_frozen;
+
+		if (dep_changed) {
+			this.animate_stat_number("deposited", depositedEl, prev_dep, deposited_amount, 1600, "", true);
+		}
+
+		if (target_frozen) {
+			if (animState.raf_ids.target) {
+				window.cancelAnimationFrame(animState.raf_ids.target);
+				animState.raf_ids.target = null;
+			}
+			if (animState.raf_ids.percent) {
+				window.cancelAnimationFrame(animState.raf_ids.percent);
+				animState.raf_ids.percent = null;
+			}
+			targetEl.textContent = "—";
+			progressPercentEl.textContent = "—";
+			progressFillEl.style.width = "0%";
+		} else {
+			if (tgt_changed || frz_changed) {
+				this.animate_stat_number("target", targetEl, prev_tgt, target_amount, 1600, "", true);
+			}
+			if (pct_changed || frz_changed || dep_changed || tgt_changed) {
+				progressFillEl.style.width = percentage + "%";
+				this.animate_stat_number("percent", progressPercentEl, prev_pct, percentage, 1600, "%", false);
+			}
+		}
 	}
 
 	render_columns_menu() {
@@ -2684,6 +2948,15 @@ class ArchiveDepositsPage {
 
 		if (key === "region") {
 			return `<td>${frappe.utils.escape_html(row.region_name || row.region || "—")}</td>`;
+		}
+
+		if (key === "card_owner") {
+			const owner_display = String(row.card_owner_name || row.card_owner || "").trim() || "—";
+			return `<td class="ad-td-card-owner" title="${frappe.utils.escape_html(
+				owner_display
+			)}"><span class="ad-card-owner-name" title="${frappe.utils.escape_html(
+				owner_display
+			)}">${frappe.utils.escape_html(owner_display)}</span></td>`;
 		}
 
 		if (key === "deposit_amount") {
