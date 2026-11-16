@@ -16,7 +16,7 @@ const ARCHIVE_DEPOSITS_COLUMNS = [
 	{ key: "card_name", label: "اسم البطاقة", width: "13%", pct: 13, min_px: 148, locked: true, sortable: true },
 	{ key: "deposit_date", label: "تاريخ الإيداع", width: "9%", pct: 9, min_px: 110, locked: false, sortable: true, period_only: true },
 	{ key: "card_number", label: "رقم البطاقة", width: "9.5%", pct: 9.5, min_px: 118, locked: false, sortable: true },
-	{ key: "bank", label: "البنك", width: "11%", pct: 11, min_px: 144, locked: false, sortable: true },
+	{ key: "bank", label: "البنك", width: "11%", pct: 11, min_px: 116, locked: false, sortable: true },
 	{ key: "representative", label: "المندوب", width: "8.5%", pct: 8.5, min_px: 108, locked: false, sortable: true },
 	{ key: "region", label: "المنطقة", width: "7.5%", pct: 7.5, min_px: 90, locked: false, sortable: true },
 	{ key: "deposit_amount", label: "مبلغ الإيداع", width: "12.5%", pct: 12.5, min_px: 154, locked: true, sortable: true },
@@ -2382,38 +2382,88 @@ class ArchiveDepositsPage {
 		return max_cell_px;
 	}
 
+	measure_bank_column_width($table) {
+		const bank_min_px = 116;
+		const bank_max_px = 260;
+		if (!this.rows.length) {
+			return this._last_bank_col_px || 144;
+		}
+		const ctx = this.get_text_measure_context();
+		if (!ctx) {
+			return this._last_bank_col_px || 156;
+		}
+		const table_el = $table && $table.length ? $table[0] : document.body;
+		const style = window.getComputedStyle(table_el);
+		const token_cell_sz = parseFloat(style.getPropertyValue("--archive-font-table-cell-size"));
+		const sample_bank = $table && $table.length ? $table.find(".ad-bank-name")[0] : null;
+		const bank_style = sample_bank ? window.getComputedStyle(sample_bank) : null;
+		const font_family = (bank_style && bank_style.fontFamily) || style.fontFamily || "sans-serif";
+		const font_px =
+			(bank_style && parseFloat(bank_style.fontSize)) ||
+			(Number.isFinite(token_cell_sz) && token_cell_sz > 0 ? token_cell_sz : parseFloat(style.fontSize) || 13);
+		const font_weight = (bank_style && bank_style.fontWeight) || "600";
+
+		const unique_banks = new Set();
+		for (let i = 0; i < this.rows.length; i++) {
+			const b_name = String(this.rows[i].bank_name || this.rows[i].bank || "—").trim();
+			if (b_name) {
+				unique_banks.add(b_name);
+			}
+		}
+
+		// Overhead: td padding (24px) + .ad-bank-cell padding (4px) + 26px icon + 8px gap + 8px breathing room
+		const bank_chrome_px = 70;
+		ctx.font = `${font_weight} ${font_px}px ${font_family}`;
+		let max_bank_px = bank_min_px;
+		for (const name of unique_banks) {
+			const needed = Math.ceil(ctx.measureText(name).width + bank_chrome_px);
+			if (needed > max_bank_px) {
+				max_bank_px = needed;
+			}
+		}
+
+		const clamped_px = Math.min(bank_max_px, Math.max(bank_min_px, max_bank_px));
+		this._last_bank_col_px = clamped_px;
+		return clamped_px;
+	}
+
 	compute_table_column_layout(visible_cols, $main, $table) {
 		const scroll_el = $main.find('[data-role="table-scroll"]')[0];
 		const raw_container_w = scroll_el ? scroll_el.clientWidth : 0;
 		const container_w =
 			raw_container_w > 0 ? raw_container_w : Math.max(window.innerWidth - 300, 1120);
 
-		const card_col = visible_cols.find((c) => c.key === "card_name");
-		const other_cols = visible_cols.filter((c) => c.key !== "card_name");
+		const flex_keys = new Set(["card_name", "bank"]);
+		const flex_cols = visible_cols.filter((c) => flex_keys.has(c.key));
+		const other_cols = visible_cols.filter((c) => !flex_keys.has(c.key));
 		const total_pct = visible_cols.reduce((sum, c) => sum + c.pct, 0) || 100;
 		const other_pct = other_cols.reduce((sum, c) => sum + c.pct, 0);
 		const other_min_sum = other_cols.reduce((sum, c) => sum + c.min_px, 0);
 		const visible_min_sum = visible_cols.reduce((sum, c) => sum + c.min_px, 0);
 
-		const card_px = card_col
-			? this.rows.length
-				? this.measure_card_name_column_width($table)
-				: Math.max(
-						178,
-						Math.round(Math.max(container_w, visible_min_sum) * (card_col.pct / total_pct))
-				  )
-			: 0;
-
 		const normal_table_w = Math.max(container_w, visible_min_sum);
+		const widths = new Map();
+		let flex_sum = 0;
+
+		for (const col of flex_cols) {
+			let px;
+			if (col.key === "card_name") {
+				px = this.rows.length
+					? this.measure_card_name_column_width($table)
+					: Math.max(178, Math.round(normal_table_w * (col.pct / total_pct)));
+			} else if (col.key === "bank") {
+				px = this.measure_bank_column_width($table);
+			} else {
+				px = col.min_px;
+			}
+			widths.set(col.key, px);
+			flex_sum += px;
+		}
+
 		const base_other_sum = other_cols.length
 			? Math.max(other_min_sum, Math.round(normal_table_w * (other_pct / total_pct)))
 			: 0;
-		const target_other_sum = Math.max(base_other_sum, container_w - card_px);
-
-		const widths = new Map();
-		if (card_col) {
-			widths.set("card_name", card_px);
-		}
+		const target_other_sum = Math.max(base_other_sum, container_w - flex_sum);
 
 		let allocated_other = 0;
 		other_cols.forEach((col, idx) => {
@@ -2430,7 +2480,7 @@ class ArchiveDepositsPage {
 
 		return {
 			widths,
-			table_width_px: card_px + allocated_other,
+			table_width_px: flex_sum + allocated_other,
 		};
 	}
 
@@ -2619,10 +2669,10 @@ class ArchiveDepositsPage {
 			const b_name = row.bank_name || row.bank || "—";
 			const tone_idx = get_bank_tone_index(b_name);
 			return `
-				<td>
+				<td class="ad-td-bank" title="${frappe.utils.escape_html(b_name)}">
 					<div class="ad-bank-cell">
 						<span class="ad-bank-icon tone-${tone_idx}" aria-hidden="true">${DEPOSIT_SVGS.bank_badge}</span>
-						<span class="ad-bank-name">${frappe.utils.escape_html(b_name)}</span>
+						<span class="ad-bank-name" title="${frappe.utils.escape_html(b_name)}">${frappe.utils.escape_html(b_name)}</span>
 					</div>
 				</td>
 			`;
