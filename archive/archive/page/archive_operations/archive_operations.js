@@ -36,6 +36,8 @@ class ArchiveOperationsPage {
         };
 
         this.fiscal_context = null;
+        this.saudi_customer_rate_bounds = null;
+        this.bank_transfer_rate_bounds = null;
         this._load_request_id = 0;
 
 
@@ -48,8 +50,21 @@ class ArchiveOperationsPage {
         this.context_version = null;
 
         this.search_frame = null;
+        this.search_timer = null;
         this.filter_controller =
             null;
+
+        this._amount_formatter = new Intl.NumberFormat("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
+        this._translation_cache = new Map();
+        this._datetime_cache = new Map();
+        this._dynamic_search_cache = new Map();
+        this._column_defs_cache = null;
+        this._first_visible_column_index = 1;
+        this._visible_column_count = 26;
+        this._virtual_table = null;
         
         this.hidden_columns =
             this.load_hidden_columns();
@@ -60,6 +75,49 @@ class ArchiveOperationsPage {
         this.render();
 
         this.initialize();
+    }
+
+    get_operation_year_short(
+        operation
+    ) {
+        const candidates = [
+            operation?.fiscal_year,
+            operation?.execution_datetime,
+            operation?.request_date,
+        ];
+
+        for (const raw of candidates) {
+            const match = String(raw || "")
+                .trim()
+                .match(/^((?:19|20)\d{2})\b/);
+            if (match) {
+                return match[1].slice(-2);
+            }
+        }
+
+        return "";
+    }
+
+    render_operation_year_badge(
+        operation
+    ) {
+        const year_short =
+            this.get_operation_year_short(
+                operation
+            );
+
+        if (!year_short) {
+            return "";
+        }
+
+        const full_year = String(
+            operation?.fiscal_year || ""
+        ).trim();
+        const title_attr = full_year
+            ? ` title="السنة المالية ${this.escape_value(full_year)}"`
+            : "";
+
+        return `<span class="archive-operation-year-suffix"${title_attr}><span class="archive-operation-year-sep">/</span><span class="archive-operation-year-num">${this.escape_value(year_short)}</span></span>`;
     }
 
     render_operation_no(
@@ -123,6 +181,19 @@ class ArchiveOperationsPage {
                 operation_no
             );
 
+        const year_suffix =
+            this.render_operation_year_badge(
+                operation
+            );
+
+        const number_group_html = `
+            <span class="archive-operation-no-group" dir="ltr">
+                <span
+                    class="archive-operation-no-value"
+                >${escaped_operation_no}</span>${year_suffix}
+            </span>
+        `;
+
 
         // رقم غير مكرر.
         if (count <= 1) {
@@ -131,11 +202,7 @@ class ArchiveOperationsPage {
                 <div
                     class="archive-operation-no-cell"
                 >
-                    <span
-                        class="archive-operation-no-value"
-                    >
-                        ${escaped_operation_no}
-                    </span>
+                    ${number_group_html}
                 </div>
             `;
         }
@@ -149,11 +216,7 @@ class ArchiveOperationsPage {
                     is-duplicate
                 "
             >
-                <span
-                    class="archive-operation-no-value"
-                >
-                    ${escaped_operation_no}
-                </span>
+                ${number_group_html}
 
                 <span
                     class="archive-operation-duplicate-badge"
@@ -242,7 +305,7 @@ class ArchiveOperationsPage {
             });
 
 
-            await this.load_operations();
+            await this.refresh_operation_row(operation.name);
 
 
         } catch (error) {
@@ -571,6 +634,13 @@ class ArchiveOperationsPage {
                     total_span
                 )
             );
+
+        $(this.wrapper)
+            .find(".archive-operation-fill td")
+            .attr(
+                "colspan",
+                String(visible_count)
+            );
     }
 
 
@@ -586,8 +656,9 @@ class ArchiveOperationsPage {
         }
 
         const columns =
-            this
-                .get_operation_column_definitions();
+            this._column_defs_cache && this._column_defs_cache.length
+                ? this._column_defs_cache
+                : (this._column_defs_cache = this.get_operation_column_definitions());
 
         if (!columns.length) {
             return;
@@ -615,10 +686,6 @@ class ArchiveOperationsPage {
                     )
             );
 
-        /*
-        * حماية من localStorage قديم أو تعديل يدوي:
-        * يجب أن يبقى عمود واحد ظاهرًا على الأقل.
-        */
         if (
             hidden.size
             >= columns.length
@@ -645,88 +712,68 @@ class ArchiveOperationsPage {
         }
 
         let visible_count = 0;
+        let first_visible_index = null;
+        const hidden_rules = [];
 
-        let first_visible_index =
-            null;
-
-        for (
-            const column
-            of columns
-        ) {
-            const is_hidden =
-                hidden.has(
-                    column.field
-                );
+        for (const column of columns) {
+            const is_hidden = hidden.has(column.field);
 
             if (!is_hidden) {
                 visible_count += 1;
-
-                if (
-                    first_visible_index
-                    === null
-                ) {
-                    first_visible_index =
-                        column.index;
+                if (first_visible_index === null) {
+                    first_visible_index = column.index;
                 }
+            } else {
+                const idx = column.index;
+                hidden_rules.push(
+                    `.archive-operations-page .archive-operations-table colgroup col:nth-child(${idx}),`
+                    + `.archive-operations-page .archive-operations-table thead th:nth-child(${idx}),`
+                    + `.archive-operations-page .archive-operations-table tbody.archive-operation-rows tr.archive-operation-row > td:nth-child(${idx}){display:none!important;}`
+                );
             }
-
-            $table
-                .find(
-                    `colgroup col:nth-child(${column.index})`
-                )
-                .toggle(
-                    !is_hidden
-                );
-
-            $table
-                .find(
-                    `thead th:nth-child(${column.index})`
-                )
-                .toggle(
-                    !is_hidden
-                );
-
-            $table
-                .find(
-                    `tbody.archive-operation-rows tr td:nth-child(${column.index})`
-                )
-                .toggle(
-                    !is_hidden
-                );
         }
 
-        /*
-        * إذا أخفى المستخدم العمود الأول،
-        * ننقل خط حالة العملية إلى أول عمود ظاهر.
-        */
-        $table
-            .find(
-                "tbody .archive-operation-row > td"
-            )
-            .removeClass(
-                "is-first-visible-column"
-            );
+        this._visible_column_count = visible_count || columns.length;
+        this._first_visible_column_index = first_visible_index;
 
-        if (
-            first_visible_index
-            !== null
-        ) {
-            $table
-                .find(
-                    `tbody .archive-operation-row > td:nth-child(${first_visible_index})`
-                )
-                .addClass(
-                    "is-first-visible-column"
-                );
+        let style_el = this.wrapper.querySelector('style[data-role="archive-ops-column-styles"]');
+        if (!style_el) {
+            style_el = document.createElement("style");
+            style_el.setAttribute("data-role", "archive-ops-column-styles");
+            this.wrapper.appendChild(style_el);
         }
+        style_el.textContent = hidden_rules.join("\n");
 
-        this
-            .update_column_visibility_footer(
-                visible_count
-            );
+        this.apply_first_visible_column_class();
 
-        this
-            .update_column_visibility_button();
+        this.update_column_visibility_footer(visible_count);
+        this.update_column_visibility_button();
+    }
+
+    apply_first_visible_column_class() {
+        const tbody = this.wrapper.querySelector("tbody.archive-operation-rows");
+        if (!tbody) {
+            return;
+        }
+        const prev_cells = tbody.querySelectorAll("td.is-first-visible-column");
+        for (let i = 0; i < prev_cells.length; i++) {
+            prev_cells[i].classList.remove("is-first-visible-column");
+        }
+        const idx = this._first_visible_column_index;
+        if (!idx) {
+            return;
+        }
+        const rows = tbody.children;
+        for (let i = 0; i < rows.length; i++) {
+            const tr = rows[i];
+            if (!tr.classList.contains("archive-operation-row")) {
+                continue;
+            }
+            const cell = tr.children[idx - 1];
+            if (cell) {
+                cell.classList.add("is-first-visible-column");
+            }
+        }
     }
 
 
@@ -1046,25 +1093,32 @@ class ArchiveOperationsPage {
                         "name",
 
                     search_accessor:
-                        (operation) =>
-                            [
-                                operation.search_text || "",
-                                custom.data_grid.utils.normalize_search_text(
+                        (operation) => {
+                            const base = operation.search_text || "";
+                            const country = String(operation.country || "").trim();
+                            const status = String(operation.status || "").trim();
+                            const creator = String(operation.created_by_name || "").trim();
+                            const owner = String(operation.owner || "").trim();
+                            const dyn_key = `${country}|${status}|${creator}|${owner}`;
+                            let dyn = this._dynamic_search_cache.get(dyn_key);
+                            if (dyn === undefined) {
+                                dyn = custom.data_grid.utils.normalize_search_text(
                                     [
-                                        operation.country || "",
-                                        operation.country
-                                            ? __(String(operation.country).trim())
-                                            : "",
-                                        operation.status || "",
-                                        operation.status
-                                            ? __(String(operation.status).trim())
-                                            : "",
-                                        operation.created_by_name || "",
+                                        country,
+                                        country ? this.translate_raw(country) : "",
+                                        status,
+                                        status ? this.translate_raw(status) : "",
+                                        creator,
+                                        owner,
                                     ].join(" ")
-                                ),
-                            ]
-                                .filter(Boolean)
-                                .join(" "),
+                                );
+                                this._dynamic_search_cache.set(dyn_key, dyn);
+                            }
+                            if (base && dyn) {
+                                return `${base} ${dyn}`;
+                            }
+                            return base || dyn;
+                        },
 
                     search_tokenizer:
                         custom.data_grid
@@ -1221,6 +1275,27 @@ class ArchiveOperationsPage {
                         status: {
                             type: "text",
                         },
+                        status_effective_datetime: {
+                            type: "number",
+                            default_direction: "asc",
+                            nulls_last: true,
+                            get: (record) => {
+                                const raw = record?.status_effective_datetime;
+                                if (raw === null || raw === undefined) {
+                                    return null;
+                                }
+                                const cleaned = String(raw).trim();
+                                if (!cleaned) {
+                                    return null;
+                                }
+                                const ts = Date.parse(
+                                    cleaned.includes(" ")
+                                        ? cleaned.replace(" ", "T")
+                                        : cleaned
+                                );
+                                return Number.isFinite(ts) ? ts : null;
+                            },
+                        },
                         created_by_name: {
                             type: "text",
                         },
@@ -1257,7 +1332,9 @@ class ArchiveOperationsPage {
                                 page_length;
 
 
-                            this.apply_local_query();
+                            this.apply_local_query({
+                                skip_counts: true,
+                            });
 
 
                             this.scroll_grid_to_top();
@@ -1266,6 +1343,35 @@ class ArchiveOperationsPage {
 
 
         this.pagination.mount();
+
+        if (this._virtual_table) {
+            this._virtual_table.destroy();
+        }
+        const scroll_el = this.wrapper.querySelector(".archive-table-wrapper");
+        const tbody_el = this.wrapper.querySelector("tbody.archive-operation-rows");
+        if (scroll_el && tbody_el && custom.data_grid.VirtualTableRenderer) {
+            this._virtual_table = new custom.data_grid.VirtualTableRenderer({
+                scroll_el,
+                tbody_el,
+                row_selector: "tr.archive-operation-row",
+                row_height: 58,
+                overscan: 14,
+                threshold: 150,
+                get_col_count: () => this._visible_column_count || 26,
+                render_row: (operation) => this.operation_row(operation),
+                on_rendered: ({ virtualized }) => {
+                    this.apply_first_visible_column_class();
+                    if (virtualized) {
+                        const fill = this.wrapper.querySelector("tbody.archive-operation-fill");
+                        if (fill) {
+                            fill.style.display = "none";
+                        }
+                    } else {
+                        this.update_table_filler_height();
+                    }
+                },
+            });
+        }
 
 
         const pagination_state =
@@ -1731,8 +1837,9 @@ class ArchiveOperationsPage {
 
                             on_saved:
                                 async () => {
-                                    await this
-                                        .load_operations();
+                                    await this.refresh_operation_row(
+                                        operation.name
+                                    );
                                 },
                         }
                     );
@@ -1770,8 +1877,9 @@ class ArchiveOperationsPage {
                             mode: "incomplete_invoice",
                             on_saved:
                                 async () => {
-                                    await this
-                                        .load_operations();
+                                    await this.refresh_operation_row(
+                                        operation.name
+                                    );
                                 },
                         }
                     );
@@ -1835,7 +1943,7 @@ class ArchiveOperationsPage {
                     "green",
             });
 
-            await this.load_operations();
+            await this.refresh_operation_row(operation_name);
 
         } catch (error) {
             console.error(
@@ -2157,6 +2265,7 @@ class ArchiveOperationsPage {
                                 <col class="col-notes">
 
                                 <col class="col-final-swift">
+                                <col class="col-status-effective-date">
                                 <col class="col-creation-time">
                                 <col class="col-created-by">
                                 <col class="col-status">
@@ -2343,6 +2452,14 @@ class ArchiveOperationsPage {
 
                                     <th
                                         class="generic-sortable-column"
+                                        data-sort-field="status_effective_datetime"
+                                    >
+                                        تاريخ الحالة
+                                        <span class="generic-sort-indicator"></span>
+                                    </th>
+
+                                    <th
+                                        class="generic-sortable-column"
                                         data-sort-field="creation"
                                     >
                                         وقت الإدخال
@@ -2372,7 +2489,7 @@ class ArchiveOperationsPage {
 							</tbody>
 
                             <tbody class="archive-operation-fill" aria-hidden="true">
-                                <tr><td colspan="23"></td></tr>
+                                <tr><td colspan="26"></td></tr>
                             </tbody>
 
                             <tfoot class="archive-operation-total-footer">
@@ -2385,7 +2502,7 @@ class ArchiveOperationsPage {
                                     </td>
 
                                     <td
-                                        colspan="20"
+                                        colspan="23"
                                         class="archive-visible-amount-total"
                                     >
                                         —
@@ -2748,7 +2865,154 @@ class ArchiveOperationsPage {
         $(this.wrapper).find(".archive-create-operation, .archive-empty-create").prop("disabled", !can_add_fy);
     }
 
-    async load_operations() {
+    hydrate_compact_operations(result) {
+        if (
+            !result
+            || !result.compact
+            || !Array.isArray(result.rows)
+            || !Array.isArray(result.schema)
+        ) {
+            return Array.isArray(result?.records) ? result.records : [];
+        }
+
+        const schema = result.schema;
+        const rows = result.rows;
+        const creators = result.creators || {};
+        const caps = result.capabilities || {};
+        const transitions_map = caps.status_transitions || {};
+        const swift_banks = new Set(result.final_swift_banks || []);
+        const swift_limit = Number(caps.final_swift_limit || 10);
+        const can_view_timeline = Boolean(caps.can_view_timeline);
+        const can_change_initial = Boolean(caps.can_change_initial_status);
+        const can_change_advanced = Boolean(caps.can_change_advanced_status);
+        const can_release_pending = Boolean(caps.can_release_pending);
+        const can_attach_swift = Boolean(caps.can_attach_final_swift);
+        const can_attach_incomplete = Boolean(caps.can_attach_incomplete_invoice);
+
+        const col_len = schema.length;
+        const idx = {};
+        for (let c = 0; c < col_len; c++) {
+            idx[schema[c]] = c;
+        }
+
+        const out = new Array(rows.length);
+
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            const op = {};
+            for (let c = 0; c < col_len; c++) {
+                op[schema[c]] = r[c];
+            }
+
+            const serial_no = Number(op.serial_no || 0);
+            const fiscal_seq = Number(op.fiscal_sequence || 0) || serial_no;
+            op.fiscal_sequence = fiscal_seq;
+            op.fiscal_display_no = op.fiscal_year
+                ? `${op.fiscal_year} / ${fiscal_seq}`
+                : String(fiscal_seq || serial_no || "");
+
+            const owner_id = String(op.owner || "").trim();
+            op.created_by_name = creators[owner_id] || "";
+            op.can_view_timeline = can_view_timeline;
+
+            const fs_count = Number(op.final_swift_count || 0);
+            const raw_req = op.final_swift_required;
+            const fs_req_flag =
+                raw_req === 0 || raw_req === "0" || raw_req === false || raw_req === "غير مطلوب"
+                    ? 0
+                    : 1;
+            const fs_required = Boolean(
+                fs_req_flag === 1
+                && op.transferring_bank
+                && swift_banks.has(op.transferring_bank)
+            );
+
+            op.final_swift_required = fs_required;
+            op.final_swift_required_flag = fs_req_flag;
+            op.final_swift_count = fs_count;
+            op.final_swift_limit = swift_limit;
+            op.has_final_swift = fs_count > 0;
+            op.final_swift_pending = Boolean(fs_required && fs_count === 0);
+            op.final_swift_status =
+                fs_count > 0
+                    ? "تم الإرفاق"
+                    : (op.final_swift_pending ? "بانتظار السويفت" : "غير مطلوب");
+            op.can_attach_final_swift = Boolean(
+                fs_required && fs_count < swift_limit && can_attach_swift
+            );
+
+            const is_incomplete = Boolean(Number(op.is_incomplete_resolved || 0));
+            op.is_incomplete_invoice = is_incomplete;
+            op.can_attach_incomplete_invoice = Boolean(
+                is_incomplete && can_attach_incomplete
+            );
+
+            if (op.status === "معلقة") {
+                op.can_change_status = false;
+                op.can_release_pending = can_release_pending;
+            } else {
+                op.can_release_pending = false;
+                op.can_change_status =
+                    op.status === "غير مؤكدة"
+                        ? can_change_initial
+                        : can_change_advanced;
+            }
+
+            op.allowed_status_transitions = op.can_change_status
+                ? (transitions_map[op.status] || [])
+                : [];
+            op.customer_name = op.customer;
+            op.from_account_name = op.from_account;
+
+            out[i] = op;
+        }
+
+        return out;
+    }
+
+    async refresh_operation_row(operation_name, { previous_operation_no = null } = {}) {
+        const clean_name = String(operation_name || "").trim();
+        if (!clean_name || !this.data_source) {
+            return await this.load_operations();
+        }
+
+        try {
+            const response = await frappe.call({
+                method: "archive.api.operations.get_operation_context_row",
+                type: "GET",
+                args: { operation_name: clean_name },
+            });
+
+            const rows = Array.isArray(response?.message?.rows)
+                ? response.message.rows
+                : [];
+
+            if (!rows.length) {
+                return await this.load_operations();
+            }
+
+            // If operation_no changed from a duplicate group, reload so old siblings update counts
+            if (previous_operation_no !== null) {
+                const updated = rows.find((r) => r.name === clean_name);
+                const new_no = String(updated?.operation_no || "").trim();
+                const old_no = String(previous_operation_no || "").trim();
+                if (old_no && new_no !== old_no) {
+                    return await this.load_operations({ preserve_scroll: true });
+                }
+            }
+
+            for (let i = 0; i < rows.length; i++) {
+                this.data_source.upsert(rows[i]);
+            }
+
+            this.apply_local_query({ preserve_scroll: true });
+        } catch (error) {
+            console.warn("Single-row refresh fallback to full load:", error);
+            await this.load_operations({ preserve_scroll: true });
+        }
+    }
+
+    async load_operations({ preserve_scroll = false } = {}) {
 
         const $wrapper =
             $(this.wrapper);
@@ -2790,6 +3054,7 @@ class ArchiveOperationsPage {
 
                     args: {
                         fiscal_year: selected_years ? JSON.stringify(selected_years) : undefined,
+                        compact: 1,
                     },
                 });
 
@@ -2801,20 +3066,29 @@ class ArchiveOperationsPage {
                 response.message
                 || {};
 
+            if (result.saudi_customer_rate_bounds) {
+                this.saudi_customer_rate_bounds =
+                    result.saudi_customer_rate_bounds;
+            }
+
+            if (result.bank_transfer_rate_bounds) {
+                this.bank_transfer_rate_bounds =
+                    result.bank_transfer_rate_bounds;
+            }
+
             if (result.fiscal_context) {
                 this.render_fiscal_year_filter(result.fiscal_context);
                 if (
                     !is_initialized
                     && Array.isArray(this.state.fiscal_years)
                 ) {
-                    return await this.load_operations();
+                    return await this.load_operations({ preserve_scroll });
                 }
             }
 
 
             const records =
-                result.records
-                || [];
+                this.hydrate_compact_operations(result);
 
 
             this.context_version =
@@ -2828,10 +3102,12 @@ class ArchiveOperationsPage {
                 );
 
 
-            this.state.page = 1;
+            if (!preserve_scroll) {
+                this.state.page = 1;
+            }
 
 
-            this.apply_local_query();
+            this.apply_local_query({ preserve_scroll });
 
 
         } catch (error) {
@@ -3017,7 +3293,7 @@ class ArchiveOperationsPage {
         return counts;
     }
 
-    apply_local_query() {
+    apply_local_query({ skip_counts = false, preserve_scroll = false } = {}) {
 
         if (!this.data_source) {
             return;
@@ -3060,67 +3336,54 @@ class ArchiveOperationsPage {
             result.records;
 
 
-        if (
-            this.state
-                .selected_operation_name
-            &&
-            !this.operations.some(
-                (operation) =>
-                    operation.name
-                    ===
-                    this.state
-                        .selected_operation_name
-            )
-        ) {
-            this.state
-                .selected_operation_name =
-                    null;
+        if (this.state.selected_operation_name) {
+            const sel_name = this.state.selected_operation_name;
+            let sel_exists = false;
+            if (result.page_length === 0) {
+                sel_exists =
+                    this.data_source.records.has(sel_name)
+                    && result.page_ids.indexOf(sel_name) !== -1;
+            } else {
+                sel_exists = result.page_ids.indexOf(sel_name) !== -1;
+            }
+            if (!sel_exists) {
+                this.state.selected_operation_name = null;
+            }
         }
 
 
         this.render_operations(
-            this.operations
+            this.operations,
+            { preserve_scroll }
         );
 
 
         this.update_selected_actions();
 
 
-        // this.update_counts(
-        //     this.get_local_counts(
-        //         result.searched_ids
-        //     )
-        // );
+        if (!skip_counts) {
+            let count_ids;
+            if (this.state.status === "all") {
+                count_ids = result.result_ids;
+            } else {
+                const counts_result =
+                    this.data_source.query({
+                        search: this.state.search,
+                        filters: this.state.advanced_filters || {},
+                        sort: null,
+                        page: 1,
+                        page_length: "all",
+                        include_records: false,
+                    });
+                count_ids = counts_result.result_ids;
+            }
 
-
-        const counts_result =
-            this.data_source.query({
-
-                search:
-                    this.state.search,
-
-                // الفلاتر المتقدمة فقط.
-                // لا نضع بطاقة الحالة هنا.
-                filters:
-                    this.state
-                        .advanced_filters
-                        || {},
-
-                sort:
-                    null,
-
-                page:
-                    1,
-
-                page_length:
-                    "all",
-            });
-
-        this.update_counts(
-            this.get_local_counts(
-                counts_result.result_ids
-            )
-        );
+            this.update_counts(
+                this.get_local_counts(
+                    count_ids
+                )
+            );
+        }
 
         this.update_result_count(
             result.total_rows
@@ -3180,13 +3443,16 @@ class ArchiveOperationsPage {
                     : "asc";
 
         } else {
+            const default_dir =
+                this.data_source?.sorters?.[field]?.default_direction
+                || "desc";
 
             this.state.sort = {
                 field:
                     field,
 
                 direction:
-                    "desc",
+                    default_dir,
             };
         }
 
@@ -3194,7 +3460,7 @@ class ArchiveOperationsPage {
         this.state.page = 1;
 
 
-        this.apply_local_query();
+        this.apply_local_query({ skip_counts: true });
 
 
         this.scroll_grid_to_top();
@@ -3301,7 +3567,7 @@ class ArchiveOperationsPage {
     }
 
 
-    render_operations(operations) {
+    render_operations(operations, { preserve_scroll = false } = {}) {
         const $wrapper = $(this.wrapper);
 
         const $tbody =
@@ -3320,38 +3586,48 @@ class ArchiveOperationsPage {
             );
 
         if (!operations.length) {
+            if (this._virtual_table) {
+                this._virtual_table.set_rows([], { preserve_scroll: false, force: true });
+            } else {
                 $tbody.empty();
-
-                this.update_visible_amount_total(
-                    []
-                );
-
-                $table.hide();
-                $empty.show();
-
-                return;
             }
+
+            this.update_visible_amount_total(
+                []
+            );
+
+            $table.hide();
+            $empty.show();
+
+            return;
+        }
 
         $empty.hide();
         $table.show();
 
-        $tbody.html(
-            operations
-                .map(
-                    (operation) =>
-                        this.operation_row(
-                            operation
-                        )
-                )
-                .join("")
-        );
+        if (this._virtual_table) {
+            this._virtual_table.set_rows(operations, {
+                preserve_scroll,
+                force: true,
+            });
+        } else {
+            $tbody.html(
+                operations
+                    .map(
+                        (operation) =>
+                            this.operation_row(
+                                operation
+                            )
+                    )
+                    .join("")
+            );
+            this.apply_first_visible_column_class();
+            this.update_table_filler_height();
+        }
+
         this.update_visible_amount_total(
             operations
         );
-        this.apply_column_visibility();
-        this.update_table_filler_height();
-
-        this.bind_row_events();
     }
     update_visible_amount_total(
             operations
@@ -3684,6 +3960,13 @@ class ArchiveOperationsPage {
 
                 </td>
 
+                <!-- تاريخ الحالة -->
+                <td dir="rtl">
+                    <span dir="ltr">${this.format_status_effective_date(
+                        operation.status_effective_datetime
+                    )}</span>
+                </td>
+
                 <!-- وقت الإدخال -->
                 <td dir="rtl">
                     ${this.format_datetime(
@@ -3736,13 +4019,7 @@ class ArchiveOperationsPage {
         const number =
             Number(value || 0);
 
-        return new Intl.NumberFormat(
-            "en-US",
-            {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-            }
-        ).format(number);
+        return this._amount_formatter.format(number);
     }
 
     format_rate(value) {
@@ -3781,6 +4058,31 @@ class ArchiveOperationsPage {
     }
 
 
+    format_status_effective_date(value) {
+        if (!value) {
+            return "—";
+        }
+        const m = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) {
+            return this.escape_value(value);
+        }
+        return `${m[1]}-${m[2]}-${m[3]}`;
+    }
+
+
+    translate_raw(value) {
+        const key = String(value || "").trim();
+        if (!key) {
+            return "";
+        }
+        let cached = this._translation_cache.get(key);
+        if (cached === undefined) {
+            cached = __(key);
+            this._translation_cache.set(key, cached);
+        }
+        return cached;
+    }
+
     translate_value(value) {
         if (
             value === null ||
@@ -3791,9 +4093,7 @@ class ArchiveOperationsPage {
         }
 
         return frappe.utils.escape_html(
-            __(
-                String(value).trim()
-            )
+            this.translate_raw(value)
         );
     }
 
@@ -3815,30 +4115,43 @@ class ArchiveOperationsPage {
         if (!value) {
             return "—";
         }
+        const key = String(value);
+        const cached = this._datetime_cache.get(key);
+        if (cached !== undefined) {
+            return cached;
+        }
+        let formatted;
         if (typeof window.archive_format_datetime === "function") {
-            return this.escape_value(window.archive_format_datetime(value, "—"));
-        }
-        const clean = String(value).trim().replace(/\.\d+$/, "");
-        let resolved = clean;
-        try {
-            if (frappe?.datetime?.convert_to_user_tz && /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(clean)) {
-                const converted = frappe.datetime.convert_to_user_tz(clean, true);
-                if (converted && converted !== "Invalid date") {
-                    resolved = String(converted).trim().replace(/\.\d+$/, "");
+            formatted = this.escape_value(window.archive_format_datetime(value, "—"));
+        } else {
+            const clean = key.trim().replace(/\.\d+$/, "");
+            let resolved = clean;
+            try {
+                if (frappe?.datetime?.convert_to_user_tz && /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(clean)) {
+                    const converted = frappe.datetime.convert_to_user_tz(clean, true);
+                    if (converted && converted !== "Invalid date") {
+                        resolved = String(converted).trim().replace(/\.\d+$/, "");
+                    }
                 }
+            } catch (error) {
+                // fallback to clean
             }
-        } catch (error) {
-            // fallback to clean
+            const m = resolved.match(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{1,2}):(\d{2})/);
+            if (m) {
+                const h24 = parseInt(m[2], 10);
+                const min = String(m[3]).padStart(2, "0");
+                const period = h24 >= 12 ? "م" : "ص";
+                const h12 = String(h24 % 12 || 12).padStart(2, "0");
+                formatted = this.escape_value(`${m[1]}، ${h12}:${min} ${period}`);
+            } else {
+                formatted = this.escape_value(resolved);
+            }
         }
-        const m = resolved.match(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{1,2}):(\d{2})/);
-        if (m) {
-            const h24 = parseInt(m[2], 10);
-            const min = String(m[3]).padStart(2, "0");
-            const period = h24 >= 12 ? "م" : "ص";
-            const h12 = String(h24 % 12 || 12).padStart(2, "0");
-            return this.escape_value(`${m[1]}، ${h12}:${min} ${period}`);
+        if (this._datetime_cache.size > 4000) {
+            this._datetime_cache.clear();
         }
-        return this.escape_value(resolved);
+        this._datetime_cache.set(key, formatted);
+        return formatted;
     }
 
     format_time_only(value) {
@@ -3901,22 +4214,7 @@ class ArchiveOperationsPage {
     }
 
     bind_row_events() {
-        $(this.wrapper)
-            .find(".archive-operation-row")
-            .off("click")
-            .on("click", (event) => {
-                const operation_name =
-                    $(event.currentTarget)
-                        .data("name");
-
-                if (!operation_name) {
-                    return;
-                }
-
-                this.select_operation(
-                    operation_name
-                );
-            });
+        // Handled via single delegated listener on tbody.archive-operation-rows in bind_events()
     }
 
     select_operation(
@@ -3926,39 +4224,30 @@ class ArchiveOperationsPage {
             .selected_operation_name =
                 operation_name;
 
-        const $wrapper =
-            $(this.wrapper);
-
-        $wrapper
-            .find(
-                ".archive-operation-row"
-            )
-            .removeClass(
-                "is-selected"
-            );
-
-        $wrapper
-            .find(
-                ".archive-operation-row"
-            )
-            .filter(
-                (index, element) => {
-                    return (
-                        $(element)
-                            .data("name")
-                        === operation_name
-                    );
+        if (this._virtual_table) {
+            this._virtual_table.update_selected(operation_name);
+        } else {
+            const tbody = this.wrapper.querySelector("tbody.archive-operation-rows");
+            if (tbody) {
+                const prev = tbody.querySelector("tr.is-selected");
+                if (prev) {
+                    prev.classList.remove("is-selected");
                 }
-            )
-            .addClass(
-                "is-selected"
-            );
+                if (operation_name) {
+                    const trs = tbody.children;
+                    const target = String(operation_name);
+                    for (let i = 0; i < trs.length; i++) {
+                        if (trs[i].getAttribute("data-name") === target) {
+                            trs[i].classList.add("is-selected");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
         this.update_selected_actions();
     }
-
-
-    
 
     get_selected_operation() {
         const operation_name =
@@ -3966,6 +4255,10 @@ class ArchiveOperationsPage {
 
         if (!operation_name) {
             return null;
+        }
+
+        if (this.data_source?.records) {
+            return this.data_source.records.get(operation_name) || null;
         }
 
         return (
@@ -4219,6 +4512,7 @@ class ArchiveOperationsPage {
             ],
             () => {
 
+                const prev_op_no = operation.operation_no || "";
                 const dialog =
                     new archive.ui
                         .OperationViewDialog(
@@ -4226,8 +4520,10 @@ class ArchiveOperationsPage {
                             {
                                 on_saved:
                                     async () => {
-                                        await this
-                                            .load_operations();
+                                        await this.refresh_operation_row(
+                                            operation.name,
+                                            { previous_operation_no: prev_op_no }
+                                        );
                                     },
                             }
                         );
@@ -4488,6 +4784,22 @@ class ArchiveOperationsPage {
             }
         });
 
+        // Single delegated click listener for all operation rows (O(1) memory & bind time)
+        $wrapper
+            .find("tbody.archive-operation-rows")
+            .off("click.archiveOpRowSelect")
+            .on("click.archiveOpRowSelect", ".archive-operation-row", (event) => {
+                const operation_name =
+                    event.currentTarget?.getAttribute("data-name")
+                    || $(event.currentTarget).data("name");
+
+                if (!operation_name) {
+                    return;
+                }
+
+                this.select_operation(operation_name);
+            });
+
         $wrapper
             .find(
                 ".archive-operation-search"
@@ -4507,26 +4819,31 @@ class ArchiveOperationsPage {
                     this.state.page = 1;
 
 
-                    if (
-                        this.search_frame
-                    ) {
-                        cancelAnimationFrame(
-                            this.search_frame
-                        );
+                    if (this.search_frame) {
+                        cancelAnimationFrame(this.search_frame);
+                        this.search_frame = null;
+                    }
+                    if (this.search_timer) {
+                        clearTimeout(this.search_timer);
+                        this.search_timer = null;
                     }
 
+                    const total_loaded = this.data_source?.all_ids?.length || 0;
+                    const run_search = () => {
+                        this.search_frame = requestAnimationFrame(() => {
+                            this.search_frame = null;
+                            this.apply_local_query();
+                        });
+                    };
 
-                    this.search_frame =
-                        requestAnimationFrame(
-                            () => {
-
-                                this.search_frame =
-                                    null;
-
-
-                                this.apply_local_query();
-                            }
-                        );
+                    if (total_loaded > 2000) {
+                        this.search_timer = setTimeout(() => {
+                            this.search_timer = null;
+                            run_search();
+                        }, 45);
+                    } else {
+                        run_search();
+                    }
                 }
             );
 
@@ -4656,6 +4973,10 @@ class ArchiveOperationsPage {
                 const dialog =
                     new archive.ui.OperationDialog({
                         fiscal_context: this.fiscal_context,
+                        saudi_customer_rate_bounds:
+                            this.saudi_customer_rate_bounds,
+                        bank_transfer_rate_bounds:
+                            this.bank_transfer_rate_bounds,
                     });
 
                 dialog.show();

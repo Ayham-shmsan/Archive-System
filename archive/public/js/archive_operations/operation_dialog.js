@@ -4,6 +4,13 @@ archive.ui.OperationDialog = class OperationDialog {
 	constructor(options = {}) {
 		this.options = options || {};
 		this.fiscal_context = this.options.fiscal_context || null;
+		this.saudi_customer_rate_bounds =
+			this.options.saudi_customer_rate_bounds || null;
+		this.bank_transfer_rate_bounds =
+			this.options.bank_transfer_rate_bounds || null;
+		this._saudi_rate_invalid = false;
+		this._bank_rate_invalid = false;
+		this._sender_account_invalid = false;
 		this.extraction_file = null;
 		this.existing_shared_documents = [];
 		this.pending_shared_files = [];
@@ -1354,6 +1361,12 @@ archive.ui.OperationDialog = class OperationDialog {
 				() => {
 
 					this.update_operation_number_mode();
+			this.sync_bank_transfer_rate_validation({
+				allow_incomplete: false,
+			});
+			this.sync_sender_account_validation({
+				allow_empty: true,
+			});
 				}
 			);
 
@@ -2932,7 +2945,400 @@ archive.ui.OperationDialog = class OperationDialog {
 
 				this.updating_customer_rate_mode =
 					false;
+
+				this.sync_saudi_customer_rate_validation({
+					allow_incomplete: true,
+				});
 			}
+		}
+
+		evaluate_saudi_customer_rate_bounds(
+			rate_currency,
+			raw_rate,
+			{ allow_incomplete = false } = {}
+		) {
+			const currency = String(rate_currency || "").trim();
+			if (currency !== "سعودي") {
+				return { valid: true, message: "" };
+			}
+
+			const is_blocked = Boolean(
+				Number(
+					this.controls?.is_blocked_operation?.get_value?.()
+					|| 0
+				)
+			);
+			if (is_blocked) {
+				return { valid: true, message: "" };
+			}
+
+			const bounds = this.saudi_customer_rate_bounds;
+			if (!bounds || !bounds.enabled) {
+				return { valid: true, message: "" };
+			}
+
+			const normalized = String(raw_rate ?? "")
+				.trim()
+				.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+				.replace(/٫/g, ".");
+
+			if (!normalized) {
+				return { valid: true, incomplete: true, message: "" };
+			}
+
+			if (
+				allow_incomplete
+				&& (/^[+-]?$/.test(normalized) || /^[+-]?\d+\.$/.test(normalized))
+			) {
+				return { valid: true, incomplete: true, message: "" };
+			}
+
+			if (!/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(normalized)) {
+				return {
+					valid: false,
+					message: `سعر العميل خارج النطاق المسموح. يجب أن يكون بين ${bounds.min_formatted} إلى${bounds.max_formatted}.`,
+				};
+			}
+
+			const num = Number(normalized);
+			if (
+				!Number.isFinite(num)
+				|| num < Number(bounds.min)
+				|| num > Number(bounds.max)
+			) {
+				return {
+					valid: false,
+					message: `سعر العميل خارج النطاق المسموح. يجب أن يكون بين ${bounds.min_formatted} إلى${bounds.max_formatted}.`,
+				};
+			}
+
+			return { valid: true, message: "" };
+		}
+
+		render_saudi_customer_rate_error(message) {
+			const rate = this.controls?.customer_rate;
+			if (!rate || !rate.$wrapper?.length) {
+				return;
+			}
+
+			const clean_msg = String(message || "").trim();
+			const has_error = Boolean(clean_msg);
+			rate.$wrapper.toggleClass("is-rate-bounds-invalid", has_error);
+
+			let $err = rate.$wrapper.find(".archive-rate-bounds-error");
+			if (has_error) {
+				if (!$err.length) {
+					$err = $('<div class="archive-rate-bounds-error" role="alert"></div>');
+					rate.$wrapper.append($err);
+				}
+				$err.text(clean_msg).show();
+			} else if ($err.length) {
+				$err.text("").hide();
+			}
+
+			this._saudi_rate_invalid = has_error;
+			this.sync_primary_save_button_state();
+		}
+
+		sync_primary_save_button_state() {
+			const primary_btn = this.dialog?.get_primary_btn?.();
+			if (primary_btn?.length) {
+				primary_btn.prop(
+					"disabled",
+					Boolean(
+						this._saudi_rate_invalid
+						|| this._bank_rate_invalid
+						|| this._sender_account_invalid
+					)
+				);
+			}
+		}
+
+		evaluate_bank_transfer_rate_bounds(
+			raw_rate,
+			{ allow_incomplete = false } = {}
+		) {
+			const is_blocked = Boolean(
+				Number(
+					this.controls?.is_blocked_operation?.get_value?.()
+					|| 0
+				)
+			);
+			if (is_blocked) {
+				return { valid: true, message: "" };
+			}
+
+			const bounds = this.bank_transfer_rate_bounds;
+			if (!bounds || !bounds.enabled) {
+				return { valid: true, message: "" };
+			}
+
+			const normalized = String(raw_rate ?? "")
+				.trim()
+				.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+				.replace(/٫/g, ".");
+
+			if (!normalized) {
+				return { valid: true, incomplete: true, message: "" };
+			}
+
+			if (
+				allow_incomplete
+				&& (/^[+-]?$/.test(normalized) || /^[+-]?\d+\.$/.test(normalized))
+			) {
+				return { valid: true, incomplete: true, message: "" };
+			}
+
+			if (!/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(normalized)) {
+				return {
+					valid: false,
+					message: `سعر البنك المحول خارج النطاق المسموح به، يجب أن يكون بين ${bounds.min_formatted} إلى ${bounds.max_formatted}.`,
+				};
+			}
+
+			const num = Number(normalized);
+			if (
+				!Number.isFinite(num)
+				|| num < Number(bounds.min)
+				|| num > Number(bounds.max)
+			) {
+				return {
+					valid: false,
+					message: `سعر البنك المحول خارج النطاق المسموح به، يجب أن يكون بين ${bounds.min_formatted} إلى ${bounds.max_formatted}.`,
+				};
+			}
+
+			return { valid: true, message: "" };
+		}
+
+		render_bank_transfer_rate_error(message) {
+			const bank_rate = this.controls?.bank_transfer_rate;
+			if (!bank_rate || !bank_rate.$wrapper?.length) {
+				return;
+			}
+
+			const clean_msg = String(message || "").trim();
+			const has_error = Boolean(clean_msg);
+			bank_rate.$wrapper.toggleClass("is-rate-bounds-invalid", has_error);
+
+			let $err = bank_rate.$wrapper.find(".archive-rate-bounds-error");
+			if (has_error) {
+				if (!$err.length) {
+					$err = $('<div class="archive-rate-bounds-error" role="alert"></div>');
+					bank_rate.$wrapper.append($err);
+				}
+				$err.text(clean_msg).show();
+			} else if ($err.length) {
+				$err.text("").hide();
+			}
+
+			this._bank_rate_invalid = has_error;
+			this.sync_primary_save_button_state();
+		}
+
+		sync_bank_transfer_rate_validation(
+			{ allow_incomplete = true } = {}
+		) {
+			const bank_rate = this.controls?.bank_transfer_rate;
+			if (!bank_rate) {
+				return { valid: true, message: "" };
+			}
+
+			const raw_val =
+				bank_rate.$input?.length
+					? bank_rate.$input.val()
+					: bank_rate.get_value?.();
+
+			const res = this.evaluate_bank_transfer_rate_bounds(
+				raw_val,
+				{ allow_incomplete }
+			);
+			this.render_bank_transfer_rate_error(
+				res.valid ? "" : res.message
+			);
+			return res;
+		}
+
+		bind_bank_transfer_rate_validation() {
+			const bank_rate = this.controls?.bank_transfer_rate;
+			if (!bank_rate || !bank_rate.$wrapper?.length) {
+				return;
+			}
+
+			bank_rate.$wrapper
+				.off(".archiveBankTransferRate")
+				.on("input.archiveBankTransferRate", "input", () => {
+					this.sync_bank_transfer_rate_validation({
+						allow_incomplete: true,
+					});
+				})
+				.on(
+					"blur.archiveBankTransferRate change.archiveBankTransferRate",
+					"input",
+					() => {
+						this.sync_bank_transfer_rate_validation({
+							allow_incomplete: false,
+						});
+					}
+				);
+
+			this.sync_bank_transfer_rate_validation({
+				allow_incomplete: true,
+			});
+		}
+
+		evaluate_sender_account(
+			raw_value,
+			{ allow_empty = false } = {}
+		) {
+			const is_blocked = Boolean(
+				Number(
+					this.controls?.is_blocked_operation?.get_value?.()
+					|| 0
+				)
+			);
+			if (is_blocked) {
+				return { valid: true, message: "" };
+			}
+
+			const raw_text =
+				raw_value === null || raw_value === undefined
+					? ""
+					: String(raw_value);
+			const trimmed = raw_text.trim();
+			const error_message =
+				"رقم حساب المرسل خارج النطاق المسموح به، يجب أن يتكون من 14 رقماً بالضبط.";
+
+			if (!trimmed) {
+				if (allow_empty) {
+					return { valid: true, incomplete: true, message: "" };
+				}
+				return {
+					valid: false,
+					message: error_message,
+				};
+			}
+
+			const normalized = trimmed
+				.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+				.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
+
+			if (!/^[0-9]{14}$/.test(normalized)) {
+				return {
+					valid: false,
+					message: error_message,
+				};
+			}
+
+			return { valid: true, message: "" };
+		}
+
+		render_sender_account_error(message) {
+			const sender_account = this.controls?.sender_account;
+			const clean_msg = String(message || "").trim();
+			const has_error = Boolean(clean_msg);
+
+			if (sender_account && sender_account.$wrapper?.length) {
+				sender_account.$wrapper.toggleClass(
+					"is-rate-bounds-invalid",
+					has_error
+				);
+
+				let $err = sender_account.$wrapper.find(".archive-rate-bounds-error");
+				if (has_error) {
+					if (!$err.length) {
+						$err = $('<div class="archive-rate-bounds-error" role="alert"></div>');
+						sender_account.$wrapper.append($err);
+					}
+					$err.text(clean_msg).show();
+				} else if ($err.length) {
+					$err.text("").hide();
+				}
+			}
+
+			this._sender_account_invalid = has_error;
+			this.sync_primary_save_button_state();
+		}
+
+		sync_sender_account_validation(
+			{ allow_empty = true } = {}
+		) {
+			const sender_account = this.controls?.sender_account;
+			if (!sender_account) {
+				return { valid: true, message: "" };
+			}
+
+			const raw_val =
+				sender_account.$input?.length
+					? sender_account.$input.val()
+					: sender_account.get_value?.();
+
+			const res = this.evaluate_sender_account(
+				raw_val,
+				{ allow_empty }
+			);
+			this.render_sender_account_error(
+				res.valid ? "" : res.message
+			);
+			return res;
+		}
+
+		bind_sender_account_validation() {
+			const sender_account = this.controls?.sender_account;
+			if (!sender_account || !sender_account.$wrapper?.length) {
+				return;
+			}
+
+			sender_account.$wrapper
+				.off(".archiveSenderAccount")
+				.on("input.archiveSenderAccount", "input", () => {
+					this.sync_sender_account_validation({
+						allow_empty: true,
+					});
+				})
+				.on(
+					"blur.archiveSenderAccount change.archiveSenderAccount",
+					"input",
+					() => {
+						this.sync_sender_account_validation({
+							allow_empty: true,
+						});
+					}
+				);
+
+			this.sync_sender_account_validation({
+				allow_empty: true,
+			});
+		}
+
+		sync_saudi_customer_rate_validation(
+			{ allow_incomplete = true } = {}
+		) {
+			const rate = this.controls?.customer_rate;
+			const rate_currency = this.controls?.customer_rate_currency;
+			if (!rate || !rate_currency) {
+				return { valid: true, message: "" };
+			}
+
+			const currency = String(
+				rate_currency.$input?.val()
+				?? rate_currency.get_value?.()
+				?? ""
+			).trim();
+			const raw_val =
+				rate.$input?.length
+					? rate.$input.val()
+					: rate.get_value?.();
+
+			const res = this.evaluate_saudi_customer_rate_bounds(
+				currency,
+				raw_val,
+				{ allow_incomplete }
+			);
+			this.render_saudi_customer_rate_error(
+				res.valid ? "" : res.message
+			);
+			return res;
 		}
 
 
@@ -3073,8 +3479,41 @@ archive.ui.OperationDialog = class OperationDialog {
 									|| ""
 								);
 						}
+
+						this.sync_saudi_customer_rate_validation({
+							allow_incomplete: true,
+						});
+					}
+				)
+				.on(
+					"blur.archiveCustomerRate change.archiveCustomerRate",
+					"input",
+					() => {
+						if (this.updating_customer_rate_mode) {
+							return;
+						}
+						this.sync_saudi_customer_rate_validation({
+							allow_incomplete: false,
+						});
 					}
 				);
+
+			this.controls?.is_blocked_operation?.$wrapper
+				?.off(".archiveSaudiRateBounds")
+				.on("change.archiveSaudiRateBounds", "input", () => {
+					this.sync_saudi_customer_rate_validation({
+						allow_incomplete: true,
+					});
+					this.sync_bank_transfer_rate_validation({
+						allow_incomplete: true,
+					});
+					this.sync_sender_account_validation({
+						allow_empty: true,
+					});
+				});
+
+			this.bind_bank_transfer_rate_validation();
+			this.bind_sender_account_validation();
 
 
 			this.update_customer_rate_mode({
@@ -3843,6 +4282,12 @@ archive.ui.OperationDialog = class OperationDialog {
             }
 
 			this.update_operation_number_mode();
+			this.sync_bank_transfer_rate_validation({
+				allow_incomplete: false,
+			});
+			this.sync_sender_account_validation({
+				allow_empty: true,
+			});
 			
 
             if (!extracted_count) {
@@ -4147,6 +4592,20 @@ archive.ui.OperationDialog = class OperationDialog {
 				values.replacement_note =
 					null;
 
+				const bounds_check =
+					this.evaluate_saudi_customer_rate_bounds(
+						"سعودي",
+						values.customer_rate,
+						{ allow_incomplete: false }
+					);
+				if (!bounds_check.valid) {
+					this.render_saudi_customer_rate_error(
+						bounds_check.message
+					);
+					this.controls?.customer_rate?.$input?.trigger("focus");
+					return false;
+				}
+				this.render_saudi_customer_rate_error("");
 
 				return true;
 			}
@@ -4499,6 +4958,36 @@ archive.ui.OperationDialog = class OperationDialog {
 			)
 		) {
 			return;
+		}
+
+		if (!is_blocked) {
+			const bank_rate_check =
+				this.evaluate_bank_transfer_rate_bounds(
+					values.bank_transfer_rate,
+					{ allow_incomplete: false }
+				);
+			if (!bank_rate_check.valid) {
+				this.render_bank_transfer_rate_error(
+					bank_rate_check.message
+				);
+				this.controls?.bank_transfer_rate?.$input?.trigger("focus");
+				return;
+			}
+			this.render_bank_transfer_rate_error("");
+
+			const sender_account_check =
+				this.evaluate_sender_account(
+					values.sender_account,
+					{ allow_empty: false }
+				);
+			if (!sender_account_check.valid) {
+				this.render_sender_account_error(
+					sender_account_check.message
+				);
+				this.controls?.sender_account?.$input?.trigger("focus");
+				return;
+			}
+			this.render_sender_account_error("");
 		}
 
 

@@ -6,6 +6,14 @@
 		"fiscal_years_section",
 		"default_fiscal_year",
 		"fiscal_years_manager_html",
+		"customer_rate_limits_section",
+		"saudi_customer_rate_min",
+		"customer_rate_limits_col_break",
+		"saudi_customer_rate_max",
+		"bank_transfer_rate_limits_section",
+		"bank_transfer_rate_min",
+		"bank_transfer_rate_limits_col_break",
+		"bank_transfer_rate_max",
 		"final_swift_section",
 		"final_swift_banks"
 	],
@@ -25,6 +33,52 @@
 			"fieldname": "fiscal_years_manager_html",
 			"fieldtype": "HTML",
 			"label": "قائمة وإدارة السنوات المالية"
+		},
+		{
+			"fieldname": "customer_rate_limits_section",
+			"fieldtype": "Section Break",
+			"label": "إعدادات حدود سعر العميل (العمولة السعودية)"
+		},
+		{
+			"description": "يُطبق هذا الحد فقط عند اختيار عملة العمولة «سعودي» (اترك الحدين فارغين لعدم فرض قيود).",
+			"fieldname": "saudi_customer_rate_min",
+			"fieldtype": "Float",
+			"label": "الحد الأدنى لسعر العميل",
+			"precision": "6"
+		},
+		{
+			"fieldname": "customer_rate_limits_col_break",
+			"fieldtype": "Column Break"
+		},
+		{
+			"description": "يُطبق هذا الحد فقط عند اختيار عملة العمولة «سعودي».",
+			"fieldname": "saudi_customer_rate_max",
+			"fieldtype": "Float",
+			"label": "الحد الأعلى لسعر العميل",
+			"precision": "6"
+		},
+		{
+			"fieldname": "bank_transfer_rate_limits_section",
+			"fieldtype": "Section Break",
+			"label": "إعدادات حدود سعر البنك المحول"
+		},
+		{
+			"description": "الحد الأدنى المسموح لحقل سعر البنك المحول (اترك الحدين فارغين لعدم فرض قيود).",
+			"fieldname": "bank_transfer_rate_min",
+			"fieldtype": "Float",
+			"label": "الحد الأدنى لسعر البنك المحول",
+			"precision": "6"
+		},
+		{
+			"fieldname": "bank_transfer_rate_limits_col_break",
+			"fieldtype": "Column Break"
+		},
+		{
+			"description": "الحد الأعلى المسموح لحقل سعر البنك المحول.",
+			"fieldname": "bank_transfer_rate_max",
+			"fieldtype": "Float",
+			"label": "الحد الأعلى لسعر البنك المحول",
+			"precision": "6"
 		},
 		{
 			"fieldname": "final_swift_section",

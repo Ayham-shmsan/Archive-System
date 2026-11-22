@@ -406,16 +406,35 @@ body[data-route="archive-pending-operations"] .main-section > #body,
 }
 
 .archive-pending-summary-card[data-status="closed"] {
-    --summary-accent: #127f98;
-    --summary-soft-bg: #d9f0f5;
-    --summary-border: rgba(63, 180, 206, 0.68);
-    border-right-color: #3fb4ce;
+    --summary-accent: #23496F;
+    --summary-soft-bg: #DCE7F3;
+    --summary-border: #8CA5C1;
+    background: #DCE7F3;
+    border-color: #8CA5C1;
+    border-right-color: #23496F;
+}
+
+.archive-pending-summary-card[data-status="closed"] .archive-pending-summary-label,
+.archive-pending-summary-card[data-status="closed"] .archive-pending-summary-value {
+    color: #23496F;
+}
+
+.archive-pending-summary-card[data-status="closed"] .archive-pending-summary-icon {
+    background: #294F78;
+    border-color: #294F78;
+    color: #FFFFFF;
+    box-shadow: 0 2px 6px rgba(41, 79, 120, 0.22);
 }
 
 .archive-pending-summary-card[data-status="closed"]:hover:not(:disabled),
 .archive-pending-summary-card[data-status="closed"]:focus-visible,
 .archive-pending-summary-card[data-status="closed"].is-active {
-    border-right-color: #3fb4ce;
+    border-right-color: #23496F;
+}
+
+.archive-pending-summary-card[data-status="closed"].is-active {
+    background: #DCE7F3;
+    border-color: #23496F;
 }
 
 .archive-pending-summary-card:hover:not(:disabled) {
@@ -1632,18 +1651,41 @@ body[data-route="archive-pending-operations"] .main-section > #body,
 
 .archive-pending-serial-badge {
     display: inline-flex;
-    align-items: center;
+    align-items: baseline;
     justify-content: center;
     min-width: 26px;
     height: 22px;
-    padding: 0 6px;
+    padding: 0 7px;
     border-radius: 6px;
     background: #f1f5f9;
     color: #475569;
     font-size: var(--archive-font-size-xs, 12px);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-    line-height: 1;
+    line-height: 22px;
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+}
+
+.archive-pending-year-suffix {
+    display: inline-flex;
+    align-items: baseline;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.archive-pending-year-sep {
+    margin: 0 1.5px;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.archive-pending-year-num {
+    color: #3b82f6;
+    font-weight: 600;
 }
 
 .archive-pending-table td.archive-pending-money-cell,
@@ -1686,7 +1728,7 @@ body[data-route="archive-pending-operations"] .main-section > #body,
 .archive-pending-table
 .col-serial {
     width:
-        82px;
+        98px;
 }
 
 .archive-pending-table
@@ -2158,109 +2200,47 @@ body[data-route="archive-pending-operations"] .main-section > #body,
 
 /* ============================================================
    CLOSED OPERATION
-   العملية المنتهية
-   اللون الأساسي: #56c3da
+   العملية المنتهية — الهوية الكحلية الأرشيفية
    ============================================================ */
 .archive-pending-row.is-closed > td {
-    background:
-        linear-gradient(
-            90deg,
-            rgba(
-                63,
-                180,
-                206,
-                0.30
-            ),
-            rgba(
-                63,
-                180,
-                206,
-                0.16
-            )
-        ) !important;
-
-    border-block-color:
-        rgba(
-            63,
-            180,
-            206,
-            0.68
-        ) !important;
+    background-color: #EDF3F9 !important;
+    border-block-color: #C4D3E3 !important;
+    transition: background-color 0.18s ease;
 }
 
-
-.archive-pending-row.is-closed
-> td:first-child {
-    border-inline-start:
-        5px solid
-        #3fb4ce !important;
+.archive-pending-row.is-closed:hover > td {
+    background-color: #D6E5F3 !important;
 }
 
-
-.archive-pending-row.is-closed:hover
-> td {
-    background:
-        linear-gradient(
-            90deg,
-            rgba(
-                63,
-                180,
-                206,
-                0.38
-            ),
-            rgba(
-                63,
-                180,
-                206,
-                0.21
-            )
-        ) !important;
-}
-
-
-.archive-pending-row.is-closed.is-selected
-> td {
-    background:
-        linear-gradient(
-            90deg,
-            rgba(
-                63,
-                180,
-                206,
-                0.48
-            ),
-            rgba(
-                63,
-                180,
-                206,
-                0.27
-            )
-        ) !important;
+.archive-pending-row.is-closed.is-selected > td,
+.archive-pending-row.is-closed.is-selected:hover > td {
+    background-color: #C9DCEF !important;
 }
 
 /* ============================================================
    CLOSED BADGE
    ============================================================ */
+.archive-pending-status-stack {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 6px;
+}
+
 .archive-pending-closed-badge {
-    background:
-        #127f98;
-
-    border-color:
-        rgba(
-            18,
-            127,
-            152,
-            0.42
-        );
-
-    box-shadow:
-        0 2px 8px
-        rgba(
-            18,
-            127,
-            152,
-            0.28
-        );
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 25px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: var(--archive-border-width-thin) var(--archive-border-style-solid) #294F78;
+    background: #294F78;
+    color: #FFFFFF;
+    font-size: var(--archive-font-badge-size);
+    font-weight: var(--archive-font-badge-weight);
+    line-height: var(--archive-font-badge-lh);
+    white-space: nowrap;
 }
 /* ============================================================
    DIALOGS
@@ -2616,5 +2596,5 @@ p {
 }
 
 .archive-pending-row.is-closed > td.is-first-visible-column {
-    border-inline-start: 5px solid #3fb4ce !important;
+    border-inline-start-color: #C4D3E3;
 }

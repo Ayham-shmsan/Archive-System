@@ -54,10 +54,41 @@ _CONTEXT_DB_FIELDS = [
     "creation",
     "modified",
 
+    "search_text",
+
     # تدخل في Search Context فقط،
     # ثم نحذفها من Snapshot النهائي.
     "suspended_note",
     "notes",
+]
+
+_PENDING_COMPACT_FIELDS = [
+    "name",
+    "serial_no",
+    "fiscal_year",
+    "fiscal_sequence",
+    "card_name",
+    "account_number",
+    "card_number",
+    "operation_datetime",
+    "card_owner",
+    "bank",
+    "region",
+    "machine_location",
+    "machine_no",
+    "branch_no",
+    "representative",
+    "total_suspended",
+    "total_returned",
+    "remaining_amount",
+    "status",
+    "is_failed",
+    "is_closed",
+    "owner",
+    "creation",
+    "modified",
+    "suspended_note",
+    "search_text",
 ]
 
 
@@ -479,17 +510,14 @@ def get_pending_context_rows(
 
 def hydrate_pending_context_rows(
     rows: Iterable[dict[str, Any]],
+    *,
+    force_rebuild_search_text: bool = False,
 ) -> list[frappe._dict]:
     """
     يضيف Display Labels وsearch_text للـRows دفعة واحدة.
 
-    لا يوجد N+1:
-    - Card Owners في Query واحدة.
-    - Banks في Query واحدة.
-    - Regions في Query واحدة.
-    - Representatives في Query واحدة.
-    - Users في Query واحدة.
-    - Attachment filenames في Query واحدة.
+    يستخدم search_text المخزن على السجل عندما يكون متوفراً لتفادي
+    إعادة التطبيع وقراءة الجداول الفرعية لآلاف السجلات في كل تحميل.
     """
 
     rows = [
@@ -499,12 +527,6 @@ def hydrate_pending_context_rows(
 
     if not rows:
         return []
-
-    operation_names = {
-        row.name
-        for row in rows
-        if row.name
-    }
 
     card_owner_ids = {
         row.card_owner
@@ -566,15 +588,25 @@ def hydrate_pending_context_rows(
         owner_ids,
     )
 
+    missing_search_names = (
+        {row.name for row in rows if row.name}
+        if force_rebuild_search_text
+        else {
+            row.name
+            for row in rows
+            if row.name and not cstr(row.get("search_text")).strip()
+        }
+    )
+
     attachment_map = (
-        _load_attachment_filename_map(
-            operation_names
-        )
+        _load_attachment_filename_map(missing_search_names)
+        if missing_search_names
+        else {}
     )
     return_note_map = (
-        _load_ledger_return_note_map(
-            operation_names
-        )
+        _load_ledger_return_note_map(missing_search_names)
+        if missing_search_names
+        else {}
     )
 
     result: list[frappe._dict] = []
@@ -626,25 +658,16 @@ def hydrate_pending_context_rows(
             else cint(row.serial_no)
         )
 
-        row.search_text = (
-            build_pending_search_text(
-                row,
-
-                attachment_filenames=(
-                    attachment_map.get(
-                        row.name,
-                        [],
-                    )
-                ),
-
-                ledger_return_notes=(
-                    return_note_map.get(
-                        row.name,
-                        [],
-                    )
-                ),
+        if row.name in missing_search_names:
+            row.search_text = (
+                build_pending_search_text(
+                    row,
+                    attachment_filenames=attachment_map.get(row.name, []),
+                    ledger_return_notes=return_note_map.get(row.name, []),
+                )
             )
-        )
+        else:
+            row.search_text = cstr(row.get("search_text")).strip()
 
         # الملاحظات تدخل Search Context،
         # لكنها ليست مطلوبة في Grid Snapshot.
@@ -653,14 +676,70 @@ def hydrate_pending_context_rows(
             None,
         )
 
-        # row.pop(
-        #     "suspended_note",
-        #     None,
-        # )
-
         result.append(row)
 
     return result
+
+
+def get_pending_context_compact(
+    *,
+    user: str,
+    scope: str | None,
+    allowed_fiscal_years: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    نسخة مضغوطة (Schema + Rows + Lookup Maps) لشاشة المعلقات.
+    """
+    rows = get_pending_context_rows(
+        user=user,
+        scope=scope,
+        allowed_fiscal_years=allowed_fiscal_years,
+    )
+    if not rows:
+        return {
+            "schema": _PENDING_COMPACT_FIELDS,
+            "rows": [],
+            "lookups": {
+                "card_owner": {},
+                "bank": {},
+                "region": {},
+                "representative": {},
+                "owner": {},
+            },
+        }
+
+    card_owner_map: dict[str, str] = {}
+    bank_map: dict[str, str] = {}
+    region_map: dict[str, str] = {}
+    representative_map: dict[str, str] = {}
+    owner_map: dict[str, str] = {}
+
+    packed_rows: list[list[Any]] = []
+    for row in rows:
+        if row.card_owner and row.card_owner not in card_owner_map:
+            card_owner_map[row.card_owner] = row.card_owner_name
+        if row.bank and row.bank not in bank_map:
+            bank_map[row.bank] = row.bank_name
+        if row.region and row.region not in region_map:
+            region_map[row.region] = row.region_name
+        if row.representative and row.representative not in representative_map:
+            representative_map[row.representative] = row.representative_name
+        if row.owner and row.owner not in owner_map:
+            owner_map[row.owner] = row.owner_full_name
+
+        packed_rows.append([row.get(f) for f in _PENDING_COMPACT_FIELDS])
+
+    return {
+        "schema": _PENDING_COMPACT_FIELDS,
+        "rows": packed_rows,
+        "lookups": {
+            "card_owner": card_owner_map,
+            "bank": bank_map,
+            "region": region_map,
+            "representative": representative_map,
+            "owner": owner_map,
+        },
+    }
 
 
 def rebuild_pending_search_text(
@@ -743,7 +822,8 @@ def _persist_hydrated_search_text(
 ) -> int:
     hydrated = (
         hydrate_pending_context_rows(
-            rows
+            rows,
+            force_rebuild_search_text=True,
         )
     )
 

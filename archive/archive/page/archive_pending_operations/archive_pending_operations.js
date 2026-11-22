@@ -35,7 +35,19 @@ class ArchivePendingOperationsPage {
         this.filter_controller = null;
 
         this.search_frame = null;
+        this.search_timer = null;
         this.is_loading = false;
+
+        this._amount_formatter = new Intl.NumberFormat("en-US", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 9,
+            useGrouping: true,
+        });
+        this._datetime_cache = new Map();
+        this._column_defs_cache = null;
+        this._first_visible_column_index = 1;
+        this._visible_column_count = 19;
+        this._virtual_table = null;
 
         this.label_maps = {
             card_owner: new Map(),
@@ -267,8 +279,9 @@ class ArchivePendingOperationsPage {
         }
 
         const columns =
-            this
-                .get_pending_column_definitions();
+            this._column_defs_cache && this._column_defs_cache.length
+                ? this._column_defs_cache
+                : (this._column_defs_cache = this.get_pending_column_definitions());
 
         if (!columns.length) {
             return;
@@ -321,76 +334,67 @@ class ArchivePendingOperationsPage {
             this.save_hidden_columns();
         }
 
-        let first_visible_index =
-            null;
+        let visible_count = 0;
+        let first_visible_index = null;
+        const hidden_rules = [];
 
-        for (
-            const column
-            of columns
-        ) {
-            const is_hidden =
-                hidden.has(
-                    column.field
+        for (const column of columns) {
+            const is_hidden = hidden.has(column.field);
+
+            if (!is_hidden) {
+                visible_count += 1;
+                if (first_visible_index === null) {
+                    first_visible_index = column.index;
+                }
+            } else {
+                const idx = column.index;
+                hidden_rules.push(
+                    `.archive-pending-operations-page .archive-pending-table colgroup col:nth-child(${idx}),`
+                    + `.archive-pending-operations-page .archive-pending-table thead th:nth-child(${idx}),`
+                    + `.archive-pending-operations-page .archive-pending-table tbody.archive-pending-rows tr.archive-pending-row > td:nth-child(${idx}){display:none!important;}`
                 );
-
-            if (
-                !is_hidden
-                &&
-                first_visible_index
-                === null
-            ) {
-                first_visible_index =
-                    column.index;
             }
-
-            $table
-                .find(
-                    `colgroup col:nth-child(${column.index})`
-                )
-                .toggle(
-                    !is_hidden
-                );
-
-            $table
-                .find(
-                    `thead th:nth-child(${column.index})`
-                )
-                .toggle(
-                    !is_hidden
-                );
-
-            $table
-                .find(
-                    `tbody tr td:nth-child(${column.index})`
-                )
-                .toggle(
-                    !is_hidden
-                );
         }
 
-        $table
-            .find(
-                "tbody .archive-pending-row > td"
-            )
-            .removeClass(
-                "is-first-visible-column"
-            );
+        this._visible_column_count = visible_count || columns.length;
+        this._first_visible_column_index = first_visible_index;
 
-        if (
-            first_visible_index
-            !== null
-        ) {
-            $table
-                .find(
-                    `tbody .archive-pending-row > td:nth-child(${first_visible_index})`
-                )
-                .addClass(
-                    "is-first-visible-column"
-                );
+        let style_el = this.wrapper.querySelector('style[data-role="archive-pending-column-styles"]');
+        if (!style_el) {
+            style_el = document.createElement("style");
+            style_el.setAttribute("data-role", "archive-pending-column-styles");
+            this.wrapper.appendChild(style_el);
         }
+        style_el.textContent = hidden_rules.join("\n");
 
-        this
-            .update_column_visibility_button();
+        this.apply_first_visible_column_class();
+        this.update_column_visibility_button();
+    }
+
+    apply_first_visible_column_class() {
+        const tbody = this.wrapper.querySelector("tbody.archive-pending-rows");
+        if (!tbody) {
+            return;
+        }
+        const prev_cells = tbody.querySelectorAll("td.is-first-visible-column");
+        for (let i = 0; i < prev_cells.length; i++) {
+            prev_cells[i].classList.remove("is-first-visible-column");
+        }
+        const idx = this._first_visible_column_index;
+        if (!idx) {
+            return;
+        }
+        const rows = tbody.children;
+        for (let i = 0; i < rows.length; i++) {
+            const tr = rows[i];
+            if (!tr.classList.contains("archive-pending-row")) {
+                continue;
+            }
+            const cell = tr.children[idx - 1];
+            if (cell) {
+                cell.classList.add("is-first-visible-column");
+            }
+        }
     }
 
     render_columns_menu_html() {
@@ -1023,7 +1027,7 @@ class ArchivePendingOperationsPage {
             },
             closed: {
                 desc: "معلقات تم إنهاؤها",
-                icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 12 2 2 4-4"></path></svg>`,
+                icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>`,
             },
         }[status] || { desc: "", icon: "" };
 
@@ -1103,21 +1107,6 @@ class ArchivePendingOperationsPage {
 
                         "/assets/archive/js/shared/data_grid/filters.js",
                         "/assets/archive/css/shared/data_grid_filters.css",
-
-                        "/assets/archive/js/archive_pending_operations/pending_attachment_manager.js",
-                        "/assets/archive/css/archive_pending_operations/pending_attachment_manager.css",
-
-                        "/assets/archive/js/archive_pending_operations/pending_operation_dialog.js",
-                        "/assets/archive/css/archive_pending_operations/pending_operation_dialog.css",
-
-                        "/assets/archive/js/archive_pending_operations/pending_smart_autocomplete.js",
-                        "/assets/archive/css/archive_pending_operations/pending_smart_autocomplete.css",
-
-                        "/assets/archive/js/archive_pending_operations/pending_operation_view_dialog.js",
-                        "/assets/archive/css/archive_pending_operations/pending_operation_view_dialog.css",
-
-                        "/assets/archive/js/archive_pending_operations/pending_operation_timeline_dialog.js",
-                        "/assets/archive/css/archive_pending_operations/pending_operation_timeline_dialog.css",
                     ],
                     resolve
                 );
@@ -1128,6 +1117,20 @@ class ArchivePendingOperationsPage {
                     type: "GET",
                 })
                 .catch(() => null),
+        ]);
+
+        // Preload dialog assets in background without blocking initial grid paint
+        frappe.require([
+            "/assets/archive/js/archive_pending_operations/pending_attachment_manager.js",
+            "/assets/archive/css/archive_pending_operations/pending_attachment_manager.css",
+            "/assets/archive/js/archive_pending_operations/pending_operation_dialog.js",
+            "/assets/archive/css/archive_pending_operations/pending_operation_dialog.css",
+            "/assets/archive/js/archive_pending_operations/pending_smart_autocomplete.js",
+            "/assets/archive/css/archive_pending_operations/pending_smart_autocomplete.css",
+            "/assets/archive/js/archive_pending_operations/pending_operation_view_dialog.js",
+            "/assets/archive/css/archive_pending_operations/pending_operation_view_dialog.css",
+            "/assets/archive/js/archive_pending_operations/pending_operation_timeline_dialog.js",
+            "/assets/archive/css/archive_pending_operations/pending_operation_timeline_dialog.css",
         ]);
 
         if (fiscal_res && fiscal_res.message) {
@@ -1322,13 +1325,36 @@ class ArchivePendingOperationsPage {
                             this.state.page_length =
                                 page_length;
 
-                            this.apply_local_query();
+                            this.apply_local_query({
+                                skip_counts: true,
+                            });
 
                             this.scroll_grid_to_top();
                         },
                 });
 
         this.pagination.mount();
+
+        if (this._virtual_table) {
+            this._virtual_table.destroy();
+        }
+        const scroll_el = this.wrapper.querySelector(".archive-pending-table-wrapper");
+        const tbody_el = this.wrapper.querySelector("tbody.archive-pending-rows");
+        if (scroll_el && tbody_el && custom.data_grid.VirtualTableRenderer) {
+            this._virtual_table = new custom.data_grid.VirtualTableRenderer({
+                scroll_el,
+                tbody_el,
+                row_selector: "tr.archive-pending-row",
+                row_height: 58,
+                overscan: 14,
+                threshold: 150,
+                get_col_count: () => this._visible_column_count || 19,
+                render_row: (operation) => this.operation_row(operation),
+                on_rendered: () => {
+                    this.apply_first_visible_column_class();
+                },
+            });
+        }
 
         this.state.page_length =
             this.pagination
@@ -1621,6 +1647,46 @@ class ArchivePendingOperationsPage {
         this.filter_controller.mount();
     }
 
+    hydrate_compact_pending_operations(result) {
+        if (
+            !result
+            || !result.compact
+            || !Array.isArray(result.rows)
+            || !Array.isArray(result.schema)
+        ) {
+            return Array.isArray(result?.operations) ? result.operations : [];
+        }
+
+        const schema = result.schema;
+        const rows = result.rows;
+        const lookups = result.lookups || {};
+        const card_owner_map = lookups.card_owner || {};
+        const bank_map = lookups.bank || {};
+        const region_map = lookups.region || {};
+        const rep_map = lookups.representative || {};
+        const owner_map = lookups.owner || {};
+        const col_len = schema.length;
+        const out = new Array(rows.length);
+
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            const op = {};
+            for (let c = 0; c < col_len; c++) {
+                op[schema[c]] = r[c];
+            }
+            op.card_owner_name = (op.card_owner && card_owner_map[op.card_owner]) || op.card_owner || "";
+            op.bank_name = (op.bank && bank_map[op.bank]) || op.bank || "";
+            op.region_name = (op.region && region_map[op.region]) || op.region || "";
+            op.representative_name = (op.representative && rep_map[op.representative]) || op.representative || "";
+            op.owner_full_name = (op.owner && owner_map[op.owner]) || op.owner || "";
+            const fseq = Number(op.fiscal_sequence || 0);
+            op.fiscal_display_no = fseq > 0 ? fseq : Number(op.serial_no || 0);
+            out[i] = op;
+        }
+
+        return out;
+    }
+
     async load_context() {
         const request_id = (this._load_request_id = (this._load_request_id || 0) + 1);
         const is_initialized = Array.isArray(this.state.fiscal_years);
@@ -1653,6 +1719,7 @@ class ArchivePendingOperationsPage {
 
                     args: {
                         fiscal_year: selected_years ? JSON.stringify(selected_years) : undefined,
+                        compact: 1,
                     },
                 });
 
@@ -1665,11 +1732,7 @@ class ArchivePendingOperationsPage {
                 || {};
 
             const records =
-                Array.isArray(
-                    result.operations
-                )
-                    ? result.operations
-                    : [];
+                this.hydrate_compact_pending_operations(result);
 
             this.capabilities =
                 result.capabilities
@@ -2061,6 +2124,48 @@ class ArchivePendingOperationsPage {
         );
     }
 
+    get_operation_year_short(
+        operation
+    ) {
+        const candidates = [
+            operation?.fiscal_year,
+            operation?.operation_datetime,
+        ];
+
+        for (const raw of candidates) {
+            const match = String(raw || "")
+                .trim()
+                .match(/^((?:19|20)\d{2})\b/);
+            if (match) {
+                return match[1].slice(-2);
+            }
+        }
+
+        return "";
+    }
+
+    render_operation_year_badge(
+        operation
+    ) {
+        const year_short =
+            this.get_operation_year_short(
+                operation
+            );
+
+        if (!year_short) {
+            return "";
+        }
+
+        const full_year = String(
+            operation?.fiscal_year || ""
+        ).trim();
+        const title_attr = full_year
+            ? ` title="السنة المالية ${this.escape_value_attribute(full_year)}"`
+            : "";
+
+        return `<span class="archive-pending-year-suffix"${title_attr}><span class="archive-pending-year-sep">/</span><span class="archive-pending-year-num">${this.escape_value(year_short)}</span></span>`;
+    }
+
     get_operation_datetime_sort_key(
         operation
     ) {
@@ -2248,7 +2353,7 @@ class ArchivePendingOperationsPage {
         return counts;
     }
 
-    apply_local_query() {
+    apply_local_query({ skip_counts = false, preserve_scroll = false } = {}) {
         if (!this.data_source) {
             return;
         }
@@ -2286,72 +2391,43 @@ class ArchivePendingOperationsPage {
         this.operations =
             result.records;
         
-        if (
-            this.state
-                .selected_operation_name
-            &&
-            !this.operations
-                .some(
-                    (
-                        operation
-                    ) =>
-                        operation.name
-                        ===
-                        this.state
-                            .selected_operation_name
-                )
-        ) {
-            this.state
-                .selected_operation_name =
-                    null;
+        if (this.state.selected_operation_name) {
+            const sel_name = this.state.selected_operation_name;
+            const sel_exists = result.page_ids.indexOf(sel_name) !== -1;
+            if (!sel_exists) {
+                this.state.selected_operation_name = null;
+            }
         }
 
 
         this.render_operations(
-            this.operations
+            this.operations,
+            { preserve_scroll }
         );
 
         this.update_selected_actions();
 
-        /*
-         * Counts:
-         *
-         * search + advanced filters
-         *
-         * بدون Status Card الحالية.
-         *
-         * وبذلك إذا المستخدم داخل
-         * "مرتجعة غير مكتملة"،
-         * تبقى أعداد الحالات الأخرى ظاهرة.
-         */
-        const counts_result =
-            this.data_source
-                .query({
+        if (!skip_counts) {
+            let count_ids;
+            if (this.state.status === "all") {
+                count_ids = result.result_ids;
+            } else {
+                const counts_result =
+                    this.data_source.query({
+                        search: this.state.search,
+                        filters: this.state.advanced_filters || {},
+                        sort: null,
+                        page: 1,
+                        page_length: "all",
+                        include_records: false,
+                    });
+                count_ids = counts_result.result_ids;
+            }
 
-                    search:
-                        this.state.search,
-
-                    filters:
-                        this.state
-                            .advanced_filters
-                        || {},
-
-                    sort:
-                        null,
-
-                    page:
-                        1,
-
-                    page_length:
-                        "all",
-                });
-
-        this.update_counts(
-            this.get_local_counts(
-                counts_result
-                    .result_ids
-            )
-        );
+            this.update_counts(
+                this.get_local_counts(count_ids)
+            );
+        }
 
         this.update_result_count(
             result.total_rows
@@ -2456,7 +2532,8 @@ class ArchivePendingOperationsPage {
     }
 
     render_operations(
-        operations
+        operations,
+        { preserve_scroll = false } = {}
     ) {
         const $wrapper =
             $(this.wrapper);
@@ -2479,7 +2556,11 @@ class ArchivePendingOperationsPage {
         if (
             !operations.length
         ) {
-            $tbody.empty();
+            if (this._virtual_table) {
+                this._virtual_table.set_rows([], { preserve_scroll: false, force: true });
+            } else {
+                $tbody.empty();
+            }
 
             $table.hide();
 
@@ -2490,8 +2571,6 @@ class ArchivePendingOperationsPage {
                 "flex"
             );
 
-            this.apply_column_visibility();
-
             return;
         }
 
@@ -2499,18 +2578,24 @@ class ArchivePendingOperationsPage {
 
         $table.show();
 
-        $tbody.html(
-            operations
-                .map(
-                    (operation) =>
-                        this.operation_row(
-                            operation
-                        )
-                )
-                .join("")
-        );
-
-        this.apply_column_visibility();
+        if (this._virtual_table) {
+            this._virtual_table.set_rows(operations, {
+                preserve_scroll,
+                force: true,
+            });
+        } else {
+            $tbody.html(
+                operations
+                    .map(
+                        (operation) =>
+                            this.operation_row(
+                                operation
+                            )
+                    )
+                    .join("")
+            );
+            this.apply_first_visible_column_class();
+        }
     }
 
     update_empty_state() {
@@ -2633,10 +2718,10 @@ class ArchivePendingOperationsPage {
             >
 
                 <td class="archive-pending-serial" dir="ltr">
-                    <span class="archive-pending-serial-badge">
-                        ${this.escape_value(
+                    <span class="archive-pending-serial-badge" dir="ltr">
+                        <span class="archive-pending-serial-num">${this.escape_value(
                             operation.fiscal_display_no || operation.serial_no
-                        )}
+                        )}</span>${this.render_operation_year_badge(operation)}
                     </span>
                 </td>
 
@@ -2852,39 +2937,24 @@ class ArchivePendingOperationsPage {
             .selected_operation_name =
                 operation_name;
 
-        const $wrapper =
-            $(this.wrapper);
-
-        $wrapper
-            .find(
-                ".archive-pending-row"
-            )
-            .removeClass(
-                "is-selected"
-            );
-
-        $wrapper
-            .find(
-                ".archive-pending-row"
-            )
-            .filter(
-                (
-                    index,
-                    element
-                ) => (
-                    String(
-                        $(element)
-                            .data(
-                                "name"
-                            )
-                    )
-                    ===
-                    operation_name
-                )
-            )
-            .addClass(
-                "is-selected"
-            );
+        if (this._virtual_table) {
+            this._virtual_table.update_selected(operation_name);
+        } else {
+            const tbody = this.wrapper.querySelector("tbody.archive-pending-rows");
+            if (tbody) {
+                const prev = tbody.querySelector("tr.is-selected");
+                if (prev) {
+                    prev.classList.remove("is-selected");
+                }
+                const trs = tbody.children;
+                for (let i = 0; i < trs.length; i++) {
+                    if (trs[i].getAttribute("data-name") === operation_name) {
+                        trs[i].classList.add("is-selected");
+                        break;
+                    }
+                }
+            }
+        }
 
         this.update_selected_actions();
     }
@@ -2899,6 +2969,10 @@ class ArchivePendingOperationsPage {
             !name
         ) {
             return null;
+        }
+
+        if (this.data_source?.records) {
+            return this.data_source.records.get(name) || null;
         }
 
         return (
@@ -4438,7 +4512,7 @@ class ArchivePendingOperationsPage {
         this.state.page =
             1;
 
-        this.apply_local_query();
+        this.apply_local_query({ skip_counts: true });
 
         this.scroll_grid_to_top();
     }
@@ -4785,24 +4859,31 @@ class ArchivePendingOperationsPage {
                     this.state.page =
                         1;
 
-                    if (
-                        this.search_frame
-                    ) {
-                        cancelAnimationFrame(
-                            this.search_frame
-                        );
+                    if (this.search_frame) {
+                        cancelAnimationFrame(this.search_frame);
+                        this.search_frame = null;
+                    }
+                    if (this.search_timer) {
+                        clearTimeout(this.search_timer);
+                        this.search_timer = null;
                     }
 
-                    this.search_frame =
-                        requestAnimationFrame(
-                            () => {
+                    const total_loaded = this.data_source?.all_ids?.length || 0;
+                    const run_search = () => {
+                        this.search_frame = requestAnimationFrame(() => {
+                            this.search_frame = null;
+                            this.apply_local_query();
+                        });
+                    };
 
-                                this.search_frame =
-                                    null;
-
-                                this.apply_local_query();
-                            }
-                        );
+                    if (total_loaded > 2000) {
+                        this.search_timer = setTimeout(() => {
+                            this.search_timer = null;
+                            run_search();
+                        }, 45);
+                    } else {
+                        run_search();
+                    }
                 }
             );
 
@@ -5124,23 +5205,7 @@ class ArchivePendingOperationsPage {
          *
          * نظهر القيمة بدون إسقاط منازل عشرية صالحة.
          */
-        return new Intl
-            .NumberFormat(
-                "en-US",
-                {
-                    minimumFractionDigits:
-                        0,
-
-                    maximumFractionDigits:
-                        9,
-
-                    useGrouping:
-                        true,
-                }
-            )
-            .format(
-                number
-            );
+        return this._amount_formatter.format(number);
     }
 
     format_datetime(
@@ -5149,31 +5214,43 @@ class ArchivePendingOperationsPage {
         if (!value) {
             return "—";
         }
+        const key = String(value);
+        const cached = this._datetime_cache.get(key);
+        if (cached !== undefined) {
+            return cached;
+        }
+        let formatted;
         if (typeof window.archive_format_datetime === "function") {
-            return this.escape_value(window.archive_format_datetime(value, "—"));
-        }
-
-        const clean = String(value).trim().replace(/\.\d+$/, "");
-        let resolved = clean;
-        try {
-            if (frappe?.datetime?.convert_to_user_tz && /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(clean)) {
-                const converted = frappe.datetime.convert_to_user_tz(clean, true);
-                if (converted && converted !== "Invalid date") {
-                    resolved = String(converted).trim().replace(/\.\d+$/, "");
+            formatted = this.escape_value(window.archive_format_datetime(value, "—"));
+        } else {
+            const clean = key.trim().replace(/\.\d+$/, "");
+            let resolved = clean;
+            try {
+                if (frappe?.datetime?.convert_to_user_tz && /^\d{4}-\d{2}-\d{2}[T\s]+\d{1,2}:\d{2}/.test(clean)) {
+                    const converted = frappe.datetime.convert_to_user_tz(clean, true);
+                    if (converted && converted !== "Invalid date") {
+                        resolved = String(converted).trim().replace(/\.\d+$/, "");
+                    }
                 }
+            } catch (error) {
+                // fallback to clean
             }
-        } catch (error) {
-            // fallback to clean
+            const m = resolved.match(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{1,2}):(\d{2})/);
+            if (m) {
+                const h24 = parseInt(m[2], 10);
+                const min = String(m[3]).padStart(2, "0");
+                const period = h24 >= 12 ? "م" : "ص";
+                const h12 = String(h24 % 12 || 12).padStart(2, "0");
+                formatted = this.escape_value(`${m[1]}، ${h12}:${min} ${period}`);
+            } else {
+                formatted = this.escape_value(resolved);
+            }
         }
-        const m = resolved.match(/^(\d{4}-\d{2}-\d{2})[T\s]+(\d{1,2}):(\d{2})/);
-        if (m) {
-            const h24 = parseInt(m[2], 10);
-            const min = String(m[3]).padStart(2, "0");
-            const period = h24 >= 12 ? "م" : "ص";
-            const h12 = String(h24 % 12 || 12).padStart(2, "0");
-            return this.escape_value(`${m[1]}، ${h12}:${min} ${period}`);
+        if (this._datetime_cache.size > 4000) {
+            this._datetime_cache.clear();
         }
-        return this.escape_value(resolved);
+        this._datetime_cache.set(key, formatted);
+        return formatted;
     }
 
     format_time_only(

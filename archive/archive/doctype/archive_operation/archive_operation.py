@@ -40,6 +40,29 @@ CUSTOMER_RATE_CURRENCIES = {
 }
 
 SWIFT_CODE_PATTERN = re.compile(r"^[A-Za-z0-9]{8,11}$")
+SENDER_ACCOUNT_PATTERN = re.compile(r"^[0-9]{14}$")
+SENDER_ACCOUNT_ERROR_MESSAGE = (
+    "رقم حساب المرسل خارج النطاق المسموح به، يجب أن يتكون من 14 رقماً بالضبط."
+)
+
+
+def validate_sender_account_value(value) -> str:
+    raw_text = "" if value is None else str(value)
+    trimmed = raw_text.strip()
+    if not trimmed:
+        frappe.throw(
+            _(SENDER_ACCOUNT_ERROR_MESSAGE),
+            frappe.ValidationError,
+        )
+
+    normalized = trimmed.translate(_OPERATION_NUMBER_DIGITS)
+    if not SENDER_ACCOUNT_PATTERN.fullmatch(normalized):
+        frappe.throw(
+            _(SENDER_ACCOUNT_ERROR_MESSAGE),
+            frappe.ValidationError,
+        )
+
+    return raw_text
 
 
 def normalize_and_validate_swift_code(
@@ -858,6 +881,21 @@ class ArchiveOperation(Document):
                         )
                     )
 
+                should_check_saudi_bounds = (
+                    self.is_new()
+                    or bool(getattr(self.flags, "validate_saudi_customer_rate", False))
+                    or self.has_value_changed("customer_rate")
+                    or self.has_value_changed("customer_rate_currency")
+                )
+                if should_check_saudi_bounds and not is_data_import:
+                    from archive.archive.doctype.archive_settings.archive_settings import (
+                        validate_saudi_customer_rate_value,
+                    )
+
+                    validate_saudi_customer_rate_value(
+                        "سعودي",
+                        self.customer_rate,
+                    )
 
                 return
 
@@ -1219,6 +1257,8 @@ class ArchiveOperation(Document):
 
         self.validate_swift_code_rules()
         self.validate_customer_rate_rules()
+        self.validate_bank_transfer_rate_rules()
+        self.validate_sender_account_rules()
 
         self.validate_operation_dates()
         
@@ -1231,6 +1271,54 @@ class ArchiveOperation(Document):
         self.sync_extraction_source()
         self.validate_attachments()
         self.set_attachment_names()
+
+    def validate_bank_transfer_rate_rules(self):
+        if getattr(frappe.flags, "in_import", False):
+            return
+
+        raw_rate = self.get("bank_transfer_rate")
+        if cint(self.is_blocked_operation):
+            if raw_rate is None or cstr(raw_rate).strip() == "":
+                return
+            try:
+                if float(raw_rate) == 0.0:
+                    return
+            except (TypeError, ValueError):
+                pass
+
+        should_check = (
+            self.is_new()
+            or bool(getattr(self.flags, "validate_bank_transfer_rate", False))
+            or self.has_value_changed("bank_transfer_rate")
+        )
+        if not should_check:
+            return
+
+        if raw_rate is None or cstr(raw_rate).strip() == "":
+            return
+
+        from archive.archive.doctype.archive_settings.archive_settings import (
+            validate_bank_transfer_rate_value,
+        )
+
+        validate_bank_transfer_rate_value(raw_rate)
+
+    def validate_sender_account_rules(self):
+        if getattr(frappe.flags, "in_import", False):
+            return
+
+        if cint(self.is_blocked_operation):
+            return
+
+        should_check = (
+            self.is_new()
+            or bool(getattr(self.flags, "validate_sender_account", False))
+            or self.has_value_changed("sender_account")
+        )
+        if not should_check:
+            return
+
+        validate_sender_account_value(self.get("sender_account"))
 
     def validate_fiscal_year_rules(self):
         is_system_migration = bool(

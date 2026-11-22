@@ -17,6 +17,7 @@ from archive.services.pending_operation_attachments import (
     serialize_pending_attachments,
 )
 from archive.api.pending_operation_search import (
+    get_pending_context_compact,
     get_pending_context_rows,
 )
 from archive.archive.doctype.archive_pending_operation.archive_pending_operation import (
@@ -603,21 +604,18 @@ def get_pending_capabilities():
 def get_pending_operations_context(
     fiscal_year: str | list[str] | None = None,
     fiscal_years: str | list[str] | None = None,
+    compact: int | str = 0,
 ):
     """
     Snapshot الرئيسي لشاشة المعلقات.
 
-    لا يعيد:
-    - Ledger كامل.
-    - Attachments كاملة.
-    - Timeline.
-
-    هذه البيانات تأتي فقط عند فتح سجل محدد
-    في المرحلة المخصصة لذلك.
+    يدعم compact=1 لإرسال صفوف مضغوطة (Schema + Rows + Lookups) مع الحفاظ الكامل
+    على التوافق العكسي مع المستدعين السابقين.
     """
 
     user = frappe.session.user
     requested_fy = fiscal_year if fiscal_year is not None else fiscal_years
+    use_compact = bool(cint(compact))
 
     capabilities = (
         get_pending_capabilities_service(
@@ -625,6 +623,44 @@ def get_pending_operations_context(
         )
     )
     fiscal_ctx = get_screen_fiscal_context(user)
+
+    if use_compact:
+        if capabilities.get("can_view"):
+            allowed_years = resolve_fiscal_year_filter(
+                requested_fy,
+                user=user,
+                action="view",
+            )
+            packed = get_pending_context_compact(
+                user=user,
+                scope=capabilities.get("scope"),
+                allowed_fiscal_years=allowed_years,
+            )
+        else:
+            packed = {
+                "schema": [],
+                "rows": [],
+                "lookups": {
+                    "card_owner": {},
+                    "bank": {},
+                    "region": {},
+                    "representative": {},
+                    "owner": {},
+                },
+            }
+
+        return {
+            "context_version": 2,
+            "compact": 1,
+            "generated_at": now_datetime(),
+            "scope": capabilities.get("scope"),
+            "total": len(packed["rows"]),
+            "capabilities": capabilities,
+            "fiscal_context": fiscal_ctx,
+            "schema": packed["schema"],
+            "rows": packed["rows"],
+            "lookups": packed["lookups"],
+        }
 
     if capabilities.get(
         "can_view"
@@ -645,34 +681,16 @@ def get_pending_operations_context(
         )
 
     else:
-        # مهم لحالة create-only.
-        #
-        # يمكن للمستخدم دخول الصفحة وإنشاء معلقة
-        # بدون أن نرسل له أي بيانات History.
         operations = []
 
     return {
         "context_version": 2,
-
-        "generated_at":
-            now_datetime(),
-
-        "scope":
-            capabilities.get(
-                "scope"
-            ),
-
-        "total":
-            len(operations),
-
-        "capabilities":
-            capabilities,
-
-        "fiscal_context":
-            fiscal_ctx,
-
-        "operations":
-            operations,
+        "generated_at": now_datetime(),
+        "scope": capabilities.get("scope"),
+        "total": len(operations),
+        "capabilities": capabilities,
+        "fiscal_context": fiscal_ctx,
+        "operations": operations,
     }
 
 

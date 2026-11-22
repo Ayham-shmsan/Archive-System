@@ -1646,6 +1646,49 @@ class TestArchiveOperation(UnitTestCase):
             for c_name in created_checks:
                 frappe.db.sql("DELETE FROM `tabArchive Document Authenticity Check` WHERE name = %s", (c_name,))
 
+    def test_17_status_effective_datetime_column_in_operations_context(self) -> None:
+        """Verify `status_effective_datetime` is returned by get_operations_context and updates on status change."""
+        from pathlib import Path
+        from archive.api.operations import change_operation_status, release_pending_operation
+
+        op1 = self._make_operation(
+            fiscal_year="2026",
+            operation_no="T-STATDT-1",
+            request_date="2026-06-01",
+        )
+        frappe.db.set_value("Archive Operation", op1.name, "execution_datetime", "2026-06-02 10:00:00")
+
+        ctx_initial = get_operations_context(fiscal_year="2026")
+        rec_initial = next(r for r in ctx_initial["records"] if r["name"] == op1.name)
+        self.assertIn("status_effective_datetime", rec_initial)
+        self.assertIsNone(rec_initial["status_effective_datetime"])
+
+        release_pending_operation(operation_name=op1.name)
+        ctx_released = get_operations_context(fiscal_year="2026")
+        rec_released = next(r for r in ctx_released["records"] if r["name"] == op1.name)
+        self.assertEqual(cstr(rec_released["status"]), "غير مؤكدة")
+        self.assertIsNotNone(rec_released["status_effective_datetime"])
+
+        change_operation_status(
+            operation_name=op1.name,
+            status="مؤكدة",
+            status_effective_datetime="2026-06-10",
+            remarks="اختبار تاريخ الحالة",
+        )
+        ctx_after = get_operations_context(fiscal_year="2026")
+        rec_after = next(r for r in ctx_after["records"] if r["name"] == op1.name)
+        self.assertEqual(cstr(rec_after["status_effective_datetime"]), "2026-06-10")
+        self.assertEqual(cstr(rec_after["status"]), "مؤكدة")
+
+        ops_js = (
+            Path(frappe.get_app_path("archive", "archive", "page"))
+            / "archive_operations"
+            / "archive_operations.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn('<col class="col-final-swift">\n                                <col class="col-status-effective-date">', ops_js)
+        self.assertIn('data-sort-field="status_effective_datetime"', ops_js)
+        self.assertIn("this.format_status_effective_date(\n                        operation.status_effective_datetime", ops_js)
+
 
 
 

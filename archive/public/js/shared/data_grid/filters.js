@@ -178,6 +178,8 @@ frappe.provide(
             this.controls = {};
             this._inline_apply_timer = null;
             this._hydrating = false;
+            this._options_cache = new Map();
+            this._options_cache_revision = -1;
         }
 
 
@@ -533,196 +535,117 @@ frappe.provide(
             definition,
             search_text
         ) {
-            let values = [];
-
-
-            if (
-                typeof definition.get_options
-                === "function"
-            ) {
-                values =
-                    definition.get_options(
-                        this.data_source
-                    )
-                    || [];
-
-            } else {
-
-                const unique =
-                    new Set();
-
-
-                for (
-                    const record
-                    of this.data_source
-                        ?.records
-                        ?.values()
-                    || []
-                ) {
-                    const value =
-                        typeof definition
-                            .get_value
-                        === "function"
-                            ? definition
-                                .get_value(
-                                    record
-                                )
-                            : record?.[
-                                definition.field
-                            ];
-
-
-                    if (
-                        value === null
-                        ||
-                        value === undefined
-                        ||
-                        value === ""
-                    ) {
-                        continue;
-                    }
-
-
-                    if (
-                        Array.isArray(
-                            value
-                        )
-                    ) {
-                        for (
-                            const item
-                            of value
-                        ) {
-                            if (
-                                item !== null
-                                &&
-                                item !== undefined
-                                &&
-                                item !== ""
-                            ) {
-                                unique.add(
-                                    String(
-                                        item
-                                    )
-                                );
-                            }
-                        }
-
-                    } else {
-                        unique.add(
-                            String(
-                                value
-                            )
-                        );
-                    }
-                }
-
-
-                values = [
-                    ...unique,
-                ];
-            }
-
-
             const normalize =
                 ns.utils
                     .normalize_search_text;
 
+            const current_rev =
+                this.data_source?.revision ?? -1;
 
-            const query =
-                normalize(
-                    search_text
-                    || ""
-                );
+            if (this._options_cache_revision !== current_rev) {
+                this._options_cache.clear();
+                this._options_cache_revision = current_rev;
+            }
 
+            const cache_key = String(definition.field || "");
+            let prepared = this._options_cache.get(cache_key);
 
-            const mapped =
-                values.map(
-                    (value) => {
+            if (!prepared) {
+                let values = [];
 
-                        const label =
-                            typeof definition
-                                .get_label
-                            === "function"
-                                ? definition
-                                    .get_label(
-                                        value
-                                    )
-                                : String(
-                                    value
-                                );
+                if (
+                    typeof definition.get_options
+                    === "function"
+                ) {
+                    values =
+                        definition.get_options(
+                            this.data_source
+                        )
+                        || [];
+                } else {
+                    const unique =
+                        new Set();
 
+                    const recs =
+                        this.data_source?._records_arr
+                        || Array.from(this.data_source?.records?.values() || []);
+                    const has_getter = typeof definition.get_value === "function";
+                    const field = definition.field;
 
-                        return {
-                            value:
-                                String(
-                                    value
-                                ),
+                    for (let i = 0; i < recs.length; i++) {
+                        const record = recs[i];
+                        const value = has_getter
+                            ? definition.get_value(record)
+                            : record?.[field];
 
-                            label:
-                                String(
-                                    label
-                                ),
-                        };
-                    }
-                );
-
-
-            const filtered =
-                query
-                    ? mapped.filter(
-                        (item) =>
-                            normalize(
-                                item.label
-                            ).includes(
-                                query
-                            )
+                        if (
+                            value === null
                             ||
-                            normalize(
-                                item.value
-                            ).includes(
-                                query
-                            )
-                    )
-                    : mapped;
+                            value === undefined
+                            ||
+                            value === ""
+                        ) {
+                            continue;
+                        }
 
-
-            const collator =
-                new Intl.Collator(
-                    "ar",
-                    {
-                        numeric:
-                            true,
-
-                        sensitivity:
-                            "base",
+                        if (Array.isArray(value)) {
+                            for (let j = 0; j < value.length; j++) {
+                                const item = value[j];
+                                if (item !== null && item !== undefined && item !== "") {
+                                    unique.add(String(item));
+                                }
+                            }
+                        } else {
+                            unique.add(String(value));
+                        }
                     }
+
+                    values = [...unique];
+                }
+
+                const collator = new Intl.Collator("ar", {
+                    numeric: true,
+                    sensitivity: "base",
+                });
+
+                prepared = values.map((value) => {
+                    const str_val = String(value);
+                    const str_label =
+                        typeof definition.get_label === "function"
+                            ? String(definition.get_label(value))
+                            : str_val;
+                    return {
+                        value: str_val,
+                        label: str_label,
+                        norm_label: normalize(str_label),
+                        norm_value: normalize(str_val),
+                    };
+                });
+
+                prepared.sort((left, right) =>
+                    collator.compare(left.label, right.label)
                 );
 
+                this._options_cache.set(cache_key, prepared);
+            }
 
-            filtered.sort(
-                (
-                    left,
-                    right
-                ) =>
-                    collator.compare(
-                        left.label,
-                        right.label
-                    )
-            );
+            const query = normalize(search_text || "");
 
+            const filtered = query
+                ? prepared.filter(
+                    (item) =>
+                        item.norm_label.indexOf(query) !== -1
+                        || item.norm_value.indexOf(query) !== -1
+                )
+                : prepared;
 
-            return filtered.map(
-                (item) => ({
-                    value:
-                        item.value,
-
-                    description:
-                        item.label
-                        !== item.value
-                            ? item.label
-                            : "",
-                })
-            );
+            return filtered.map((item) => ({
+                value: item.value,
+                description:
+                    item.label !== item.value
+                        ? item.label
+                        : "",
+            }));
         }
 
 

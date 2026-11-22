@@ -1277,7 +1277,7 @@ body[data-route="archive-operations"] .main-section > #body,
 }
 
 .archive-operations-table .col-operation-no {
-	width: 110px;
+	width: 126px;
 }
 
 .archive-operations-table .col-customer {
@@ -1362,6 +1362,10 @@ body[data-route="archive-operations"] .main-section > #body,
 
 .archive-operations-table .col-status {
 	width: 115px;
+}
+
+.archive-operations-table .col-status-effective-date {
+	width: 135px;
 }
 
 /* ============================================================
@@ -1590,6 +1594,36 @@ body[data-route="archive-operations"] .main-section > #body,
     font-size: var(--archive-font-table-cell-bold-size);
     font-weight: var(--archive-font-table-cell-bold-weight);
     line-height: var(--archive-font-table-cell-bold-lh);
+}
+
+
+.archive-operation-no-group {
+    display: inline-flex;
+    align-items: baseline;
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+}
+
+.archive-operation-year-suffix {
+    display: inline-flex;
+    align-items: baseline;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.archive-operation-year-sep {
+    margin: 0 2px;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.archive-operation-year-num {
+    color: #3b82f6;
+    font-size: var(--archive-font-table-cell-size, 13px);
+    font-weight: 600;
 }
 
 

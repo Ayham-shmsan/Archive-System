@@ -108,6 +108,31 @@ frappe.provide("custom.data_grid");
     }
 
 
+    function parse_timestamp_fast(value) {
+        if (is_empty(value)) {
+            return NaN;
+        }
+        if (typeof value === "number") {
+            return Number.isFinite(value) ? value : NaN;
+        }
+        const str = String(value).trim();
+        if (!str) {
+            return NaN;
+        }
+        // Fast ISO-like parse: YYYY-MM-DD or YYYY-MM-DD[ T]HH:MM(:SS)?
+        if (str.length >= 10 && str.charCodeAt(4) === 45 && str.charCodeAt(7) === 45) {
+            const normalized = str.indexOf(" ") === 10
+                ? str.slice(0, 10) + "T" + str.slice(11)
+                : str;
+            const parsed = Date.parse(normalized);
+            if (Number.isFinite(parsed)) {
+                return parsed;
+            }
+        }
+        return Date.parse(str);
+    }
+
+
     function compare_values(
         left,
         right,
@@ -157,12 +182,10 @@ frappe.provide("custom.data_grid");
             type === "datetime"
         ) {
             const left_time =
-                new Date(left)
-                    .getTime();
+                parse_timestamp_fast(left);
 
             const right_time =
-                new Date(right)
-                    .getTime();
+                parse_timestamp_fast(right);
 
             return (
                 left_time -
@@ -188,10 +211,74 @@ frappe.provide("custom.data_grid");
     }
 
 
+    function extract_date_prefix(record_value) {
+        if (!record_value) {
+            return null;
+        }
+        const raw = String(record_value).trim();
+        if (raw.length >= 10 && raw.charCodeAt(4) === 45 && raw.charCodeAt(7) === 45) {
+            const d = raw.slice(0, 10);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+                return d;
+            }
+        }
+        const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (match) {
+            return match[1];
+        }
+        const parsed = new Date(record_value);
+        if (Number.isNaN(parsed.getTime())) {
+            return null;
+        }
+        return parsed.toISOString().slice(0, 10);
+    }
+
+
+    function lru_set(map, key, value, max_size) {
+        if (map.has(key)) {
+            map.delete(key);
+        } else if (map.size >= max_size) {
+            const oldest = map.keys().next().value;
+            if (oldest !== undefined) {
+                map.delete(oldest);
+            }
+        }
+        map.set(key, value);
+    }
+
+
+    function is_token_extension(prev_tokens, next_tokens) {
+        if (!prev_tokens || !prev_tokens.length || !next_tokens || !next_tokens.length) {
+            return false;
+        }
+        if (next_tokens.length < prev_tokens.length) {
+            return false;
+        }
+        for (let i = 0; i < prev_tokens.length; i++) {
+            const prev_tok = prev_tokens[i];
+            let covered = false;
+            for (let j = 0; j < next_tokens.length; j++) {
+                if (next_tokens[j].indexOf(prev_tok) !== -1) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+
 
     // ========================================================
-    // LocalDataSource
+    // LocalDataSource (High-Performance Indexed Engine)
     // ========================================================
+
+    const MAX_QUERY_CACHE = 32;
+    const MAX_SORT_CACHE = 8;
+    const MAX_BASE_CACHE = 24;
 
     class LocalDataSource {
 
@@ -243,6 +330,15 @@ frappe.provide("custom.data_grid");
                 [];
 
 
+            this._ids_arr = [];
+            this._records_arr = [];
+            this._id_to_index = new Map();
+            this._haystacks = null;
+            this._norm_field_cache = new Map();
+            this._sorted_cache = new Map();
+            this._base_cache = new Map();
+            this._last_search = null;
+
             this.query_cache =
                 new Map();
 
@@ -265,33 +361,36 @@ frappe.provide("custom.data_grid");
         set_records(records) {
 
             this.records.clear();
+            this._id_to_index.clear();
 
-            this.all_ids = [];
+            const src = records || [];
+            const ids = [];
+            const recs = [];
+            const id_field = this.id_field;
 
-
-            for (
-                const record
-                of records || []
-            ) {
-                const id =
-                    record[
-                        this.id_field
-                    ];
-
+            for (let i = 0; i < src.length; i++) {
+                const record = src[i];
+                const id = record?.[id_field];
                 if (!id) {
                     continue;
                 }
-
-                this.records.set(
-                    id,
-                    record
-                );
-
-                this.all_ids.push(
-                    id
-                );
+                const existing_idx = this._id_to_index.get(id);
+                if (existing_idx !== undefined) {
+                    recs[existing_idx] = record;
+                    this.records.set(id, record);
+                } else {
+                    const idx = recs.length;
+                    this._id_to_index.set(id, idx);
+                    this.records.set(id, record);
+                    ids.push(id);
+                    recs.push(record);
+                }
             }
 
+            this.all_ids = ids;
+            this._ids_arr = ids;
+            this._records_arr = recs;
+            this._haystacks = null;
 
             this.invalidate();
 
@@ -310,25 +409,28 @@ frappe.provide("custom.data_grid");
                 return;
             }
 
+            const existing_idx = this._id_to_index.get(id);
 
-            const exists =
-                this.records.has(
-                    id
-                );
+            this.records.set(id, record);
 
-
-            this.records.set(
-                id,
-                record
-            );
-
-
-            if (!exists) {
-                this.all_ids.push(
-                    id
-                );
+            if (existing_idx !== undefined) {
+                this._records_arr[existing_idx] = record;
+                if (this._haystacks) {
+                    this._haystacks[existing_idx] = String(
+                        this.search_accessor(record) || ""
+                    );
+                }
+            } else {
+                const idx = this._records_arr.length;
+                this._id_to_index.set(id, idx);
+                this._ids_arr.push(id);
+                this._records_arr.push(record);
+                if (this._haystacks) {
+                    this._haystacks.push(
+                        String(this.search_accessor(record) || "")
+                    );
+                }
             }
-
 
             this.invalidate();
         }
@@ -342,20 +444,16 @@ frappe.provide("custom.data_grid");
                 return;
             }
 
+            this.records.delete(id);
 
-            this.records.delete(
-                id
-            );
+            const remaining = [];
+            for (let i = 0; i < this._records_arr.length; i++) {
+                if (this._ids_arr[i] !== id) {
+                    remaining.push(this._records_arr[i]);
+                }
+            }
 
-
-            this.all_ids =
-                this.all_ids.filter(
-                    (record_id) =>
-                        record_id !== id
-                );
-
-
-            this.invalidate();
+            this.set_records(remaining);
         }
 
 
@@ -364,564 +462,495 @@ frappe.provide("custom.data_grid");
             this.revision += 1;
 
             this.query_cache.clear();
+            this._sorted_cache.clear();
+            this._base_cache.clear();
+            this._norm_field_cache.clear();
+            this._last_search = null;
         }
 
 
         // ====================================================
-        // Search
+        // Search Haystack Index (lazy-built once per dataset)
         // ====================================================
 
-        _apply_search(
-            ids,
-            search
-        ) {
-            const tokens =
-                this.search_tokenizer(
-                    search
-                );
+        _ensure_haystacks() {
+            if (this._haystacks) {
+                return this._haystacks;
+            }
+            const recs = this._records_arr;
+            const len = recs.length;
+            const haystacks = new Array(len);
+            const accessor = this.search_accessor;
 
-
-            if (!tokens.length) {
-                return ids.slice();
+            for (let i = 0; i < len; i++) {
+                const raw = accessor(recs[i]);
+                haystacks[i] = raw ? String(raw) : "";
             }
 
-
-            return ids.filter(
-                (id) => {
-
-                    const record =
-                        this.records.get(
-                            id
-                        );
+            this._haystacks = haystacks;
+            return haystacks;
+        }
 
 
-                    const haystack =
-                        String(
-                            this.search_accessor(
-                                record
-                            )
-                            || ""
-                        );
-
-
-                    return tokens.every(
-                        (token) =>
-                            haystack.includes(
-                                token
-                            )
-                    );
-                }
-            );
+        _get_normalized_field_values(field) {
+            let cached = this._norm_field_cache.get(field);
+            if (cached) {
+                return cached;
+            }
+            const recs = this._records_arr;
+            const len = recs.length;
+            cached = new Array(len);
+            for (let i = 0; i < len; i++) {
+                const v = recs[i]?.[field];
+                cached[i] = v === null || v === undefined || v === ""
+                    ? ""
+                    : normalize_search_text(v);
+            }
+            this._norm_field_cache.set(field, cached);
+            return cached;
         }
 
 
         // ====================================================
-        // Filters
+        // Compiled Filters (hoisted outside row loop)
         // ====================================================
 
-        _matches_default_filter(
-            record,
-            field,
-            filter_value
-        ) {
-            if (
-                filter_value === null ||
-                filter_value === undefined ||
-                filter_value === ""
-            ) {
-                return true;
-            }
+        _compile_filters(filters) {
+            const raw_entries = Object.entries(filters || {});
+            const predicates = [];
 
-
-            const record_value =
-                record?.[field];
-            
-            if (
-                typeof filter_value
-                === "object"
-                &&
-                !Array.isArray(
-                    filter_value
-                )
-            ) {
-                const operator =
-                    filter_value.op
-                    || "eq";
-
-
-                // ================================================
-                // Text contains - normalized
-                // ================================================
+            for (let e = 0; e < raw_entries.length; e++) {
+                const field = raw_entries[e][0];
+                const filter_value = raw_entries[e][1];
 
                 if (
-                    operator
-                    === "contains_normalized"
+                    filter_value === null ||
+                    filter_value === undefined ||
+                    filter_value === ""
                 ) {
-                    const needle =
-                        normalize_search_text(
-                            filter_value.value
-                        );
+                    continue;
+                }
 
-
-                    if (!needle) {
-                        return true;
-                    }
-
-
-                    const haystack =
-                        normalize_search_text(
-                            record_value
-                        );
-
-
-                    return haystack.includes(
-                        needle
+                const custom_handler = this.filter_handlers[field];
+                if (custom_handler) {
+                    predicates.push((rec) =>
+                        custom_handler(rec, filter_value, this)
                     );
+                    continue;
                 }
 
-
-                // ================================================
-                // Number range
-                // ================================================
-
-                if (
-                    operator
-                    === "number_range"
-                ) {
-                    const number =
-                        Number(
-                            record_value
-                        );
-
-
-                    if (
-                        !Number.isFinite(
-                            number
-                        )
-                    ) {
-                        return false;
+                if (Array.isArray(filter_value)) {
+                    if (!filter_value.length) {
+                        continue;
                     }
-
-
-                    const min =
-                        filter_value.min;
-
-                    const max =
-                        filter_value.max;
-
-
-                    if (
-                        min !== null
-                        &&
-                        min !== undefined
-                        &&
-                        min !== ""
-                        &&
-                        number < Number(min)
-                    ) {
-                        return false;
-                    }
-
-
-                    if (
-                        max !== null
-                        &&
-                        max !== undefined
-                        &&
-                        max !== ""
-                        &&
-                        number > Number(max)
-                    ) {
-                        return false;
-                    }
-
-
-                    return true;
+                    const allowed_set = new Set(filter_value);
+                    predicates.push((rec) => allowed_set.has(rec?.[field]));
+                    continue;
                 }
 
+                if (typeof filter_value === "object") {
+                    const operator = filter_value.op || "eq";
 
-                // ================================================
-                // Date range
-                // ================================================
-
-                if (
-                    operator
-                    === "date_range"
-                ) {
-                    if (!record_value) {
-                        return false;
-                    }
-
-
-                    const raw =
-                        String(
-                            record_value
-                        ).trim();
-
-
-                    const match =
-                        raw.match(
-                            /^(\d{4}-\d{2}-\d{2})/
-                        );
-
-
-                    let record_date =
-                        match
-                            ? match[1]
-                            : null;
-
-
-                    if (!record_date) {
-                        const parsed =
-                            new Date(
-                                record_value
-                            );
-
-
-                        if (
-                            Number.isNaN(
-                                parsed.getTime()
-                            )
-                        ) {
-                            return false;
+                    if (operator === "contains_normalized") {
+                        const needle = normalize_search_text(filter_value.value);
+                        if (!needle) {
+                            continue;
                         }
-
-
-                        record_date =
-                            parsed
-                                .toISOString()
-                                .slice(
-                                    0,
-                                    10
-                                );
-                    }
-
-
-                    const from =
-                        filter_value.from
-                        || null;
-
-                    const to =
-                        filter_value.to
-                        || null;
-
-
-                    if (
-                        from
-                        &&
-                        record_date < from
-                    ) {
-                        return false;
-                    }
-
-
-                    if (
-                        to
-                        &&
-                        record_date > to
-                    ) {
-                        return false;
-                    }
-
-
-                    return true;
-                }
-            }
-
-
-            if (
-                Array.isArray(
-                    filter_value
-                )
-            ) {
-                if (
-                    !filter_value.length
-                ) {
-                    return true;
-                }
-
-                return filter_value.includes(
-                    record_value
-                );
-            }
-
-
-            if (
-                typeof filter_value
-                === "object"
-            ) {
-                const operator =
-                    filter_value.op
-                    || "eq";
-
-                const value =
-                    filter_value.value;
-
-
-                if (operator === "eq") {
-                    return (
-                        record_value === value
-                    );
-                }
-
-
-                if (operator === "neq") {
-                    return (
-                        record_value !== value
-                    );
-                }
-
-
-                if (operator === "in") {
-                    return (
-                        Array.isArray(value)
-                        &&
-                        value.includes(
-                            record_value
-                        )
-                    );
-                }
-
-
-                if (operator === "gte") {
-                    return (
-                        record_value >= value
-                    );
-                }
-
-
-                if (operator === "lte") {
-                    return (
-                        record_value <= value
-                    );
-                }
-
-
-                if (
-                    operator === "between"
-                    &&
-                    Array.isArray(value)
-                ) {
-                    return (
-                        record_value
-                            >= value[0]
-                        &&
-                        record_value
-                            <= value[1]
-                    );
-                }
-
-
-                if (operator === "contains") {
-                    return String(
-                        record_value || ""
-                    ).includes(
-                        String(
-                            value || ""
-                        )
-                    );
-                }
-            }
-
-
-            return (
-                record_value
-                === filter_value
-            );
-        }
-
-
-        _apply_filters(
-            ids,
-            filters
-        ) {
-            const entries =
-                Object.entries(
-                    filters || {}
-                )
-                .filter(
-                    ([, value]) =>
-                        value !== null
-                        &&
-                        value !== undefined
-                        &&
-                        value !== ""
-                );
-
-
-            if (!entries.length) {
-                return ids.slice();
-            }
-
-
-            return ids.filter(
-                (id) => {
-
-                    const record =
-                        this.records.get(
-                            id
+                        const norm_col = this._get_normalized_field_values(field);
+                        predicates.push((_rec, idx) =>
+                            norm_col[idx].indexOf(needle) !== -1
                         );
+                        continue;
+                    }
 
+                    if (operator === "number_range") {
+                        const has_min =
+                            filter_value.min !== null &&
+                            filter_value.min !== undefined &&
+                            filter_value.min !== "";
+                        const has_max =
+                            filter_value.max !== null &&
+                            filter_value.max !== undefined &&
+                            filter_value.max !== "";
+                        const min_num = has_min ? Number(filter_value.min) : -Infinity;
+                        const max_num = has_max ? Number(filter_value.max) : Infinity;
 
-                    return entries.every(
-                        (
-                            [
-                                field,
-                                value
-                            ]
-                        ) => {
-
-                            const handler =
-                                this.filter_handlers[
-                                    field
-                                ];
-
-
-                            if (handler) {
-                                return handler(
-                                    record,
-                                    value,
-                                    this
-                                );
+                        predicates.push((rec) => {
+                            const num = Number(rec?.[field]);
+                            if (!Number.isFinite(num)) {
+                                return false;
                             }
+                            if (has_min && num < min_num) {
+                                return false;
+                            }
+                            if (has_max && num > max_num) {
+                                return false;
+                            }
+                            return true;
+                        });
+                        continue;
+                    }
 
+                    if (operator === "date_range") {
+                        const from = filter_value.from || null;
+                        const to = filter_value.to || null;
+                        predicates.push((rec) => {
+                            const d = extract_date_prefix(rec?.[field]);
+                            if (!d) {
+                                return false;
+                            }
+                            if (from && d < from) {
+                                return false;
+                            }
+                            if (to && d > to) {
+                                return false;
+                            }
+                            return true;
+                        });
+                        continue;
+                    }
 
-                            return this
-                                ._matches_default_filter(
-                                    record,
-                                    field,
-                                    value
-                                );
-                        }
-                    );
+                    const val = filter_value.value;
+                    if (operator === "eq") {
+                        predicates.push((rec) => rec?.[field] === val);
+                    } else if (operator === "neq") {
+                        predicates.push((rec) => rec?.[field] !== val);
+                    } else if (operator === "in") {
+                        const set_val = Array.isArray(val) ? new Set(val) : null;
+                        predicates.push((rec) =>
+                            set_val ? set_val.has(rec?.[field]) : false
+                        );
+                    } else if (operator === "gte") {
+                        predicates.push((rec) => rec?.[field] >= val);
+                    } else if (operator === "lte") {
+                        predicates.push((rec) => rec?.[field] <= val);
+                    } else if (operator === "between" && Array.isArray(val)) {
+                        const lo = val[0];
+                        const hi = val[1];
+                        predicates.push((rec) => {
+                            const rv = rec?.[field];
+                            return rv >= lo && rv <= hi;
+                        });
+                    } else if (operator === "contains") {
+                        const needle = String(val || "");
+                        predicates.push((rec) =>
+                            String(rec?.[field] || "").indexOf(needle) !== -1
+                        );
+                    }
+                    continue;
                 }
-            );
+
+                predicates.push((rec) => rec?.[field] === filter_value);
+            }
+
+            return predicates;
         }
 
 
         // ====================================================
-        // Sorting
+        // Sorting (Sort-First Cached Schwartzian Transform)
         // ====================================================
 
-        _apply_sort(
-            ids,
-            sort
-        ) {
-            if (
-                !sort ||
-                !sort.field
-            ) {
-                return ids.slice();
+        _get_sorted_indices(sort) {
+            const len = this._records_arr.length;
+
+            if (!sort || !sort.field) {
+                let identity = this._sorted_cache.get("__none__");
+                if (!identity) {
+                    identity = new Int32Array(len);
+                    for (let i = 0; i < len; i++) {
+                        identity[i] = i;
+                    }
+                    lru_set(this._sorted_cache, "__none__", identity, MAX_SORT_CACHE);
+                }
+                return identity;
             }
 
+            const field = sort.field;
+            const direction = sort.direction === "asc" ? "asc" : "desc";
+            const sort_key = `${field}::${direction}`;
 
-            const field =
-                sort.field;
+            const cached = this._sorted_cache.get(sort_key);
+            if (cached) {
+                return cached;
+            }
 
+            const definition = this.sorters[field] || {};
+            const getter = definition.get || null;
+            const type = definition.type || "text";
+            const locale = definition.locale || "ar";
+            const nulls_last = Boolean(definition.nulls_last);
+            const desc = direction === "desc";
+            const recs = this._records_arr;
+            const ids = this._ids_arr;
 
-            const direction =
-                sort.direction
-                === "asc"
-                    ? "asc"
-                    : "desc";
+            const indices = new Array(len);
+            for (let i = 0; i < len; i++) {
+                indices[i] = i;
+            }
 
+            if (len <= 1) {
+                const typed = Int32Array.from(indices);
+                lru_set(this._sorted_cache, sort_key, typed, MAX_SORT_CACHE);
+                return typed;
+            }
 
-            const definition =
-                this.sorters[
-                    field
-                ]
-                || {};
+            const empties = new Uint8Array(len);
+            let keys;
+            let is_numeric = false;
 
-
-            const getter =
-                definition.get
-                || (
-                    (record) =>
-                        record?.[
-                            field
-                        ]
-                );
-
-
-            const type =
-                definition.type
-                || "text";
-
-
-            const locale =
-                definition.locale
-                || "ar";
-
-
-            const id_field =
-                this.id_field;
-
-
-            const records =
-                this.records;
-
-
-            return ids
-                .slice()
-                .sort(
-                    (
-                        left_id,
-                        right_id
-                    ) => {
-
-                        const left =
-                            records.get(
-                                left_id
-                            );
-
-                        const right =
-                            records.get(
-                                right_id
-                            );
-
-
-                        let result =
-                            compare_values(
-                                getter(left),
-                                getter(right),
-                                type,
-                                locale
-                            );
-
-
-                        if (
-                            direction
-                            === "desc"
-                        ) {
-                            result =
-                                -result;
-                        }
-
-
-                        if (result !== 0) {
-                            return result;
-                        }
-
-
-                        // Tie breaker ثابت.
-                        return get_collator(
-                            locale
-                        ).compare(
-                            String(
-                                left?.[
-                                    id_field
-                                ]
-                                || ""
-                            ),
-                            String(
-                                right?.[
-                                    id_field
-                                ]
-                                || ""
-                            )
-                        );
+            if (type === "number" || type === "date" || type === "datetime" || type === "boolean") {
+                is_numeric = true;
+                keys = new Float64Array(len);
+                for (let i = 0; i < len; i++) {
+                    const raw = getter ? getter(recs[i]) : recs[i]?.[field];
+                    if (is_empty(raw)) {
+                        empties[i] = 1;
+                        keys[i] = NaN;
+                    } else if (type === "number") {
+                        keys[i] = Number(raw);
+                    } else if (type === "boolean") {
+                        keys[i] = raw ? 1 : 0;
+                    } else {
+                        keys[i] = parse_timestamp_fast(raw);
                     }
-                );
+                }
+            } else {
+                keys = new Array(len);
+                for (let i = 0; i < len; i++) {
+                    const raw = getter ? getter(recs[i]) : recs[i]?.[field];
+                    if (is_empty(raw)) {
+                        empties[i] = 1;
+                        keys[i] = "";
+                    } else {
+                        keys[i] = String(raw);
+                    }
+                }
+            }
+
+            const collator = get_collator(locale);
+
+            const cmp = (a, b) => {
+                const a_empty = empties[a];
+                const b_empty = empties[b];
+
+                if (a_empty || b_empty) {
+                    if (a_empty && b_empty) {
+                        return ids[a] < ids[b] ? -1 : (ids[a] > ids[b] ? 1 : 0);
+                    }
+                    if (nulls_last) {
+                        return a_empty ? 1 : -1;
+                    }
+                    const res = a_empty ? 1 : -1;
+                    return desc ? -res : res;
+                }
+
+                let diff = 0;
+                if (is_numeric) {
+                    const ka = keys[a];
+                    const kb = keys[b];
+                    if (ka !== kb) {
+                        if (Number.isNaN(ka)) {
+                            diff = Number.isNaN(kb) ? 0 : 1;
+                        } else if (Number.isNaN(kb)) {
+                            diff = -1;
+                        } else {
+                            diff = ka - kb;
+                        }
+                    }
+                } else {
+                    const ka = keys[a];
+                    const kb = keys[b];
+                    if (ka !== kb) {
+                        diff = collator.compare(ka, kb);
+                    }
+                }
+
+                if (diff !== 0) {
+                    return desc ? -diff : diff;
+                }
+
+                // Stable deterministic tie-breaker
+                const id_a = ids[a];
+                const id_b = ids[b];
+                if (id_a === id_b) {
+                    return 0;
+                }
+                return collator.compare(id_a, id_b);
+            };
+
+            // O(N) fast-path check: skip O(N log N) sort if already ordered
+            let already_sorted = true;
+            for (let i = 1; i < len; i++) {
+                if (cmp(indices[i - 1], indices[i]) > 0) {
+                    already_sorted = false;
+                    break;
+                }
+            }
+
+            if (!already_sorted) {
+                indices.sort(cmp);
+            }
+
+            const typed = Int32Array.from(indices);
+            lru_set(this._sorted_cache, sort_key, typed, MAX_SORT_CACHE);
+            return typed;
+        }
+
+
+        // ====================================================
+        // Filter + Search execution over sorted indices
+        // ====================================================
+
+        _execute_filter_and_search(source_indices, filters, search, filters_key, sort_key) {
+            const recs = this._records_arr;
+            const tokens_raw = this.search_tokenizer(search);
+
+            // Sort tokens longest-first so rarest/longest token rejects fastest
+            const tokens = tokens_raw.length > 1
+                ? tokens_raw.slice().sort((a, b) => b.length - a.length)
+                : tokens_raw;
+
+            const has_tokens = tokens.length > 0;
+            const predicates = this._compile_filters(filters);
+            const pred_len = predicates.length;
+
+            // Fast path: no filters and no search
+            if (!pred_len && !has_tokens) {
+                return source_indices;
+            }
+
+            // Incremental narrowing fast-path when typing in search box
+            if (
+                has_tokens &&
+                this._last_search &&
+                this._last_search.revision === this.revision &&
+                this._last_search.filters_key === filters_key &&
+                this._last_search.sort_key === sort_key &&
+                is_token_extension(this._last_search.tokens, tokens)
+            ) {
+                const haystacks = this._ensure_haystacks();
+                const prev = this._last_search.indices;
+                const prev_len = prev.length;
+                const narrowed = [];
+                const tok_len = tokens.length;
+
+                if (tok_len === 1) {
+                    const t0 = tokens[0];
+                    for (let i = 0; i < prev_len; i++) {
+                        const idx = prev[i];
+                        if (haystacks[idx].indexOf(t0) !== -1) {
+                            narrowed.push(idx);
+                        }
+                    }
+                } else {
+                    for (let i = 0; i < prev_len; i++) {
+                        const idx = prev[i];
+                        const h = haystacks[idx];
+                        let ok = true;
+                        for (let t = 0; t < tok_len; t++) {
+                            if (h.indexOf(tokens[t]) === -1) {
+                                ok = false;
+                                break;
+                            }
+                        }
+                        if (ok) {
+                            narrowed.push(idx);
+                        }
+                    }
+                }
+
+                this._last_search = {
+                    revision: this.revision,
+                    filters_key,
+                    sort_key,
+                    tokens,
+                    indices: narrowed,
+                };
+                return narrowed;
+            }
+
+            const haystacks = has_tokens ? this._ensure_haystacks() : null;
+            const total = source_indices.length;
+            const matched = [];
+            const tok_len = tokens.length;
+
+            if (!pred_len && tok_len === 1) {
+                const t0 = tokens[0];
+                for (let i = 0; i < total; i++) {
+                    const idx = source_indices[i];
+                    if (haystacks[idx].indexOf(t0) !== -1) {
+                        matched.push(idx);
+                    }
+                }
+            } else if (!pred_len && tok_len > 1) {
+                for (let i = 0; i < total; i++) {
+                    const idx = source_indices[i];
+                    const h = haystacks[idx];
+                    let ok = true;
+                    for (let t = 0; t < tok_len; t++) {
+                        if (h.indexOf(tokens[t]) === -1) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (ok) {
+                        matched.push(idx);
+                    }
+                }
+            } else if (pred_len && !has_tokens) {
+                for (let i = 0; i < total; i++) {
+                    const idx = source_indices[i];
+                    const rec = recs[idx];
+                    let ok = true;
+                    for (let p = 0; p < pred_len; p++) {
+                        if (!predicates[p](rec, idx)) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (ok) {
+                        matched.push(idx);
+                    }
+                }
+            } else {
+                for (let i = 0; i < total; i++) {
+                    const idx = source_indices[i];
+                    const rec = recs[idx];
+                    let ok = true;
+                    for (let p = 0; p < pred_len; p++) {
+                        if (!predicates[p](rec, idx)) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (!ok) {
+                        continue;
+                    }
+                    const h = haystacks[idx];
+                    for (let t = 0; t < tok_len; t++) {
+                        if (h.indexOf(tokens[t]) === -1) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (ok) {
+                        matched.push(idx);
+                    }
+                }
+            }
+
+            if (has_tokens) {
+                this._last_search = {
+                    revision: this.revision,
+                    filters_key,
+                    sort_key,
+                    tokens,
+                    indices: matched,
+                };
+            }
+
+            return matched;
         }
 
 
@@ -946,6 +975,10 @@ frappe.provide("custom.data_grid");
                 || null;
 
 
+            const include_records =
+                options.include_records !== false;
+
+
             const page_length =
                 normalize_page_length(
                     options.page_length,
@@ -953,20 +986,12 @@ frappe.provide("custom.data_grid");
                 );
 
 
-            const cache_key =
-                stable_stringify({
-                    revision:
-                        this.revision,
-
-                    search:
-                        search,
-
-                    filters:
-                        filters,
-
-                    sort:
-                        sort,
-                });
+            const filters_key = stable_stringify(filters);
+            const sort_key = sort && sort.field
+                ? `${sort.field}::${sort.direction === "asc" ? "asc" : "desc"}`
+                : "__none__";
+            const base_key = `${this.revision}|${search}|${filters_key}`;
+            const cache_key = `${base_key}|${sort_key}`;
 
 
             let cached =
@@ -976,67 +1001,38 @@ frappe.provide("custom.data_grid");
 
 
             if (!cached) {
+                let matched_indices;
 
-                // 1) Search
-                // const searched_ids =
-                //     this._apply_search(
-                //         this.all_ids,
-                //         search
-                //     );
-
-
-                // // 2) Filters
-                // const filtered_ids =
-                //     this._apply_filters(
-                //         searched_ids,
-                //         filters
-                //     );
-
-
-                // // 3) Sort
-                // const sorted_ids =
-                //     this._apply_sort(
-                //         filtered_ids,
-                //         sort
-                //     );
-
-                // 1) Advanced / structural filters
-                const filtered_ids =
-                    this._apply_filters(
-                        this.all_ids,
-                        filters
+                // If sort is null (e.g. counts query), reuse ANY already-computed
+                // result for the same (revision, search, filters) regardless of sort!
+                if (sort_key === "__none__" && this._base_cache.has(base_key)) {
+                    matched_indices = this._base_cache.get(base_key);
+                } else {
+                    const sorted_indices = this._get_sorted_indices(sort);
+                    matched_indices = this._execute_filter_and_search(
+                        sorted_indices,
+                        filters,
+                        search,
+                        filters_key,
+                        sort_key
                     );
+                    lru_set(this._base_cache, base_key, matched_indices, MAX_BASE_CACHE);
+                }
 
-
-                // 2) Free search inside filtered results
-                const searched_ids =
-                    this._apply_search(
-                        filtered_ids,
-                        search
-                    );
-
-
-                // 3) Sorting
-                const sorted_ids =
-                    this._apply_sort(
-                        searched_ids,
-                        sort
-                    );
-
+                const ids_arr = this._ids_arr;
+                const matched_len = matched_indices.length;
+                const result_ids = new Array(matched_len);
+                for (let i = 0; i < matched_len; i++) {
+                    result_ids[i] = ids_arr[matched_indices[i]];
+                }
 
                 cached = {
-                    searched_ids:
-                        searched_ids,
-
-                    result_ids:
-                        sorted_ids,
+                    matched_indices,
+                    searched_ids: result_ids,
+                    result_ids: result_ids,
                 };
 
-
-                this.query_cache.set(
-                    cache_key,
-                    cached
-                );
+                lru_set(this.query_cache, cache_key, cached, MAX_QUERY_CACHE);
             }
 
 
@@ -1080,37 +1076,37 @@ frappe.provide("custom.data_grid");
 
 
             let page_ids;
+            let page_records = [];
 
+            const recs_arr = this._records_arr;
+            const matched_indices = cached.matched_indices;
 
             if (page_length === 0) {
-                page_ids =
-                    cached.result_ids;
+                page_ids = cached.result_ids;
+                if (include_records) {
+                    const len = matched_indices.length;
+                    page_records = new Array(len);
+                    for (let i = 0; i < len; i++) {
+                        page_records[i] = recs_arr[matched_indices[i]];
+                    }
+                }
             } else {
-
-                const start =
-                    (
-                        page - 1
-                    )
-                    *
-                    page_length;
-
-
-                page_ids =
-                    cached.result_ids.slice(
-                        start,
-                        start + page_length
-                    );
+                const start = (page - 1) * page_length;
+                const end = Math.min(start + page_length, total_rows);
+                page_ids = cached.result_ids.slice(start, end);
+                if (include_records) {
+                    const slice_len = Math.max(0, end - start);
+                    page_records = new Array(slice_len);
+                    for (let i = 0; i < slice_len; i++) {
+                        page_records[i] = recs_arr[matched_indices[start + i]];
+                    }
+                }
             }
 
 
             return {
                 records:
-                    page_ids.map(
-                        (id) =>
-                            this.records.get(
-                                id
-                            )
-                    ),
+                    page_records,
 
                 page_ids:
                     page_ids,
@@ -1133,6 +1129,257 @@ frappe.provide("custom.data_grid");
                 total_pages:
                     total_pages,
             };
+        }
+    }
+
+
+
+    // ========================================================
+    // VirtualTableRenderer (Native <table> Windowed Virtualizer)
+    //
+    // Renders only visible rows + overscan inside <tbody> using
+    // transparent top/bottom spacer rows, preserving:
+    // - exact native <table> layout, <colgroup>, sticky <thead>
+    // - exact native scrollbar & wheel/touch momentum
+    // - O(1) DOM node count (~35 rows) even for 20,000–250,000+ rows
+    // ========================================================
+
+    const MAX_VIRTUAL_PIXEL_HEIGHT = 10000000;
+
+    class VirtualTableRenderer {
+
+        constructor(options = {}) {
+            this.scroll_el = options.scroll_el || null;
+            this.tbody_el = options.tbody_el || null;
+            this.render_row = options.render_row || (() => "");
+            this.get_col_count = options.get_col_count || (() => 1);
+            this.row_selector = options.row_selector || "tr:not(.archive-virtual-spacer)";
+            this.row_height = Number(options.row_height) || 58;
+            this.overscan = Number.isFinite(options.overscan) ? options.overscan : 14;
+            this.threshold = Number.isFinite(options.threshold) ? options.threshold : 150;
+            this.on_rendered = typeof options.on_rendered === "function" ? options.on_rendered : null;
+
+            this.rows = [];
+            this._row_height_measured = false;
+            this._last_start = -1;
+            this._last_end = -1;
+            this._last_virtualized = null;
+            this._raf_id = null;
+            this._destroyed = false;
+
+            this._on_scroll = () => {
+                if (this._destroyed || this.rows.length <= this.threshold) {
+                    return;
+                }
+                if (this._raf_id !== null) {
+                    return;
+                }
+                this._raf_id = window.requestAnimationFrame(() => {
+                    this._raf_id = null;
+                    if (!this._destroyed) {
+                        this._render_window(false);
+                    }
+                });
+            };
+
+            if (this.scroll_el) {
+                this.scroll_el.addEventListener("scroll", this._on_scroll, {
+                    passive: true,
+                });
+
+                if (typeof ResizeObserver !== "undefined") {
+                    this._resize_observer = new ResizeObserver(() => {
+                        if (!this._destroyed && this.rows.length > this.threshold) {
+                            this._render_window(false);
+                        }
+                    });
+                    this._resize_observer.observe(this.scroll_el);
+                }
+            }
+        }
+
+        set_rows(rows, { preserve_scroll = false, force = true } = {}) {
+            this.rows = Array.isArray(rows) ? rows : [];
+            this._last_start = -1;
+            this._last_end = -1;
+
+            if (!preserve_scroll && this.scroll_el) {
+                this.scroll_el.scrollTop = 0;
+            }
+
+            this._render_window(Boolean(force));
+        }
+
+        refresh() {
+            this._last_start = -1;
+            this._last_end = -1;
+            this._render_window(true);
+        }
+
+        update_selected(selected_name) {
+            if (!this.tbody_el) {
+                return;
+            }
+            const prev = this.tbody_el.querySelector("tr.is-selected");
+            if (prev) {
+                prev.classList.remove("is-selected");
+            }
+            if (!selected_name) {
+                return;
+            }
+            const target_val = String(selected_name);
+            const trs = this.tbody_el.children;
+            for (let i = 0; i < trs.length; i++) {
+                const tr = trs[i];
+                if (tr.getAttribute("data-name") === target_val) {
+                    tr.classList.add("is-selected");
+                    break;
+                }
+            }
+        }
+
+        scroll_to_top() {
+            if (this.scroll_el) {
+                this.scroll_el.scrollTop = 0;
+            }
+        }
+
+        _measure_row_height_once() {
+            if (this._row_height_measured || !this.tbody_el) {
+                return;
+            }
+            const sample = this.tbody_el.querySelector(this.row_selector);
+            if (!sample) {
+                return;
+            }
+            const rect = sample.getBoundingClientRect();
+            if (rect && rect.height >= 28 && rect.height <= 140) {
+                this.row_height = Math.round(rect.height);
+                this._row_height_measured = true;
+            }
+        }
+
+        _render_window(force) {
+            if (!this.tbody_el) {
+                return;
+            }
+
+            const total = this.rows.length;
+
+            if (!total) {
+                this.tbody_el.innerHTML = "";
+                this._last_start = 0;
+                this._last_end = 0;
+                this._last_virtualized = false;
+                if (this.on_rendered) {
+                    this.on_rendered({ start: 0, end: 0, total: 0, virtualized: false });
+                }
+                return;
+            }
+
+            // Direct render for small slices (e.g. 20 or 100 rows)
+            if (total <= this.threshold) {
+                if (!force && this._last_virtualized === false && this._last_start === 0 && this._last_end === total) {
+                    return;
+                }
+                const parts = new Array(total);
+                for (let i = 0; i < total; i++) {
+                    parts[i] = this.render_row(this.rows[i], i);
+                }
+                this.tbody_el.innerHTML = parts.join("");
+                this._last_start = 0;
+                this._last_end = total;
+                this._last_virtualized = false;
+                this._measure_row_height_once();
+                if (this.on_rendered) {
+                    this.on_rendered({ start: 0, end: total, total, virtualized: false });
+                }
+                return;
+            }
+
+            // Virtualized render for large slices (500, 2500, "all" 20,000+ rows)
+            const row_h = this.row_height;
+            const raw_total_height = total * row_h;
+            const scale = raw_total_height > MAX_VIRTUAL_PIXEL_HEIGHT
+                ? MAX_VIRTUAL_PIXEL_HEIGHT / raw_total_height
+                : 1;
+            const effective_row_h = row_h * scale;
+
+            const viewport_h = (this.scroll_el && this.scroll_el.clientHeight) || 640;
+            const scroll_top = (this.scroll_el && this.scroll_el.scrollTop) || 0;
+
+            const visible_count = Math.max(1, Math.ceil(viewport_h / row_h));
+            const raw_first = Math.floor(scroll_top / effective_row_h);
+            const start = Math.max(0, Math.min(total - 1, raw_first - this.overscan));
+            const end = Math.min(total, raw_first + visible_count + this.overscan);
+
+            if (
+                !force &&
+                this._last_virtualized === true &&
+                start === this._last_start &&
+                end === this._last_end
+            ) {
+                return;
+            }
+
+            const col_count = Math.max(1, Number(this.get_col_count()) || 1);
+            const top_h = Math.round(start * effective_row_h);
+            const rendered_rows_h = (end - start) * row_h;
+            const total_virtual_h = Math.round(raw_total_height * scale);
+            const bottom_h = Math.max(0, total_virtual_h - top_h - rendered_rows_h);
+
+            const parts = [];
+            if (top_h > 0) {
+                parts.push(
+                    `<tr class="archive-virtual-spacer" aria-hidden="true" style="height:${top_h}px;"><td colspan="${col_count}" style="height:${top_h}px;padding:0!important;border:0!important;background:transparent!important;pointer-events:none;"></td></tr>`
+                );
+            }
+
+            for (let i = start; i < end; i++) {
+                parts.push(this.render_row(this.rows[i], i));
+            }
+
+            if (bottom_h > 0) {
+                parts.push(
+                    `<tr class="archive-virtual-spacer" aria-hidden="true" style="height:${bottom_h}px;"><td colspan="${col_count}" style="height:${bottom_h}px;padding:0!important;border:0!important;background:transparent!important;pointer-events:none;"></td></tr>`
+                );
+            }
+
+            this.tbody_el.innerHTML = parts.join("");
+            this._last_start = start;
+            this._last_end = end;
+            this._last_virtualized = true;
+
+            if (!this._row_height_measured) {
+                const before = this.row_height;
+                this._measure_row_height_once();
+                if (this.row_height !== before) {
+                    this._last_start = -1;
+                    this._last_end = -1;
+                    this._render_window(true);
+                    return;
+                }
+            }
+
+            if (this.on_rendered) {
+                this.on_rendered({ start, end, total, virtualized: true });
+            }
+        }
+
+        destroy() {
+            this._destroyed = true;
+            if (this._raf_id !== null) {
+                window.cancelAnimationFrame(this._raf_id);
+                this._raf_id = null;
+            }
+            if (this.scroll_el) {
+                this.scroll_el.removeEventListener("scroll", this._on_scroll);
+            }
+            if (this._resize_observer) {
+                this._resize_observer.disconnect();
+                this._resize_observer = null;
+            }
+            this.rows = [];
         }
     }
 
@@ -1280,8 +1527,12 @@ frappe.provide("custom.data_grid");
             ),
         ];
     }
+
     ns.LocalDataSource =
         LocalDataSource;
+
+    ns.VirtualTableRenderer =
+        VirtualTableRenderer;
 
 
     ns.utils = {

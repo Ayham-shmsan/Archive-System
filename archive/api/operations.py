@@ -633,6 +633,14 @@ def _normalize_customer_rate_values(
                 )
             )
 
+        from archive.archive.doctype.archive_settings.archive_settings import (
+            validate_saudi_customer_rate_value,
+        )
+
+        validate_saudi_customer_rate_value(
+            "سعودي",
+            values.get("customer_rate"),
+        )
 
         return
 
@@ -2030,6 +2038,23 @@ def create_operation(
 
         _normalize_customer_rate_values(
             values
+        )
+
+        if values.get("bank_transfer_rate") not in (None, ""):
+            from archive.archive.doctype.archive_settings.archive_settings import (
+                validate_bank_transfer_rate_value,
+            )
+
+            validate_bank_transfer_rate_value(
+                values.get("bank_transfer_rate")
+            )
+
+        from archive.archive.doctype.archive_operation.archive_operation import (
+            validate_sender_account_value,
+        )
+
+        validate_sender_account_value(
+            values.get("sender_account")
         )
     else:
         if (
@@ -3649,128 +3674,153 @@ def release_pending_operation(
     }
 
 
-@frappe.whitelist(
-    methods=["GET", "POST"]
-)
-def get_operations_context(
-    fiscal_year: str | list[str] | None = None,
-    fiscal_years: str | list[str] | None = None,
-) -> dict[str, Any]:
+_OPERATION_CONTEXT_DB_FIELDS = [
+    "name",
+    "serial_no",
+    "fiscal_year",
+    "fiscal_sequence",
+    "operation_no",
+    "customer",
+    "amount",
+    "currency",
+    "customer_rate",
+    "replacement_note",
+    "beneficiary_name",
+    "beneficiary_account",
+    "beneficiary_bank",
+    "swift_code",
+    "country",
+    "bank_transfer_rate",
+    "sender_name",
+    "sender_account",
+    "execution_datetime",
+    "transferring_bank",
+    "request_date",
+    "from_account",
+    "reference_no",
+    "notes",
+    "status",
+    "status_effective_datetime",
+    "final_swift_file",
+    "final_swift_required",
+    "search_text",
+    "operation_group",
+    "operation_no_normalized",
+    "allow_duplicate_operation_no",
+    "is_blocked_operation",
+    "is_incomplete_invoice",
+    "owner",
+    "creation",
+    "modified",
+]
+
+_OPERATION_CONTEXT_COMPACT_SCHEMA = [
+    *_OPERATION_CONTEXT_DB_FIELDS,
+    "final_swift_count",
+    "is_incomplete_resolved",
+    "operation_no_duplicate_count",
+    "operation_no_duplicate_index",
+]
+
+
+def ensure_performance_indexes() -> None:
     """
-    تحميل Snapshot كامل وخفيف لواجهة العمليات.
-
-    يتم استدعاؤه عند:
-        - فتح الصفحة
-        - Refresh صريح
-
-    البحث والفلترة والترتيب وPagination
-    تتم بعد ذلك داخل المتصفح.
+    Create safe, non-unique composite indexes to eliminate filesorts and
+    full child-table scans on Archive Operations and Pending Operations.
     """
-    require_operations_screen_access()
-
-    fiscal_ctx = get_screen_fiscal_context()
-    requested_fy = fiscal_year if fiscal_year is not None else fiscal_years
-
-    if not frappe.has_permission(
-        "Archive Operation",
-        "read",
-    ):
-        if requested_fy and cstr(requested_fy).strip().lower() not in ("", "[]", "none", "__none__", "all", "جميع السنوات", "*"):
-            frappe.throw(_("ليست لديك صلاحية استعراض العمليات."), frappe.PermissionError)
-        return {
-            "version": 2,
-            "records": [],
-            "total": 0,
-            "fiscal_context": fiscal_ctx,
+    specs = [
+        (
+            "Archive Operation",
+            "idx_archive_op_fy_serial",
+            ["fiscal_year", "serial_no"],
+        ),
+        (
+            "Archive Operation Attachment",
+            "idx_archive_op_att_swift",
+            ["parenttype", "parentfield", "is_final_swift", "parent"],
+        ),
+        (
+            "Archive Pending Operation",
+            "idx_archive_pend_fy_dt",
+            ["fiscal_year", "operation_datetime", "creation", "serial_no"],
+        ),
+        (
+            "Archive Pending Operation",
+            "idx_archive_pend_owner_fy",
+            ["owner", "fiscal_year"],
+        ),
+    ]
+    for doctype, index_name, columns in specs:
+        if not frappe.db.table_exists(doctype):
+            continue
+        table = f"tab{doctype}"
+        existing = {
+            row[0]
+            for row in frappe.db.sql(
+                f"SHOW INDEX FROM `{table}` WHERE Key_name = %s",
+                (index_name,),
+            )
         }
-
-    allowed_fiscal_years = resolve_fiscal_year_filter(requested_fy, action="view")
-    if not allowed_fiscal_years:
-        return {
-            "version": 2,
-            "records": [],
-            "total": 0,
-            "fiscal_context": fiscal_ctx,
-        }
+        if existing:
+            continue
+        cols_sql = ", ".join(f"`{col}`" for col in columns)
+        frappe.db.sql(f"CREATE INDEX `{index_name}` ON `{table}` ({cols_sql})")
 
 
-    configured_final_swift_banks = (
-        get_final_swift_banks()
-    )
+def _compute_duplicate_counts_for_tuples(
+    rows: list[Any],
+    idx_name: int,
+    idx_fy: int,
+    idx_norm: int,
+    idx_creation: int,
+) -> tuple[list[int], list[int]]:
+    n = len(rows)
+    dup_counts = [0] * n
+    dup_indices = [0] * n
+    groups: dict[tuple[str, str], list[int]] = {}
+
+    for pos, row in enumerate(rows):
+        norm = cstr(row[idx_norm]).strip()
+        if not norm:
+            continue
+        fy = cstr(row[idx_fy]).strip()
+        groups.setdefault((fy, norm), []).append(pos)
+
+    for positions in groups.values():
+        count = len(positions)
+        if count == 1:
+            pos = positions[0]
+            dup_counts[pos] = 1
+            dup_indices[pos] = 1
+            continue
+        positions.sort(
+            key=lambda p: (
+                rows[p][idx_creation] or "",
+                rows[p][idx_name] or "",
+            )
+        )
+        for rank, pos in enumerate(positions, start=1):
+            dup_counts[pos] = count
+            dup_indices[pos] = rank
+
+    return dup_counts, dup_indices
 
 
-    # ========================================================
-    # Operations
-    # ========================================================
-
-    operations = frappe.get_list(
-        "Archive Operation",
-
-        filters={
-            "fiscal_year": ["in", allowed_fiscal_years],
-        },
-
-        fields=[
-            "name",
-            "serial_no",
-            "fiscal_year",
-            "fiscal_sequence",
-            "operation_no",
-            "customer",
-
-            "amount",
-            "currency",
-            "customer_rate",
-            "replacement_note",
-
-            "beneficiary_name",
-            "beneficiary_account",
-            "beneficiary_bank",
-
-            "swift_code",
-            "country",
-
-            "bank_transfer_rate",
-
-            "sender_name",
-            "sender_account",
-
-            "execution_datetime",
-
-            "transferring_bank",
-            "request_date",
-            "from_account",
-
-            "reference_no",
-            "notes",
-
-            "status",
-
-            "final_swift_file",
-            "final_swift_required",
-
-            "search_text",
-            "operation_no",
-            "operation_group",
-            "operation_no_normalized",
-            "allow_duplicate_operation_no",
-            "is_blocked_operation",
-            "is_incomplete_invoice",
-
-            "owner",
-            "creation",
-            "modified",
-        ],
-
-        order_by=
-            "serial_no desc",
-
-        limit_page_length=
-            0,
-    )
-
-    operation_number_groups = {}
-
+def _enrich_operation_dict_rows(
+    operations: list[frappe._dict],
+    *,
+    configured_final_swift_banks: set[str],
+    creator_names: dict[str, str],
+    final_swift_counts: dict[str, int],
+    group_incomplete_map: dict[str, bool],
+    can_view_timeline: bool,
+    can_change_initial_status: bool,
+    can_release_pending: bool,
+    can_change_advanced_status: bool,
+    can_attach_swift: bool,
+    can_attach_incomplete: bool,
+) -> None:
+    operation_number_groups: dict[tuple[str, str], list[frappe._dict]] = {}
 
     for operation in operations:
         operation["fiscal_sequence"] = (
@@ -3782,344 +3832,82 @@ def get_operations_context(
             operation.get("fiscal_sequence"),
             operation.get("serial_no"),
         )
+        operation.setdefault("operation_no_duplicate_count", 0)
+        operation.setdefault("operation_no_duplicate_index", 0)
 
-        operation.setdefault(
-            "operation_no_duplicate_count",
-            0,
-        )
-        
-        operation.setdefault(
-            "operation_no_duplicate_index",
-            0,
-        )
-
-        normalized = cstr(
-            operation.get(
-                "operation_no_normalized"
-            )
-        ).strip()
-
-
+        normalized = cstr(operation.get("operation_no_normalized")).strip()
         if not normalized:
             continue
 
+        op_fy = cstr(operation.get("fiscal_year")).strip()
+        operation_number_groups.setdefault((op_fy, normalized), []).append(operation)
 
-        op_fy = cstr(
-            operation.get(
-                "fiscal_year"
-            )
-        ).strip()
-
-        operation_number_groups.setdefault(
-            (op_fy, normalized),
-            [],
-        ).append(
-            operation
-        )
-
-
-
-    for group in (
-        operation_number_groups.values()
-    ):
-
+    for group in operation_number_groups.values():
+        count = len(group)
+        if count == 1:
+            group[0]["operation_no_duplicate_count"] = 1
+            group[0]["operation_no_duplicate_index"] = 1
+            continue
         group.sort(
             key=lambda item: (
-                item.get("creation")
-                or "",
-                item.get("name")
-                or "",
+                item.get("creation") or "",
+                item.get("name") or "",
             )
         )
+        for index, operation in enumerate(group, start=1):
+            operation["operation_no_duplicate_count"] = count
+            operation["operation_no_duplicate_index"] = index
 
-
-        count = len(
-            group
-        )
-
-
-        for index, operation in enumerate(
-            group,
-            start=1,
-        ):
-            operation[
-                "operation_no_duplicate_count"
-            ] = count
-
-            operation[
-                "operation_no_duplicate_index"
-            ] = index
-            
-    # ========================================================
-    # Operation creators
-    #
-    # owner يحتوي User ID / email.
-    # نعرض full_name في الواجهة وليس البريد.
-    #
-    # Query واحدة لجميع المستخدمين لتجنب N+1.
-    # ========================================================
-
-    creator_ids = {
-        cstr(
-            operation.get("owner")
-        ).strip()
-        for operation in operations
-        if cstr(
-            operation.get("owner")
-        ).strip()
+    dynamic_search_cache: dict[tuple[str, str, str], str] = {}
+    transitions_by_status = {
+        st: list(get_allowed_status_transitions(st))
+        for st in VALID_STATUSES
     }
-
-
-    creator_names = {}
-
-
-    if creator_ids:
-
-        creator_rows = frappe.get_all(
-            "User",
-            filters={
-                "name": [
-                    "in",
-                    list(creator_ids),
-                ],
-            },
-            fields=[
-                "name",
-                "full_name",
-            ],
-            limit_page_length=0,
-        )
-
-
-        creator_names = {
-            row.name:
-                cstr(
-                    row.full_name
-                ).strip()
-            for row in creator_rows
-        }
-
-    # ========================================================
-    # Final Swift counts
-    # Query واحدة لكل البيانات وليس لكل عملية.
-    # ========================================================
-
-    final_swift_counts = {}
-
-
-    operation_names = [
-        row.name
-        for row in operations
-    ]
-
-
-    if operation_names:
-
-        final_swift_rows = frappe.get_all(
-            "Archive Operation Attachment",
-
-            filters={
-                "parent": [
-                    "in",
-                    operation_names,
-                ],
-
-                "parenttype":
-                    "Archive Operation",
-
-                "parentfield":
-                    "attachments",
-
-                "is_final_swift":
-                    1,
-            },
-
-            fields=[
-                "parent",
-            ],
-
-            limit_page_length=
-                0,
-        )
-
-
-        for row in final_swift_rows:
-
-            final_swift_counts[
-                row.parent
-            ] = (
-                final_swift_counts.get(
-                    row.parent,
-                    0,
-                )
-                + 1
-            )
-
-
-    # ========================================================
-    # Capabilities
-    # نحسب صلاحية المستخدم مرة واحدة.
-    # ========================================================
-
-    can_change_initial_status = (
-        can_change_operation_status(
-            "غير مؤكدة"
-        )
-    )
-
-    can_release_pending = (
-        can_release_pending_operation()
-    )
-
-
-    can_change_advanced_status = (
-        can_change_operation_status(
-            "مؤكدة"
-        )
-    )
-
-
-    can_attach_swift = (
-        can_attach_final_swift()
-    )
-
-    can_attach_incomplete = (
-        can_attach_incomplete_invoice()
-    )
-
-    group_incomplete_map = {}
-    group_ids = {
-        cstr(op.get("operation_group")).strip()
-        for op in operations
-        if cstr(op.get("operation_group")).strip()
-    }
-    if group_ids:
-        group_rows = frappe.get_all(
-            "Archive Operation Group",
-            filters={"name": ["in", list(group_ids)]},
-            fields=["name", "is_incomplete_invoice"],
-            limit_page_length=0,
-        )
-        group_incomplete_map = {
-            row.name: bool(cint(row.is_incomplete_invoice))
-            for row in group_rows
-        }
-
-
-    # ========================================================
-    # Enrich
-    # ========================================================
 
     for operation in operations:
-        operation[
-            "created_by_name"
-        ] = (
-            creator_names.get(
-                cstr(
-                    operation.get("owner")
-                ).strip(),
-                "",
+        owner_id = cstr(operation.get("owner")).strip()
+        created_by_name = creator_names.get(owner_id, "")
+        operation["created_by_name"] = created_by_name
+
+        country_val = cstr(operation.get("country")).strip()
+        status_val = cstr(operation.get("status")).strip()
+        dyn_key = (country_val, status_val, owner_id)
+        dynamic_text = dynamic_search_cache.get(dyn_key)
+        if dynamic_text is None:
+            dynamic_text = get_dynamic_operation_search_text(
+                country=country_val,
+                status=status_val,
+                created_by_name=created_by_name,
+                owner=owner_id,
             )
-        )
+            dynamic_search_cache[dyn_key] = dynamic_text
 
-        # ========================================================
-        # Search text
-        #
-        # إضافة اسم منشئ العملية والترجمات الحالية إلى البحث المحلي.
-        # ========================================================
+        base_search = cstr(operation.get("search_text")).strip()
+        if base_search and dynamic_text:
+            operation["search_text"] = f"{base_search} {dynamic_text}"
+        else:
+            operation["search_text"] = base_search or dynamic_text
 
-        operation[
-            "search_text"
-        ] = " ".join(
-            value
-            for value in [
-                cstr(
-                    operation.get(
-                        "search_text"
-                    )
-                ).strip(),
+        operation["can_view_timeline"] = can_view_timeline
 
-                get_dynamic_operation_search_text(
-                    country=cstr(
-                        operation.get("country")
-                    ).strip(),
-                    status=cstr(
-                        operation.get("status")
-                    ).strip(),
-                    created_by_name=cstr(
-                        operation.get("created_by_name")
-                    ).strip(),
-                    owner=cstr(
-                        operation.get("owner")
-                    ).strip(),
-                ),
-            ]
-            if value
-        )
-
-        operation[
-            "can_view_timeline"
-        ] = bool(
-            can_view_operation_timeline(
-                operation
-            )
-        )
-
-        final_swift_count = (
-            final_swift_counts.get(
-                operation.name,
-                0,
-            )
-        )
-
-
+        final_swift_count = final_swift_counts.get(operation.name, 0)
         final_swift_required_flag = normalize_final_swift_required(
             operation.get("final_swift_required"),
             default=1,
         )
-
         final_swift_required = bool(
             final_swift_required_flag == 1
-            and
-            operation.transferring_bank
-            and
-            operation.transferring_bank
-            in configured_final_swift_banks
+            and operation.transferring_bank
+            and operation.transferring_bank in configured_final_swift_banks
         )
 
-
-        operation[
-            "final_swift_required"
-        ] = final_swift_required
-
-        operation[
-            "final_swift_required_flag"
-        ] = final_swift_required_flag
-
-
-        operation[
-            "final_swift_count"
-        ] = final_swift_count
-
-
-        operation[
-            "final_swift_limit"
-        ] = MAX_FINAL_SWIFT_FILES
-
-
-        operation[
-            "has_final_swift"
-        ] = (
-            final_swift_count > 0
-        )
-
-
-        operation[
-            "final_swift_pending"
-        ] = bool(
-            final_swift_required
-            and
-            final_swift_count == 0
+        operation["final_swift_required"] = final_swift_required
+        operation["final_swift_required_flag"] = final_swift_required_flag
+        operation["final_swift_count"] = final_swift_count
+        operation["final_swift_limit"] = MAX_FINAL_SWIFT_FILES
+        operation["has_final_swift"] = final_swift_count > 0
+        operation["final_swift_pending"] = bool(
+            final_swift_required and final_swift_count == 0
         )
 
         if final_swift_count > 0:
@@ -4129,141 +3917,414 @@ def get_operations_context(
         else:
             operation["final_swift_status"] = "غير مطلوب"
 
-
-        operation[
-            "can_attach_final_swift"
-        ] = bool(
+        operation["can_attach_final_swift"] = bool(
             final_swift_required
-            and
-            final_swift_count
-                < MAX_FINAL_SWIFT_FILES
-            and
-            can_attach_swift
+            and final_swift_count < MAX_FINAL_SWIFT_FILES
+            and can_attach_swift
         )
 
-        op_group_name = cstr(
-            operation.get("operation_group")
-        ).strip()
+        op_group_name = cstr(operation.get("operation_group")).strip()
         is_incomplete = (
             group_incomplete_map[op_group_name]
             if op_group_name in group_incomplete_map
             else bool(cint(operation.get("is_incomplete_invoice")))
         )
-        operation[
-            "is_incomplete_invoice"
-        ] = is_incomplete
-        operation[
-            "can_attach_incomplete_invoice"
-        ] = bool(
-            is_incomplete
-            and
-            can_attach_incomplete
+        operation["is_incomplete_invoice"] = is_incomplete
+        operation["can_attach_incomplete_invoice"] = bool(
+            is_incomplete and can_attach_incomplete
         )
 
-
-        if (
-            operation.status
-            == "معلقة"
-        ):
-            operation[
-                "can_change_status"
-            ] = False
-
-            operation[
-                "can_release_pending"
-            ] = bool(
-                can_release_pending
-            )
-
+        if operation.status == "معلقة":
+            operation["can_change_status"] = False
+            operation["can_release_pending"] = bool(can_release_pending)
         else:
-
-            operation[
-                "can_release_pending"
-            ] = False
-
-            operation[
-                "can_change_status"
-            ] = (
+            operation["can_release_pending"] = False
+            operation["can_change_status"] = (
                 can_change_initial_status
-                if operation.status
-                    == "غير مؤكدة"
-                else
-                can_change_advanced_status
+                if operation.status == "غير مؤكدة"
+                else can_change_advanced_status
             )
 
-        operation[
-            "allowed_status_transitions"
-            ] = (
-            list(
-                get_allowed_status_transitions(
-                    operation.status
-                )
-            )
-            if operation[
-                "can_change_status"
-            ]
+        operation["allowed_status_transitions"] = (
+            transitions_by_status.get(operation.status, [])
+            if operation["can_change_status"]
             else []
+        )
+        operation["customer_name"] = operation.customer
+        operation["from_account_name"] = operation.from_account
+
+
+@frappe.whitelist(methods=["GET"])
+def get_operation_context_row(
+    operation_name: str,
+) -> dict[str, Any]:
+    """
+    تحديث سجل واحد (أو مجموعة التكرار التابعة له) دون إعادة تحميل جميع العمليات.
+    """
+    require_operations_screen_access()
+
+    operation_name = cstr(operation_name).strip()
+    if not operation_name:
+        return {"rows": []}
+
+    if not frappe.has_permission("Archive Operation", "read"):
+        return {"rows": []}
+
+    primary_rows = frappe.get_list(
+        "Archive Operation",
+        filters={"name": operation_name},
+        fields=_OPERATION_CONTEXT_DB_FIELDS,
+        limit_page_length=1,
+    )
+    if not primary_rows:
+        return {"rows": []}
+
+    primary = primary_rows[0]
+    op_fy = cstr(primary.get("fiscal_year")).strip()
+    op_norm = cstr(primary.get("operation_no_normalized")).strip()
+
+    if op_norm and op_fy:
+        operations = frappe.get_list(
+            "Archive Operation",
+            filters={
+                "fiscal_year": op_fy,
+                "operation_no_normalized": op_norm,
+            },
+            fields=_OPERATION_CONTEXT_DB_FIELDS,
+            order_by="serial_no desc",
+            limit_page_length=0,
+        )
+    else:
+        operations = primary_rows
+
+    if not operations:
+        return {"rows": []}
+
+    op_names = [row.name for row in operations]
+    creator_ids = {
+        cstr(op.get("owner")).strip()
+        for op in operations
+        if cstr(op.get("owner")).strip()
+    }
+    creator_names = (
+        {
+            row[0]: cstr(row[1]).strip()
+            for row in frappe.db.sql(
+                "SELECT name, full_name FROM `tabUser` WHERE name IN %s",
+                (tuple(creator_ids),),
+            )
+        }
+        if creator_ids
+        else {}
+    )
+    final_swift_counts = {
+        row[0]: cint(row[1])
+        for row in frappe.db.sql(
+            """
+            SELECT parent, COUNT(*)
+            FROM `tabArchive Operation Attachment`
+            WHERE parent IN %s
+              AND parenttype = 'Archive Operation'
+              AND parentfield = 'attachments'
+              AND is_final_swift = 1
+            GROUP BY parent
+            """,
+            (tuple(op_names),),
+        )
+    }
+    group_ids = {
+        cstr(op.get("operation_group")).strip()
+        for op in operations
+        if cstr(op.get("operation_group")).strip()
+    }
+    group_incomplete_map = (
+        {
+            row[0]: bool(cint(row[1]))
+            for row in frappe.db.sql(
+                """
+                SELECT name, is_incomplete_invoice
+                FROM `tabArchive Operation Group`
+                WHERE name IN %s
+                """,
+                (tuple(group_ids),),
+            )
+        }
+        if group_ids
+        else {}
+    )
+
+    _enrich_operation_dict_rows(
+        operations,
+        configured_final_swift_banks=get_final_swift_banks(),
+        creator_names=creator_names,
+        final_swift_counts=final_swift_counts,
+        group_incomplete_map=group_incomplete_map,
+        can_view_timeline=bool(can_view_operation_timeline()),
+        can_change_initial_status=can_change_operation_status("غير مؤكدة"),
+        can_release_pending=can_release_pending_operation(),
+        can_change_advanced_status=can_change_operation_status("مؤكدة"),
+        can_attach_swift=can_attach_final_swift(),
+        can_attach_incomplete=can_attach_incomplete_invoice(),
+    )
+
+    return {"rows": operations}
+
+
+@frappe.whitelist(
+    methods=["GET", "POST"]
+)
+def get_operations_context(
+    fiscal_year: str | list[str] | None = None,
+    fiscal_years: str | list[str] | None = None,
+    compact: int | str = 0,
+) -> dict[str, Any]:
+    """
+    تحميل Snapshot كامل وخفيف لواجهة العمليات.
+
+    يدعم compact=1 لإرسال صفوف مضغوطة (Schema + Rows) مع الحفاظ الكامل
+    على الصلاحيات وجميع البيانات والتوافق العكسي مع المستدعين السابقين.
+    """
+    require_operations_screen_access()
+
+    fiscal_ctx = get_screen_fiscal_context()
+    requested_fy = fiscal_year if fiscal_year is not None else fiscal_years
+    use_compact = bool(cint(compact))
+
+    if not frappe.has_permission(
+        "Archive Operation",
+        "read",
+    ):
+        if requested_fy and cstr(requested_fy).strip().lower() not in ("", "[]", "none", "__none__", "all", "جميع السنوات", "*"):
+            frappe.throw(_("ليست لديك صلاحية استعراض العمليات."), frappe.PermissionError)
+        return {
+            "version": 2,
+            "compact": 1 if use_compact else 0,
+            "schema": _OPERATION_CONTEXT_COMPACT_SCHEMA if use_compact else None,
+            "rows": [] if use_compact else None,
+            "records": [],
+            "total": 0,
+            "fiscal_context": fiscal_ctx,
+        }
+
+    allowed_fiscal_years = resolve_fiscal_year_filter(requested_fy, action="view")
+    if not allowed_fiscal_years:
+        return {
+            "version": 2,
+            "compact": 1 if use_compact else 0,
+            "schema": _OPERATION_CONTEXT_COMPACT_SCHEMA if use_compact else None,
+            "rows": [] if use_compact else None,
+            "records": [],
+            "total": 0,
+            "fiscal_context": fiscal_ctx,
+        }
+
+    configured_final_swift_banks = get_final_swift_banks()
+    fy_tuple = tuple(allowed_fiscal_years)
+
+    can_view_timeline = bool(can_view_operation_timeline())
+    can_change_initial_status = can_change_operation_status("غير مؤكدة")
+    can_release_pending = can_release_pending_operation()
+    can_change_advanced_status = can_change_operation_status("مؤكدة")
+    can_attach_swift = can_attach_final_swift()
+    can_attach_incomplete = can_attach_incomplete_invoice()
+
+    final_swift_counts = {
+        row[0]: cint(row[1])
+        for row in frappe.db.sql(
+            """
+            SELECT a.parent, COUNT(*)
+            FROM `tabArchive Operation Attachment` a
+            INNER JOIN `tabArchive Operation` op ON op.name = a.parent
+            WHERE a.parenttype = 'Archive Operation'
+              AND a.parentfield = 'attachments'
+              AND a.is_final_swift = 1
+              AND op.fiscal_year IN %s
+            GROUP BY a.parent
+            """,
+            (fy_tuple,),
+        )
+    }
+
+    group_incomplete_map = {
+        row[0]: bool(cint(row[1]))
+        for row in frappe.db.sql(
+            """
+            SELECT DISTINCT g.name, g.is_incomplete_invoice
+            FROM `tabArchive Operation Group` g
+            INNER JOIN `tabArchive Operation` op ON op.operation_group = g.name
+            WHERE op.fiscal_year IN %s
+            """,
+            (fy_tuple,),
+        )
+    }
+
+    from archive.archive.doctype.archive_settings.archive_settings import (
+        get_bank_transfer_rate_bounds_payload,
+        get_saudi_customer_rate_bounds_payload,
+    )
+
+    if use_compact:
+        raw_rows = frappe.get_list(
+            "Archive Operation",
+            filters={"fiscal_year": ["in", allowed_fiscal_years]},
+            fields=_OPERATION_CONTEXT_DB_FIELDS,
+            order_by="serial_no desc",
+            limit_page_length=0,
+            as_list=True,
+        )
+
+        idx_name = _OPERATION_CONTEXT_DB_FIELDS.index("name")
+        idx_fy = _OPERATION_CONTEXT_DB_FIELDS.index("fiscal_year")
+        idx_norm = _OPERATION_CONTEXT_DB_FIELDS.index("operation_no_normalized")
+        idx_group = _OPERATION_CONTEXT_DB_FIELDS.index("operation_group")
+        idx_incomplete = _OPERATION_CONTEXT_DB_FIELDS.index("is_incomplete_invoice")
+        idx_owner = _OPERATION_CONTEXT_DB_FIELDS.index("owner")
+        idx_creation = _OPERATION_CONTEXT_DB_FIELDS.index("creation")
+        idx_modified = _OPERATION_CONTEXT_DB_FIELDS.index("modified")
+
+        dup_counts, dup_indices = _compute_duplicate_counts_for_tuples(
+            raw_rows,
+            idx_name,
+            idx_fy,
+            idx_norm,
+            idx_creation,
+        )
+
+        creator_ids = set()
+        max_modified = ""
+        packed_rows: list[list[Any]] = []
+
+        for pos, tup in enumerate(raw_rows):
+            owner_id = cstr(tup[idx_owner]).strip()
+            if owner_id:
+                creator_ids.add(owner_id)
+
+            mod_val = tup[idx_modified]
+            if mod_val:
+                mod_str = str(mod_val)
+                if mod_str > max_modified:
+                    max_modified = mod_str
+
+            op_name = tup[idx_name]
+            op_group = cstr(tup[idx_group]).strip()
+            is_incomplete_res = (
+                1
+                if (
+                    group_incomplete_map[op_group]
+                    if op_group in group_incomplete_map
+                    else bool(cint(tup[idx_incomplete]))
+                )
+                else 0
             )
 
+            packed_rows.append(
+                [
+                    *tup,
+                    final_swift_counts.get(op_name, 0),
+                    is_incomplete_res,
+                    dup_counts[pos],
+                    dup_indices[pos],
+                ]
+            )
 
-        # في التصميم الحالي name هو الاسم المقروء
-        # للعميل والحساب.
-        operation[
-            "customer_name"
-        ] = operation.customer
+        creator_names = (
+            {
+                row[0]: cstr(row[1]).strip()
+                for row in frappe.db.sql(
+                    "SELECT name, full_name FROM `tabUser` WHERE name IN %s",
+                    (tuple(creator_ids),),
+                )
+            }
+            if creator_ids
+            else {}
+        )
 
+        return {
+            "compact": 1,
+            "schema": _OPERATION_CONTEXT_COMPACT_SCHEMA,
+            "rows": packed_rows,
+            "total": len(packed_rows),
+            "version": max_modified,
+            "creators": creator_names,
+            "final_swift_banks": list(configured_final_swift_banks),
+            "fiscal_context": fiscal_ctx,
+            "saudi_customer_rate_bounds": get_saudi_customer_rate_bounds_payload(),
+            "bank_transfer_rate_bounds": get_bank_transfer_rate_bounds_payload(),
+            "capabilities": {
+                "can_view_timeline": can_view_timeline,
+                "can_change_initial_status": can_change_initial_status,
+                "can_change_advanced_status": can_change_advanced_status,
+                "can_attach_final_swift": can_attach_swift,
+                "can_attach_incomplete_invoice": can_attach_incomplete,
+                "can_release_pending": can_release_pending,
+                "final_swift_limit": MAX_FINAL_SWIFT_FILES,
+                "status_transitions": {
+                    st: list(get_allowed_status_transitions(st))
+                    for st in VALID_STATUSES
+                },
+            },
+        }
 
-        operation[
-            "from_account_name"
-        ] = operation.from_account
+    operations = frappe.get_list(
+        "Archive Operation",
+        filters={"fiscal_year": ["in", allowed_fiscal_years]},
+        fields=_OPERATION_CONTEXT_DB_FIELDS,
+        order_by="serial_no desc",
+        limit_page_length=0,
+    )
 
+    creator_ids = {
+        cstr(operation.get("owner")).strip()
+        for operation in operations
+        if cstr(operation.get("owner")).strip()
+    }
+    creator_names = (
+        {
+            row[0]: cstr(row[1]).strip()
+            for row in frappe.db.sql(
+                "SELECT name, full_name FROM `tabUser` WHERE name IN %s",
+                (tuple(creator_ids),),
+            )
+        }
+        if creator_ids
+        else {}
+    )
 
-    # ========================================================
-    # Context version
-    # ========================================================
+    _enrich_operation_dict_rows(
+        operations,
+        configured_final_swift_banks=configured_final_swift_banks,
+        creator_names=creator_names,
+        final_swift_counts=final_swift_counts,
+        group_incomplete_map=group_incomplete_map,
+        can_view_timeline=can_view_timeline,
+        can_change_initial_status=can_change_initial_status,
+        can_release_pending=can_release_pending,
+        can_change_advanced_status=can_change_advanced_status,
+        can_attach_swift=can_attach_swift,
+        can_attach_incomplete=can_attach_incomplete,
+    )
 
     context_version = ""
-
     if operations:
-
         context_version = str(
             max(
-                (
-                    row.modified
-                    for row in operations
-                    if row.modified
-                ),
+                (row.modified for row in operations if row.modified),
                 default="",
             )
         )
 
-
     return {
-        "records":
-            operations,
-
-        "total":
-            len(
-                operations
-            ),
-
-        "version":
-            context_version,
-
-        "fiscal_context":
-            fiscal_ctx,
-
+        "records": operations,
+        "total": len(operations),
+        "version": context_version,
+        "fiscal_context": fiscal_ctx,
+        "saudi_customer_rate_bounds": get_saudi_customer_rate_bounds_payload(),
+        "bank_transfer_rate_bounds": get_bank_transfer_rate_bounds_payload(),
         "capabilities": {
-            "can_change_initial_status":
-                can_change_initial_status,
-
-            "can_change_advanced_status":
-                can_change_advanced_status,
-
-            "can_attach_final_swift":
-                can_attach_swift,
-            "can_release_pending":
-                can_release_pending,
+            "can_change_initial_status": can_change_initial_status,
+            "can_change_advanced_status": can_change_advanced_status,
+            "can_attach_final_swift": can_attach_swift,
+            "can_release_pending": can_release_pending,
         },
     }
 # ============================================================
@@ -4436,6 +4497,11 @@ def get_operation_for_view(
     # Final View Read Model
     # ========================================================
 
+    from archive.archive.doctype.archive_settings.archive_settings import (
+        get_bank_transfer_rate_bounds_payload,
+        get_saudi_customer_rate_bounds_payload,
+    )
+
     return {
 
         # ====================================================
@@ -4444,6 +4510,12 @@ def get_operation_for_view(
 
         "operation":
             operation_data,
+
+        "saudi_customer_rate_bounds":
+            get_saudi_customer_rate_bounds_payload(),
+
+        "bank_transfer_rate_bounds":
+            get_bank_transfer_rate_bounds_payload(),
 
 
         # ====================================================
@@ -6890,6 +6962,39 @@ def save_operation_re_extraction(
         values.keys()
     )
 
+    if (
+        values
+        and not cint(operation.is_blocked_operation)
+        and (
+            "customer_rate" in received_fields
+            or "customer_rate_currency" in received_fields
+            or (
+                can_edit_manual
+                and cstr(operation.get("customer_rate_currency")).strip() == "سعودي"
+            )
+        )
+    ):
+        final_rate_currency = cstr(
+            values.get("customer_rate_currency")
+            if "customer_rate_currency" in received_fields
+            else operation.get("customer_rate_currency")
+        ).strip()
+        final_customer_rate = (
+            values.get("customer_rate")
+            if "customer_rate" in received_fields
+            else operation.get("customer_rate")
+        )
+        if final_rate_currency == "سعودي":
+            from archive.archive.doctype.archive_settings.archive_settings import (
+                validate_saudi_customer_rate_value,
+            )
+
+            validate_saudi_customer_rate_value(
+                "سعودي",
+                final_customer_rate,
+            )
+            operation.flags.validate_saudi_customer_rate = True
+
 
     # ========================================================
     # Operation number protection
@@ -7434,6 +7539,8 @@ def save_operation_re_extraction(
     # والمصدر القديم يبقى كما كان في DB.
     # ========================================================
 
+    operation.flags.validate_bank_transfer_rate = True
+    operation.flags.validate_sender_account = True
     operation.save(
         ignore_permissions=True
     )
@@ -9290,6 +9397,80 @@ def save_operation_view_changes(
     received_fields = set(
         values.keys()
     )
+
+    if (
+        values
+        and not cint(operation.is_blocked_operation)
+        and (
+            "customer_rate" in received_fields
+            or "customer_rate_currency" in received_fields
+            or (
+                "customer_rate" in allowed_editable_fields
+                and cstr(operation.get("customer_rate_currency")).strip() == "سعودي"
+            )
+        )
+    ):
+        final_rate_currency = cstr(
+            values.get("customer_rate_currency")
+            if "customer_rate_currency" in received_fields
+            else operation.get("customer_rate_currency")
+        ).strip()
+        final_customer_rate = (
+            values.get("customer_rate")
+            if "customer_rate" in received_fields
+            else operation.get("customer_rate")
+        )
+        if final_rate_currency == "سعودي":
+            from archive.archive.doctype.archive_settings.archive_settings import (
+                validate_saudi_customer_rate_value,
+            )
+
+            validate_saudi_customer_rate_value(
+                "سعودي",
+                final_customer_rate,
+            )
+            operation.flags.validate_saudi_customer_rate = True
+
+    if (
+        values
+        and not cint(operation.is_blocked_operation)
+        and (
+            "bank_transfer_rate" in received_fields
+            or "bank_transfer_rate" in allowed_editable_fields
+        )
+    ):
+        final_bank_rate = (
+            values.get("bank_transfer_rate")
+            if "bank_transfer_rate" in received_fields
+            else operation.get("bank_transfer_rate")
+        )
+        if final_bank_rate not in (None, ""):
+            from archive.archive.doctype.archive_settings.archive_settings import (
+                validate_bank_transfer_rate_value,
+            )
+
+            validate_bank_transfer_rate_value(final_bank_rate)
+            operation.flags.validate_bank_transfer_rate = True
+
+    if (
+        values
+        and not cint(operation.is_blocked_operation)
+        and (
+            "sender_account" in received_fields
+            or "sender_account" in allowed_editable_fields
+        )
+    ):
+        final_sender_account = (
+            values.get("sender_account")
+            if "sender_account" in received_fields
+            else operation.get("sender_account")
+        )
+        from archive.archive.doctype.archive_operation.archive_operation import (
+            validate_sender_account_value,
+        )
+
+        validate_sender_account_value(final_sender_account)
+        operation.flags.validate_sender_account = True
 
 
     # ========================================================
