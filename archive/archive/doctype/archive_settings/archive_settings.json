@@ -14,6 +14,8 @@
 		"bank_transfer_rate_min",
 		"bank_transfer_rate_limits_col_break",
 		"bank_transfer_rate_max",
+		"sender_account_validation_section",
+		"enable_sender_account_validation",
 		"final_swift_section",
 		"final_swift_banks"
 	],
@@ -79,6 +81,18 @@
 			"fieldtype": "Float",
 			"label": "الحد الأعلى لسعر البنك المحول",
 			"precision": "6"
+		},
+		{
+			"fieldname": "sender_account_validation_section",
+			"fieldtype": "Section Break",
+			"label": "إعدادات التحقق من رقم حساب المرسل"
+		},
+		{
+			"default": "0",
+			"description": "عند التفعيل يُشترط أن يتكون حقل «رقم حساب المرسل» من 14 رقماً بالضبط عند إنشاء العملية أو تعديلها. عند التعطيل يتوقف هذا الشرط بالكامل.",
+			"fieldname": "enable_sender_account_validation",
+			"fieldtype": "Check",
+			"label": "تفعيل التحقق من رقم حساب المرسل (14 رقماً)"
 		},
 		{
 			"fieldname": "final_swift_section",

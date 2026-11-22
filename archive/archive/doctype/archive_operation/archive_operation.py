@@ -48,6 +48,13 @@ SENDER_ACCOUNT_ERROR_MESSAGE = (
 
 def validate_sender_account_value(value) -> str:
     raw_text = "" if value is None else str(value)
+    from archive.archive.doctype.archive_settings.archive_settings import (
+        is_sender_account_validation_enabled,
+    )
+
+    if not is_sender_account_validation_enabled():
+        return raw_text
+
     trimmed = raw_text.strip()
     if not trimmed:
         frappe.throw(
@@ -1308,6 +1315,13 @@ class ArchiveOperation(Document):
             return
 
         if cint(self.is_blocked_operation):
+            return
+
+        from archive.archive.doctype.archive_settings.archive_settings import (
+            is_sender_account_validation_enabled,
+        )
+
+        if not is_sender_account_validation_enabled():
             return
 
         should_check = (

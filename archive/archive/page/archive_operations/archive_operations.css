@@ -1588,6 +1588,14 @@ body[data-route="archive-operations"] .main-section > #body,
     gap: 5px;
 }
 
+.archive-operation-no-cell.is-duplicate {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+
+    gap: 4px;
+}
+
 
 .archive-operations-table .archive-operation-no-value,
 .archive-operation-no-value {
@@ -1630,8 +1638,12 @@ body[data-route="archive-operations"] .main-section > #body,
 .archive-operation-duplicate-badge {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    gap: 6px;
 
-    padding: var(--archive-space-0-5) 6px;
+    min-height: 18px;
+    max-width: 100%;
+    padding: var(--archive-space-0-5) 7px;
 
     border-radius: 999px;
 
@@ -1663,24 +1675,40 @@ body[data-route="archive-operations"] .main-section > #body,
 }
 
 
+.archive-operation-duplicate-count {
+    display: inline-flex;
+    align-items: center;
+    line-height: var(--archive-font-badge-lh);
+    white-space: nowrap;
+}
+
+
 .archive-operation-duplicate-index {
     display: inline-flex;
     align-items: center;
 
-    padding: var(--archive-space-0-5) 5px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
 
-    border-radius: 5px;
-
-    background:
-        var(--control-bg);
+    background: transparent;
 
     color:
-        var(--text-muted);
+        rgba(
+            109,
+            40,
+            217,
+            0.84
+        );
 
-    font-size: var(--archive-font-badge-size);
-    font-weight: var(--archive-font-badge-weight);
+    font-size: inherit;
+    font-weight: 600;
     line-height: var(--archive-font-badge-lh);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
 
+    direction: ltr;
+    unicode-bidi: isolate;
     white-space: nowrap;
 }
 

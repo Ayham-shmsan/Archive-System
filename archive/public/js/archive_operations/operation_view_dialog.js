@@ -47,6 +47,10 @@ class OperationViewDialog {
 		this.bank_transfer_rate_bounds =
 			null;
 
+		this.sender_account_validation = {
+			enabled: false,
+		};
+
 		this._saudi_rate_invalid = false;
 		this._bank_rate_invalid = false;
 		this._sender_account_invalid = false;
@@ -990,6 +994,9 @@ class OperationViewDialog {
 
 		this.bank_transfer_rate_bounds =
 			result.bank_transfer_rate_bounds || null;
+
+		this.sender_account_validation =
+			result.sender_account_validation || { enabled: false };
 
 
 		// ========================================================
@@ -3708,10 +3715,18 @@ class OperationViewDialog {
 			});
 		}
 
+		is_sender_account_validation_enabled() {
+			return Boolean(this.sender_account_validation?.enabled);
+		}
+
 		evaluate_sender_account(
 			raw_value,
 			{ allow_empty = false, force_check = false } = {}
 		) {
+			if (!this.is_sender_account_validation_enabled()) {
+				return { valid: true, message: "" };
+			}
+
 			if (Boolean(Number(this.operation?.is_blocked_operation || 0))) {
 				return { valid: true, message: "" };
 			}

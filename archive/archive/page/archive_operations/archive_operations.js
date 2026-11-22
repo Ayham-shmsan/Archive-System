@@ -38,6 +38,7 @@ class ArchiveOperationsPage {
         this.fiscal_context = null;
         this.saudi_customer_rate_bounds = null;
         this.bank_transfer_rate_bounds = null;
+        this.sender_account_validation = { enabled: false };
         this._load_request_id = 0;
 
 
@@ -222,14 +223,12 @@ class ArchiveOperationsPage {
                     class="archive-operation-duplicate-badge"
                     title="يوجد ${count} عمليات تحمل نفس رقم العملية"
                 >
-                    ${count} عمليات
-                </span>
-
-                <span
-                    class="archive-operation-duplicate-index"
-                    title="ترتيب هذه العملية ضمن العمليات التي تحمل نفس الرقم"
-                >
-                    ${index}/${count}
+                    <span class="archive-operation-duplicate-count">${count} عمليات</span>
+                    <span
+                        class="archive-operation-duplicate-index"
+                        dir="ltr"
+                        title="ترتيب هذه العملية ضمن العمليات التي تحمل نفس الرقم"
+                    >${index}/${count}</span>
                 </span>
             </div>
         `;
@@ -3076,6 +3075,11 @@ class ArchiveOperationsPage {
                     result.bank_transfer_rate_bounds;
             }
 
+            if (result.sender_account_validation) {
+                this.sender_account_validation =
+                    result.sender_account_validation;
+            }
+
             if (result.fiscal_context) {
                 this.render_fiscal_year_filter(result.fiscal_context);
                 if (
@@ -4977,6 +4981,8 @@ class ArchiveOperationsPage {
                             this.saudi_customer_rate_bounds,
                         bank_transfer_rate_bounds:
                             this.bank_transfer_rate_bounds,
+                        sender_account_validation:
+                            this.sender_account_validation,
                     });
 
                 dialog.show();

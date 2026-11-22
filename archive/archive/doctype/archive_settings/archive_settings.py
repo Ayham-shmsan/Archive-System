@@ -228,6 +228,32 @@ def get_bank_transfer_rate_bounds_payload() -> dict:
 	}
 
 
+def is_sender_account_validation_enabled() -> bool:
+	"""
+	Read the sender_account 14-digit validation switch directly from Archive Settings.
+	Defaults to False (disabled) when unset or unavailable.
+	"""
+	try:
+		return bool(
+			cint(
+				frappe.db.get_single_value(
+					"Archive Settings",
+					"enable_sender_account_validation",
+					cache=False,
+				)
+			)
+		)
+	except Exception:
+		return False
+
+
+def get_sender_account_validation_payload() -> dict:
+	"""JSON-serializable sender_account validation toggle payload for UI dialogs."""
+	return {
+		"enabled": is_sender_account_validation_enabled(),
+	}
+
+
 def validate_bank_transfer_rate_value(
 	bank_transfer_rate,
 	*,

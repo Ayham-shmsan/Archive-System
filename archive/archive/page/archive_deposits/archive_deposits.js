@@ -1,11 +1,23 @@
 frappe.pages["archive-deposits"].on_page_load = function (wrapper) {
+	if (frappe.archive_deposits && typeof frappe.archive_deposits.cleanup_temp_highlight === "function") {
+		frappe.archive_deposits.cleanup_temp_highlight();
+	}
 	frappe.archive_deposits = new ArchiveDepositsPage(wrapper);
 };
 
 frappe.pages["archive-deposits"].on_page_show = function () {
 	if (frappe.archive_deposits && frappe.archive_deposits._initialized) {
+		if (!frappe.archive_deposits._suppress_route_guard) {
+			frappe.archive_deposits.clear_temp_highlighted_rows();
+		}
 		frappe.archive_deposits.prepare_screen_entry_animation?.();
 		frappe.archive_deposits.load_context(true);
+	}
+};
+
+frappe.pages["archive-deposits"].on_page_hide = function () {
+	if (frappe.archive_deposits && !frappe.archive_deposits._suppress_route_guard) {
+		frappe.archive_deposits.clear_temp_highlighted_rows();
 	}
 };
 
@@ -226,6 +238,8 @@ class ArchiveDepositsPage {
 		this.is_refreshing = false;
 		this.is_saving = false;
 		this.approving_keys = new Set();
+		this.temp_highlighted_rows = new Set();
+		this._on_route_change = null;
 		this._suppress_route_guard = false;
 		this._pending_entry_stats_anim = true;
 		this._fin_stats_anim = {
@@ -989,6 +1003,20 @@ class ArchiveDepositsPage {
 			this.request_refresh();
 		});
 
+		$main.on("dblclick.adTempHighlight", 'tbody[data-role="table-body"] tr.ad-table-row', (e) => {
+			const $target = $(e.target);
+			if (
+				$target.closest(
+					'input, button, select, textarea, a, label, [role="button"], [data-action], .ad-audit-info'
+				).length > 0
+			) {
+				return;
+			}
+			const $tr = $(e.currentTarget);
+			const row_key = String($tr.attr("data-row-key") || "").trim();
+			this.toggle_temp_row_highlight(row_key, $tr);
+		});
+
 		// Warn before leaving browser tab or changing Desk route with unsaved edits
 		window.addEventListener("beforeunload", (e) => {
 			if (this.dirty_deposits.size > 0) {
@@ -998,7 +1026,7 @@ class ArchiveDepositsPage {
 		});
 
 		if (frappe.router && typeof frappe.router.on === "function") {
-			frappe.router.on("change", () => {
+			this._on_route_change = () => {
 				if (this._suppress_route_guard) return;
 				const route = frappe.get_route ? frappe.get_route() : [];
 				if (route[0] && route[0] !== "archive-deposits" && this.dirty_deposits.size > 0) {
@@ -1013,6 +1041,7 @@ class ArchiveDepositsPage {
 						"لديك تعديلات إيداعات غير محفوظة. هل تريد مغادرة الشاشة وتجاهل التعديلات غير المحفوظة؟",
 						() => {
 							this.dirty_deposits.clear();
+							this.clear_temp_highlighted_rows();
 							this.update_save_button_state();
 							this._suppress_route_guard = true;
 							frappe.set_route(target_route);
@@ -1021,9 +1050,46 @@ class ArchiveDepositsPage {
 							}, 100);
 						}
 					);
+				} else if (route[0] && route[0] !== "archive-deposits") {
+					this.clear_temp_highlighted_rows();
 				}
-			});
+			};
+			frappe.router.on("change", this._on_route_change);
 		}
+	}
+
+	toggle_temp_row_highlight(row_key, $tr) {
+		const key = String(row_key || "").trim();
+		if (!key || !this.rows_by_key.has(key)) return;
+		if (this.temp_highlighted_rows.has(key)) {
+			this.temp_highlighted_rows.delete(key);
+			if ($tr?.length) $tr.removeClass("is-temp-highlighted");
+		} else {
+			this.temp_highlighted_rows.add(key);
+			if ($tr?.length) $tr.addClass("is-temp-highlighted");
+		}
+	}
+
+	clear_temp_highlighted_rows() {
+		if (this.temp_highlighted_rows) {
+			this.temp_highlighted_rows.clear();
+		}
+		if (this.page?.main) {
+			$(this.page.main)
+				.find('tbody[data-role="table-body"] tr.ad-table-row.is-temp-highlighted')
+				.removeClass("is-temp-highlighted");
+		}
+	}
+
+	cleanup_temp_highlight() {
+		this.clear_temp_highlighted_rows();
+		if (this.page?.main) {
+			$(this.page.main).off(".adTempHighlight");
+		}
+		if (this._on_route_change && frappe.router && typeof frappe.router.off === "function") {
+			frappe.router.off("change", this._on_route_change);
+		}
+		this._on_route_change = null;
 	}
 
 	request_period_change(patch) {
@@ -1808,6 +1874,7 @@ class ArchiveDepositsPage {
 		this.update_refresh_button_state();
 		this.update_save_button_state();
 		try {
+			this.clear_temp_highlighted_rows();
 			this.accounts_baseline.clear();
 			await this.load_context(false);
 		} finally {
@@ -2778,6 +2845,7 @@ class ArchiveDepositsPage {
 			v.is_row_stopped ? "is-row-stopped-reason" : "",
 			v.is_row_deposited ? "is-row-deposited" : "",
 			v.is_row_sibling_deposited ? "is-row-sibling-deposited" : "",
+			this.temp_highlighted_rows.has(v.row_key) ? "is-temp-highlighted" : "",
 		]
 			.filter(Boolean)
 			.join(" ");

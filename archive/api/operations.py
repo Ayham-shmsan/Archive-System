@@ -4117,6 +4117,7 @@ def get_operations_context(
     from archive.archive.doctype.archive_settings.archive_settings import (
         get_bank_transfer_rate_bounds_payload,
         get_saudi_customer_rate_bounds_payload,
+        get_sender_account_validation_payload,
     )
 
     if use_compact:
@@ -4206,6 +4207,7 @@ def get_operations_context(
             "fiscal_context": fiscal_ctx,
             "saudi_customer_rate_bounds": get_saudi_customer_rate_bounds_payload(),
             "bank_transfer_rate_bounds": get_bank_transfer_rate_bounds_payload(),
+            "sender_account_validation": get_sender_account_validation_payload(),
             "capabilities": {
                 "can_view_timeline": can_view_timeline,
                 "can_change_initial_status": can_change_initial_status,
@@ -4276,6 +4278,7 @@ def get_operations_context(
         "fiscal_context": fiscal_ctx,
         "saudi_customer_rate_bounds": get_saudi_customer_rate_bounds_payload(),
         "bank_transfer_rate_bounds": get_bank_transfer_rate_bounds_payload(),
+        "sender_account_validation": get_sender_account_validation_payload(),
         "capabilities": {
             "can_change_initial_status": can_change_initial_status,
             "can_change_advanced_status": can_change_advanced_status,
@@ -4456,6 +4459,7 @@ def get_operation_for_view(
     from archive.archive.doctype.archive_settings.archive_settings import (
         get_bank_transfer_rate_bounds_payload,
         get_saudi_customer_rate_bounds_payload,
+        get_sender_account_validation_payload,
     )
 
     return {
@@ -4472,6 +4476,9 @@ def get_operation_for_view(
 
         "bank_transfer_rate_bounds":
             get_bank_transfer_rate_bounds_payload(),
+
+        "sender_account_validation":
+            get_sender_account_validation_payload(),
 
 
         # ====================================================

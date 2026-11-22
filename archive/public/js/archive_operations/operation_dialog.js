@@ -8,6 +8,8 @@ archive.ui.OperationDialog = class OperationDialog {
 			this.options.saudi_customer_rate_bounds || null;
 		this.bank_transfer_rate_bounds =
 			this.options.bank_transfer_rate_bounds || null;
+		this.sender_account_validation =
+			this.options.sender_account_validation || { enabled: false };
 		this._saudi_rate_invalid = false;
 		this._bank_rate_invalid = false;
 		this._sender_account_invalid = false;
@@ -1746,17 +1748,28 @@ archive.ui.OperationDialog = class OperationDialog {
 	}
 
 	async ensure_fiscal_context() {
-		if (!this.fiscal_context) {
-			try {
-				const response = await frappe.call({
-					method: "archive.services.fiscal_year_permissions.get_my_fiscal_context",
-				});
-				this.fiscal_context = response.message || {};
-			} catch (e) {
+		if (this.fiscal_context) {
+			this.apply_fiscal_context_to_control();
+		}
+		try {
+			const response = await frappe.call({
+				method: "archive.services.fiscal_year_permissions.get_my_fiscal_context",
+			});
+			const fresh_ctx = response.message || {};
+			if (!this.fiscal_context) {
+				this.fiscal_context = fresh_ctx;
+				this.apply_fiscal_context_to_control();
+			}
+			if (fresh_ctx.sender_account_validation) {
+				this.sender_account_validation = fresh_ctx.sender_account_validation;
+				this.sync_sender_account_validation({ allow_empty: true });
+			}
+		} catch (e) {
+			if (!this.fiscal_context) {
 				this.fiscal_context = {};
+				this.apply_fiscal_context_to_control();
 			}
 		}
-		this.apply_fiscal_context_to_control();
 	}
 
 	apply_fiscal_context_to_control() {
@@ -3187,10 +3200,18 @@ archive.ui.OperationDialog = class OperationDialog {
 			});
 		}
 
+		is_sender_account_validation_enabled() {
+			return Boolean(this.sender_account_validation?.enabled);
+		}
+
 		evaluate_sender_account(
 			raw_value,
 			{ allow_empty = false } = {}
 		) {
+			if (!this.is_sender_account_validation_enabled()) {
+				return { valid: true, message: "" };
+			}
+
 			const is_blocked = Boolean(
 				Number(
 					this.controls?.is_blocked_operation?.get_value?.()

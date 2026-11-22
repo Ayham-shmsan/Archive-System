@@ -604,7 +604,13 @@ def get_screen_fiscal_context(user: str | None = None) -> dict[str, Any]:
 
 @frappe.whitelist()
 def get_my_fiscal_context() -> dict[str, Any]:
-	return get_screen_fiscal_context()
+	ctx = get_screen_fiscal_context()
+	from archive.archive.doctype.archive_settings.archive_settings import (
+		get_sender_account_validation_payload,
+	)
+
+	ctx["sender_account_validation"] = get_sender_account_validation_payload()
+	return ctx
 
 
 # =========================================================
