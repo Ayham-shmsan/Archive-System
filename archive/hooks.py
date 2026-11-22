@@ -133,7 +133,6 @@ doctype_js = {
 
 # before_install = "archive.install.before_install"
 # after_install = "archive.install.after_install"
-after_migrate = ["archive.api.operations.ensure_performance_indexes"]
 
 # Uninstallation
 # ------------

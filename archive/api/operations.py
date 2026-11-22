@@ -3723,50 +3723,6 @@ _OPERATION_CONTEXT_COMPACT_SCHEMA = [
 ]
 
 
-def ensure_performance_indexes() -> None:
-    """
-    Create safe, non-unique composite indexes to eliminate filesorts and
-    full child-table scans on Archive Operations and Pending Operations.
-    """
-    specs = [
-        (
-            "Archive Operation",
-            "idx_archive_op_fy_serial",
-            ["fiscal_year", "serial_no"],
-        ),
-        (
-            "Archive Operation Attachment",
-            "idx_archive_op_att_swift",
-            ["parenttype", "parentfield", "is_final_swift", "parent"],
-        ),
-        (
-            "Archive Pending Operation",
-            "idx_archive_pend_fy_dt",
-            ["fiscal_year", "operation_datetime", "creation", "serial_no"],
-        ),
-        (
-            "Archive Pending Operation",
-            "idx_archive_pend_owner_fy",
-            ["owner", "fiscal_year"],
-        ),
-    ]
-    for doctype, index_name, columns in specs:
-        if not frappe.db.table_exists(doctype):
-            continue
-        table = f"tab{doctype}"
-        existing = {
-            row[0]
-            for row in frappe.db.sql(
-                f"SHOW INDEX FROM `{table}` WHERE Key_name = %s",
-                (index_name,),
-            )
-        }
-        if existing:
-            continue
-        cols_sql = ", ".join(f"`{col}`" for col in columns)
-        frappe.db.sql(f"CREATE INDEX `{index_name}` ON `{table}` ({cols_sql})")
-
-
 def _compute_duplicate_counts_for_tuples(
     rows: list[Any],
     idx_name: int,
