@@ -1,0 +1,141 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "hash",
+  "creation": "2026-11-22 06:45:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "rule_section",
+    "card",
+    "effective_date",
+    "stopped_for_reason",
+    "column_break_rule_1",
+    "fiscal_year",
+    "revision",
+    "audit_section",
+    "decided_by",
+    "column_break_audit_1",
+    "decided_at",
+    "audit_history_section",
+    "audit_history_json"
+  ],
+  "fields": [
+    {
+      "fieldname": "rule_section",
+      "fieldtype": "Section Break",
+      "label": "قرار حالة موقف لسبب الزمني"
+    },
+    {
+      "fieldname": "card",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "البطاقة",
+      "options": "Archive Card",
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "effective_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "تاريخ بداية السريان",
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "stopped_for_reason",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "موقف لسبب"
+    },
+    {
+      "fieldname": "column_break_rule_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "fiscal_year",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "السنة المالية",
+      "no_copy": 1,
+      "options": "Archive Fiscal Year",
+      "read_only": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "default": "1",
+      "fieldname": "revision",
+      "fieldtype": "Int",
+      "label": "رقم المراجعة",
+      "read_only": 1
+    },
+    {
+      "fieldname": "audit_section",
+      "fieldtype": "Section Break",
+      "label": "بيانات التدقيق"
+    },
+    {
+      "fieldname": "decided_by",
+      "fieldtype": "Link",
+      "label": "تم اتخاذ القرار بواسطة",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_audit_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "decided_at",
+      "fieldtype": "Datetime",
+      "label": "وقت اتخاذ القرار",
+      "read_only": 1
+    },
+    {
+      "fieldname": "audit_history_section",
+      "fieldtype": "Section Break",
+      "hidden": 1,
+      "label": "سجل التعديلات"
+    },
+    {
+      "fieldname": "audit_history_json",
+      "fieldtype": "Long Text",
+      "hidden": 1,
+      "label": "سجل التعديلات JSON",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-11-22 06:45:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Card Deposit Stop Rule",
+  "naming_rule": "Random",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 0,
+      "write": 1
+    }
+  ],
+  "row_format": "Dynamic",
+  "sort_field": "effective_date",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
+}

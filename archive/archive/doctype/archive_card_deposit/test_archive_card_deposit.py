@@ -319,12 +319,19 @@ class TestArchiveCardDeposit(unittest.TestCase):
 		dep_row = frappe.db.get_value(
 			"Archive Card Deposit",
 			{"card": card_id, "deposit_date": d_str},
-			["deposit_amount", "stopped_for_reason", "stopped_reason_by"],
+			["deposit_amount", "stopped_for_reason"],
 			as_dict=True,
 		)
 		self.assertEqual(flt(dep_row.deposit_amount), 0.0)
-		self.assertEqual(cint(dep_row.stopped_for_reason), 1)
-		self.assertEqual(cstr(dep_row.stopped_reason_by), "Administrator")
+		rule_row = frappe.db.get_value(
+			"Archive Card Deposit Stop Rule",
+			{"card": card_id, "effective_date": d_str},
+			["stopped_for_reason", "decided_by"],
+			as_dict=True,
+		)
+		self.assertIsNotNone(rule_row)
+		self.assertEqual(cint(rule_row.stopped_for_reason), 1)
+		self.assertEqual(cstr(rule_row.decided_by), "Administrator")
 
 	def test_05_approval_and_unapproval_lifecycle_and_server_lock(self) -> None:
 		"""Verify approve_deposit, server lock against any modification, and unapprove_deposit."""
@@ -823,3 +830,455 @@ class TestArchiveCardDeposit(unittest.TestCase):
 		)
 		ctx_d1_after_stop = get_deposits_context(deposit_date=d1, period_mode="day", page_size=1)
 		self.assertEqual(flt(ctx_d1_after_stop["stats"]["total_deposited_amount"]), 40000.0)
+
+	def _clear_card_test_range(self, card_id: str, start_date: str, end_date: str) -> None:
+		frappe.db.sql(
+			"DELETE FROM `tabArchive Card Deposit` WHERE card = %s AND deposit_date BETWEEN %s AND %s",
+			(card_id, start_date, end_date),
+		)
+		frappe.db.sql(
+			"DELETE FROM `tabArchive Card Deposit Stop Rule` WHERE card = %s",
+			(card_id,),
+		)
+
+	def _get_card_row_on_day(self, card_id: str, d_str: str) -> dict:
+		ctx = get_deposits_context(deposit_date=d_str, period_mode="day", page_size="all")
+		return next(r for r in ctx["rows"] if r["card"] == card_id)
+
+	def test_11_persistent_stop_start_cancel_resume_and_inherited_cancel(self) -> None:
+		"""Tests A & D: Enable 2026-11-20 -> persists 21-23 -> cancel 2026-11-24 (no deposit doc) -> resume 2026-12-01."""
+		self._grant_admin_new_deposit_roles(past_days=120, future_days=120)
+		card_id = "CRD-00023"
+		self._clear_card_test_range(card_id, "2026-11-15", "2027-01-10")
+
+		# 1. Enable on 2026-11-20
+		res_en = save_daily_deposits(
+			deposit_date="2026-11-20",
+			items=[{"card": card_id, "deposit_date": "2026-11-20", "stopped_for_reason": 1}],
+		)
+		self.assertEqual(res_en["created_count"], 1)
+
+		# Verify NO dummy deposit rows created in tabArchive Card Deposit
+		dep_cnt = frappe.db.count(
+			"Archive Card Deposit",
+			{"card": card_id, "deposit_date": ["between", ["2026-11-20", "2026-12-31"]]},
+		)
+		self.assertEqual(dep_cnt, 0)
+
+		# 19 Nov = not stopped; 20, 21, 22, 23 Nov = stopped
+		self.assertFalse(self._get_card_row_on_day(card_id, "2026-11-19")["stopped_for_reason"])
+		for d in ("2026-11-20", "2026-11-21", "2026-11-22", "2026-11-23"):
+			row = self._get_card_row_on_day(card_id, d)
+			self.assertTrue(row["stopped_for_reason"], f"Expected stopped on {d}")
+			self.assertEqual(row["status"], "stopped_for_reason")
+			self.assertEqual(row["stopped_reason_effective_from"], "2026-11-20")
+			self.assertEqual(row["stopped_reason_is_inherited"], d != "2026-11-20")
+			self.assertIsNotNone(row["audit"])
+			self.assertEqual(row["audit"]["stopped_reason_by"], "Administrator")
+
+		# 2. Cancel on 2026-11-24 (Test D: inherited day with NO deposit record)
+		row_24_before = self._get_card_row_on_day(card_id, "2026-11-24")
+		self.assertTrue(row_24_before["stopped_for_reason"])
+		self.assertFalse(row_24_before["has_saved_record"])
+
+		res_cancel = save_daily_deposits(
+			deposit_date="2026-11-24",
+			items=[
+				{
+					"card": card_id,
+					"deposit_date": "2026-11-24",
+					"stopped_for_reason": 0,
+					"expected_stopped_version": row_24_before["stopped_reason_version"],
+				}
+			],
+		)
+		self.assertEqual(res_cancel["created_count"], 1)
+
+		# Past days 20..23 MUST stay stopped when opened individually
+		for d in ("2026-11-20", "2026-11-21", "2026-11-22", "2026-11-23"):
+			self.assertTrue(self._get_card_row_on_day(card_id, d)["stopped_for_reason"], d)
+		# 24..30 Nov MUST be unstopped
+		for d in ("2026-11-24", "2026-11-25", "2026-11-30"):
+			row = self._get_card_row_on_day(card_id, d)
+			self.assertFalse(row["stopped_for_reason"], d)
+			self.assertEqual(row["status"], "not_deposited")
+
+		# 3. Re-enable on 2026-12-01
+		save_daily_deposits(
+			deposit_date="2026-12-01",
+			items=[{"card": card_id, "deposit_date": "2026-12-01", "stopped_for_reason": 1}],
+		)
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-11-22")["stopped_for_reason"])
+		self.assertFalse(self._get_card_row_on_day(card_id, "2026-11-27")["stopped_for_reason"])
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-12-01")["stopped_for_reason"])
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-12-15")["stopped_for_reason"])
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-12-31")["stopped_for_reason"])
+		self.assertEqual(
+			frappe.db.count("Archive Card Deposit Stop Rule", {"card": card_id, "fiscal_year": "2026"}),
+			3,
+		)
+
+	def test_12_positive_deposit_exceptions_single_multiple_and_zero_reeval(self) -> None:
+		"""Tests B & C: Existing positive deposits (approved & unapproved) are auto-exempted on their own days only."""
+		self._grant_admin_new_deposit_roles(past_days=120, future_days=120)
+		card_id = "CRD-00023"
+		self._clear_card_test_range(card_id, "2026-11-18", "2026-12-05")
+
+		# Pre-save positive deposits on 22 (approved), 25 (unapproved), 28 (approved)
+		save_daily_deposits(
+			deposit_date="2026-11-22",
+			items=[
+				{"card": card_id, "deposit_date": "2026-11-22", "amount": 50000},
+				{"card": card_id, "deposit_date": "2026-11-25", "amount": 30000},
+				{"card": card_id, "deposit_date": "2026-11-28", "amount": 20000},
+			],
+		)
+		approve_deposit(card=card_id, deposit_date="2026-11-22", expected_amount=50000)
+		approve_deposit(card=card_id, deposit_date="2026-11-28", expected_amount=20000)
+
+		# Enable stop on 2026-11-20 -> MUST SUCCEED despite later saved/approved deposits!
+		save_daily_deposits(
+			deposit_date="2026-11-20",
+			items=[{"card": card_id, "deposit_date": "2026-11-20", "stopped_for_reason": 1}],
+		)
+
+		# Only 1 stop rule exists (no artificial cancel/re-stop rules around 22/25/28)
+		self.assertEqual(
+			frappe.db.count("Archive Card Deposit Stop Rule", {"card": card_id, "fiscal_year": "2026"}),
+			1,
+		)
+
+		expected = {
+			"2026-11-19": ("not_deposited", False, False, 0.0, False),
+			"2026-11-20": ("stopped_for_reason", True, True, 0.0, False),
+			"2026-11-21": ("stopped_for_reason", True, True, 0.0, False),
+			"2026-11-22": ("deposited", True, False, 50000.0, True),
+			"2026-11-23": ("stopped_for_reason", True, True, 0.0, False),
+			"2026-11-24": ("stopped_for_reason", True, True, 0.0, False),
+			"2026-11-25": ("deposited", True, False, 30000.0, False),
+			"2026-11-26": ("stopped_for_reason", True, True, 0.0, False),
+			"2026-11-27": ("stopped_for_reason", True, True, 0.0, False),
+			"2026-11-28": ("deposited", True, False, 20000.0, True),
+			"2026-11-29": ("stopped_for_reason", True, True, 0.0, False),
+		}
+		for d_str, (exp_status, exp_underlying, exp_eff_stop, exp_amt, exp_app) in expected.items():
+			row = self._get_card_row_on_day(card_id, d_str)
+			self.assertEqual(row["status"], exp_status, f"Status mismatch on {d_str}")
+			self.assertEqual(row["underlying_stopped_state"], exp_underlying, f"Underlying mismatch on {d_str}")
+			self.assertEqual(row["stopped_for_reason"], exp_eff_stop, f"Effective stop mismatch on {d_str}")
+			self.assertEqual(flt(row["deposit_amount"]), exp_amt, f"Amount mismatch on {d_str}")
+			self.assertEqual(bool(row["is_approved"]), exp_app, f"Approval mismatch on {d_str}")
+
+		# Direct new deposit on stopped day 2026-11-23 without unchecking stopped_for_reason MUST be rejected
+		with self.assertRaises(frappe.ValidationError):
+			save_daily_deposits(
+				deposit_date="2026-11-23",
+				items=[{"card": card_id, "deposit_date": "2026-11-23", "amount": 10000}],
+			)
+
+		# Zeroing exempted unapproved deposit on 2026-11-25 (amount-only) MUST re-evaluate back to stopped without creating/deleting stop rules!
+		save_daily_deposits(
+			deposit_date="2026-11-25",
+			items=[{"card": card_id, "deposit_date": "2026-11-25", "amount": 0}],
+		)
+		self.assertEqual(
+			frappe.db.count("Archive Card Deposit Stop Rule", {"card": card_id, "fiscal_year": "2026"}),
+			1,
+		)
+		row_25_after = self._get_card_row_on_day(card_id, "2026-11-25")
+		self.assertEqual(row_25_after["status"], "stopped_for_reason")
+		self.assertTrue(row_25_after["stopped_for_reason"])
+		self.assertEqual(flt(row_25_after["deposit_amount"]), 0.0)
+
+		# Approved deposit on 2026-11-22 stays completely untouched and locked
+		row_22_after = self._get_card_row_on_day(card_id, "2026-11-22")
+		self.assertEqual(flt(row_22_after["deposit_amount"]), 50000.0)
+		self.assertTrue(row_22_after["is_approved"])
+
+	def test_13_legacy_single_day_stopped_historical_compatibility(self) -> None:
+		"""Test E: Pre-feature single-day Archive Card Deposit.stopped_for_reason=1 stays 1-day only, even after backdated rules."""
+		self._grant_admin_new_deposit_roles(past_days=120, future_days=120)
+		card_id = "CRD-00023"
+		self._clear_card_test_range(card_id, "2026-11-08", "2026-11-20")
+
+		# Simulate legacy pre-feature daily stopped_for_reason=1 record directly on 2026-11-15
+		legacy_doc = frappe.get_doc(
+			{
+				"doctype": "Archive Card Deposit",
+				"card": card_id,
+				"fiscal_year": "2026",
+				"deposit_date": "2026-11-15",
+				"deposit_amount": 0.0,
+				"stopped_for_reason": 1,
+				"stopped_reason_by": "Administrator",
+			}
+		)
+		legacy_doc.flags.from_deposits_batch_api = True
+		legacy_doc.insert(ignore_permissions=True)
+
+		# 1. Without any stop rules: ONLY 2026-11-15 is stopped; 14 and 16 are NOT stopped!
+		self.assertFalse(self._get_card_row_on_day(card_id, "2026-11-14")["stopped_for_reason"])
+		row_15 = self._get_card_row_on_day(card_id, "2026-11-15")
+		self.assertTrue(row_15["stopped_for_reason"])
+		self.assertEqual(row_15["stopped_reason_source"], "legacy")
+		self.assertFalse(self._get_card_row_on_day(card_id, "2026-11-16")["stopped_for_reason"])
+
+		# 2. Add backdated persistent rules (11-10 = 1, 11-12 = 0) before the legacy row
+		save_daily_deposits(
+			deposit_date="2026-11-10",
+			items=[
+				{"card": card_id, "deposit_date": "2026-11-10", "stopped_for_reason": 1},
+				{"card": card_id, "deposit_date": "2026-11-12", "stopped_for_reason": 0},
+			],
+		)
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-11-11")["stopped_for_reason"])
+		self.assertFalse(self._get_card_row_on_day(card_id, "2026-11-13")["stopped_for_reason"])
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-11-15")["stopped_for_reason"])
+		self.assertFalse(self._get_card_row_on_day(card_id, "2026-11-16")["stopped_for_reason"])
+
+	def test_14_backdated_decision_preserves_later_change_points(self) -> None:
+		"""Test F: Decisions on Nov 20 and Nov 24 remain intact when inserting and reverting a backdated Nov 18 rule."""
+		self._grant_admin_new_deposit_roles(past_days=120, future_days=120)
+		card_id = "CRD-00023"
+		self._clear_card_test_range(card_id, "2026-11-15", "2026-11-30")
+
+		save_daily_deposits(
+			deposit_date="2026-11-20",
+			items=[
+				{"card": card_id, "deposit_date": "2026-11-20", "stopped_for_reason": 1},
+				{"card": card_id, "deposit_date": "2026-11-24", "stopped_for_reason": 0},
+			],
+		)
+		# Backdate Nov 18 -> 1
+		save_daily_deposits(
+			deposit_date="2026-11-18",
+			items=[{"card": card_id, "deposit_date": "2026-11-18", "stopped_for_reason": 1}],
+		)
+		# All 3 distinct decision points MUST exist
+		rule_dates = sorted(
+			cstr(r.effective_date)
+			for r in frappe.get_all(
+				"Archive Card Deposit Stop Rule",
+				filters={"card": card_id, "fiscal_year": "2026"},
+				fields=["effective_date"],
+			)
+		)
+		self.assertEqual(rule_dates, ["2026-11-18", "2026-11-20", "2026-11-24"])
+		self.assertFalse(self._get_card_row_on_day(card_id, "2026-11-17")["stopped_for_reason"])
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-11-18")["stopped_for_reason"])
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-11-19")["stopped_for_reason"])
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-11-21")["stopped_for_reason"])
+		self.assertFalse(self._get_card_row_on_day(card_id, "2026-11-24")["stopped_for_reason"])
+
+		# Revert Nov 18 back to 0 -> Nov 20..23 MUST still be stopped because Nov 20 was preserved!
+		save_daily_deposits(
+			deposit_date="2026-11-18",
+			items=[{"card": card_id, "deposit_date": "2026-11-18", "stopped_for_reason": 0}],
+		)
+		self.assertFalse(self._get_card_row_on_day(card_id, "2026-11-18")["stopped_for_reason"])
+		self.assertFalse(self._get_card_row_on_day(card_id, "2026-11-19")["stopped_for_reason"])
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-11-20")["stopped_for_reason"])
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-11-23")["stopped_for_reason"])
+		self.assertFalse(self._get_card_row_on_day(card_id, "2026-11-24")["stopped_for_reason"])
+
+	def test_15_fiscal_year_boundary_and_trash_protection(self) -> None:
+		"""Test G: Stop rule in Dec 2026 never leaks into Jan 2027, and fiscal year validation holds."""
+		self._grant_admin_new_deposit_roles(past_days=120, future_days=120)
+		card_id = "CRD-00023"
+		self._clear_card_test_range(card_id, "2026-12-01", "2027-01-15")
+
+		save_daily_deposits(
+			deposit_date="2026-12-20",
+			items=[{"card": card_id, "deposit_date": "2026-12-20", "stopped_for_reason": 1}],
+		)
+		self.assertTrue(self._get_card_row_on_day(card_id, "2026-12-31")["stopped_for_reason"])
+		self.assertFalse(self._get_card_row_on_day(card_id, "2027-01-01")["stopped_for_reason"])
+		self.assertFalse(self._get_card_row_on_day(card_id, "2027-01-05")["stopped_for_reason"])
+
+		# Cannot insert a rule with mismatched fiscal_year != derived_year
+		bad_rule = frappe.get_doc(
+			{
+				"doctype": "Archive Card Deposit Stop Rule",
+				"card": card_id,
+				"fiscal_year": "2027",
+				"effective_date": "2026-12-25",
+				"stopped_for_reason": 1,
+			}
+		)
+		bad_rule.flags.from_deposits_batch_api = True
+		with self.assertRaises(frappe.ValidationError):
+			bad_rule.insert(ignore_permissions=True)
+
+	def test_16_security_guard_deletion_block_and_optimistic_concurrency(self) -> None:
+		"""Tests H & I: Guard blocks direct REST/RPC mutations, prevents deletion, catches stale concurrent saves & rolls back atomically."""
+		from types import SimpleNamespace
+		from archive.api.deposits import enforce_deposits_request_guard
+
+		self._grant_admin_new_deposit_roles(past_days=120, future_days=120)
+		card_id = "CRD-00023"
+		self._clear_card_test_range(card_id, "2026-11-18", "2026-11-30")
+
+		# 1. Request guard blocks direct REST POST and frappe.client.insert on Archive Card Deposit Stop Rule
+		prev_req = getattr(frappe.local, "request", None)
+		prev_fd = getattr(frappe.local, "form_dict", None)
+		try:
+			frappe.local.request = SimpleNamespace(
+				path="/api/resource/Archive Card Deposit Stop Rule",
+				method="POST",
+				args={},
+				is_json=False,
+			)
+			frappe.local.form_dict = {}
+			with self.assertRaises(frappe.PermissionError):
+				enforce_deposits_request_guard()
+
+			frappe.local.request = SimpleNamespace(
+				path="/api/method/frappe.client.insert",
+				method="POST",
+				args={},
+				is_json=False,
+			)
+			frappe.local.form_dict = {
+				"cmd": "frappe.client.insert",
+				"doc": '{"doctype": "Archive Card Deposit Stop Rule", "card": "CRD-00023"}',
+			}
+			with self.assertRaises(frappe.PermissionError):
+				enforce_deposits_request_guard()
+		finally:
+			frappe.local.request = prev_req
+			frappe.local.form_dict = prev_fd
+
+		# 2. Optimistic concurrency: Two users load 2026-11-20 (same version_v0)
+		stale_version = self._get_card_row_on_day(card_id, "2026-11-20")["stopped_reason_version"]
+
+		# User 1 saves -> succeeds
+		save_daily_deposits(
+			deposit_date="2026-11-20",
+			items=[
+				{
+					"card": card_id,
+					"deposit_date": "2026-11-20",
+					"stopped_for_reason": 1,
+					"expected_stopped_version": stale_version,
+				}
+			],
+		)
+
+		# User 2 attempts to save using stale_version -> MUST fail cleanly (no silent overwrite!)
+		with self.assertRaises(frappe.ValidationError):
+			save_daily_deposits(
+				deposit_date="2026-11-20",
+				items=[
+					{
+						"card": card_id,
+						"deposit_date": "2026-11-20",
+						"stopped_for_reason": 0,
+						"expected_stopped_version": stale_version,
+					}
+				],
+			)
+
+		# Rule remains enabled from User 1, and cannot be deleted directly
+		rule_name = frappe.db.get_value(
+			"Archive Card Deposit Stop Rule",
+			{"card": card_id, "effective_date": "2026-11-20"},
+			"name",
+		)
+		self.assertIsNotNone(rule_name)
+		with self.assertRaises(frappe.PermissionError):
+			frappe.delete_doc("Archive Card Deposit Stop Rule", rule_name, ignore_permissions=True)
+
+		# 3. Atomic savepoint rollback: valid item 1 + failing item 2 leaves ZERO partial rule for item 1
+		with self.assertRaises(frappe.ValidationError):
+			save_daily_deposits(
+				deposit_date="2026-11-24",
+				items=[
+					{"card": card_id, "deposit_date": "2026-11-24", "stopped_for_reason": 0},
+					{
+						"card": card_id,
+						"deposit_date": "2026-11-20",
+						"stopped_for_reason": 0,
+						"expected_stopped_version": "r:stale:999:0:2026-11-20|l:0",
+					},
+				],
+			)
+		self.assertFalse(
+			frappe.db.exists(
+				"Archive Card Deposit Stop Rule",
+				{"card": card_id, "effective_date": "2026-11-24"},
+			)
+		)
+
+	def test_17_statistics_search_filters_and_bulk_query_count(self) -> None:
+		"""Test J: KPI invariants across Day/Month/Year, inherited search for 'موقف لسبب', and constant bulk SQL (no N+1)."""
+		self._grant_admin_new_deposit_roles(past_days=120, future_days=120)
+		card_id = "CRD-00023"
+		self._clear_card_test_range(card_id, "2026-11-01", "2026-12-31")
+
+		# Approved positive deposit on 2026-11-22 (50,000), stop from 2026-11-20, cancel on 2026-11-25
+		save_daily_deposits(
+			deposit_date="2026-11-22",
+			items=[{"card": card_id, "deposit_date": "2026-11-22", "amount": 50000}],
+		)
+		approve_deposit(card=card_id, deposit_date="2026-11-22", expected_amount=50000)
+		save_daily_deposits(
+			deposit_date="2026-11-20",
+			items=[
+				{"card": card_id, "deposit_date": "2026-11-20", "stopped_for_reason": 1},
+				{"card": card_id, "deposit_date": "2026-11-25", "stopped_for_reason": 0},
+			],
+		)
+
+		# Month stats for CRD-00023 in Nov 2026:
+		# Stopped days: 20, 21, 23, 24 = 4 days; Deposited: 22 = 1 day (50,000 approved)
+		ctx_nov = get_deposits_context(
+			period_mode="month",
+			period_month=11,
+			period_year=2026,
+			search=card_id,
+			page_size="all",
+		)
+		st = ctx_nov["stats"]
+		self.assertEqual(
+			st["deposited_count"] + st["stopped_for_reason_count"] + st["not_deposited_count"],
+			st["total_cards"],
+		)
+		self.assertEqual(st["stopped_for_reason_count"], 4)
+		self.assertEqual(st["deposited_count"], 1)
+		self.assertEqual(flt(st["total_deposited_amount"]), 50000.0)
+		self.assertGreater(flt(st["total_daily_target"]), 0.0)
+
+		# Text search for "موقف لسبب" finds inherited day 2026-11-21 (no deposit doc!) and excludes exempted day 2026-11-22
+		ctx_search_21 = get_deposits_context(
+			deposit_date="2026-11-21",
+			period_mode="day",
+			search="موقف لسبب",
+			page_size="all",
+		)
+		self.assertTrue(any(r["card"] == card_id for r in ctx_search_21["rows"]))
+
+		ctx_search_22 = get_deposits_context(
+			deposit_date="2026-11-22",
+			period_mode="day",
+			search="موقف لسبب",
+			page_size="all",
+		)
+		self.assertFalse(any(r["card"] == card_id for r in ctx_search_22["rows"]))
+
+		# Bulk query count check (no N+1 queries inside _load_period_dataset over 30 days)
+		sql_calls = []
+		orig_sql = frappe.db.sql
+
+		def counting_sql(query, *args, **kwargs):
+			sql_calls.append(cstr(query))
+			return orig_sql(query, *args, **kwargs)
+
+		frappe.db.sql = counting_sql
+		try:
+			_load_period_dataset("2026-11-01", "2026-11-30", hydrate_all_audits=False, allowed_fiscal_years={"2026"})
+		finally:
+			frappe.db.sql = orig_sql
+
+		stop_rule_queries = [q for q in sql_calls if "Archive Card Deposit Stop Rule" in q]
+		self.assertEqual(len(stop_rule_queries), 1, f"Expected 1 bulk stop-rule SQL query, got {len(stop_rule_queries)}")
+		self.assertLessEqual(len(sql_calls), 20, f"Unexpected N+1 SQL count in 30-day load: {len(sql_calls)}")

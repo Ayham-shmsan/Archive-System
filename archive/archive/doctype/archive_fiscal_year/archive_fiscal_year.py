@@ -138,6 +138,7 @@ class ArchiveFiscalYear(Document):
 			("Archive Operation", "العمليات"),
 			("Archive Pending Operation", "المعلقات"),
 			("Archive Card Deposit", "الإيداعات"),
+			("Archive Card Deposit Stop Rule", "قرارات موقف لسبب"),
 			("Archive Document Authenticity Check", "فحص المستندات"),
 		)
 		for dt, label in linked_doctypes:

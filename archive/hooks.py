@@ -218,6 +218,8 @@ permission_query_conditions = {
         "archive.services.card_permissions.get_permission_query_conditions",
     "Archive Card Deposit":
         "archive.api.deposits.get_deposit_permission_query_conditions",
+    "Archive Card Deposit Stop Rule":
+        "archive.api.deposits.get_stop_rule_permission_query_conditions",
     "Archive Commercial Registry":
         "archive.services.commercial_registry_permissions.get_permission_query_conditions",
 }
@@ -241,6 +243,8 @@ has_permission = {
         "archive.services.card_permissions.has_card_event_permission",
     "Archive Card Deposit":
         "archive.api.deposits.has_deposit_permission",
+    "Archive Card Deposit Stop Rule":
+        "archive.api.deposits.has_stop_rule_permission",
     "Archive Commercial Registry":
         "archive.services.commercial_registry_permissions.has_permission",
     "Archive Commercial Registry Log":

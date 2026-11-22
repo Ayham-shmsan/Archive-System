@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import calendar
 from datetime import date, timedelta
 import json
@@ -44,6 +45,7 @@ from archive.services.fiscal_year_permissions import (
 )
 
 DEPOSIT_DOCTYPE = "Archive Card Deposit"
+STOP_RULE_DOCTYPE = "Archive Card Deposit Stop Rule"
 ACTIVE_CARD_STATUS = "نشطة"
 
 ROLE_DEPOSITS_VIEW = "صلاحية الوصول إلى شاشة الإيداعات"
@@ -644,6 +646,62 @@ def has_deposit_permission(
 	return False
 
 
+def get_stop_rule_permission_query_conditions(
+	user: str | None = None,
+	doctype: str | None = None,
+) -> str:
+	del doctype
+	if not can_view_deposits(user=user):
+		return "1=0"
+	allowed_years = get_allowed_fiscal_years(user=user, action="view", only_open=False)
+	if not allowed_years:
+		return "1=0"
+	escaped_years = ", ".join(frappe.db.escape(y) for y in allowed_years)
+	return f"`tabArchive Card Deposit Stop Rule`.`fiscal_year` IN ({escaped_years})"
+
+
+def has_stop_rule_permission(
+	doc: Any,
+	ptype: str | None = None,
+	user: str | None = None,
+	debug: bool = False,
+) -> bool:
+	del debug
+	if not has_deposits_screen_access_role(user=user):
+		return False
+	perm = ptype or "read"
+	doc_fy = None
+	doc_date = None
+	if isinstance(doc, dict):
+		doc_fy = doc.get("fiscal_year")
+		doc_date = doc.get("effective_date")
+	elif doc is not None:
+		doc_fy = getattr(doc, "fiscal_year", None)
+		doc_date = getattr(doc, "effective_date", None)
+	if not doc_fy and doc_date:
+		try:
+			doc_fy = derive_fiscal_year_from_date(cstr(doc_date))
+		except Exception:
+			return False
+
+	if perm in ("read", "select", "report"):
+		if doc_fy:
+			return has_fiscal_permission(doc_fy, "view", user=user, check_open=False)
+		return can_view_deposits(user=user)
+	if perm in ("create", "write"):
+		action = "add" if perm == "create" else "edit"
+		if doc_fy and not has_fiscal_permission(doc_fy, action, user=user, check_open=True):
+			return False
+		if doc_date:
+			return can_toggle_stopped_reason_for_date(cstr(doc_date), user=user)
+		return has_deposit_stopped_reason_role(user=user) and bool(
+			get_allowed_fiscal_years(user=user, action=action, only_open=True)
+		)
+	if perm == "delete":
+		return False
+	return False
+
+
 def get_all_screens_access_map(user: str | None = None) -> dict[str, bool]:
 	from archive.api.document_authenticity import has_authenticity_screen_access_role
 	from archive.services.card_permissions import has_card_permission
@@ -1035,8 +1093,20 @@ def enforce_deposits_request_guard() -> None:
 		require_commercial_registries_screen_access()
 		return
 
-	# 2. Direct REST v1/v2 access to Archive Card Deposit or Archive Commercial Registry
+	# 2. Direct REST v1/v2 access to Archive Card Deposit, Stop Rule, or Archive Commercial Registry
 	lower_path = raw_path.lower()
+	if (
+		"/api/resource/archive card deposit stop rule" in lower_path
+		or "/api/v2/document/archive card deposit stop rule" in lower_path
+	):
+		require_deposits_screen_access()
+		if http_method not in ("GET", "HEAD", "OPTIONS"):
+			frappe.throw(
+				_("لا يُسمح بتعديل أو حذف قرارات «موقف لسبب» مباشرة عبر REST."),
+				frappe.PermissionError,
+			)
+		return
+
 	if (
 		"/api/resource/archive card deposit" in lower_path
 		or "/api/v2/document/archive card deposit" in lower_path
@@ -1122,7 +1192,7 @@ def enforce_deposits_request_guard() -> None:
 					frappe.PermissionError,
 				)
 			return
-		if DEPOSIT_DOCTYPE in target_doctypes:
+		if DEPOSIT_DOCTYPE in target_doctypes or STOP_RULE_DOCTYPE in target_doctypes:
 			require_deposits_screen_access()
 			write_rpc_markers = (
 				"frappe.client.insert",
@@ -1134,7 +1204,7 @@ def enforce_deposits_request_guard() -> None:
 			)
 			if any(m in raw_path or cmd_name == m for m in write_rpc_markers):
 				frappe.throw(
-					_("لا يُسمح بتعديل أو حذف سجلات الإيداعات خارج مسار الحفظ المعتمد."),
+					_("لا يُسمح بتعديل أو حذف سجلات الإيداعات أو قرارات «موقف لسبب» خارج مسار الحفظ المعتمد."),
 					frappe.PermissionError,
 				)
 			return
@@ -1628,42 +1698,300 @@ def _iter_date_strings(start_date: str, end_date: str) -> list[str]:
 	return dates
 
 
+def _build_stop_rules_index(
+	rule_rows: list[dict[str, Any]],
+) -> dict[tuple[str, str], tuple[list[str], list[dict[str, Any]]]]:
+	index: dict[tuple[str, str], tuple[list[str], list[dict[str, Any]]]] = {}
+	for row in rule_rows:
+		cid = cstr(row.get("card") or "").strip()
+		fy = cstr(row.get("fiscal_year") or "").strip()
+		eff_d = cstr(row.get("effective_date") or "").strip()
+		if not cid or not fy or not eff_d:
+			continue
+		key = (cid, fy)
+		entry = index.get(key)
+		if entry is None:
+			entry = ([], [])
+			index[key] = entry
+		entry[0].append(eff_d)
+		entry[1].append(
+			{
+				"name": cstr(row.get("name") or ""),
+				"card": cid,
+				"fiscal_year": fy,
+				"effective_date": eff_d,
+				"stopped_for_reason": 1 if cint(row.get("stopped_for_reason")) else 0,
+				"revision": max(1, cint(row.get("revision") or 1)),
+				"decided_by": cstr(row.get("decided_by") or ""),
+				"decided_at": row.get("decided_at"),
+			}
+		)
+	return index
+
+
+def _upsert_stop_rule_in_index(
+	rules_index: dict[tuple[str, str], tuple[list[str], list[dict[str, Any]]]],
+	rule_row: dict[str, Any],
+) -> None:
+	cid = cstr(rule_row.get("card") or "").strip()
+	fy = cstr(rule_row.get("fiscal_year") or "").strip()
+	eff_d = cstr(rule_row.get("effective_date") or "").strip()
+	if not cid or not fy or not eff_d:
+		return
+	clean_row = {
+		"name": cstr(rule_row.get("name") or ""),
+		"card": cid,
+		"fiscal_year": fy,
+		"effective_date": eff_d,
+		"stopped_for_reason": 1 if cint(rule_row.get("stopped_for_reason")) else 0,
+		"revision": max(1, cint(rule_row.get("revision") or 1)),
+		"decided_by": cstr(rule_row.get("decided_by") or ""),
+		"decided_at": rule_row.get("decided_at"),
+	}
+	key = (cid, fy)
+	entry = rules_index.get(key)
+	if entry is None:
+		rules_index[key] = ([eff_d], [clean_row])
+		return
+	dates_list, rows_list = entry
+	pos = bisect.bisect_left(dates_list, eff_d)
+	if pos < len(dates_list) and dates_list[pos] == eff_d:
+		rows_list[pos] = clean_row
+	else:
+		dates_list.insert(pos, eff_d)
+		rows_list.insert(pos, clean_row)
+
+
+def _load_stop_rules_bulk(
+	fiscal_years: list[str] | set[str],
+	end_date: str,
+	card_ids: list[str] | set[str] | None = None,
+	for_update: bool = False,
+) -> dict[tuple[str, str], tuple[list[str], list[dict[str, Any]]]]:
+	clean_fys = sorted({cstr(fy).strip() for fy in fiscal_years if cstr(fy).strip()})
+	if not clean_fys or not frappe.db.table_exists(STOP_RULE_DOCTYPE):
+		return {}
+
+	params: dict[str, Any] = {
+		"fys": tuple(clean_fys),
+		"end_date": cstr(end_date),
+	}
+	card_clause = ""
+	if card_ids is not None:
+		clean_cards = sorted({cstr(c).strip() for c in card_ids if cstr(c).strip()})
+		if not clean_cards:
+			return {}
+		card_clause = "AND card IN %(card_ids)s"
+		params["card_ids"] = tuple(clean_cards)
+
+	lock_sql = "FOR UPDATE" if for_update else ""
+	rows = frappe.db.sql(
+		f"""
+		SELECT
+			name,
+			card,
+			fiscal_year,
+			CAST(effective_date AS CHAR) AS effective_date,
+			IFNULL(stopped_for_reason, 0) AS stopped_for_reason,
+			IFNULL(revision, 1) AS revision,
+			decided_by,
+			decided_at
+		FROM `tabArchive Card Deposit Stop Rule`
+		WHERE fiscal_year IN %(fys)s
+		  AND effective_date <= %(end_date)s
+		  {card_clause}
+		ORDER BY card ASC, fiscal_year ASC, effective_date ASC
+		{lock_sql}
+		""",
+		params,
+		as_dict=True,
+	)
+	return _build_stop_rules_index(rows)
+
+
+def _resolve_effective_stop_state(
+	card_id: str,
+	d_str: str,
+	fiscal_year: str,
+	rules_index: dict[tuple[str, str], tuple[list[str], list[dict[str, Any]]]],
+	raw_dep: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+	"""
+	Resolves temporal stopped-for-reason state for `(card_id, fiscal_year, d_str)` with:
+	  1. `underlying_stopped_state`: effective-dated rule state (with legacy 1-day preservation).
+	  2. `effective_stopped_for_reason`: False whenever `deposit_amount > 0` on `d_str`
+	     (financial deposit exception applies ONLY to `d_str`, never altering the underlying rule).
+	"""
+	entry = rules_index.get((card_id, fiscal_year))
+	governing_rule: dict[str, Any] | None = None
+	if entry is not None:
+		dates_list, rows_list = entry
+		idx = bisect.bisect_right(dates_list, d_str) - 1
+		if idx >= 0:
+			governing_rule = rows_list[idx]
+
+	has_exact_rule = governing_rule is not None and governing_rule["effective_date"] == d_str
+	exact_rule = governing_rule if has_exact_rule else None
+	legacy_stopped = bool(raw_dep is not None and cint(raw_dep.get("stopped_for_reason")) == 1)
+
+	if has_exact_rule and governing_rule is not None:
+		underlying_stopped = bool(cint(governing_rule["stopped_for_reason"]))
+		source = "rule"
+	elif governing_rule is not None and cint(governing_rule["stopped_for_reason"]) == 1:
+		underlying_stopped = True
+		source = "rule"
+	elif legacy_stopped:
+		# Preserve pre-feature single-day stopped_for_reason rows on their own day ONLY,
+		# even if an earlier backdated stop/unstop rule exists before `d_str`.
+		underlying_stopped = True
+		source = "legacy"
+	elif governing_rule is not None:
+		underlying_stopped = False
+		source = "rule"
+	else:
+		underlying_stopped = False
+		source = "none"
+
+	saved_amount = max(0.0, flt(raw_dep.get("deposit_amount") or 0, 2)) if raw_dep is not None else 0.0
+	is_deposit_exception = bool(saved_amount > 0 and underlying_stopped)
+	effective_stopped = False if saved_amount > 0 else underlying_stopped
+
+	if governing_rule is not None:
+		rule_part = (
+			f"r:{governing_rule['name']}:{cint(governing_rule['revision'])}"
+			f":{cint(governing_rule['stopped_for_reason'])}:{governing_rule['effective_date']}"
+		)
+	else:
+		rule_part = "r:none"
+	legacy_id = cstr((raw_dep or {}).get("deposit_id") or (raw_dep or {}).get("name") or "")
+	legacy_part = f"l:{legacy_id}:1" if legacy_stopped else "l:0"
+	version_token = f"{rule_part}|{legacy_part}"
+
+	if source == "rule" and governing_rule is not None:
+		eff_from = governing_rule["effective_date"]
+		is_inherited = eff_from < d_str
+		decided_by = cstr(governing_rule.get("decided_by") or "")
+		decided_at = governing_rule.get("decided_at")
+		rule_state = bool(cint(governing_rule["stopped_for_reason"]))
+	elif source == "legacy" and raw_dep is not None:
+		eff_from = d_str
+		is_inherited = False
+		decided_by = cstr(raw_dep.get("stopped_reason_by") or raw_dep.get("last_modified_by") or "")
+		decided_at = raw_dep.get("stopped_reason_at") or raw_dep.get("last_modified_at")
+		rule_state = True
+	else:
+		eff_from = ""
+		is_inherited = False
+		decided_by = ""
+		decided_at = None
+		rule_state = False
+
+	return {
+		"underlying_stopped_state": underlying_stopped,
+		"effective_stopped_for_reason": effective_stopped,
+		"is_deposit_exception": is_deposit_exception,
+		"source": source,
+		"governing_rule": governing_rule,
+		"exact_rule": exact_rule,
+		"legacy_stopped": legacy_stopped,
+		"stopped_reason_version": version_token,
+		"stopped_reason_effective_from": eff_from,
+		"stopped_reason_is_inherited": is_inherited,
+		"stopped_reason_by": decided_by,
+		"stopped_reason_at": decided_at,
+		"stopped_reason_rule_state": rule_state,
+	}
+
+
+def is_card_stopped_for_reason_on_date(
+	card_id: str,
+	deposit_date: str,
+	fiscal_year: str | None = None,
+) -> bool:
+	clean_card = cstr(card_id or "").strip()
+	if not clean_card:
+		return False
+	resolved_date = _resolve_valid_date(deposit_date)
+	fy = cstr(fiscal_year or "").strip() or derive_fiscal_year_from_date(resolved_date)
+	rules_index = _load_stop_rules_bulk([fy], resolved_date, card_ids=[clean_card])
+	dep_row = frappe.db.get_value(
+		DEPOSIT_DOCTYPE,
+		{"card": clean_card, "deposit_date": resolved_date},
+		["name", "deposit_amount", "stopped_for_reason", "stopped_reason_by", "stopped_reason_at"],
+		as_dict=True,
+	)
+	state = _resolve_effective_stop_state(clean_card, resolved_date, fy, rules_index, dep_row)
+	return bool(state["effective_stopped_for_reason"])
+
+
 def _hydrate_row_audit(row: dict[str, Any], user_names: dict[str, str]) -> None:
-	if not row.get("has_saved_record") or row.get("audit") is not None:
+	if row.get("audit") is not None:
 		return
-	raw_dep = row.get("_raw_dep")
-	if not raw_dep:
+	raw_dep = row.get("_raw_dep") if row.get("has_saved_record") else None
+	stop_meta = row.get("_stop_meta")
+	if not raw_dep and not stop_meta:
 		return
-	recorded_by = cstr(raw_dep.get("recorded_by") or "")
-	last_modified_by = cstr(raw_dep.get("last_modified_by") or "")
-	approved_by = cstr(raw_dep.get("approved_by") or "")
-	unapproved_by = cstr(raw_dep.get("unapproved_by") or "")
-	stopped_reason_by = cstr(raw_dep.get("stopped_reason_by") or "")
-	audit_history = _parse_json_arg(raw_dep.get("audit_history_json"), [])
+
+	if raw_dep:
+		recorded_by = cstr(raw_dep.get("recorded_by") or "")
+		last_modified_by = cstr(raw_dep.get("last_modified_by") or "")
+		approved_by = cstr(raw_dep.get("approved_by") or "")
+		unapproved_by = cstr(raw_dep.get("unapproved_by") or "")
+		audit_history = _parse_json_arg(raw_dep.get("audit_history_json"), [])
+		raw_stopped_by = cstr(raw_dep.get("stopped_reason_by") or "")
+		raw_stopped_at = raw_dep.get("stopped_reason_at")
+	else:
+		recorded_by = ""
+		last_modified_by = ""
+		approved_by = ""
+		unapproved_by = ""
+		audit_history = []
+		raw_stopped_by = ""
+		raw_stopped_at = None
+
+	if stop_meta and stop_meta.get("stopped_reason_by"):
+		stopped_reason_by = cstr(stop_meta.get("stopped_reason_by") or "")
+		stopped_reason_at = stop_meta.get("stopped_reason_at")
+		stopped_effective_from = cstr(stop_meta.get("stopped_reason_effective_from") or "")
+		stopped_is_inherited = bool(stop_meta.get("stopped_reason_is_inherited"))
+		stopped_source = cstr(stop_meta.get("source") or "none")
+		stopped_rule_state = bool(stop_meta.get("stopped_reason_rule_state"))
+	else:
+		stopped_reason_by = raw_stopped_by
+		stopped_reason_at = raw_stopped_at
+		stopped_effective_from = ""
+		stopped_is_inherited = False
+		stopped_source = "legacy" if raw_stopped_by else "none"
+		stopped_rule_state = bool(row.get("stopped_for_reason"))
+
 	row["audit"] = {
 		"recorded_by": recorded_by,
 		"recorded_by_name": user_names.get(recorded_by, recorded_by) if recorded_by else "",
-		"recorded_at": _format_audit_datetime(raw_dep.get("recorded_at")),
+		"recorded_at": _format_audit_datetime(raw_dep.get("recorded_at")) if raw_dep else "",
 		"last_modified_by": last_modified_by,
 		"last_modified_by_name": (
 			user_names.get(last_modified_by, last_modified_by) if last_modified_by else ""
 		),
-		"last_modified_at": _format_audit_datetime(raw_dep.get("last_modified_at")),
+		"last_modified_at": _format_audit_datetime(raw_dep.get("last_modified_at")) if raw_dep else "",
 		"approved_by": approved_by,
 		"approved_by_name": user_names.get(approved_by, approved_by) if approved_by else "",
-		"approved_at": _format_audit_datetime(raw_dep.get("approved_at")),
-		"approved_amount": flt(raw_dep.get("approved_amount") or 0, 2),
+		"approved_at": _format_audit_datetime(raw_dep.get("approved_at")) if raw_dep else "",
+		"approved_amount": flt(raw_dep.get("approved_amount") or 0, 2) if raw_dep else 0.0,
 		"unapproved_by": unapproved_by,
 		"unapproved_by_name": user_names.get(unapproved_by, unapproved_by) if unapproved_by else "",
-		"unapproved_at": _format_audit_datetime(raw_dep.get("unapproved_at")),
+		"unapproved_at": _format_audit_datetime(raw_dep.get("unapproved_at")) if raw_dep else "",
 		"stopped_reason_by": stopped_reason_by,
 		"stopped_reason_by_name": (
 			user_names.get(stopped_reason_by, stopped_reason_by) if stopped_reason_by else ""
 		),
-		"stopped_reason_at": _format_audit_datetime(raw_dep.get("stopped_reason_at")),
+		"stopped_reason_at": _format_audit_datetime(stopped_reason_at),
+		"stopped_reason_effective_from": stopped_effective_from,
+		"stopped_reason_is_inherited": stopped_is_inherited,
+		"stopped_reason_source": stopped_source,
+		"stopped_reason_rule_state": stopped_rule_state,
 		"previous_amount": (
 			flt(raw_dep.get("previous_amount"), 2)
-			if raw_dep.get("previous_amount") is not None
+			if (raw_dep and raw_dep.get("previous_amount") is not None)
 			else None
 		),
 		"history_count": len(audit_history) if isinstance(audit_history, list) else 0,
@@ -1692,6 +2020,8 @@ def _load_period_dataset(
 
 	eff_start = all_dates[0]
 	eff_end = all_dates[-1]
+	period_fys = sorted({d[:4] for d in all_dates})
+	stop_rules_index = _load_stop_rules_bulk(period_fys, eff_end)
 
 	has_span_table = frappe.db.table_exists("Archive Card State Span")
 	if has_span_table:
@@ -2210,9 +2540,16 @@ def _load_period_dataset(
 		for cid, sp, dr in ordered_card_entries:
 			has_deposit_doc = dr is not None
 			saved_amount = max(0.0, flt(dr.get("deposit_amount") or 0, 2)) if has_deposit_doc else 0.0
-			stopped_for_reason = bool(cint(dr.get("stopped_for_reason"))) if has_deposit_doc else False
-			if saved_amount > 0:
-				stopped_for_reason = False
+			stop_info = _resolve_effective_stop_state(
+				cid,
+				d_str,
+				d_str[:4],
+				stop_rules_index,
+				dr,
+			)
+			underlying_stopped_state = stop_info["underlying_stopped_state"]
+			stopped_for_reason = stop_info["effective_stopped_for_reason"]
+			is_deposit_exception = stop_info["is_deposit_exception"]
 			is_deposited = saved_amount > 0
 			is_approved = (
 				bool(cint(dr.get("is_approved")))
@@ -2459,9 +2796,18 @@ def _load_period_dataset(
 				else ("0" if has_deposit_doc and saved_amount == 0 and not stopped_for_reason else "")
 			)
 
-			extra_search = d_search_token
+			extra_parts = [d_search_token]
 			if has_deposit_doc:
-				extra_search = f"{d_search_token} {dep_amount_fmt} {int(saved_amount) if saved_amount == int(saved_amount) else saved_amount} { 'موقف لسبب' if stopped_for_reason else '' } { 'معتمد' if is_approved else '' }"
+				if dep_amount_fmt:
+					extra_parts.append(dep_amount_fmt)
+				extra_parts.append(
+					str(int(saved_amount) if saved_amount == int(saved_amount) else saved_amount)
+				)
+			if stopped_for_reason:
+				extra_parts.append("موقف لسبب")
+			if is_approved:
+				extra_parts.append("معتمد")
+			extra_search = " ".join(extra_parts)
 
 			can_edit_card_on_d = (not is_hist_inactive) and is_currently_active
 			row_key = f"{cid}::{d_str}"
@@ -2515,6 +2861,12 @@ def _load_period_dataset(
 					"deposit_amount": saved_amount,
 					"deposit_amount_formatted": dep_amount_fmt,
 					"stopped_for_reason": stopped_for_reason,
+					"underlying_stopped_state": underlying_stopped_state,
+					"is_deposit_exception": is_deposit_exception,
+					"stopped_reason_version": stop_info["stopped_reason_version"],
+					"stopped_reason_source": stop_info["source"],
+					"stopped_reason_effective_from": stop_info["stopped_reason_effective_from"],
+					"stopped_reason_is_inherited": stop_info["stopped_reason_is_inherited"],
 					"is_approved": is_approved,
 					"approved_amount": flt(dr.get("approved_amount") or 0, 2) if has_deposit_doc else 0.0,
 					"remaining_limit": remaining_limit,
@@ -2554,6 +2906,7 @@ def _load_period_dataset(
 					},
 					"audit": None,
 					"_raw_dep": dr if has_deposit_doc else None,
+					"_stop_meta": stop_info if stop_info.get("stopped_reason_by") else None,
 					"_search_blob": base_search_norm,
 					"_extra_search": extra_search,
 				}
@@ -2567,10 +2920,14 @@ def _load_period_dataset(
 				for k in ("recorded_by", "last_modified_by", "approved_by", "unapproved_by", "stopped_reason_by"):
 					if raw_d.get(k):
 						u_ids.add(cstr(raw_d.get(k)))
+			s_meta = r.get("_stop_meta")
+			if s_meta and s_meta.get("stopped_reason_by"):
+				u_ids.add(cstr(s_meta.get("stopped_reason_by")))
 		u_names = _resolve_user_full_names(u_ids)
 		for r in all_items:
 			_hydrate_row_audit(r, u_names)
 			r.pop("_raw_dep", None)
+			r.pop("_stop_meta", None)
 			r.pop("_extra_search", None)
 
 	return all_items
@@ -3030,6 +3387,9 @@ def get_deposits_context(
 			for k in ("recorded_by", "last_modified_by", "approved_by", "unapproved_by", "stopped_reason_by"):
 				if raw_dep.get(k):
 					user_ids.add(cstr(raw_dep.get(k)))
+		s_meta = r.get("_stop_meta")
+		if s_meta and s_meta.get("stopped_reason_by"):
+			user_ids.add(cstr(s_meta.get("stopped_reason_by")))
 	user_names = _resolve_user_full_names(user_ids)
 
 	clean_rows = []
@@ -3037,6 +3397,7 @@ def get_deposits_context(
 		row_copy = dict(r)
 		_hydrate_row_audit(row_copy, user_names)
 		row_copy.pop("_raw_dep", None)
+		row_copy.pop("_stop_meta", None)
 		row_copy.pop("_search_blob", None)
 		row_copy.pop("_extra_search", None)
 		clean_rows.append(row_copy)
@@ -3136,6 +3497,26 @@ def save_daily_deposits(
 		has_stopped = "stopped_for_reason" in entry and entry.get("stopped_for_reason") is not None
 		clean_stopped = bool(cint(entry.get("stopped_for_reason"))) if has_stopped else False
 
+		has_expected_stopped_version = (
+			"expected_stopped_version" in entry
+			and entry.get("expected_stopped_version") is not None
+			and cstr(entry.get("expected_stopped_version")).strip() != ""
+		)
+		expected_stopped_version = (
+			cstr(entry.get("expected_stopped_version") or "").strip()
+			if has_expected_stopped_version
+			else ""
+		)
+		has_expected_underlying_stopped = (
+			"expected_underlying_stopped" in entry
+			and entry.get("expected_underlying_stopped") is not None
+		)
+		expected_underlying_stopped = (
+			bool(cint(entry.get("expected_underlying_stopped")))
+			if has_expected_underlying_stopped
+			else False
+		)
+
 		entries_by_date.setdefault(entry_date, {})[card_id] = {
 			"card": card_id,
 			"deposit_date": entry_date,
@@ -3143,6 +3524,10 @@ def save_daily_deposits(
 			"amount": clean_amount,
 			"has_stopped": has_stopped,
 			"stopped_for_reason": clean_stopped,
+			"has_expected_stopped_version": has_expected_stopped_version,
+			"expected_stopped_version": expected_stopped_version,
+			"has_expected_underlying_stopped": has_expected_underlying_stopped,
+			"expected_underlying_stopped": expected_underlying_stopped,
 		}
 
 	from archive.services.card_audit import ensure_card_state_spans_populated
@@ -3158,10 +3543,103 @@ def save_daily_deposits(
 	updated_count = 0
 	skipped_zero_count = 0
 	sorted_dates = sorted(entries_by_date.keys())
+	all_batch_card_ids = sorted({cid for m in entries_by_date.values() for cid in m})
+	all_batch_fys = sorted({derive_fiscal_year_from_date(d) for d in sorted_dates})
+	max_batch_date = sorted_dates[-1]
 
 	savepoint_name = "archive_deposits_batch_save_sp"
 	frappe.db.savepoint(savepoint_name)
 	try:
+		for fy_item in all_batch_fys:
+			require_fiscal_year_open(fy_item)
+
+		# Step 0: Deterministic card lock across the entire batch + lock stop rules & verify optimistic versions
+		prelocked_cards = frappe.db.sql(
+			"""
+			SELECT name, card_name
+			FROM `tabArchive Card`
+			WHERE name IN %(card_ids)s
+			ORDER BY name ASC
+			FOR UPDATE
+			""",
+			{"card_ids": tuple(all_batch_card_ids)},
+			as_dict=True,
+		)
+		prelocked_card_names = {cstr(r.name): cstr(r.card_name or r.name) for r in prelocked_cards}
+		for cid in all_batch_card_ids:
+			if cid not in prelocked_card_names:
+				frappe.throw(
+					_("البطاقة ({0}) غير موجودة أو غير مصرح بالوصول إليها.").format(cid),
+					frappe.PermissionError,
+				)
+
+		rules_index = _load_stop_rules_bulk(
+			fiscal_years=all_batch_fys,
+			end_date=max_batch_date,
+			card_ids=all_batch_card_ids,
+			for_update=True,
+		)
+
+		prebatch_dep_rows = frappe.db.sql(
+			"""
+			SELECT
+				name,
+				card,
+				CAST(deposit_date AS CHAR) AS deposit_date,
+				deposit_amount,
+				IFNULL(stopped_for_reason, 0) AS stopped_for_reason,
+				stopped_reason_by,
+				stopped_reason_at
+			FROM `tabArchive Card Deposit`
+			WHERE card IN %(card_ids)s
+			  AND deposit_date IN %(dates)s
+			ORDER BY deposit_date ASC, card ASC
+			FOR UPDATE
+			""",
+			{"card_ids": tuple(all_batch_card_ids), "dates": tuple(sorted_dates)},
+			as_dict=True,
+		)
+		prebatch_deps: dict[tuple[str, str], dict[str, Any]] = {
+			(cstr(r.card), cstr(r.deposit_date)): r for r in prebatch_dep_rows
+		}
+
+		for d_chk in sorted_dates:
+			chk_fy = derive_fiscal_year_from_date(d_chk)
+			for cid_chk, e_chk in entries_by_date[d_chk].items():
+				if not (
+					e_chk["has_expected_stopped_version"]
+					or e_chk["has_expected_underlying_stopped"]
+				):
+					continue
+				pre_state = _resolve_effective_stop_state(
+					cid_chk,
+					d_chk,
+					chk_fy,
+					rules_index,
+					prebatch_deps.get((cid_chk, d_chk)),
+				)
+				c_lbl = prelocked_card_names.get(cid_chk, cid_chk)
+				if (
+					e_chk["has_expected_stopped_version"]
+					and e_chk["expected_stopped_version"] != pre_state["stopped_reason_version"]
+				):
+					frappe.throw(
+						_(
+							"تم تعديل حالة «موقف لسبب» للبطاقة ({0}) في تاريخ ({1}) بواسطة مستخدم آخر بعد فتح الشاشة. يرجى تحديث البيانات والمحاولة مرة أخرى."
+						).format(c_lbl, d_chk),
+						frappe.ValidationError,
+					)
+				if (
+					e_chk["has_expected_underlying_stopped"]
+					and e_chk["expected_underlying_stopped"] != pre_state["underlying_stopped_state"]
+				):
+					frappe.throw(
+						_(
+							"تم تعديل حالة «موقف لسبب» للبطاقة ({0}) في تاريخ ({1}) بواسطة مستخدم آخر بعد فتح الشاشة. يرجى تحديث البيانات والمحاولة مرة أخرى."
+						).format(c_lbl, d_chk),
+						frappe.ValidationError,
+					)
+
 		for d_str in sorted_dates:
 			date_entries = entries_by_date[d_str]
 			sorted_card_ids = sorted(date_entries.keys())
@@ -3472,13 +3950,27 @@ def save_daily_deposits(
 					)
 
 				old_amount = max(0.0, flt(existing.get("deposit_amount") or 0, 2)) if existing else 0.0
-				old_stopped = bool(cint(existing.get("stopped_for_reason"))) if existing else False
+				stop_info = _resolve_effective_stop_state(
+					cid,
+					d_str,
+					derived_fy,
+					rules_index,
+					existing,
+				)
+				old_underlying_stopped = stop_info["underlying_stopped_state"]
+				old_effective_stopped = stop_info["effective_stopped_for_reason"]
 
 				new_amount = flt(entry_info["amount"], 2) if entry_info["has_amount"] else old_amount
-				new_stopped = bool(entry_info["stopped_for_reason"]) if entry_info["has_stopped"] else old_stopped
+				new_stopped = (
+					bool(entry_info["stopped_for_reason"])
+					if entry_info["has_stopped"]
+					else old_effective_stopped
+				)
 
 				amount_changed = abs(new_amount - old_amount) >= 0.0001
-				stopped_changed = new_stopped != old_stopped
+				stopped_changed = bool(entry_info["has_stopped"]) and (
+					new_stopped != old_effective_stopped
+				)
 
 				# Mandatory financial rule: stopped_for_reason cannot be enabled if amount > 0 (saved or entered)
 				if new_stopped:
@@ -3496,6 +3988,13 @@ def save_daily_deposits(
 							).format(card_label),
 							frappe.ValidationError,
 						)
+				elif amount_changed and new_amount > 0 and old_effective_stopped and not stopped_changed:
+					frappe.throw(
+						_(
+							"لا يمكن إدخال مبلغ إيداع للبطاقة ({0}) بتاريخ ({1}) لأنها موقفة لسبب. يجب إلغاء «موقف لسبب» أولاً."
+						).format(card_label, d_str),
+						frappe.ValidationError,
+					)
 
 				if stopped_changed:
 					require_stopped_reason_permission(d_str)
@@ -3511,7 +4010,9 @@ def save_daily_deposits(
 					"new_amount": new_amount,
 					"new_stopped": new_stopped,
 					"old_amount": old_amount,
-					"old_stopped": old_stopped,
+					"old_stopped": old_effective_stopped,
+					"old_underlying_stopped": old_underlying_stopped,
+					"stop_info": stop_info,
 					"amount_changed": amount_changed,
 					"stopped_changed": stopped_changed,
 				}
@@ -3773,6 +4274,7 @@ def save_daily_deposits(
 				new_stopped = res["new_stopped"]
 				old_amount = res["old_amount"]
 				old_stopped = res["old_stopped"]
+				stop_info = res["stop_info"]
 				amount_changed = res["amount_changed"]
 				stopped_changed = res["stopped_changed"]
 
@@ -3791,26 +4293,103 @@ def save_daily_deposits(
 					2,
 				)
 
-				if not existing:
-					# Do not create dummy zero deposit records unless stopped_for_reason is enabled
-					if new_amount <= 0 and not new_stopped:
-						skipped_zero_count += 1
-						continue
+				row_created = False
+				row_updated = False
 
-					require_fiscal_permission(derived_fy, "add", check_open=True)
-
-					if new_stopped:
-						initial_history = [
+				# 6A. Persist temporal stop decision in Archive Card Deposit Stop Rule (never generating future deposit rows)
+				if stopped_changed:
+					exact_rule = stop_info.get("exact_rule")
+					rule_action = (
+						"stopped_for_reason_enabled"
+						if new_stopped
+						else "stopped_for_reason_disabled"
+					)
+					if not exact_rule:
+						require_fiscal_permission(derived_fy, "add", check_open=True)
+						rule_history = [
 							{
-								"action": "stopped_for_reason_enabled",
-								"from_amount": 0.0,
-								"to_amount": 0.0,
-								"stopped_for_reason": 1,
+								"action": rule_action,
+								"effective_date": d_str,
+								"from_state": 1 if old_stopped else 0,
+								"to_state": 1 if new_stopped else 0,
 								"by": current_user,
 								"at": cstr(now_ts),
 							}
 						]
+						rule_doc = frappe.get_doc(
+							{
+								"doctype": STOP_RULE_DOCTYPE,
+								"card": cid,
+								"fiscal_year": derived_fy,
+								"effective_date": d_str,
+								"stopped_for_reason": 1 if new_stopped else 0,
+								"revision": 1,
+								"decided_by": current_user,
+								"decided_at": now_ts,
+								"audit_history_json": json.dumps(rule_history, ensure_ascii=False),
+							}
+						)
+						rule_doc.flags.from_deposits_batch_api = True
+						rule_doc.insert(ignore_permissions=True)
+						_upsert_stop_rule_in_index(
+							rules_index,
+							{
+								"name": rule_doc.name,
+								"card": cid,
+								"fiscal_year": derived_fy,
+								"effective_date": d_str,
+								"stopped_for_reason": 1 if new_stopped else 0,
+								"revision": 1,
+								"decided_by": current_user,
+								"decided_at": now_ts,
+							},
+						)
+						row_created = True
 					else:
+						require_fiscal_permission(derived_fy, "edit", check_open=True)
+						rule_doc = frappe.get_doc(STOP_RULE_DOCTYPE, exact_rule["name"])
+						rule_history = _parse_json_arg(rule_doc.audit_history_json, [])
+						if not isinstance(rule_history, list):
+							rule_history = []
+						rule_history.append(
+							{
+								"action": rule_action,
+								"effective_date": d_str,
+								"from_state": 1 if old_stopped else 0,
+								"to_state": 1 if new_stopped else 0,
+								"by": current_user,
+								"at": cstr(now_ts),
+							}
+						)
+						if len(rule_history) > 50:
+							rule_history = rule_history[-50:]
+						next_rev = max(1, cint(rule_doc.revision or 1)) + 1
+						rule_doc.stopped_for_reason = 1 if new_stopped else 0
+						rule_doc.revision = next_rev
+						rule_doc.decided_by = current_user
+						rule_doc.decided_at = now_ts
+						rule_doc.audit_history_json = json.dumps(rule_history, ensure_ascii=False)
+						rule_doc.flags.from_deposits_batch_api = True
+						rule_doc.save(ignore_permissions=True)
+						_upsert_stop_rule_in_index(
+							rules_index,
+							{
+								"name": rule_doc.name,
+								"card": cid,
+								"fiscal_year": derived_fy,
+								"effective_date": d_str,
+								"stopped_for_reason": 1 if new_stopped else 0,
+								"revision": next_rev,
+								"decided_by": current_user,
+								"decided_at": now_ts,
+							},
+						)
+						row_updated = True
+
+				# 6B. Persist financial deposit changes in Archive Card Deposit (without creating dummy zero rows for stop rules)
+				if not existing:
+					if new_amount > 0:
+						require_fiscal_permission(derived_fy, "add", check_open=True)
 						initial_history = [
 							{
 								"action": "created",
@@ -3821,138 +4400,147 @@ def save_daily_deposits(
 								"at": cstr(now_ts),
 							}
 						]
-
-					doc = frappe.get_doc(
-						{
-							"doctype": DEPOSIT_DOCTYPE,
-							"fiscal_year": derived_fy,
-							"card": cid,
-							"deposit_date": d_str,
-							"deposit_amount": new_amount,
-							"stopped_for_reason": 1 if new_stopped else 0,
-							"stopped_reason_by": current_user if new_stopped else None,
-							"stopped_reason_at": now_ts if new_stopped else None,
-							"is_approved": 0,
-							"approved_amount": 0.0,
-							"daily_limit_snapshot": snapshot_limit,
-							"previous_amount": 0.0,
-							"card_name_snapshot": cstr(eff_card.get("card_name") or ""),
-							"base_card_name_snapshot": cstr(eff_card.get("base_card_name") or ""),
-							"copy_no_snapshot": cint(eff_card.get("copy_no") or 1),
-							"card_type_snapshot": c_type,
-							"card_number_snapshot": cstr(eff_card.get("card_number") or ""),
-							"account_number_snapshot": cstr(eff_card.get("account_number") or ""),
-							"bank_snapshot": eff_card.get("bank") or None,
-							"bank_name_snapshot": cstr(
-								eff_card.get("bank_name") or eff_card.get("bank") or ""
-							),
-							"representative_snapshot": eff_card.get("representative") or None,
-							"representative_name_snapshot": cstr(
-								eff_card.get("representative_name")
-								or eff_card.get("representative")
-								or ""
-							),
-							"region_snapshot": eff_card.get("region") or None,
-							"region_name_snapshot": cstr(
-								eff_card.get("region_name") or eff_card.get("region") or ""
-							),
-							"recorded_by": current_user,
-							"recorded_at": now_ts,
-							"last_modified_by": current_user,
-							"last_modified_at": now_ts,
-							"audit_history_json": json.dumps(initial_history, ensure_ascii=False),
-						}
+						doc = frappe.get_doc(
+							{
+								"doctype": DEPOSIT_DOCTYPE,
+								"fiscal_year": derived_fy,
+								"card": cid,
+								"deposit_date": d_str,
+								"deposit_amount": new_amount,
+								"stopped_for_reason": 0,
+								"stopped_reason_by": None,
+								"stopped_reason_at": None,
+								"is_approved": 0,
+								"approved_amount": 0.0,
+								"daily_limit_snapshot": snapshot_limit,
+								"previous_amount": 0.0,
+								"card_name_snapshot": cstr(eff_card.get("card_name") or ""),
+								"base_card_name_snapshot": cstr(eff_card.get("base_card_name") or ""),
+								"copy_no_snapshot": cint(eff_card.get("copy_no") or 1),
+								"card_type_snapshot": c_type,
+								"card_number_snapshot": cstr(eff_card.get("card_number") or ""),
+								"account_number_snapshot": cstr(eff_card.get("account_number") or ""),
+								"bank_snapshot": eff_card.get("bank") or None,
+								"bank_name_snapshot": cstr(
+									eff_card.get("bank_name") or eff_card.get("bank") or ""
+								),
+								"representative_snapshot": eff_card.get("representative") or None,
+								"representative_name_snapshot": cstr(
+									eff_card.get("representative_name")
+									or eff_card.get("representative")
+									or ""
+								),
+								"region_snapshot": eff_card.get("region") or None,
+								"region_name_snapshot": cstr(
+									eff_card.get("region_name") or eff_card.get("region") or ""
+								),
+								"recorded_by": current_user,
+								"recorded_at": now_ts,
+								"last_modified_by": current_user,
+								"last_modified_at": now_ts,
+								"audit_history_json": json.dumps(initial_history, ensure_ascii=False),
+							}
+						)
+						doc.flags.from_deposits_batch_api = True
+						doc.flags.allow_historical_active_card = True
+						doc.insert(ignore_permissions=True)
+						row_created = True
+					elif not stopped_changed:
+						skipped_zero_count += 1
+						continue
+				else:
+					needs_legacy_clear = bool(
+						stopped_changed
+						and not new_stopped
+						and cint(existing.get("stopped_for_reason")) == 1
 					)
-					doc.flags.from_deposits_batch_api = True
-					doc.flags.allow_historical_active_card = True
-					doc.insert(ignore_permissions=True)
+					if amount_changed or needs_legacy_clear:
+						require_fiscal_permission(derived_fy, "edit", check_open=True)
+
+						doc = frappe.get_doc(DEPOSIT_DOCTYPE, existing.name)
+						history = _parse_json_arg(doc.audit_history_json, [])
+						if not isinstance(history, list):
+							history = []
+
+						if amount_changed:
+							history.append(
+								{
+									"action": "updated",
+									"from_amount": old_amount,
+									"to_amount": new_amount,
+									"stopped_for_reason": 0,
+									"by": current_user,
+									"at": cstr(now_ts),
+								}
+							)
+						if needs_legacy_clear:
+							history.append(
+								{
+									"action": "stopped_for_reason_disabled",
+									"from_amount": old_amount,
+									"to_amount": new_amount,
+									"stopped_for_reason": 0,
+									"by": current_user,
+									"at": cstr(now_ts),
+								}
+							)
+
+						if len(history) > 50:
+							history = history[-50:]
+
+						if amount_changed:
+							doc.previous_amount = old_amount
+						doc.deposit_amount = new_amount
+						if needs_legacy_clear:
+							doc.stopped_for_reason = 0
+							doc.stopped_reason_by = current_user
+							doc.stopped_reason_at = now_ts
+
+						if not doc.recorded_by:
+							doc.recorded_by = current_user
+						if not doc.recorded_at:
+							doc.recorded_at = now_ts
+						doc.last_modified_by = current_user
+						doc.last_modified_at = now_ts
+						doc.audit_history_json = json.dumps(history, ensure_ascii=False)
+
+						is_cur_active = (
+							cint(cur_card.get("is_deleted")) == 0
+							and cstr(cur_card.get("status")) == ACTIVE_CARD_STATUS
+						)
+						if d_str >= today_str and is_cur_active:
+							doc.daily_limit_snapshot = snapshot_limit
+							doc.card_name_snapshot = cstr(cur_card.get("card_name") or "")
+							doc.base_card_name_snapshot = cstr(cur_card.get("base_card_name") or "")
+							doc.copy_no_snapshot = cint(cur_card.get("copy_no") or 1)
+							doc.card_type_snapshot = clean_card_type(cur_card.get("card_type"))
+							doc.card_number_snapshot = cstr(cur_card.get("card_number") or "")
+							doc.account_number_snapshot = cstr(cur_card.get("account_number") or "")
+							doc.bank_snapshot = cur_card.get("bank") or None
+							doc.bank_name_snapshot = cstr(
+								cur_card.get("bank_name") or cur_card.get("bank") or ""
+							)
+							doc.representative_snapshot = cur_card.get("representative") or None
+							doc.representative_name_snapshot = cstr(
+								cur_card.get("representative_name")
+								or cur_card.get("representative")
+								or ""
+							)
+							doc.region_snapshot = cur_card.get("region") or None
+							doc.region_name_snapshot = cstr(
+								cur_card.get("region_name") or cur_card.get("region") or ""
+							)
+
+						doc.flags.from_deposits_batch_api = True
+						doc.flags.allow_historical_active_card = True
+						doc.save(ignore_permissions=True)
+						if not row_created:
+							row_updated = True
+
+				if row_created:
 					created_count += 1
 					saved_count += 1
-				else:
-					if not amount_changed and not stopped_changed:
-						continue
-
-					require_fiscal_permission(derived_fy, "edit", check_open=True)
-
-					doc = frappe.get_doc(DEPOSIT_DOCTYPE, existing.name)
-					history = _parse_json_arg(doc.audit_history_json, [])
-					if not isinstance(history, list):
-						history = []
-
-					if amount_changed:
-						history.append(
-							{
-								"action": "updated",
-								"from_amount": old_amount,
-								"to_amount": new_amount,
-								"stopped_for_reason": 1 if new_stopped else 0,
-								"by": current_user,
-								"at": cstr(now_ts),
-							}
-						)
-					if stopped_changed:
-						history.append(
-							{
-								"action": "stopped_for_reason_enabled"
-								if new_stopped
-								else "stopped_for_reason_disabled",
-								"from_amount": old_amount,
-								"to_amount": new_amount,
-								"stopped_for_reason": 1 if new_stopped else 0,
-								"by": current_user,
-								"at": cstr(now_ts),
-							}
-						)
-
-					if len(history) > 50:
-						history = history[-50:]
-
-					if amount_changed:
-						doc.previous_amount = old_amount
-					doc.deposit_amount = new_amount
-					doc.stopped_for_reason = 1 if new_stopped else 0
-					if stopped_changed:
-						doc.stopped_reason_by = current_user
-						doc.stopped_reason_at = now_ts
-
-					if not doc.recorded_by:
-						doc.recorded_by = current_user
-					if not doc.recorded_at:
-						doc.recorded_at = now_ts
-					doc.last_modified_by = current_user
-					doc.last_modified_at = now_ts
-					doc.audit_history_json = json.dumps(history, ensure_ascii=False)
-
-					is_cur_active = (
-						cint(cur_card.get("is_deleted")) == 0
-						and cstr(cur_card.get("status")) == ACTIVE_CARD_STATUS
-					)
-					if d_str >= today_str and is_cur_active:
-						doc.daily_limit_snapshot = snapshot_limit
-						doc.card_name_snapshot = cstr(cur_card.get("card_name") or "")
-						doc.base_card_name_snapshot = cstr(cur_card.get("base_card_name") or "")
-						doc.copy_no_snapshot = cint(cur_card.get("copy_no") or 1)
-						doc.card_type_snapshot = clean_card_type(cur_card.get("card_type"))
-						doc.card_number_snapshot = cstr(cur_card.get("card_number") or "")
-						doc.account_number_snapshot = cstr(cur_card.get("account_number") or "")
-						doc.bank_snapshot = cur_card.get("bank") or None
-						doc.bank_name_snapshot = cstr(
-							cur_card.get("bank_name") or cur_card.get("bank") or ""
-						)
-						doc.representative_snapshot = cur_card.get("representative") or None
-						doc.representative_name_snapshot = cstr(
-							cur_card.get("representative_name")
-							or cur_card.get("representative")
-							or ""
-						)
-						doc.region_snapshot = cur_card.get("region") or None
-						doc.region_name_snapshot = cstr(
-							cur_card.get("region_name") or cur_card.get("region") or ""
-						)
-
-					doc.flags.from_deposits_batch_api = True
-					doc.flags.allow_historical_active_card = True
-					doc.save(ignore_permissions=True)
+				elif row_updated:
 					updated_count += 1
 					saved_count += 1
 	except Exception:

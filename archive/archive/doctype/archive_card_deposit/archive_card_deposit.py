@@ -153,6 +153,30 @@ class ArchiveCardDeposit(Document):
 				frappe.ValidationError,
 			)
 
+		if (
+			self.deposit_amount > 0
+			and not getattr(self.flags, "from_deposits_batch_api", False)
+			and not getattr(self.flags, "from_deposits_approval_api", False)
+			and not getattr(frappe.flags, "in_migrate", False)
+			and not getattr(frappe.flags, "in_patch", False)
+		):
+			prev_amt = 0.0
+			if not self.is_new():
+				prev_amt = flt(
+					frappe.db.get_value("Archive Card Deposit", self.name, "deposit_amount") or 0,
+					2,
+				)
+			if prev_amt <= 0:
+				from archive.api.deposits import is_card_stopped_for_reason_on_date
+
+				if is_card_stopped_for_reason_on_date(self.card, self.deposit_date, self.fiscal_year):
+					frappe.throw(
+						_(
+							"لا يمكن إدخال مبلغ إيداع للبطاقة ({0}) بتاريخ ({1}) لأنها موقفة لسبب. يجب إلغاء «موقف لسبب» أولاً."
+						).format(cstr(card_state.get("card_name") or self.card), self.deposit_date),
+						frappe.ValidationError,
+					)
+
 		if self.is_approved and (self.deposit_amount <= 0 or self.stopped_for_reason):
 			frappe.throw(
 				_("لا يمكن اعتماد سجل إيداع بمبلغ صفر أو بحالة «موقف لسبب»."),

@@ -1510,6 +1510,8 @@ class ArchiveDepositsPage {
 			daily_limit,
 			saved_amount,
 			saved_stopped_for_reason: saved_stopped,
+			underlying_stopped_state: Boolean(row.underlying_stopped_state),
+			stopped_reason_version: String(row.stopped_reason_version || ""),
 			account_saved_total,
 			has_business: Boolean(row.has_business || card_type === "أعمال"),
 			has_mada: Boolean(row.has_mada || card_type === "مدى"),
@@ -1637,6 +1639,18 @@ class ArchiveDepositsPage {
 			is_negative: false,
 			invalid_msg: "",
 		});
+
+		const eff_date_display = format_display_date_slash(
+			meta.deposit_date || this.state.deposit_date
+		);
+		if (Boolean(want_checked) !== Boolean(meta.saved_stopped_for_reason)) {
+			frappe.show_alert({
+				message: want_checked
+					? `عند الحفظ يسري «موقف لسبب» من تاريخ ${eff_date_display} حتى نهاية السنة المالية (أو أقرب قرار لاحق).`
+					: `عند الحفظ يُلغى «موقف لسبب» من تاريخ ${eff_date_display} حتى نهاية السنة المالية (أو أقرب قرار لاحق).`,
+				indicator: "blue",
+			});
+		}
 
 		this.revalidate_account_day_dirty_entries(meta.account_day_key, row, meta.row_key);
 		this.sync_account_dom_rows(meta.account_day_key, row);
@@ -2084,12 +2098,24 @@ class ArchiveDepositsPage {
 
 		const payload_items = [];
 		for (const [, entry] of this.dirty_deposits.entries()) {
-			payload_items.push({
+			const stopped_changed =
+				Boolean(entry.stopped_for_reason) !== Boolean(entry.saved_stopped_for_reason);
+			const amount_changed =
+				Math.abs(Number(entry.amount || 0) - Number(entry.saved_amount || 0)) >= 0.0001;
+			const item_payload = {
 				card: entry.card,
 				deposit_date: entry.deposit_date || this.state.deposit_date,
-				amount: entry.amount,
-				stopped_for_reason: entry.stopped_for_reason ? 1 : 0,
-			});
+			};
+			if (entry.stopped_reason_version) {
+				item_payload.expected_stopped_version = entry.stopped_reason_version;
+			}
+			if (amount_changed || !stopped_changed) {
+				item_payload.amount = entry.amount;
+			}
+			if (stopped_changed) {
+				item_payload.stopped_for_reason = entry.stopped_for_reason ? 1 : 0;
+			}
+			payload_items.push(item_payload);
 		}
 
 		this.is_saving = true;
@@ -2646,9 +2672,20 @@ class ArchiveDepositsPage {
 			}
 		}
 		if (a.stopped_reason_by) {
-			lines.push(`موقف لسبب بواسطة: ${a.stopped_reason_by_name || a.stopped_reason_by}`);
+			const is_cancel_rule =
+				a.stopped_reason_source === "rule" && a.stopped_reason_rule_state === false;
+			lines.push(
+				`${is_cancel_rule ? "تم إلغاء موقف لسبب بواسطة" : "موقف لسبب بواسطة"}: ${
+					a.stopped_reason_by_name || a.stopped_reason_by
+				}`
+			);
+			if (a.stopped_reason_effective_from) {
+				lines.push(
+					`سارٍ من تاريخ: ${format_display_date_slash(a.stopped_reason_effective_from)}`
+				);
+			}
 			if (a.stopped_reason_at) {
-				lines.push(`وقت تغيير موقف لسبب: ${this.format_audit_datetime(a.stopped_reason_at)}`);
+				lines.push(`وقت قرار موقف لسبب: ${this.format_audit_datetime(a.stopped_reason_at)}`);
 			}
 		}
 		if (a.approved_by) {
