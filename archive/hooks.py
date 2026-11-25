@@ -54,12 +54,13 @@ app_include_css = [
     "/assets/archive/css/shared/archive_tokens.css",
     "/assets/archive/css/archive_sidebar_v4.css",
     "/assets/archive/css/user_archive_roles.css?v=20261118",
+    "/assets/archive/css/archive_backup_settings.css?v=20261126",
 ]
 # app_include_js = "/assets/archive/js/archive.js"
 app_include_js = [
     "/assets/archive/js/country_list.js",
     "/assets/archive/js/archive_sidebar_v4.js?v=20261111",
-    "/assets/archive/js/user_archive_roles.js?v=20261118",
+    "/assets/archive/js/user_archive_roles.js?v=20261126",
 ]
 
 doctype_js = {
@@ -222,6 +223,8 @@ permission_query_conditions = {
         "archive.api.deposits.get_stop_rule_permission_query_conditions",
     "Archive Commercial Registry":
         "archive.services.commercial_registry_permissions.get_permission_query_conditions",
+    "Archive Backup Log":
+        "archive.services.backup_manager.get_backup_log_permission_query_conditions",
 }
 
 has_permission = {
@@ -249,6 +252,8 @@ has_permission = {
         "archive.services.commercial_registry_permissions.has_permission",
     "Archive Commercial Registry Log":
         "archive.services.commercial_registry_permissions.has_log_permission",
+    "Archive Backup Log":
+        "archive.services.backup_manager.has_backup_log_permission",
     "File":
         "archive.services.card_security.has_file_permission",
 }
@@ -282,23 +287,13 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"archive.tasks.all"
-# 	],
-# 	"daily": [
-# 		"archive.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"archive.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"archive.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"archive.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+    "cron": {
+        "* * * * *": [
+            "archive.services.backup_manager.check_and_enqueue_scheduled_backup",
+        ],
+    },
+}
 
 # Testing
 # -------

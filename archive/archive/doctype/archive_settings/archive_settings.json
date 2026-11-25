@@ -17,7 +17,23 @@
 		"sender_account_validation_section",
 		"enable_sender_account_validation",
 		"final_swift_section",
-		"final_swift_banks"
+		"final_swift_banks",
+		"backup_settings_section",
+		"backup_dashboard_html",
+		"backup_enabled",
+		"backup_destination_path",
+		"backup_require_mount",
+		"backup_mode",
+		"backup_interval_value",
+		"backup_interval_unit",
+		"backup_enable_retention",
+		"backup_max_keep",
+		"backup_pigz_threads",
+		"backup_min_free_space_gb",
+		"backup_last_run_at",
+		"backup_last_status",
+		"backup_next_run_at",
+		"backup_last_output_path"
 	],
 	"fields": [
 		{
@@ -104,6 +120,116 @@
 			"fieldtype": "Table",
 			"label": "البنوك التي تتطلب السويفت النهائي",
 			"options": "Archive Final Swift Bank"
+		},
+		{
+			"fieldname": "backup_settings_section",
+			"fieldtype": "Section Break",
+			"label": "النسخ الاحتياطي التلقائي"
+		},
+		{
+			"fieldname": "backup_dashboard_html",
+			"fieldtype": "HTML",
+			"label": "مركز التحكم بالنسخ الاحتياطي"
+		},
+		{
+			"default": "0",
+			"fieldname": "backup_enabled",
+			"fieldtype": "Check",
+			"hidden": 1,
+			"label": "تفعيل النسخ الاحتياطي التلقائي"
+		},
+		{
+			"fieldname": "backup_destination_path",
+			"fieldtype": "Data",
+			"hidden": 1,
+			"label": "مسار حفظ النسخ الاحتياطي"
+		},
+		{
+			"default": "0",
+			"fieldname": "backup_require_mount",
+			"fieldtype": "Check",
+			"hidden": 1,
+			"label": "التحقق من اتصال القرص الخارجي / الشبكي (Mount Point)"
+		},
+		{
+			"default": "حزمة كاملة سريعة (.tar ذكي)",
+			"fieldname": "backup_mode",
+			"fieldtype": "Select",
+			"hidden": 1,
+			"label": "وضع النسخ الاحتياطي",
+			"options": "حزمة كاملة سريعة (.tar ذكي)\nحزمة كاملة مضغوطة (.tar.gz)\nمزامنة تفاضلية سريعة + لقطات القاعدة"
+		},
+		{
+			"default": "6",
+			"fieldname": "backup_interval_value",
+			"fieldtype": "Int",
+			"hidden": 1,
+			"label": "التكرار كل"
+		},
+		{
+			"default": "ساعات",
+			"fieldname": "backup_interval_unit",
+			"fieldtype": "Select",
+			"hidden": 1,
+			"label": "وحدة التكرار",
+			"options": "دقائق\nساعات\nأيام"
+		},
+		{
+			"default": "1",
+			"fieldname": "backup_enable_retention",
+			"fieldtype": "Check",
+			"hidden": 1,
+			"label": "تفعيل الحذف التلقائي للنسخ القديمة"
+		},
+		{
+			"default": "10",
+			"fieldname": "backup_max_keep",
+			"fieldtype": "Int",
+			"hidden": 1,
+			"label": "عدد النسخ المحتفظ بها"
+		},
+		{
+			"default": "4",
+			"fieldname": "backup_pigz_threads",
+			"fieldtype": "Int",
+			"hidden": 1,
+			"label": "عدد أنوية الضغط المتوازي (pigz)"
+		},
+		{
+			"default": "2",
+			"fieldname": "backup_min_free_space_gb",
+			"fieldtype": "Float",
+			"hidden": 1,
+			"label": "الحد الأدنى للمساحة الحرة الآمنة (GB)",
+			"precision": "2"
+		},
+		{
+			"fieldname": "backup_last_run_at",
+			"fieldtype": "Datetime",
+			"hidden": 1,
+			"label": "وقت آخر تشغيل",
+			"read_only": 1
+		},
+		{
+			"fieldname": "backup_last_status",
+			"fieldtype": "Data",
+			"hidden": 1,
+			"label": "حالة آخر نسخة",
+			"read_only": 1
+		},
+		{
+			"fieldname": "backup_next_run_at",
+			"fieldtype": "Datetime",
+			"hidden": 1,
+			"label": "موعد النسخة القادمة",
+			"read_only": 1
+		},
+		{
+			"fieldname": "backup_last_output_path",
+			"fieldtype": "Data",
+			"hidden": 1,
+			"label": "مسار آخر نسخة",
+			"read_only": 1
 		}
 	],
 	"issingle": 1,
@@ -115,6 +241,12 @@
 			"create": 1,
 			"read": 1,
 			"role": "System Manager",
+			"write": 1
+		},
+		{
+			"create": 1,
+			"read": 1,
+			"role": "صلاحية إدارة النسخ الاحتياطي",
 			"write": 1
 		}
 	],

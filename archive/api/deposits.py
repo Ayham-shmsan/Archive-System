@@ -771,6 +771,10 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 		COMMERCIAL_REGISTRY_ROLES,
 		ROLE_COMMERCIAL_REGISTRY_SCREEN_ACCESS,
 	)
+	from archive.services.backup_manager import (
+		BACKUP_LOG_DOCTYPE,
+		ROLE_BACKUP_MANAGEMENT,
+	)
 
 	deprecated_roles = (
 		ROLE_CARD_MANAGER,
@@ -890,6 +894,14 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 			"doctype": COMMERCIAL_REGISTRY_DOCTYPE,
 			"entry_role": ROLE_COMMERCIAL_REGISTRY_SCREEN_ACCESS,
 			"roles": list(COMMERCIAL_REGISTRY_ROLES),
+		},
+		{
+			"id": "backups",
+			"title": "النسخ الاحتياطي",
+			"icon": "database",
+			"doctype": BACKUP_LOG_DOCTYPE,
+			"entry_role": ROLE_BACKUP_MANAGEMENT,
+			"roles": [ROLE_BACKUP_MANAGEMENT],
 		},
 	]
 
@@ -1093,8 +1105,34 @@ def enforce_deposits_request_guard() -> None:
 		require_commercial_registries_screen_access()
 		return
 
-	# 2. Direct REST v1/v2 access to Archive Card Deposit, Stop Rule, or Archive Commercial Registry
+	if (
+		"archive.services.backup_manager." in raw_path
+		or cmd_name.startswith("archive.services.backup_manager.")
+	):
+		if (
+			"archive.services.backup_manager.get_backup_ui_context" not in raw_path
+			and cmd_name != "archive.services.backup_manager.get_backup_ui_context"
+		):
+			from archive.services.backup_manager import require_backup_management_role
+
+			require_backup_management_role()
+		return
+
+	# 2. Direct REST v1/v2 access to Archive Card Deposit, Stop Rule, Archive Commercial Registry, or Archive Backup Log
 	lower_path = raw_path.lower()
+	if (
+		"/api/resource/archive backup log" in lower_path
+		or "/api/v2/document/archive backup log" in lower_path
+	):
+		from archive.services.backup_manager import require_backup_management_role
+
+		require_backup_management_role()
+		if http_method not in ("GET", "HEAD", "OPTIONS"):
+			frappe.throw(
+				_("لا يُسمح بإنشاء أو تعديل أو حذف سجلات النسخ الاحتياطي عبر REST."),
+				frappe.PermissionError,
+			)
+		return
 	if (
 		"/api/resource/archive card deposit stop rule" in lower_path
 		or "/api/v2/document/archive card deposit stop rule" in lower_path
@@ -1169,9 +1207,27 @@ def enforce_deposits_request_guard() -> None:
 			require_commercial_registries_screen_access()
 			return
 
-	# 4. Generic Frappe RPC endpoints querying or mutating Archive Card Deposit, Archive Commercial Registry, or User day limits
+	# 4. Generic Frappe RPC endpoints querying or mutating Archive Card Deposit, Archive Commercial Registry, Archive Backup Log, or User day limits
 	if raw_path.startswith("/api/method/"):
 		target_doctypes = _extract_request_target_doctypes()
+		if "Archive Backup Log" in target_doctypes:
+			from archive.services.backup_manager import require_backup_management_role
+
+			require_backup_management_role()
+			write_rpc_markers = (
+				"frappe.client.insert",
+				"frappe.client.save",
+				"frappe.client.set_value",
+				"frappe.client.delete",
+				"frappe.client.rename_doc",
+				"frappe.desk.form.save.savedocs",
+			)
+			if any(m in raw_path or cmd_name == m for m in write_rpc_markers):
+				frappe.throw(
+					_("لا يُسمح بإنشاء أو تعديل أو حذف سجلات النسخ الاحتياطي يدوياً."),
+					frappe.PermissionError,
+				)
+			return
 		if "Archive Commercial Registry" in target_doctypes:
 			from archive.services.commercial_registry_permissions import (
 				require_commercial_registries_screen_access,

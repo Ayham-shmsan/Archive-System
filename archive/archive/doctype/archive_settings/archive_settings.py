@@ -1,13 +1,68 @@
 from decimal import Decimal, InvalidOperation
 import math
+import os
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint, cstr
+from frappe.utils import cint, cstr, flt, now_datetime
 
 
 _ARABIC_INDIC_TRANS = str.maketrans("٠١٢٣٤٥٦٧٨٩٫", "0123456789.")
+
+GENERAL_SETTINGS_SCALAR_FIELDS = (
+	"default_fiscal_year",
+	"saudi_customer_rate_min",
+	"saudi_customer_rate_max",
+	"bank_transfer_rate_min",
+	"bank_transfer_rate_max",
+	"enable_sender_account_validation",
+)
+
+_BACKUP_FIELD_DEFAULTS = {
+	"backup_enabled": 0,
+	"backup_destination_path": "",
+	"backup_require_mount": 0,
+	"backup_mode": "حزمة كاملة سريعة (.tar ذكي)",
+	"backup_interval_value": 6,
+	"backup_interval_unit": "ساعات",
+	"backup_enable_retention": 1,
+	"backup_max_keep": 10,
+	"backup_pigz_threads": 4,
+	"backup_min_free_space_gb": 2.0,
+}
+
+_RATE_LIMIT_FIELDS = {
+	"saudi_customer_rate_min",
+	"saudi_customer_rate_max",
+	"bank_transfer_rate_min",
+	"bank_transfer_rate_max",
+}
+
+_CHECK_OR_INT_FIELDS = {
+	"enable_sender_account_validation",
+	"backup_enabled",
+	"backup_require_mount",
+	"backup_enable_retention",
+	"backup_interval_value",
+	"backup_max_keep",
+	"backup_pigz_threads",
+}
+
+
+def _normalize_setting_compare(fieldname: str, value):
+	if fieldname in _CHECK_OR_INT_FIELDS:
+		return cint(value or 0)
+	if fieldname in _RATE_LIMIT_FIELDS:
+		if value is None or cstr(value).strip() == "":
+			return None
+		num = flt(value, 6)
+		return None if num == 0 else num
+	if fieldname == "backup_min_free_space_gb":
+		if value is None or cstr(value).strip() == "":
+			return 0.0
+		return flt(value, 2)
+	return cstr(value or "").strip()
 
 
 def _parse_rate_decimal(raw_value) -> Decimal | None:
@@ -305,10 +360,222 @@ def validate_bank_transfer_rate_value(
 class ArchiveSettings(Document):
 
 	def validate(self):
-		self.validate_default_fiscal_year()
-		self.validate_saudi_customer_rate_limits()
-		self.validate_bank_transfer_rate_limits()
-		self.validate_final_swift_banks()
+		in_system_flow = bool(
+			getattr(frappe.flags, "in_migrate", False)
+			or getattr(frappe.flags, "in_patch", False)
+			or getattr(self.flags, "ignore_permissions", False)
+		)
+
+		if in_system_flow:
+			self.validate_default_fiscal_year()
+			self.validate_saudi_customer_rate_limits()
+			self.validate_bank_transfer_rate_limits()
+			self.validate_final_swift_banks()
+			return
+
+		can_general, can_backup, general_changed, backup_changed = self._enforce_section_permissions()
+
+		if can_general or general_changed:
+			self.validate_default_fiscal_year()
+			self.validate_saudi_customer_rate_limits()
+			self.validate_bank_transfer_rate_limits()
+			self.validate_final_swift_banks()
+
+		if backup_changed:
+			self.validate_backup_settings(backup_changed)
+
+	def _enforce_section_permissions(self) -> tuple[bool, bool, bool, list[str]]:
+		from archive.services.backup_manager import (
+			BACKUP_SETTINGS_FIELDS,
+			BACKUP_SYSTEM_READONLY_FIELDS,
+			ROLE_BACKUP_MANAGEMENT,
+			has_backup_management_role,
+			is_archive_settings_general_admin,
+		)
+
+		can_general = is_archive_settings_general_admin()
+		can_backup = has_backup_management_role()
+
+		if not can_general and not can_backup:
+			frappe.throw(
+				_("ليست لديك صلاحية تعديل إعدادات الأرشيف."),
+				frappe.PermissionError,
+			)
+
+		# Restore system-managed readonly backup status fields from DB so they cannot be forged via API
+		for ro_field in BACKUP_SYSTEM_READONLY_FIELDS:
+			existing_ro = frappe.db.get_single_value("Archive Settings", ro_field, cache=False)
+			self.set(ro_field, existing_ro)
+
+		# Detect changes in Backup section
+		backup_changed: list[str] = []
+		existing_singles = {
+			row[0]: row[1]
+			for row in frappe.db.sql(
+				"""
+				SELECT field, value
+				FROM `tabSingles`
+				WHERE doctype = 'Archive Settings'
+				"""
+			)
+		}
+		for fn in BACKUP_SETTINGS_FIELDS:
+			new_val = _normalize_setting_compare(fn, self.get(fn))
+			if fn not in existing_singles:
+				empty_val = _normalize_setting_compare(fn, None)
+				default_val = _normalize_setting_compare(fn, _BACKUP_FIELD_DEFAULTS.get(fn))
+				if new_val not in (empty_val, default_val):
+					backup_changed.append(fn)
+			else:
+				db_val = _normalize_setting_compare(fn, existing_singles.get(fn))
+				if db_val != new_val:
+					backup_changed.append(fn)
+
+		if backup_changed and not can_backup:
+			frappe.throw(
+				_("ليست لديك صلاحية تعديل إعدادات النسخ الاحتياطي ({0}).").format(ROLE_BACKUP_MANAGEMENT),
+				frappe.PermissionError,
+			)
+
+		# Detect changes in General settings section
+		general_changed = False
+		for fn in GENERAL_SETTINGS_SCALAR_FIELDS:
+			db_val = _normalize_setting_compare(fn, existing_singles.get(fn))
+			new_val = _normalize_setting_compare(fn, self.get(fn))
+			if db_val != new_val:
+				general_changed = True
+				break
+
+		if not general_changed:
+			db_banks = [
+				cstr(r[0]).strip()
+				for r in frappe.db.sql(
+					"""
+					SELECT bank
+					FROM `tabArchive Final Swift Bank`
+					WHERE parent = 'Archive Settings'
+					  AND parenttype = 'Archive Settings'
+					  AND parentfield = 'final_swift_banks'
+					ORDER BY idx ASC
+					"""
+				)
+				if cstr(r[0]).strip()
+			]
+			new_banks = [
+				cstr(row.bank).strip()
+				for row in (self.final_swift_banks or [])
+				if cstr(row.bank).strip()
+			]
+			if db_banks != new_banks:
+				general_changed = True
+
+		if general_changed and not can_general:
+			frappe.throw(
+				_("ليست لديك صلاحية تعديل الإعدادات العامة لنظام الأرشفة؛ يُسمح لك بتعديل قسم النسخ الاحتياطي فقط."),
+				frappe.PermissionError,
+			)
+
+		return can_general, can_backup, general_changed, backup_changed
+
+	def validate_backup_settings(self, changed_fields: list[str]) -> None:
+		from archive.services.backup_manager import (
+			MODE_FULL_TAR_GZ_LABEL,
+			MODE_FULL_TAR_LABEL,
+			MODE_INCREMENTAL_LABEL,
+			UNIT_DAYS_LABEL,
+			UNIT_HOURS_LABEL,
+			UNIT_MINUTES_LABEL,
+			compute_next_run_at,
+			estimate_site_backup_footprint,
+			get_storage_adapter,
+			normalize_backup_mode,
+		)
+
+		valid_modes = {MODE_FULL_TAR_LABEL, MODE_FULL_TAR_GZ_LABEL, MODE_INCREMENTAL_LABEL}
+		mode_val = cstr(self.backup_mode or MODE_FULL_TAR_LABEL).strip()
+		if mode_val not in valid_modes:
+			frappe.throw(_("وضع النسخ الاحتياطي المختار غير صالح."), frappe.ValidationError)
+		self.backup_mode = mode_val
+
+		unit_val = cstr(self.backup_interval_unit or UNIT_HOURS_LABEL).strip()
+		if unit_val not in (UNIT_MINUTES_LABEL, UNIT_HOURS_LABEL, UNIT_DAYS_LABEL):
+			frappe.throw(_("وحدة التكرار يجب أن تكون «دقائق» أو «ساعات» أو «أيام»."), frappe.ValidationError)
+		self.backup_interval_unit = unit_val
+
+		interval_val = cint(self.backup_interval_value or 0)
+		if interval_val < 1:
+			frappe.throw(_("قيمة التكرار يجب أن تكون رقماً صحيحاً أكبر من أو يساوي 1."), frappe.ValidationError)
+		self.backup_interval_value = interval_val
+
+		enable_retention = cint(self.backup_enable_retention)
+		if enable_retention:
+			max_keep = cint(self.backup_max_keep or 0)
+			if max_keep < 1:
+				frappe.throw(
+					_("عدد النسخ المحتفظ بها يجب أن يكون 1 على الأقل عند تفعيل الحذف التلقائي."),
+					frappe.ValidationError,
+				)
+			self.backup_max_keep = max_keep
+
+		# Auto-managed optimal engine defaults (not exposed as manual UI knobs)
+		cpu_count = os.cpu_count() or 4
+		default_threads = min(4, max(1, cpu_count // 2))
+		threads = cint(self.backup_pigz_threads or default_threads)
+		self.backup_pigz_threads = min(max(cpu_count, 32), max(1, threads))
+
+		min_free = flt(self.backup_min_free_space_gb or 2.0, 2)
+		self.backup_min_free_space_gb = max(0.5, min_free)
+
+		dest_path = cstr(self.backup_destination_path or "").strip()
+		self.backup_destination_path = dest_path
+		enabled = cint(self.backup_enabled)
+
+		if enabled:
+			if not dest_path:
+				frappe.throw(
+					_("يرجى تحديد «مسار حفظ النسخ الاحتياطي» قبل تفعيل النسخ التلقائي."),
+					frappe.ValidationError,
+				)
+			mode_key = normalize_backup_mode(mode_val)
+			is_single_file = mode_key in ("full_tar", "full_tar_gz")
+			footprint = estimate_site_backup_footprint()
+			estimated_needed = (
+				footprint["estimated_bundle_bytes"] if is_single_file else footprint["estimated_db_gz_bytes"]
+			)
+			get_storage_adapter().validate_destination(
+				dest_path,
+				require_mount=bool(cint(self.backup_require_mount)),
+				create_if_missing=False,
+				estimated_bytes=estimated_needed,
+				min_free_space_gb=min_free,
+				single_file_mode=is_single_file,
+			)
+			schedule_changed = any(
+				f in changed_fields
+				for f in ("backup_enabled", "backup_interval_value", "backup_interval_unit")
+			)
+			if schedule_changed or not self.backup_next_run_at:
+				self.backup_next_run_at = compute_next_run_at(now_datetime(), interval_val, unit_val)
+		else:
+			if dest_path and "backup_destination_path" in changed_fields:
+				from archive.services.backup_manager import _get_forbidden_backup_roots, _is_subpath
+
+				if "\x00" in dest_path or "\n" in dest_path or "\r" in dest_path:
+					frappe.throw(_("مسار النسخ الاحتياطي يحتوي على محارف غير صالحة."), frappe.ValidationError)
+				if not os.path.isabs(dest_path) or os.path.normpath(os.path.abspath(dest_path)) == "/":
+					frappe.throw(
+						_("مسار النسخ الاحتياطي يجب أن يكون مساراً مطلقاً صحيحاً يبدأ بـ / وليس الجذر."),
+						frappe.ValidationError,
+					)
+				abs_dest = os.path.normpath(os.path.abspath(dest_path))
+				real_dest = os.path.realpath(abs_dest)
+				for forbidden_root, label in _get_forbidden_backup_roots():
+					if _is_subpath(real_dest, forbidden_root) or _is_subpath(abs_dest, forbidden_root):
+						frappe.throw(
+							_("لا يُسمح بحفظ النسخ الاحتياطي داخل {0} لأسباب أمنية وتقنية.").format(label),
+							frappe.ValidationError,
+						)
+			self.backup_next_run_at = None
 
 	def validate_bank_transfer_rate_limits(self):
 		try:

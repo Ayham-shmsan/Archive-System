@@ -1,0 +1,238 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "hash",
+  "creation": "2026-11-26 01:30:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "summary_section",
+    "site_name",
+    "trigger_type",
+    "backup_mode",
+    "status",
+    "column_break_1",
+    "started_at",
+    "finished_at",
+    "duration_seconds",
+    "triggered_by",
+    "output_section",
+    "destination_path",
+    "output_path",
+    "sha256_db",
+    "column_break_2",
+    "total_size_mb",
+    "db_size_mb",
+    "files_size_mb",
+    "total_size_bytes",
+    "files_count",
+    "retention_deleted_count",
+    "error_section",
+    "error_message",
+    "details_json"
+  ],
+  "fields": [
+    {
+      "fieldname": "summary_section",
+      "fieldtype": "Section Break",
+      "label": "ملخص عملية النسخ الاحتياطي"
+    },
+    {
+      "fieldname": "site_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "الموقع",
+      "read_only": 1
+    },
+    {
+      "fieldname": "trigger_type",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "نوع التشغيل",
+      "options": "Scheduled\nManual\nManual Export",
+      "read_only": 1
+    },
+    {
+      "fieldname": "backup_mode",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "وضع النسخ",
+      "read_only": 1
+    },
+    {
+      "default": "Queued",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "الحالة",
+      "options": "Queued\nRunning\nSuccess\nFailed\nSkipped",
+      "read_only": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "started_at",
+      "fieldtype": "Datetime",
+      "in_list_view": 1,
+      "label": "وقت البدء",
+      "read_only": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "finished_at",
+      "fieldtype": "Datetime",
+      "label": "وقت الانتهاء",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "duration_seconds",
+      "fieldtype": "Float",
+      "in_list_view": 1,
+      "label": "المدة (ثانية)",
+      "precision": "2",
+      "read_only": 1
+    },
+    {
+      "fieldname": "triggered_by",
+      "fieldtype": "Link",
+      "label": "بواسطة",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "output_section",
+      "fieldtype": "Section Break",
+      "label": "تفاصيل المخرجات والأحجام"
+    },
+    {
+      "fieldname": "destination_path",
+      "fieldtype": "Data",
+      "label": "مسار الوجهة",
+      "read_only": 1
+    },
+    {
+      "fieldname": "output_path",
+      "fieldtype": "Data",
+      "label": "مسار النسخة الناتجة",
+      "read_only": 1
+    },
+    {
+      "fieldname": "sha256_db",
+      "fieldtype": "Data",
+      "label": "بصمة SHA-256 لقاعدة البيانات",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "0",
+      "fieldname": "total_size_mb",
+      "fieldtype": "Float",
+      "in_list_view": 1,
+      "label": "الحجم الإجمالي (MB)",
+      "precision": "2",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "db_size_mb",
+      "fieldtype": "Float",
+      "label": "حجم قاعدة البيانات (MB)",
+      "precision": "2",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "files_size_mb",
+      "fieldtype": "Float",
+      "label": "حجم الملفات والمرفقات (MB)",
+      "precision": "2",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_size_bytes",
+      "fieldtype": "Data",
+      "label": "الحجم بالبايت",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "files_count",
+      "fieldtype": "Int",
+      "label": "عدد الملفات",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "retention_deleted_count",
+      "fieldtype": "Int",
+      "label": "عدد النسخ القديمة المحذوفة",
+      "read_only": 1
+    },
+    {
+      "fieldname": "error_section",
+      "fieldtype": "Section Break",
+      "label": "تفاصيل التنفيذ والأخطاء"
+    },
+    {
+      "fieldname": "error_message",
+      "fieldtype": "Long Text",
+      "label": "رسالة الخطأ / الملاحظات",
+      "read_only": 1
+    },
+    {
+      "fieldname": "details_json",
+      "fieldtype": "Long Text",
+      "hidden": 1,
+      "label": "تفاصيل JSON",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-11-26 01:30:00.000000",
+  "modified_by": "Administrator",
+  "module": "Archive",
+  "name": "Archive Backup Log",
+  "naming_rule": "Random",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 0,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 0,
+      "write": 0
+    },
+    {
+      "create": 0,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 1,
+      "role": "صلاحية إدارة النسخ الاحتياطي",
+      "share": 0,
+      "write": 0
+    }
+  ],
+  "row_format": "Dynamic",
+  "sort_field": "started_at",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}

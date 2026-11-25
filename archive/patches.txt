@@ -7,6 +7,7 @@ archive.patches.v1_0.rename_operation_and_pending_timeline_roles
 # Patches added in this section will be executed after doctypes are migrated
 archive.patches.v1_0.add_operations_performance_indexes
 archive.patches.v1_0.add_deposit_stop_rule_indexes
+archive.patches.v1_0.setup_backup_management_role_and_indexes
 
 [post_fixture_sync]
 # Patches added in this section will be executed after fixtures and customizations
