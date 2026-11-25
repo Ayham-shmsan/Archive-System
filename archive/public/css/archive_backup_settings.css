@@ -1117,3 +1117,48 @@
 	text-align: right;
 	word-break: break-all;
 }
+
+
+/* ---------------- Archive Settings Top Tab Bar Polish ---------------- */
+.archive-settings-tabbed-form .form-tabs-list {
+	background: #ffffff;
+	border-bottom: 1px solid var(--archive-color-border-default, #dbe3ee);
+	padding: 6px 16px 0;
+}
+
+.archive-settings-tabbed-form .form-tabs-list .form-tabs {
+	gap: 8px;
+}
+
+.archive-settings-tabbed-form .form-tabs-list .nav-item .nav-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: 700;
+	font-size: 13.5px;
+	padding: 10px 16px;
+	color: var(--archive-slate-600, #475569);
+	border-bottom: 2.5px solid transparent;
+	border-radius: 8px 8px 0 0;
+	transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+
+.archive-settings-tabbed-form .form-tabs-list .nav-item .nav-link:hover {
+	color: var(--archive-blue-600, #1d4ed8);
+	background: var(--archive-slate-50, #f8fafc);
+}
+
+.archive-settings-tabbed-form .form-tabs-list .nav-item .nav-link.active {
+	color: var(--archive-blue-600, #1d4ed8);
+	border-bottom-color: var(--archive-blue-500, #2563eb);
+	background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+}
+
+.archive-settings-tabbed-form .abk-tab-icon {
+	color: currentColor;
+}
+
+.archive-settings-tabbed-form #archive-settings-backup_settings_tab .form-section {
+	border-top: none;
+	padding-top: 4px;
+}

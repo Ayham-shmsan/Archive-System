@@ -3,6 +3,7 @@
 	"doctype": "DocType",
 	"engine": "InnoDB",
 	"field_order": [
+		"general_settings_tab",
 		"fiscal_years_section",
 		"default_fiscal_year",
 		"fiscal_years_manager_html",
@@ -18,6 +19,7 @@
 		"enable_sender_account_validation",
 		"final_swift_section",
 		"final_swift_banks",
+		"backup_settings_tab",
 		"backup_settings_section",
 		"backup_dashboard_html",
 		"backup_enabled",
@@ -36,6 +38,11 @@
 		"backup_last_output_path"
 	],
 	"fields": [
+		{
+			"fieldname": "general_settings_tab",
+			"fieldtype": "Tab Break",
+			"label": "السنوات المالية والإعدادات"
+		},
 		{
 			"fieldname": "fiscal_years_section",
 			"fieldtype": "Section Break",
@@ -122,9 +129,13 @@
 			"options": "Archive Final Swift Bank"
 		},
 		{
+			"fieldname": "backup_settings_tab",
+			"fieldtype": "Tab Break",
+			"label": "النسخ الاحتياطي"
+		},
+		{
 			"fieldname": "backup_settings_section",
-			"fieldtype": "Section Break",
-			"label": "النسخ الاحتياطي التلقائي"
+			"fieldtype": "Section Break"
 		},
 		{
 			"fieldname": "backup_dashboard_html",

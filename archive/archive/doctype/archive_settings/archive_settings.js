@@ -1,4 +1,5 @@
 const ARCHIVE_GENERAL_SETTINGS_FIELDS = [
+	"general_settings_tab",
 	"fiscal_years_section",
 	"default_fiscal_year",
 	"fiscal_years_manager_html",
@@ -17,6 +18,7 @@ const ARCHIVE_GENERAL_SETTINGS_FIELDS = [
 ];
 
 const ARCHIVE_BACKUP_VISIBLE_FIELDS = [
+	"backup_settings_tab",
 	"backup_settings_section",
 	"backup_dashboard_html",
 ];
@@ -65,6 +67,8 @@ const BK_ICONS = {
 	lock: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
 	trashShield: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>`,
 	copy: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`,
+	sliders: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></svg>`,
+	backupTab: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>`,
 };
 
 const SCHEDULE_PRESETS = [
@@ -149,9 +153,47 @@ frappe.ui.form.on("Archive Settings", {
 	},
 
 	refresh(frm) {
-		// Always keep raw backup data fields hidden; UI lives inside the unified Control Center
+		const applyTabVisibilityAndDecor = (canGeneral, canBackup) => {
+			if (frm.$wrapper) {
+				frm.$wrapper.addClass("archive-settings-tabbed-form");
+			}
+			const tabs = (frm.layout && Array.isArray(frm.layout.tabs) && frm.layout.tabs) || [];
+			let generalTab = null;
+			let backupTab = null;
+
+			tabs.forEach((tab) => {
+				const fn = tab && tab.df && tab.df.fieldname;
+				if (fn === "general_settings_tab") {
+					generalTab = tab;
+					tab.toggle(Boolean(canGeneral));
+					const $btn = tab.tab_link && tab.tab_link.find(".nav-link");
+					if ($btn && $btn.length && !$btn.find(".abk-tab-icon").length) {
+						$btn.prepend(`<span class="abk-icon abk-tab-icon">${BK_ICONS.sliders}</span>`);
+					}
+				} else if (fn === "backup_settings_tab") {
+					backupTab = tab;
+					tab.toggle(Boolean(canBackup));
+					const $btn = tab.tab_link && tab.tab_link.find(".nav-link");
+					if ($btn && $btn.length && !$btn.find(".abk-tab-icon").length) {
+						$btn.prepend(`<span class="abk-icon abk-tab-icon">${BK_ICONS.backupTab}</span>`);
+					}
+				}
+			});
+
+			// Ensure the active tab is always one the user is allowed to view
+			if (canBackup && !canGeneral && backupTab) {
+				backupTab.set_active();
+			} else if (canGeneral && !canBackup && generalTab) {
+				generalTab.set_active();
+			} else if (generalTab && backupTab && !generalTab.is_active() && !backupTab.is_active()) {
+				generalTab.set_active();
+			}
+		};
+
+		// Always keep raw backup data fields hidden; hide backup tab until server confirms role
 		ARCHIVE_BACKUP_HIDDEN_DATA_FIELDS.forEach((fn) => frm.toggle_display(fn, false));
 		ARCHIVE_BACKUP_VISIBLE_FIELDS.forEach((fn) => frm.toggle_display(fn, false));
+		applyTabVisibilityAndDecor(true, false);
 
 		frappe.call({
 			method: "archive.services.backup_manager.get_backup_ui_context",
@@ -163,6 +205,7 @@ frappe.ui.form.on("Archive Settings", {
 				ARCHIVE_GENERAL_SETTINGS_FIELDS.forEach((fn) => frm.toggle_display(fn, canGeneral));
 				ARCHIVE_BACKUP_VISIBLE_FIELDS.forEach((fn) => frm.toggle_display(fn, canBackup));
 				ARCHIVE_BACKUP_HIDDEN_DATA_FIELDS.forEach((fn) => frm.toggle_display(fn, false));
+				applyTabVisibilityAndDecor(canGeneral, canBackup);
 
 				if (canGeneral) {
 					frm.trigger("render_fiscal_years_manager");
