@@ -5,10 +5,11 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
         single_column: true,
     });
 
+    $(wrapper).addClass("archive-document-authenticity-page");
+
     const state = {
         file: null,
         checking: false,
-        check_fiscal_year: null,
         capabilities: {
             loaded: false,
             can_check: false,
@@ -17,14 +18,11 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             can_view_own_checks: false,
             can_view_all_checks: false,
             can_view_technical_details: false,
-            fiscal_context: null,
         },
 
         history: {
             search: "",
             status: "",
-            fiscal_year: "",
-            fiscal_years: null,
             page: 1,
             page_length: 20,
 
@@ -39,754 +37,81 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
     const $main = $(wrapper).find(".layout-main-section");
 
     $main.html(`
-        <div
-            class="archive-authenticity-page"
-            dir="rtl"
-            style="
-                max-width: 900px;
-                margin: 0 auto;
-                padding: 20px 0;
-            "
-        >
-            <style>
-            /*
-            * ==========================================
-            * PDF Upload / Check Card
-            * ==========================================
-            */
-
-            .archive-auth-upload-card {
-                position: relative;
-
-                overflow: hidden;
-
-                padding: 24px;
-
-                border:
-                    1px solid
-                    #cfe8f7 !important;
-
-                border-radius:
-                    16px !important;
-
-                background:
-                    #ffffff !important;
-
-                box-shadow:
-                    0 6px 24px
-                    rgba(
-                        14,
-                        116,
-                        144,
-                        0.07
-                    );
-            }
-
-
-            /*
-            * شريط زخرفي خفيف أعلى البطاقة.
-            */
-            .archive-auth-upload-card::before {
-                content: "";
-
-                position: absolute;
-
-                top: 0;
-                right: 0;
-                left: 0;
-
-                height: 3px;
-
-                background:
-                    linear-gradient(
-                        90deg,
-                        #06b6d4,
-                        #14b8a6,
-                        #0ea5e9
-                    );
-            }
-
-
-            /*
-            * رأس البطاقة.
-            */
-            .archive-auth-upload-header {
-                display: flex;
-
-                align-items: center;
-
-                gap: 13px;
-
-                margin-bottom: 22px;
-            }
-
-
-            .archive-auth-upload-icon {
-                display: flex;
-
-                align-items: center;
-
-                justify-content: center;
-
-                width: 46px;
-
-                height: 46px;
-
-                flex:
-                    0 0 46px;
-
-                border-radius:
-                    13px;
-
-                background:
-                    linear-gradient(
-                        135deg,
-                        #e0f2fe,
-                        #ccfbf1
-                    );
-
-                color:
-                    #0369a1;
-            }
-
-
-            .archive-auth-upload-title {
-                margin: 0;
-
-                color:
-                    #0f4c5c;
-
-                font-size:
-                    17px;
-
-                font-weight:
-                    700;
-            }
-
-
-            .archive-auth-upload-description {
-                margin-top:
-                    5px;
-
-                color:
-                    #4b7b88;
-
-                font-size:
-                    12px;
-
-                line-height:
-                    1.7;
-            }
-
-
-            /*
-            * منطقة اختيار الملف والأزرار.
-            */
-            .archive-auth-upload-controls {
-                display: flex;
-
-                align-items: center;
-
-                gap: 10px;
-
-                flex-wrap: wrap;
-
-                margin-bottom:
-                    16px;
-            }
-
-
-            /*
-            * زر اختيار الملف.
-            */
-            .archive-auth-upload {
-                display: inline-flex;
-
-                align-items: center;
-
-                justify-content: center;
-
-                gap: 7px;
-
-                min-height:
-                    40px;
-
-                padding:
-                    0 16px !important;
-
-                border:
-                    1px solid
-                    #7dd3fc !important;
-
-                border-radius:
-                    9px !important;
-
-                background:
-                    #f0f9ff !important;
-
-                color:
-                    #0369a1 !important;
-
-                font-weight:
-                    600 !important;
-
-                box-shadow:
-                    none !important;
-
-                transition:
-                    background-color 0.16s ease,
-                    border-color 0.16s ease,
-                    transform 0.16s ease;
-            }
-
-
-            .archive-auth-upload:hover {
-                border-color:
-                    #38bdf8 !important;
-
-                background:
-                    #e0f2fe !important;
-
-                color:
-                    #075985 !important;
-            }
-
-
-            /*
-            * زر الفحص.
-            */
-            .archive-auth-check {
-                display: inline-flex;
-
-                align-items: center;
-
-                justify-content: center;
-
-                gap: 7px;
-
-                min-height:
-                    40px;
-
-                padding:
-                    0 18px !important;
-
-                margin-right:
-                    0 !important;
-
-                border:
-                    1px solid
-                    #0d9488 !important;
-
-                border-radius:
-                    9px !important;
-
-                background:
-                    linear-gradient(
-                        135deg,
-                        #0891b2,
-                        #0d9488
-                    ) !important;
-
-                color:
-                    #ffffff !important;
-
-                font-weight:
-                    600 !important;
-
-                box-shadow:
-                    0 3px 10px
-                    rgba(
-                        13,
-                        148,
-                        136,
-                        0.16
-                    ) !important;
-
-                transition:
-                    opacity 0.16s ease,
-                    transform 0.16s ease,
-                    box-shadow 0.16s ease;
-            }
-
-
-            .archive-auth-check:not(:disabled):hover {
-                transform:
-                    translateY(-1px);
-
-                box-shadow:
-                    0 5px 14px
-                    rgba(
-                        13,
-                        148,
-                        136,
-                        0.22
-                    ) !important;
-            }
-
-
-            .archive-auth-check:disabled {
-                opacity:
-                    0.45 !important;
-
-                cursor:
-                    not-allowed !important;
-
-                box-shadow:
-                    none !important;
-            }
-
-
-            /*
-            * صندوق الملف المحدد.
-            */
-            .archive-auth-selected-file {
-                position: relative;
-
-                display: flex;
-
-                align-items: center;
-
-                gap: 12px;
-
-                min-height:
-                    54px;
-
-                padding:
-                    12px 14px !important;
-
-                border:
-                    1px solid
-                    #bae6fd !important;
-
-                border-radius:
-                    11px !important;
-
-                background:
-                    linear-gradient(
-                        135deg,
-                        #f0f9ff 0%,
-                        #ecfeff 100%
-                    ) !important;
-
-                color:
-                    #155e75;
-
-                transition:
-                    border-color 0.16s ease,
-                    background-color 0.16s ease;
-            }
-
-
-            .archive-auth-selected-file-icon {
-                display: flex;
-
-                align-items: center;
-
-                justify-content: center;
-
-                width: 34px;
-
-                height: 34px;
-
-                flex:
-                    0 0 34px;
-
-                border-radius:
-                    9px;
-
-                background:
-                    #cffafe;
-
-                color:
-                    #0891b2;
-            }
-
-
-            .archive-auth-selected-file-content {
-                min-width: 0;
-
-                flex: 1;
-            }
-
-
-            .archive-auth-selected-file-label {
-                color:
-                    #0e7490;
-
-                font-size:
-                    11px;
-
-                font-weight:
-                    600;
-            }
-
-
-            .archive-auth-selected-file-value {
-                margin-top:
-                    2px;
-
-                color:
-                    #164e63;
-
-                font-size:
-                    13px;
-
-                word-break:
-                    break-word;
-            }
-
-
-            /*
-            * Responsive.
-            */
-            @media (
-                max-width: 600px
-            ) {
-                .archive-auth-upload-card {
-                    padding:
-                        18px;
-                }
-
-
-                .archive-auth-upload-controls {
-                    display:
-                        grid;
-
-                    grid-template-columns:
-                        1fr 1fr;
-                }
-
-
-                .archive-auth-upload,
-                .archive-auth-check {
-                    width:
-                        100%;
-                }
-            }
-        </style>
-
-
-        <div
-            class="
-                card
-                archive-auth-upload-card
-                archive-auth-check-section
-            "
-            >
-            <!-- =========================
-                Header
-            ========================== -->
-            <div
-                class="
-                    archive-auth-upload-header
-                "
-                >
-                <div
-                    class="
-                        archive-auth-upload-icon
-                    "
-                >
-                    <svg
-                        width="23"
-                        height="23"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        aria-hidden="true"
-                    >
-                        <path
-                            d="
-                                M7 3
-                                H14
-                                L19 8
-                                V20
-                                C19 20.55
-                                18.55 21
-                                18 21
-                                H7
-                                C6.45 21
-                                6 20.55
-                                6 20
-                                V4
-                                C6 3.45
-                                6.45 3
-                                7 3
-                                Z
-                            "
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                            stroke-linejoin="round"
-                        />
-
-                        <path
-                            d="
-                                M14 3
-                                V8
-                                H19
-                            "
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                            stroke-linejoin="round"
-                        />
-
-                        <path
-                            d="
-                                M9 13
-                                H16
-                            "
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                            stroke-linecap="round"
-                        />
-
-                        <path
-                            d="
-                                M9 17
-                                H14
-                            "
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                            stroke-linecap="round"
-                        />
-                    </svg>
-                </div>
-
-
-                <div>
-                    <h4
-                        class="
-                            archive-auth-upload-title
-                        "
-                    >
-                        ${__(
-                            "فحص مستند PDF"
-                        )}
-                    </h4>
-
-                    <div
-                        class="
-                            archive-auth-upload-description
-                        "
-                    >
-                        ${__(
-                            "ارفع مستند PDF لفحص بنيته الفنية ومقارنتها بالقوالب الأصلية المعروفة."
-                        )}
-                    </div>
-                </div>
-            </div>
-
-
-            <!-- =========================
-                Actions
-            ========================== -->
-            <div
-                class="
-                    archive-auth-upload-controls
-                "
-            >
-                <div class="archive-auth-fiscal-year-wrap" style="display: inline-flex; align-items: center; gap: 6px;">
-                    <label style="margin: 0; font-size: 12px; font-weight: 600; color: #0e7490; white-space: nowrap;">السنة المالية</label>
-                    <select class="form-control archive-auth-check-fiscal-year" style="min-height: 40px; width: auto; min-width: 115px; border-radius: 9px; border-color: #7dd3fc; font-weight: 600; color: #0369a1; padding: 0 12px;">
-                    </select>
-                </div>
-
-                <button
-                    type="button"
-                    class="
-                        btn
-                        archive-auth-upload
-                    "
-                >
-                    <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        aria-hidden="true"
-                    >
-                        <path
-                            d="
-                                M12 16
-                                V5
-                            "
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                        />
-
-                        <path
-                            d="
-                                M8 9
-                                L12 5
-                                L16 9
-                            "
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        />
-
-                        <path
-                            d="
-                                M5 15
-                                V19
-                                H19
-                                V15
-                            "
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        />
-                    </svg>
-
-                    <span>
-                        ${__(
-                            "اختيار ملف PDF"
-                        )}
+        <div class="archive-authenticity-page" dir="rtl">
+            <!-- Unified Page Header -->
+            <div class="archive-auth-page-header">
+                <div class="archive-auth-header-text">
+                    <span class="archive-auth-brand-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <path d="m9 12 2 2 4-4"/>
+                        </svg>
                     </span>
-                </button>
-
-
-                <button
-                    type="button"
-                    class="
-                        btn
-                        archive-auth-check
-                    "
-                    disabled
-                >
-                    <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        aria-hidden="true"
-                    >
-                        <path
-                            d="
-                                M9 12
-                                L11 14
-                                L15 10
-                            "
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        />
-
-                        <circle
-                            cx="12"
-                            cy="12"
-                            r="8"
-                            stroke="currentColor"
-                            stroke-width="2"
-                        />
-                    </svg>
-
-                    <span>
-                        ${__(
-                            "فحص المستند"
-                        )}
-                    </span>
-                </button>
-            </div>
-
-
-            <!-- =========================
-                Selected file
-            ========================== -->
-            <div
-                class="
-                    archive-auth-selected-file
-                "
-            >
-                <div
-                    class="
-                        archive-auth-selected-file-icon
-                    "
-                >
-                    <svg
-                        width="17"
-                        height="17"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        aria-hidden="true"
-                    >
-                        <path
-                            d="
-                                M7 3
-                                H14
-                                L19 8
-                                V20
-                                H7
-                                V3
-                                Z
-                            "
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                            stroke-linejoin="round"
-                        />
-
-                        <path
-                            d="
-                                M14 3
-                                V8
-                                H19
-                            "
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                            stroke-linejoin="round"
-                        />
-                    </svg>
-                </div>
-
-
-                <div
-                    class="
-                        archive-auth-selected-file-content
-                    "
-                >
-                    <div
-                        class="
-                            archive-auth-selected-file-label
-                        "
-                    >
-                        ${__(
-                            "الملف"
-                        )}
-                    </div>
-
-                    <div
-                        class="
-                            archive-auth-selected-file-value
-                        "
-                    >
-                        ${__(
-                            "لم يتم اختيار ملف بعد."
-                        )}
+                    <div class="archive-auth-title-col">
+                        <h1>${__("فحص المستندات")}</h1>
+                        <p class="archive-auth-subtitle">${__("فحص أصالة مستندات PDF ومقارنتها بالقوالب الأصلية ومتابعة سجل الفحوصات")}</p>
                     </div>
                 </div>
             </div>
-        </div>  
 
-            <div
-                class="archive-auth-result"
-                style="
-                    display: none;
-                    margin-top: 20px;
-                "
-            ></div>
+            <!-- Upload & Check Card -->
+            <div class="card archive-auth-upload-card archive-auth-check-section">
+                <div class="archive-auth-upload-top">
+                    <div class="archive-auth-upload-header">
+                        <div class="archive-auth-upload-icon" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M7 3H14L19 8V20C19 20.55 18.55 21 18 21H7C6.45 21 6 20.55 6 20V4C6 3.45 6.45 3 7 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                                <path d="M14 3V8H19" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                                <path d="M9 13H16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                <path d="M9 17H14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h4 class="archive-auth-upload-title">${__("فحص مستند PDF")}</h4>
+                            <div class="archive-auth-upload-description">
+                                ${__("ارفع مستند PDF لفحص بنيته الفنية ومقارنتها بالقوالب الأصلية المعروفة.")}
+                            </div>
+                        </div>
+                    </div>
 
-            <div
-                class="archive-auth-history"
-                style="
-                    margin-top: 20px;
-                "
-            ></div>
+                    <div class="archive-auth-upload-controls">
+                        <button type="button" class="btn archive-auth-upload">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                <path d="M12 16V5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M8 9L12 5L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M5 15V19H19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>${__("اختيار ملف PDF")}</span>
+                        </button>
+
+                        <button type="button" class="btn archive-auth-check" disabled>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                <path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/>
+                            </svg>
+                            <span class="archive-auth-check-label">${__("فحص المستند")}</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Selected file -->
+                <div class="archive-auth-selected-file">
+                    <div class="archive-auth-selected-file-icon" aria-hidden="true">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M7 3H14L19 8V20H7V3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                            <path d="M14 3V8H19" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+
+                    <div class="archive-auth-selected-file-content">
+                        <div class="archive-auth-selected-file-label">${__("الملف")}</div>
+                        <div class="archive-auth-selected-file-value">${__("لم يتم اختيار ملف بعد.")}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="archive-auth-result"></div>
+            <div class="archive-auth-history"></div>
         </div>
     `);
 
@@ -851,6 +176,8 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                 }
 
                 state.file = file_doc;
+
+                $selected_file.addClass("has-file");
 
                 $selected_file.html(`
                 <div
@@ -967,11 +294,10 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
         state.checking = true;
 
+        $check_button.prop("disabled", true);
         $check_button
-            .prop("disabled", true)
-            .text(
-                __("جاري الفحص...")
-            );
+            .find(".archive-auth-check-label")
+            .text(__("جاري الفحص..."));
 
         frappe.call({
             method:
@@ -980,10 +306,6 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             args: {
                 file_id:
                     state.file.name,
-                fiscal_year:
-                    $main.find(".archive-auth-check-fiscal-year").val()
-                    || state.check_fiscal_year
-                    || undefined,
             },
 
             freeze: true,
@@ -1018,11 +340,10 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             always() {
                 state.checking = false;
 
+                $check_button.prop("disabled", false);
                 $check_button
-                    .prop("disabled", false)
-                    .text(
-                        __("فحص المستند")
-                    );
+                    .find(".archive-auth-check-label")
+                    .text(__("فحص المستند"));
             },
         });
     }
@@ -1056,48 +377,6 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
                 state.capabilities.can_view_technical_details =
                     !!capabilities.can_view_technical_details;
-                state.capabilities.fiscal_context =
-                    capabilities.fiscal_context || {};
-
-                const fctx = state.capabilities.fiscal_context;
-                const allowed_add = Array.isArray(fctx.allowed_add_years) ? fctx.allowed_add_years : [];
-                state.check_fiscal_year = fctx.default_add_fiscal_year || allowed_add[0] || "";
-                const $check_fy = $main.find(".archive-auth-check-fiscal-year");
-                if ($check_fy.length) {
-                    $check_fy.html(
-                        allowed_add
-                            .map(
-                                (yr) =>
-                                    `<option value="${frappe.utils.escape_html(yr)}" ${
-                                        yr === state.check_fiscal_year ? "selected" : ""
-                                    }>${frappe.utils.escape_html(yr)}</option>`
-                            )
-                            .join("")
-                    );
-                    $check_fy.off("change").on("change", function () {
-                        state.check_fiscal_year = String($(this).val() || "").trim();
-                    });
-                }
-
-                if (!Array.isArray(state.history.fiscal_years)) {
-                    const allowedView = Array.isArray(fctx.allowed_view_years)
-                        ? fctx.allowed_view_years.map((yr) => String(yr))
-                        : [];
-                    const defaultViewFy = String(fctx.default_view_fiscal_year || allowedView[0] || "");
-                    state.history.fiscal_years =
-                        defaultViewFy && allowedView.includes(defaultViewFy)
-                            ? [defaultViewFy]
-                            : allowedView[0]
-                            ? [allowedView[0]]
-                            : [];
-                    state.history.fiscal_year = state.history.fiscal_years.length
-                        ? state.history.fiscal_years.join(",")
-                        : "__none__";
-                }
-                const $historyFy = $main.find(".archive-auth-history-fiscal-year");
-                if ($historyFy.length && state.history.initialized) {
-                    $historyFy.html(render_history_fiscal_year_options());
-                }
 
                 const $check_section =
                     $(".archive-auth-check-section");
@@ -1112,6 +391,7 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                     state.file = null;
 
                     $(".archive-auth-selected-file")
+                        .removeClass("has-file")
                         .empty();
                 }
 
@@ -1141,227 +421,7 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
     function render_history_collapsible() {
         $history.html(`
-            <style>
-                .archive-auth-history-collapsible {
-                    overflow: hidden;
-
-                    border:
-                        1px solid
-                        #cfe8f7;
-
-                    border-radius:
-                        16px;
-
-                    background:
-                        #ffffff;
-
-                    box-shadow:
-                        0 5px 20px
-                        rgba(
-                            14,
-                            116,
-                            144,
-                            0.06
-                        );
-                }
-
-
-                .archive-auth-history-toggle {
-                    width: 100%;
-
-                    display: flex;
-
-                    justify-content:
-                        space-between;
-
-                    align-items: center;
-
-                    gap: 16px;
-
-                    padding:
-                        17px 20px;
-
-                    border: 0;
-
-                    background:
-                        linear-gradient(
-                            135deg,
-                            #f0f9ff 0%,
-                            #ecfeff 100%
-                        );
-
-                    color:
-                        #164e63;
-
-                    text-align: right;
-
-                    cursor: pointer;
-
-                    transition:
-                        background-color
-                        0.16s ease;
-                }
-
-
-                .archive-auth-history-toggle:hover {
-                    background:
-                        linear-gradient(
-                            135deg,
-                            #e0f2fe 0%,
-                            #cffafe 100%
-                        );
-                }
-
-
-                .archive-auth-history-toggle-main {
-                    display: flex;
-
-                    align-items: center;
-
-                    gap: 11px;
-
-                    min-width: 0;
-                }
-
-
-                .archive-auth-history-toggle-icon {
-                    width: 38px;
-                    height: 38px;
-
-                    flex:
-                        0 0 38px;
-
-                    display: flex;
-
-                    align-items: center;
-
-                    justify-content: center;
-
-                    border-radius:
-                        11px;
-
-                    background:
-                        #ffffff;
-
-                    border:
-                        1px solid
-                        #bae6fd;
-
-                    color:
-                        #0284c7;
-                }
-
-
-                .archive-auth-history-toggle-title {
-                    color:
-                        #0f4c5c;
-
-                    font-size:
-                        14px;
-
-                    font-weight:
-                        700;
-                }
-
-
-                .archive-auth-history-toggle-subtitle {
-                    margin-top:
-                        3px;
-
-                    color:
-                        #4b7b88;
-
-                    font-size:
-                        11px;
-
-                    font-weight:
-                        400;
-                }
-
-
-                .archive-auth-history-toggle-action {
-                    display: flex;
-
-                    align-items: center;
-
-                    gap: 8px;
-
-                    flex:
-                        0 0 auto;
-
-                    color:
-                        #0369a1;
-
-                    font-size:
-                        12px;
-
-                    font-weight:
-                        700;
-                }
-
-
-                .archive-auth-history-chevron {
-                    display: flex;
-
-                    align-items: center;
-
-                    justify-content: center;
-
-                    transition:
-                        transform
-                        0.2s ease;
-                }
-
-
-                .archive-auth-history-collapsible.is-open
-                .archive-auth-history-chevron {
-                    transform:
-                        rotate(180deg);
-                }
-
-
-                .archive-auth-history-body {
-                    display: none;
-
-                    padding:
-                        18px;
-                }
-
-
-                @media (
-                    max-width: 600px
-                ) {
-                    .archive-auth-history-toggle {
-                        padding:
-                            15px;
-                    }
-
-
-                    .archive-auth-history-toggle-subtitle {
-                        display:
-                            none;
-                    }
-
-
-                    .archive-auth-history-toggle-action-text {
-                        display:
-                            none;
-                    }
-
-
-                    .archive-auth-history-body {
-                        padding:
-                            12px;
-                    }
-                }
-            </style>
-
-
-            <div
-                class="
-                    archive-auth-history-collapsible
-                "
-            >
+            <div class="archive-auth-history-collapsible">
                 <button
                     type="button"
                     class="
@@ -1614,540 +674,11 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
     function render_history_shell() {
         $history
-            .find(
-                ".archive-auth-history-body"
-            )
+            .find(".archive-auth-history-body")
             .html(`
-            <style>
-                .archive-auth-history-card {
-                    overflow: hidden;
-                    border:
-                        1px solid
-                        #cfe8f7 !important;
-                    border-radius:
-                        16px !important;
-                    background:
-                        #ffffff !important;
-                    box-shadow:
-                        0 6px 24px
-                        rgba(
-                            14,
-                            116,
-                            144,
-                            0.07
-                        );
-                }
-
-
-                .archive-auth-history-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    gap: 16px;
-                    flex-wrap: wrap;
-
-                    margin-bottom: 20px;
-                }
-
-
-                .archive-auth-history-title-wrap {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                }
-
-
-                .archive-auth-history-title-icon {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-
-                    width: 42px;
-                    height: 42px;
-
-                    flex: 0 0 42px;
-
-                    border-radius: 12px;
-
-                    background:
-                        linear-gradient(
-                            135deg,
-                            #e0f2fe,
-                            #ccfbf1
-                        );
-
-                    color:
-                        #0369a1;
-                }
-
-
-                .archive-auth-history-title {
-                    margin: 0;
-
-                    color:
-                        #0f4c5c;
-
-                    font-size: 17px;
-                    font-weight: 700;
-                }
-
-
-                .archive-auth-history-subtitle {
-                    margin-top: 4px;
-
-                    color:
-                        #4b7b88;
-
-                    font-size: 12px;
-                }
-
-
-                .archive-auth-refresh-history {
-                    min-width: 78px;
-
-                    border:
-                        1px solid
-                        #bae6fd !important;
-
-                    border-radius:
-                        9px !important;
-
-                    background:
-                        #f0f9ff !important;
-
-                    color:
-                        #0369a1 !important;
-
-                    font-weight: 600;
-                }
-
-
-                .archive-auth-refresh-history:hover {
-                    border-color:
-                        #7dd3fc !important;
-
-                    background:
-                        #e0f2fe !important;
-
-                    color:
-                        #075985 !important;
-                }
-
-
-                .archive-auth-history-filter-panel {
-                    position: relative;
-
-                    display: grid;
-
-                    grid-template-columns:
-                        minmax(320px, 1fr)
-                        minmax(180px, 230px);
-
-                    gap: 16px;
-
-                    padding: 18px;
-
-                    border:
-                        1px solid
-                        #bae6fd;
-
-                    border-radius: 14px;
-
-                    background:
-                        linear-gradient(
-                            135deg,
-                            #f0f9ff 0%,
-                            #ecfeff 100%
-                        );
-                }
-
-
-                .archive-auth-filter-group {
-                    min-width: 0;
-                }
-
-
-                .archive-auth-filter-label {
-                    display: block;
-
-                    margin:
-                        0 0 7px 0;
-
-                    color:
-                        #155e75;
-
-                    font-size: 12px;
-                    font-weight: 700;
-                }
-
-
-                .archive-auth-search-wrap {
-                    position: relative;
-                }
-
-
-                .archive-auth-search-icon {
-                    position: absolute;
-
-                    top: 50%;
-                    right: 14px;
-
-                    transform:
-                        translateY(-50%);
-
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-
-                    width: 18px;
-                    height: 18px;
-
-                    color:
-                        #0891b2;
-
-                    pointer-events: none;
-
-                    z-index: 2;
-                }
-
-
-                .archive-auth-history-search,
-                .archive-auth-history-status {
-                    width: 100%;
-
-                    height: 42px;
-
-                    border:
-                        1px solid
-                        #a5d8ef !important;
-
-                    border-radius:
-                        10px !important;
-
-                    background:
-                        #ffffff !important;
-
-                    color:
-                        #164e63 !important;
-
-                    font-size: 13px;
-
-                    box-shadow:
-                        0 1px 2px
-                        rgba(
-                            14,
-                            116,
-                            144,
-                            0.04
-                        );
-
-                    transition:
-                        border-color 0.16s ease,
-                        box-shadow 0.16s ease,
-                        background-color 0.16s ease;
-                }
-
-
-                .archive-auth-history-search {
-                    padding-right:
-                        42px !important;
-
-                    padding-left:
-                        13px !important;
-                }
-
-
-                .archive-auth-history-search::placeholder {
-                    color:
-                        #77a5b4;
-                }
-
-
-                .archive-auth-history-search:focus,
-                .archive-auth-history-status:focus {
-                    border-color:
-                        #06b6d4 !important;
-
-                    background:
-                        #ffffff !important;
-
-                    box-shadow:
-                        0 0 0 3px
-                        rgba(
-                            6,
-                            182,
-                            212,
-                            0.12
-                        ) !important;
-
-                    outline:
-                        none !important;
-                }
-
-
-                .archive-auth-history-status {
-                    cursor: pointer;
-
-                    padding-right:
-                        12px !important;
-                }
-
-
-                .archive-auth-history-meta {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-
-                    gap: 12px;
-
-                    flex-wrap: wrap;
-
-                    margin-top: 18px;
-
-                    padding:
-                        11px 14px;
-
-                    border:
-                        1px solid
-                        #cffafe;
-
-                    border-radius:
-                        10px;
-
-                    background:
-                        #f0fdfa;
-                }
-
-
-                .archive-auth-history-count-wrap {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-
-                    color:
-                        #115e59;
-
-                    font-size: 12px;
-                }
-
-
-                .archive-auth-history-count {
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-
-                    min-width: 30px;
-                    height: 26px;
-
-                    padding:
-                        0 9px;
-
-                    border:
-                        1px solid
-                        #99f6e4;
-
-                    border-radius:
-                        20px;
-
-                    background:
-                        #ccfbf1;
-
-                    color:
-                        #0f766e;
-
-                    font-size: 12px;
-                    font-weight: 700;
-                }
-
-
-                .archive-auth-history-loading {
-                    display: none;
-
-                    margin-right: 6px;
-
-                    color:
-                        #0891b2;
-
-                    font-size: 11px;
-                }
-
-
-                .archive-auth-history-page-label {
-                    color:
-                        #0e7490;
-
-                    font-size: 12px;
-                    font-weight: 600;
-                }
-
-
-                .archive-auth-history-results {
-                    margin-top:
-                        10px;
-                }
-
-
-                .archive-auth-history-empty-loading {
-                    padding:
-                        38px 0;
-
-                    text-align:
-                        center;
-
-                    color:
-                        #4b8797;
-
-                    font-size:
-                        13px;
-                }
-
-
-                @media (
-                    max-width: 768px
-                ) {
-                    .archive-auth-history-filter-panel {
-                        grid-template-columns:
-                            1fr;
-                    }
-
-
-                    .archive-auth-history-header {
-                        align-items:
-                            flex-start;
-                    }
-
-
-                    .archive-auth-refresh-history {
-                        min-width:
-                            auto;
-                    }
-                }
-            </style>
-
-
-            <div
-                class="
-                    archive-auth-history-card
-                "
-                style="
-                    padding: 4px;
-                    border: 0 !important;
-                    box-shadow: none !important;
-                    background: transparent !important;
-                "
-            >
-                <!-- =========================
-                    Header
-                ========================== -->
-                <div
-                    class="
-                        archive-auth-history-header
-                    "
-                >
-                    <div
-                        class="
-                            archive-auth-history-title-wrap
-                        "
-                    >
-                        <div
-                            class="
-                                archive-auth-history-title-icon
-                            "
-                        >
-                            <svg
-                                width="21"
-                                height="21"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                                aria-hidden="true"
-                            >
-                                <path
-                                    d="
-                                        M4 6
-                                        C4 4.9 4.9 4 6 4
-                                        H18
-                                        C19.1 4 20 4.9 20 6
-                                        V18
-                                        C20 19.1 19.1 20 18 20
-                                        H6
-                                        C4.9 20 4 19.1 4 18
-                                        V6
-                                        Z
-                                    "
-                                    stroke="currentColor"
-                                    stroke-width="1.8"
-                                />
-
-                                <path
-                                    d="M8 9H16"
-                                    stroke="currentColor"
-                                    stroke-width="1.8"
-                                    stroke-linecap="round"
-                                />
-
-                                <path
-                                    d="M8 13H14"
-                                    stroke="currentColor"
-                                    stroke-width="1.8"
-                                    stroke-linecap="round"
-                                />
-
-                                <path
-                                    d="M8 17H12"
-                                    stroke="currentColor"
-                                    stroke-width="1.8"
-                                    stroke-linecap="round"
-                                />
-                            </svg>
-                        </div>
-
-
-                        <div>
-                            <h4
-                                class="
-                                    archive-auth-history-title
-                                "
-                            >
-                                ${__(
-                                    "سجل الفحوصات السابقة"
-                                )}
-                            </h4>
-
-                            <div
-                                class="
-                                    archive-auth-history-subtitle
-                                "
-                            >
-                                ${__(
-                                    "البحث والوصول السريع إلى نتائج فحوصات المستندات."
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-
-                    <button
-                        type="button"
-                        class="
-                            btn
-                            btn-sm
-                            archive-auth-refresh-history
-                        "
-                    >
-                        ${__("تحديث")}
-                    </button>
-                </div>
-
-
-                <!-- =========================
-                    Search / Status
-                ========================== -->
-                <div
-                    class="
-                        archive-auth-history-filter-panel
-                    "
-                >
+            <div class="archive-auth-history-card">
+                <!-- Search / Status / Refresh -->
+                <div class="archive-auth-history-filter-panel">
                     <!-- Search -->
                     <div
                         class="
@@ -2243,29 +774,15 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                         </select>
                     </div>
 
-                    <!-- Fiscal Year -->
-                    <div
-                        class="
-                            archive-auth-filter-group
-                        "
-                    >
-                        <label
-                            class="
-                                archive-auth-filter-label
-                            "
-                        >
-                            ${__("السنة المالية")}
-                        </label>
-
-                        <div
-                            class="
-                                archive-auth-history-fiscal-year
-                                archive-fy-multiselect
-                            "
-                            style="position: relative; display: block;"
-                        >
-                            ${render_history_fiscal_year_options()}
-                        </div>
+                    <!-- Refresh -->
+                    <div class="archive-auth-filter-group">
+                        <button type="button" class="btn btn-sm archive-auth-refresh-history">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+                                <path d="M21 3v6h-6"/>
+                            </svg>
+                            <span>${__("تحديث")}</span>
+                        </button>
                     </div>
                 </div>
 
@@ -2418,56 +935,6 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             }
         );
 
-        $history
-            .on("click.archiveAuthHistory", ".archive-fy-multiselect-btn", function (event) {
-                event.stopPropagation();
-                $history.find(".archive-fy-multiselect-menu").toggle();
-            })
-            .on("click.archiveAuthHistory", ".archive-fy-multiselect-menu", function (event) {
-                event.stopPropagation();
-            })
-            .on("change.archiveAuthHistory", ".archive-fy-checkbox", function () {
-                const checked = [];
-                $history.find(".archive-fy-checkbox:checked").each((_, el) => {
-                    const val = String($(el).val() || "").trim();
-                    if (val) checked.push(val);
-                });
-                state.history.fiscal_years = checked;
-                state.history.fiscal_year = checked.length ? checked.join(",") : "__none__";
-                $history
-                    .find(".archive-fy-multiselect-label")
-                    .text(checked.length ? checked.join(", ") : __("لم يتم اختيار سنة"));
-                state.history.page = 1;
-                cancel_history_search_timer();
-                load_history_results();
-            })
-            .on("click.archiveAuthHistory", ".archive-fy-select-all", function (event) {
-                event.preventDefault();
-                const fctx = state.capabilities.fiscal_context || {};
-                const allowed = Array.isArray(fctx.allowed_view_years)
-                    ? fctx.allowed_view_years.map((yr) => String(yr))
-                    : [];
-                state.history.fiscal_years = [...allowed];
-                $history.find(".archive-auth-history-fiscal-year").html(render_history_fiscal_year_options());
-                state.history.page = 1;
-                cancel_history_search_timer();
-                load_history_results();
-            })
-            .on("click.archiveAuthHistory", ".archive-fy-clear-all", function (event) {
-                event.preventDefault();
-                state.history.fiscal_years = [];
-                $history.find(".archive-auth-history-fiscal-year").html(render_history_fiscal_year_options());
-                state.history.page = 1;
-                cancel_history_search_timer();
-                load_history_results();
-            });
-
-        $(document)
-            .off("click.archiveAuthFyMenu")
-            .on("click.archiveAuthFyMenu", function () {
-                $history.find(".archive-fy-multiselect-menu").hide();
-            });
-
 
         /*
         * تحديث يدوي للسجل.
@@ -2581,19 +1048,6 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
         * أثناء البحث نبقي النتائج القديمة
         * حتى تصل النتائج الجديدة.
         */
-        const is_initialized = Array.isArray(state.history.fiscal_years);
-        const selected_years = is_initialized ? [...state.history.fiscal_years] : null;
-        if (is_initialized && selected_years.length === 0) {
-            render_history_results({
-                rows: [],
-                total: 0,
-                page: 1,
-                page_length: state.history.page_length,
-                total_pages: 1,
-            });
-            return;
-        }
-
         if (
             show_loading
         ) {
@@ -2626,11 +1080,6 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
 
                 status:
                     state.history.status,
-
-                fiscal_year:
-                    selected_years
-                        ? JSON.stringify(selected_years)
-                        : state.history.fiscal_year || undefined,
 
                 page:
                     state.history.page,
@@ -2811,72 +1260,6 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
     }
 
 
-    function render_history_fiscal_year_options() {
-        const fctx = state.capabilities.fiscal_context || {};
-        const has_ctx = Boolean(state.capabilities.fiscal_context && Array.isArray(fctx.allowed_view_years));
-        const allowed = Array.isArray(fctx.allowed_view_years)
-            ? fctx.allowed_view_years.map((yr) => String(yr))
-            : [];
-        const default_fy = String(fctx.default_view_fiscal_year || allowed[0] || "");
-
-        if (!Array.isArray(state.history.fiscal_years)) {
-            if (has_ctx) {
-                state.history.fiscal_years =
-                    default_fy && allowed.includes(default_fy)
-                        ? [default_fy]
-                        : allowed[0]
-                        ? [allowed[0]]
-                        : [];
-            }
-        } else if (has_ctx) {
-            state.history.fiscal_years = state.history.fiscal_years
-                .map((yr) => String(yr))
-                .filter((yr) => allowed.includes(yr));
-        }
-
-        const selected = Array.isArray(state.history.fiscal_years)
-            ? state.history.fiscal_years
-            : default_fy
-            ? [default_fy]
-            : [];
-        state.history.fiscal_year = selected.length ? selected.join(",") : "__none__";
-
-        if (!allowed.length) {
-            return `
-                <button type="button" class="form-control archive-fy-multiselect-btn" disabled style="width: 100%; min-height: 38px; display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; text-align: right; font-weight: 600;">
-                    <span class="archive-fy-multiselect-label">${__("لا توجد سنوات متاحة")}</span>
-                    <span style="font-size: 10px; opacity: 0.7;">▼</span>
-                </button>
-            `;
-        }
-
-        const label_text = selected.length ? selected.join(", ") : __("لم يتم اختيار سنة");
-        const items_html = allowed
-            .map((yr) => {
-                const meta = (fctx.years || []).find((item) => String(item.year_name) === yr);
-                const closed_suffix = meta && Number(meta.is_closed) === 1 ? " (مغلقة)" : "";
-                const esc = frappe.utils.escape_html(yr);
-                const text_esc = frappe.utils.escape_html(`${yr}${closed_suffix}`);
-                const checked = selected.includes(yr) ? "checked" : "";
-                return `<label class="archive-fy-option-item" style="display: flex; align-items: center; gap: 8px; padding: 5px 8px; margin: 0; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; user-select: none;"><input type="checkbox" class="archive-fy-checkbox" value="${esc}" ${checked} style="margin: 0; cursor: pointer;"><span>${text_esc}</span></label>`;
-            })
-            .join("");
-
-        return `
-            <button type="button" class="form-control archive-fy-multiselect-btn" style="width: 100%; min-height: 38px; display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; background: #fff; cursor: pointer; text-align: right; font-weight: 600;">
-                <span class="archive-fy-multiselect-label">${frappe.utils.escape_html(label_text)}</span>
-                <span style="font-size: 10px; opacity: 0.7;">▼</span>
-            </button>
-            <div class="archive-fy-multiselect-menu" style="display: none; position: absolute; top: calc(100% + 4px); inset-inline-start: 0; z-index: 1050; min-width: 195px; width: 100%; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12); padding: 6px; direction: rtl; text-align: right;">
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 2px 4px 6px; border-bottom: 1px solid #f1f5f9; margin-bottom: 4px;">
-                    <button type="button" class="btn btn-xs btn-link archive-fy-select-all" style="padding: 2px 4px; font-size: 11px; font-weight: 600; text-decoration: none;">${__("تحديد الكل")}</button>
-                    <button type="button" class="btn btn-xs btn-link archive-fy-clear-all" style="padding: 2px 4px; font-size: 11px; font-weight: 600; color: #dc2626; text-decoration: none;">${__("إلغاء الكل")}</button>
-                </div>
-                <div class="archive-fy-options-list" style="max-height: 220px; overflow-y: auto;">${items_html}</div>
-            </div>
-        `;
-    }
-
     function render_history_status_options() {
         const options = [
             {
@@ -2941,60 +1324,25 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
         }
 
         return `
-            <div
-                style="
-                    margin-top: 20px;
-                    padding-top: 16px;
-                    border-top:
-                        1px solid var(--border-color);
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    gap: 12px;
-                "
-            >
+            <div class="archive-auth-pagination-bar">
                 <button
                     type="button"
-                    class="
-                        btn
-                        btn-default
-                        btn-sm
-                        archive-auth-history-page
-                    "
+                    class="btn btn-default btn-sm archive-auth-history-page"
                     data-page="${page - 1}"
-                    ${page <= 1
-                        ? "disabled"
-                        : ""}
+                    ${page <= 1 ? "disabled" : ""}
                 >
                     ${__("السابق")}
                 </button>
 
-
-                <span
-                    class="text-muted"
-                    style="
-                        font-size: 12px;
-                    "
-                >
-                    ${__("الصفحة")}
-                    ${page}
-                    ${__("من")}
-                    ${total_pages}
+                <span class="archive-auth-history-page-label">
+                    ${__("الصفحة")} ${page} ${__("من")} ${total_pages}
                 </span>
-
 
                 <button
                     type="button"
-                    class="
-                        btn
-                        btn-default
-                        btn-sm
-                        archive-auth-history-page
-                    "
+                    class="btn btn-default btn-sm archive-auth-history-page"
                     data-page="${page + 1}"
-                    ${page >= total_pages
-                        ? "disabled"
-                        : ""}
+                    ${page >= total_pages ? "disabled" : ""}
                 >
                     ${__("التالي")}
                 </button>
@@ -3135,11 +1483,6 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                 row.name || "-"
             );
 
-        const fiscal_display_no =
-            frappe.utils.escape_html(
-                row.fiscal_display_no || row.name || "-"
-            );
-
         const profile =
             frappe.utils.escape_html(
                 row.profile || "-"
@@ -3170,175 +1513,58 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             );
 
         return `
-            <div
-                class="archive-auth-history-row"
-                style="
-                    padding: 16px 0;
-                    border-bottom:
-                        1px solid var(--border-color);
-                "
-                >
-                <div
-                    style="
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: flex-start;
-                        gap: 18px;
-                        flex-wrap: wrap;
-                    "
-                >
-                    <div
-                        style="
-                            flex: 1;
-                            min-width: 260px;
-                        "
-                    >
-                        <div
-                            style="
-                                font-weight: 600;
-                                word-break: break-word;
-                            "
-                        >
+            <div class="archive-auth-history-row">
+                <div class="archive-auth-history-row-top">
+                    <div class="archive-auth-history-row-info">
+                        <div class="archive-auth-history-file-name">
                             ${file_name}
                         </div>
 
-                        <div
-                            class="text-muted"
-                            style="
-                                margin-top: 6px;
-                                font-size: 12px;
-                            "
-                        >
-                            #${fiscal_display_no} (${check_name})
-                            ·
-                            ${profile}
+                        <div class="archive-auth-history-subline">
+                            ${check_name} · ${profile}
                         </div>
 
-                        <div
-                            style="
-                                margin-top: 10px;
-                                font-size: 12px;
-                                line-height: 1.8;
-                            "
-                        >
+                        <div class="archive-auth-history-meta-list">
                             <div>
-                                <span class="text-muted">
-                                    ${__("بواسطة")}:
-                                </span>
-
-                                <strong>
-                                    ${checked_by_full_name}
-                                </strong>
+                                <span class="text-muted">${__("بواسطة")}:</span>
+                                <strong>${checked_by_full_name}</strong>
                             </div>
 
                             <div>
-                                <span class="text-muted">
-                                    ${__("المستخدم")}:
-                                </span>
-
-                                <span
-                                    style="
-                                        direction: ltr;
-                                        unicode-bidi: embed;
-                                    "
-                                >
-                                    ${checked_by}
-                                </span>
+                                <span class="text-muted">${__("المستخدم")}:</span>
+                                <span style="direction: ltr; unicode-bidi: embed;">${checked_by}</span>
                             </div>
 
                             <div>
-                                <span class="text-muted">
-                                    ${__("وقت الفحص")}:
-                                </span>
-
-                                <span>
-                                    ${checked_at}
-                                </span>
+                                <span class="text-muted">${__("وقت الفحص")}:</span>
+                                <span>${checked_at}</span>
                             </div>
                         </div>
                     </div>
 
-                    <div
-                        style="
-                            display: flex;
-                            gap: 24px;
-                            align-items: flex-start;
-                        "
-                    >
-                        <div>
-                            <div
-                                class="text-muted"
-                                style="
-                                    font-size: 11px;
-                                    margin-bottom: 3px;
-                                "
-                            >
-                                ${__("الحالة")}
-                            </div>
+                    <div class="archive-auth-history-row-metrics">
+                        <span class="archive-auth-status-pill ${appearance.badge_class}">
+                            ${frappe.utils.escape_html(status)}
+                        </span>
 
-                            <strong
-                                style="
-                                    color: ${appearance.color};
-                                "
-                            >
-                                ${frappe.utils.escape_html(
-                                    status
-                                )}
-                            </strong>
-                        </div>
-
-                        <div
-                            style="
-                                direction: ltr;
-                                text-align: left;
-                            "
-                        >
-                            <div
-                                class="text-muted"
-                                style="
-                                    font-size: 11px;
-                                    margin-bottom: 3px;
-                                "
-                            >
-                                ${__("الخطورة")}
-                            </div>
-
-                            <strong
-                                style="
-                                    color: ${appearance.color};
-                                "
-                            >
-                                ${risk_score}/100
-                            </strong>
+                        <div class="archive-auth-risk-pill">
+                            <span class="archive-auth-risk-pill-label">${__("الخطورة")}</span>
+                            <span class="archive-auth-risk-pill-value" style="color: ${appearance.color};">${risk_score}/100</span>
                         </div>
                     </div>
                 </div>
-                <div
-                    style="
-                        margin-top: 14px;
-                    "
-                >
+
+                <div class="archive-auth-history-row-actions">
                     <button
                         type="button"
-                        class="
-                            btn
-                            btn-default
-                            btn-sm
-                            archive-auth-show-check
-                        "
+                        class="btn btn-default btn-sm archive-auth-show-check"
                         data-check-name="${check_name}"
                     >
                         ${__("عرض السجل")}
                     </button>
                 </div>
 
-                <div
-                    class="archive-auth-history-details"
-                    style="
-                        display: none;
-                        margin-top: 16px;
-                    "
-                ></div>
+                <div class="archive-auth-history-details"></div>
             </div>
         `;
     }
@@ -3411,67 +1637,14 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             );
 
 
-        let live_card_style = "";
-        let live_summary_style = "";
+        let live_state_class = "";
 
-
-        if (
-            is_live_result
-            && status === "صحيح"
-        ) {
-            /*
-            * المستند الصحيح:
-            * - إطار البطاقة الرئيسية أخضر.
-            * - خلفية رسالة الملخص خضراء.
-            */
-            live_card_style = `
-                border:
-                    2px solid
-                    var(--green-500, #22c55e);
-                box-shadow:
-                    0 0 0 1px
-                    rgba(34, 197, 94, 0.08);
-            `;
-
-            live_summary_style = `
-                background:
-                    rgba(34, 197, 94, 0.12);
-                border:
-                    1px solid
-                    var(--green-500, #22c55e);
-                color:
-                    var(--green-700, #15803d);
-            `;
-        }
-
-
-        if (
-            is_live_result
-            && status === "مزور"
-        ) {
-            /*
-            * المستند المزور:
-            * - إطار البطاقة الرئيسية أحمر.
-            * - خلفية رسالة الملخص حمراء.
-            */
-            live_card_style = `
-                border:
-                    2px solid
-                    var(--red-500, #ef4444);
-                box-shadow:
-                    0 0 0 1px
-                    rgba(239, 68, 68, 0.08);
-            `;
-
-            live_summary_style = `
-                background:
-                    rgba(239, 68, 68, 0.12);
-                border:
-                    1px solid
-                    var(--red-500, #ef4444);
-                color:
-                    var(--red-700, #b91c1c);
-            `;
+        if (is_live_result && status === "صحيح") {
+            live_state_class = "is-live-valid";
+        } else if (is_live_result && status === "مزور") {
+            live_state_class = "is-live-forged";
+        } else if (is_live_result && status === "مشتبه به") {
+            live_state_class = "is-live-suspicious";
         }
 
         const summary =
@@ -3514,154 +1687,51 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
                 : [];
 
         $target.html(`
-            <div
-                    class="card"
-                    style="
-                        padding: 24px;
-                        border-radius: 12px;
-
-                        ${live_card_style}
-
-                        transition:
-                            border-color 0.18s ease,
-                            box-shadow 0.18s ease;
-                    "
-                >
-                <div
-                    style="
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: flex-start;
-                        flex-wrap: wrap;
-                    "
-                >
+            <div class="card archive-auth-result-card ${live_state_class}">
+                <div class="archive-auth-result-top">
                     <div>
-                        <div class="text-muted">
+                        <div class="archive-auth-result-kicker">
                             ${__("نتيجة الفحص")}
                         </div>
 
-                        <h3
-                            style="
-                                margin-top: 6px;
-                                margin-bottom: 4px;
-                                color: ${appearance.color};
-                            "
-                        >
-                            ${frappe.utils.escape_html(
-                                status
-                            )}
+                        <h3 class="archive-auth-result-status" style="color: ${appearance.color};">
+                            ${frappe.utils.escape_html(status)}
                         </h3>
                     </div>
 
-                    <div
-                        style="
-                            text-align: left;
-                            direction: ltr;
-                        "
-                    >
-                        <div class="text-muted">
+                    <div class="archive-auth-result-risk-box">
+                        <div class="archive-auth-result-kicker">
                             ${__("درجة الخطورة")}
                         </div>
 
-                        <strong
-                            style="
-                                font-size: 22px;
-                                color: ${appearance.color};
-                            "
-                        >
+                        <strong class="archive-auth-result-risk-value" style="color: ${appearance.color};">
                             ${risk_score}/100
                         </strong>
                     </div>
                 </div>
 
-                <div
-                    style="
-                        margin-top: 20px;
-                        padding: 16px;
-                        border-radius: 8px;
-
-                        background:
-                            var(--subtle-fg);
-
-                        ${live_summary_style}
-
-                        transition:
-                            background-color 0.18s ease,
-                            border-color 0.18s ease,
-                            color 0.18s ease;
-                    "
-                >
+                <div class="archive-auth-result-summary ${live_state_class}">
                     ${summary}
                 </div>
 
-                <div
-                    style="
-                        margin-top: 20px;
-                        display: grid;
-                        grid-template-columns:
-                            repeat(
-                                auto-fit,
-                                minmax(180px, 1fr)
-                            );
-                        gap: 14px;
-                    "
-                >
-                    ${render_info(
-                        __("اللغة"),
-                        language
-                    )}
-
-                    ${render_info(
-                        __("القالب"),
-                        profile
-                    )}
-
-                    ${render_info(
-                        __("إشارات التعديل"),
-                        tamper_signals
-                    )}
-
-                    ${render_info(
-                        __("سجل الفحص"),
-                        check_name
-                    )}
-
-                    ${render_info(
-                        __("إصدار المحرك"),
-                        engine_version
-                    )}
+                <div class="archive-auth-info-grid">
+                    ${render_info(__("اللغة"), language)}
+                    ${render_info(__("القالب"), profile)}
+                    ${render_info(__("إشارات التعديل"), tamper_signals)}
+                    ${render_info(__("سجل الفحص"), check_name)}
+                    ${render_info(__("إصدار المحرك"), engine_version)}
                 </div>
 
-                <div
-                    style="
-                        margin-top: 24px;
-                        border-top:
-                            1px solid var(--border-color);
-                        padding-top: 16px;
-                    "
-                >
+                <div class="archive-auth-findings-section">
                     <button
                         type="button"
-                        class="
-                            btn
-                            btn-default
-                            btn-sm
-                            archive-auth-toggle-findings
-                        "
+                        class="btn btn-default btn-sm archive-auth-toggle-findings"
                     >
                         ${__("عرض التفاصيل الفنية")}
                     </button>
 
-                    <div
-                        class="archive-auth-findings"
-                        style="
-                            display: none;
-                            margin-top: 16px;
-                        "
-                    >
-                        ${render_findings(
-                            findings
-                        )}
+                    <div class="archive-auth-findings">
+                        ${render_findings(findings)}
                     </div>
                 </div>
             </div>
@@ -3783,100 +1853,27 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
             );
 
         return `
-            <div
-                style="
-                    padding: 14px 0;
-                    border-bottom:
-                        1px solid var(--border-color);
-                "
-            >
-                <div
-                    style="
-                        display: flex;
-                        align-items: flex-start;
-                        gap: 10px;
-                    "
-                >
-                    <div
-                        style="
-                            color: ${appearance.color};
-                            font-weight: 700;
-                            min-width: 20px;
-                            font-size: 16px;
-                        "
-                    >
+            <div class="archive-auth-finding-row">
+                <div class="archive-auth-finding-main">
+                    <div class="archive-auth-finding-icon" style="color: ${appearance.color};">
                         ${appearance.icon}
                     </div>
 
-                    <div
-                        style="
-                            flex: 1;
-                            min-width: 0;
-                        "
-                    >
-                        <div
-                            style="
-                                font-weight: 600;
-                            "
-                        >
+                    <div class="archive-auth-finding-body">
+                        <div class="archive-auth-finding-label">
                             ${label}
                         </div>
 
                         ${
                             message
-                                ? `
-                                    <div
-                                        class="text-muted"
-                                        style="
-                                            margin-top: 4px;
-                                        "
-                                    >
-                                        ${message}
-                                    </div>
-                                `
+                                ? `<div class="archive-auth-finding-message">${message}</div>`
                                 : ""
                         }
 
-                        <div
-                            style="
-                                margin-top: 8px;
-                                font-size: 12px;
-                                direction: ltr;
-                                text-align: left;
-                                word-break: break-word;
-                            "
-                        >
-                            <div>
-                                <strong>
-                                    Code:
-                                </strong>
-
-                                ${code || "-"}
-                            </div>
-
-                            <div
-                                style="
-                                    margin-top: 3px;
-                                "
-                            >
-                                <strong>
-                                    Actual:
-                                </strong>
-
-                                ${actual}
-                            </div>
-
-                            <div
-                                style="
-                                    margin-top: 3px;
-                                "
-                            >
-                                <strong>
-                                    Expected:
-                                </strong>
-
-                                ${expected}
-                            </div>
+                        <div class="archive-auth-finding-tech">
+                            <div><strong>Code:</strong> ${code || "-"}</div>
+                            <div><strong>Actual:</strong> ${actual}</div>
+                            <div><strong>Expected:</strong> ${expected}</div>
                         </div>
                     </div>
                 </div>
@@ -3949,23 +1946,12 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
         value
     ) {
         return `
-            <div>
-                <div
-                    class="text-muted"
-                    style="
-                        font-size: 12px;
-                        margin-bottom: 4px;
-                    "
-                >
+            <div class="archive-auth-info-item">
+                <div class="archive-auth-info-label">
                     ${label}
                 </div>
 
-                <div
-                    style="
-                        font-weight: 600;
-                        word-break: break-word;
-                    "
-                >
+                <div class="archive-auth-info-value">
                     ${value || "-"}
                 </div>
             </div>
@@ -3978,28 +1964,28 @@ frappe.pages["document-authenticity"].on_page_load = function (wrapper) {
     ) {
         if (status === "صحيح") {
             return {
-                color:
-                    "var(--green-600)",
+                color: "var(--archive-emerald-700, #15803d)",
+                badge_class: "status-valid",
             };
         }
 
         if (status === "مزور") {
             return {
-                color:
-                    "var(--red-600)",
+                color: "var(--archive-rose-700, #b91c1c)",
+                badge_class: "status-forged",
             };
         }
 
         if (status === "مشتبه به") {
             return {
-                color:
-                    "var(--orange-600)",
+                color: "var(--archive-amber-700, #b45309)",
+                badge_class: "status-suspicious",
             };
         }
 
         return {
-            color:
-                "var(--gray-600)",
+            color: "var(--archive-slate-600, #475569)",
+            badge_class: "status-unknown",
         };
     }
 };

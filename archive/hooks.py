@@ -214,8 +214,6 @@ permission_query_conditions = {
         "archive.services.fiscal_year_permissions.get_operation_permission_query_conditions",
     "Archive Pending Operation":
         "archive.services.pending_operation_permissions.get_permission_query_conditions",
-    "Archive Document Authenticity Check":
-        "archive.services.fiscal_year_permissions.get_authenticity_permission_query_conditions",
     "Archive Card":
         "archive.services.card_permissions.get_permission_query_conditions",
     "Archive Card Deposit":
@@ -237,8 +235,6 @@ has_permission = {
         "archive.services.fiscal_year_permissions.has_operation_permission",
     "Archive Pending Operation":
         "archive.services.pending_operation_permissions.has_permission",
-    "Archive Document Authenticity Check":
-        "archive.services.fiscal_year_permissions.has_authenticity_permission",
     "Archive Card":
         "archive.services.card_permissions.has_permission",
     "Archive Card Family":

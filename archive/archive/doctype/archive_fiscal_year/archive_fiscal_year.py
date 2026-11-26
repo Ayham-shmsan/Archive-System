@@ -139,7 +139,6 @@ class ArchiveFiscalYear(Document):
 			("Archive Pending Operation", "المعلقات"),
 			("Archive Card Deposit", "الإيداعات"),
 			("Archive Card Deposit Stop Rule", "قرارات موقف لسبب"),
-			("Archive Document Authenticity Check", "فحص المستندات"),
 		)
 		for dt, label in linked_doctypes:
 			if frappe.db.has_column(dt, "fiscal_year") and frappe.db.exists(dt, {"fiscal_year": self.name}):

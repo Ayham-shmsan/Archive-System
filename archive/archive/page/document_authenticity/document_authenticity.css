@@ -1,0 +1,1035 @@
+/* ==========================================================================
+   Document Authenticity Screen (فحص المستندات)
+   Unified Archive Design System — matches Operations, Pending, Cards & Deposits
+   ========================================================================== */
+
+.archive-document-authenticity-page .page-head,
+#page-document-authenticity .page-head,
+.page-container[data-page-route="document-authenticity"] .page-head {
+	display: none !important;
+}
+
+.archive-document-authenticity-page .page-body,
+.archive-document-authenticity-page .page-body.container,
+#page-document-authenticity .page-body,
+.page-container[data-page-route="document-authenticity"] .page-body,
+.page-container[data-page-route="document-authenticity"] .container {
+	width: 100% !important;
+	max-width: none !important;
+	padding-inline: clamp(12px, 1.5vw, 24px) !important;
+	margin-inline: auto !important;
+	margin-top: 0 !important;
+	padding-top: 0 !important;
+	box-sizing: border-box;
+}
+
+.archive-document-authenticity-page .page-wrapper,
+.archive-document-authenticity-page .page-content,
+.archive-document-authenticity-page .layout-main,
+.archive-document-authenticity-page .layout-main-section-wrapper,
+.archive-document-authenticity-page .layout-main-section,
+.page-container[data-page-route="document-authenticity"] .layout-main-section {
+	width: 100% !important;
+	max-width: 100% !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	background: transparent !important;
+	border: none !important;
+	box-shadow: none !important;
+	box-sizing: border-box;
+}
+
+.archive-document-authenticity-page .page-body {
+	background: var(--archive-color-bg-app, #f8fafc);
+}
+
+/* ==========================================================================
+   Page Shell
+   ========================================================================== */
+
+.archive-authenticity-page {
+	width: 100%;
+	max-width: 1780px;
+	margin-inline: auto !important;
+	margin-top: 0 !important;
+	padding: var(--archive-space-3, 12px) 0 36px !important;
+	display: flex;
+	flex-direction: column;
+	gap: var(--archive-space-3, 12px);
+	direction: rtl;
+	text-align: right;
+	color: var(--archive-color-text-body, #1e293b);
+	box-sizing: border-box;
+}
+
+.archive-authenticity-page * {
+	box-sizing: border-box;
+}
+
+/* ==========================================================================
+   Unified Page Header (Matches sibling screens 1:1)
+   ========================================================================== */
+
+.archive-auth-page-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	flex-wrap: wrap;
+	padding: 10px 16px;
+	background: #ffffff;
+	border: 1px solid #e7edf5;
+	border-radius: 14px;
+	box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+	flex-shrink: 0;
+}
+
+.archive-auth-header-text {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+}
+
+.archive-auth-brand-icon {
+	width: 46px;
+	height: 46px;
+	border-radius: 12px;
+	background: #ebf2ff;
+	border: 1px solid #d7e6ff;
+	color: #1d63ed;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.archive-auth-title-col {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.archive-document-authenticity-page .archive-auth-title-col h1,
+.archive-auth-title-col h1 {
+	margin: 0;
+	font-size: 22px;
+	font-weight: 800;
+	line-height: 1.2;
+	color: #0f172a;
+}
+
+.archive-auth-subtitle {
+	margin: 0;
+	font-size: 12.5px;
+	font-weight: 500;
+	line-height: 1.35;
+	color: #64748b;
+}
+
+/* ==========================================================================
+   PDF Upload / Check Card
+   ========================================================================== */
+
+.archive-auth-upload-card {
+	position: relative;
+	overflow: hidden;
+	margin: 0 !important;
+	padding: 20px 22px;
+	border: 1px solid #e7edf5 !important;
+	border-radius: 14px !important;
+	background: #ffffff !important;
+	box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03) !important;
+}
+
+.archive-auth-upload-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	flex-wrap: wrap;
+	margin-bottom: 16px;
+}
+
+.archive-auth-upload-header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+	margin: 0;
+}
+
+.archive-auth-upload-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	flex: 0 0 40px;
+	border-radius: 10px;
+	background: #f1f5f9;
+	border: 1px solid #e2e8f0;
+	color: #334155;
+}
+
+.archive-auth-upload-title {
+	margin: 0;
+	color: #0f172a;
+	font-size: 15.5px;
+	font-weight: 700;
+	line-height: 1.3;
+}
+
+.archive-auth-upload-description {
+	margin-top: 3px;
+	color: #64748b;
+	font-size: 12.5px;
+	line-height: 1.5;
+}
+
+.archive-auth-upload-controls {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin: 0;
+}
+
+/* Secondary file-picker button */
+.archive-auth-upload {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	height: 38px;
+	min-height: 38px;
+	padding: 0 16px !important;
+	border: 1px solid #cbd5e1 !important;
+	border-radius: 10px !important;
+	background: #ffffff !important;
+	color: #0f172a !important;
+	font-size: 13px !important;
+	font-weight: 600 !important;
+	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+	transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.archive-auth-upload:hover {
+	border-color: #93c5fd !important;
+	background: #eff6ff !important;
+	color: #1d4ed8 !important;
+}
+
+/* Primary check button — matches archive-create-operation & archive-cards-add-btn */
+.archive-auth-check {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	height: 38px;
+	min-height: 38px;
+	padding: 0 20px !important;
+	margin: 0 !important;
+	border: 1px solid #171717 !important;
+	border-radius: 10px !important;
+	background: #171717 !important;
+	color: #ffffff !important;
+	font-size: 13.5px !important;
+	font-weight: 700 !important;
+	line-height: 1;
+	white-space: nowrap;
+	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+	transition: background-color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+}
+
+.archive-auth-check:not(:disabled):hover {
+	background: #262626 !important;
+	border-color: #262626 !important;
+}
+
+.archive-auth-check:disabled {
+	opacity: 0.45 !important;
+	cursor: not-allowed !important;
+	box-shadow: none !important;
+}
+
+/* Selected file bar */
+.archive-auth-selected-file {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 54px;
+	padding: 12px 16px !important;
+	border: 1px dashed #cbd5e1 !important;
+	border-radius: 12px !important;
+	background: #f8fafc !important;
+	color: #334155;
+	transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.archive-auth-selected-file.has-file {
+	border-style: solid !important;
+	border-color: #bfdbfe !important;
+	background: #f8fbff !important;
+}
+
+.archive-auth-selected-file-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	flex: 0 0 36px;
+	border-radius: 9px;
+	background: #ebf2ff;
+	border: 1px solid #d7e6ff;
+	color: #1d63ed;
+}
+
+.archive-auth-selected-file.has-file .archive-auth-selected-file-icon {
+	background: #ecfdf5;
+	border-color: #bbf7d0;
+	color: #16a34a;
+}
+
+.archive-auth-selected-file-content {
+	min-width: 0;
+	flex: 1;
+}
+
+.archive-auth-selected-file-label {
+	color: #64748b;
+	font-size: 11.5px;
+	font-weight: 600;
+}
+
+.archive-auth-selected-file-value {
+	margin-top: 2px;
+	color: #0f172a;
+	font-size: 13.5px;
+	font-weight: 600;
+	word-break: break-word;
+}
+
+/* ==========================================================================
+   Live Result & Saved Result Card
+   ========================================================================== */
+
+.archive-auth-result {
+	display: none;
+	margin: 0;
+}
+
+.archive-auth-result-card {
+	margin: 0 !important;
+	padding: 20px 22px;
+	border: 1px solid #e7edf5 !important;
+	border-radius: 14px !important;
+	background: #ffffff !important;
+	box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03) !important;
+	transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.archive-auth-result-card.is-live-valid {
+	border: 2px solid #22c55e !important;
+	box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1) !important;
+}
+
+.archive-auth-result-card.is-live-forged {
+	border: 2px solid #ef4444 !important;
+	box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.archive-auth-result-card.is-live-suspicious {
+	border: 2px solid #f59e0b !important;
+	box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1) !important;
+}
+
+.archive-auth-result-top {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 16px;
+	flex-wrap: wrap;
+}
+
+.archive-auth-result-kicker {
+	font-size: 12px;
+	font-weight: 600;
+	color: #64748b;
+}
+
+.archive-auth-result-status {
+	margin: 6px 0 0;
+	font-size: 21px;
+	font-weight: 800;
+	line-height: 1.25;
+}
+
+.archive-auth-result-risk-box {
+	text-align: left;
+	direction: ltr;
+	padding: 8px 14px;
+	border-radius: 10px;
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+}
+
+.archive-auth-result-risk-value {
+	display: block;
+	margin-top: 2px;
+	font-size: 20px;
+	font-weight: 800;
+	line-height: 1.2;
+}
+
+.archive-auth-result-summary {
+	margin-top: 16px;
+	padding: 14px 16px;
+	border-radius: 10px;
+	border: 1px solid #e2e8f0;
+	background: #f8fafc;
+	color: #1e293b;
+	font-size: 13.5px;
+	line-height: 1.65;
+	transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.archive-auth-result-summary.is-live-valid {
+	background: #ecfdf5;
+	border-color: #86efac;
+	color: #15803d;
+}
+
+.archive-auth-result-summary.is-live-forged {
+	background: #fef2f2;
+	border-color: #fca5a5;
+	color: #b91c1c;
+}
+
+.archive-auth-result-summary.is-live-suspicious {
+	background: #fffbeb;
+	border-color: #fcd34d;
+	color: #b45309;
+}
+
+.archive-auth-info-grid {
+	margin-top: 16px;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 10px;
+}
+
+.archive-auth-info-item {
+	padding: 11px 14px;
+	border-radius: 10px;
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+	min-width: 0;
+}
+
+.archive-auth-info-label {
+	font-size: 11.5px;
+	font-weight: 600;
+	color: #64748b;
+	margin-bottom: 4px;
+}
+
+.archive-auth-info-value {
+	font-size: 13px;
+	font-weight: 700;
+	color: #0f172a;
+	word-break: break-word;
+}
+
+.archive-auth-findings-section {
+	margin-top: 18px;
+	padding-top: 14px;
+	border-top: 1px solid #e2e8f0;
+}
+
+.archive-auth-toggle-findings {
+	border: 1px solid #cbd5e1 !important;
+	border-radius: 8px !important;
+	background: #ffffff !important;
+	color: #334155 !important;
+	font-size: 12.5px !important;
+	font-weight: 600 !important;
+	padding: 6px 14px !important;
+}
+
+.archive-auth-toggle-findings:hover {
+	border-color: #94a3b8 !important;
+	background: #f8fafc !important;
+	color: #0f172a !important;
+}
+
+.archive-auth-findings {
+	display: none;
+	margin-top: 14px;
+}
+
+.archive-auth-finding-row {
+	padding: 12px 14px;
+	border: 1px solid #e7edf5;
+	border-radius: 10px;
+	background: #fafcff;
+	margin-bottom: 10px;
+}
+
+.archive-auth-finding-row:last-child {
+	margin-bottom: 0;
+}
+
+.archive-auth-finding-main {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+}
+
+.archive-auth-finding-icon {
+	font-weight: 800;
+	min-width: 20px;
+	font-size: 15px;
+	line-height: 1.4;
+}
+
+.archive-auth-finding-body {
+	flex: 1;
+	min-width: 0;
+}
+
+.archive-auth-finding-label {
+	font-weight: 700;
+	color: #0f172a;
+	font-size: 13px;
+}
+
+.archive-auth-finding-message {
+	margin-top: 4px;
+	color: #64748b;
+	font-size: 12.5px;
+}
+
+.archive-auth-finding-tech {
+	margin-top: 8px;
+	padding: 8px 10px;
+	border-radius: 8px;
+	background: #ffffff;
+	border: 1px solid #e2e8f0;
+	font-size: 12px;
+	color: #334155;
+	direction: ltr;
+	text-align: left;
+	word-break: break-word;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+/* ==========================================================================
+   History Collapsible Card & Controls
+   ========================================================================== */
+
+.archive-auth-history {
+	margin: 0;
+}
+
+.archive-auth-history-collapsible {
+	overflow: visible;
+	border: 1px solid #e7edf5;
+	border-radius: 14px;
+	background: #ffffff;
+	box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+}
+
+.archive-auth-history-toggle {
+	width: 100%;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 16px;
+	padding: 14px 18px;
+	border: 0;
+	border-radius: 14px;
+	background: #ffffff;
+	color: #0f172a;
+	text-align: right;
+	cursor: pointer;
+	transition: background-color 0.16s ease;
+}
+
+.archive-auth-history-collapsible.is-open .archive-auth-history-toggle {
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+	border-bottom: 1px solid #eef2f7;
+}
+
+.archive-auth-history-toggle:hover {
+	background: #f8fafc;
+}
+
+.archive-auth-history-toggle-main {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+}
+
+.archive-auth-history-toggle-icon {
+	width: 40px;
+	height: 40px;
+	flex: 0 0 40px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 10px;
+	background: #ebf2ff;
+	border: 1px solid #d7e6ff;
+	color: #1d63ed;
+}
+
+.archive-auth-history-toggle-title {
+	color: #0f172a;
+	font-size: 15px;
+	font-weight: 700;
+	line-height: 1.25;
+}
+
+.archive-auth-history-toggle-subtitle {
+	margin-top: 3px;
+	color: #64748b;
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.archive-auth-history-toggle-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	flex: 0 0 auto;
+	padding: 6px 12px;
+	border-radius: 999px;
+	background: #eff6ff;
+	border: 1px solid #dbeafe;
+	color: #1d63ed;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.archive-auth-history-chevron {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	transition: transform 0.2s ease;
+}
+
+.archive-auth-history-collapsible.is-open .archive-auth-history-chevron {
+	transform: rotate(180deg);
+}
+
+.archive-auth-history-body {
+	display: none;
+	padding: 16px 18px 18px;
+}
+
+.archive-auth-history-card {
+	padding: 0;
+	border: 0 !important;
+	box-shadow: none !important;
+	background: transparent !important;
+}
+
+/* Filter Panel — Search + Status + Refresh button on 1 row */
+.archive-auth-history-filter-panel {
+	position: relative;
+	display: grid;
+	grid-template-columns: minmax(280px, 1.8fr) minmax(190px, 240px) auto;
+	align-items: end;
+	gap: 12px;
+	padding: 14px 16px;
+	border: 1px solid #e2e8f0;
+	border-radius: 12px;
+	background: #f8fafc;
+}
+
+.archive-auth-filter-group {
+	min-width: 0;
+}
+
+.archive-auth-filter-label {
+	display: block;
+	margin: 0 0 6px 0;
+	color: #475569;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.archive-auth-search-wrap {
+	position: relative;
+}
+
+.archive-auth-search-icon {
+	position: absolute;
+	top: 50%;
+	right: 12px;
+	transform: translateY(-50%);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 17px;
+	height: 17px;
+	color: #64748b;
+	pointer-events: none;
+	z-index: 2;
+}
+
+.archive-auth-history-search,
+.archive-auth-history-status {
+	width: 100%;
+	height: 38px !important;
+	min-height: 38px !important;
+	border: 1px solid #cbd5e1 !important;
+	border-radius: 9px !important;
+	background: #ffffff !important;
+	color: #0f172a !important;
+	font-size: 13px !important;
+	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+	transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.archive-auth-history-search {
+	padding-right: 38px !important;
+	padding-left: 12px !important;
+}
+
+.archive-auth-history-search::placeholder {
+	color: #94a3b8;
+}
+
+.archive-auth-history-search:focus,
+.archive-auth-history-status:focus {
+	border-color: #2563eb !important;
+	background: #ffffff !important;
+	box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14) !important;
+	outline: none !important;
+}
+
+.archive-auth-history-status {
+	cursor: pointer;
+	padding-right: 12px !important;
+}
+
+.archive-auth-refresh-history {
+	height: 38px;
+	min-width: 84px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 0 14px !important;
+	border: 1px solid #cbd5e1 !important;
+	border-radius: 9px !important;
+	background: #ffffff !important;
+	color: #334155 !important;
+	font-size: 13px !important;
+	font-weight: 600 !important;
+	transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.archive-auth-refresh-history:hover {
+	border-color: #93c5fd !important;
+	background: #eff6ff !important;
+	color: #1d4ed8 !important;
+}
+
+/* Result Meta Bar */
+.archive-auth-history-meta {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	margin-top: 12px;
+	padding: 10px 14px;
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+	background: #f8fafc;
+}
+
+.archive-auth-history-count-wrap {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: #334155;
+	font-size: 12.5px;
+	font-weight: 600;
+}
+
+.archive-auth-history-count {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 28px;
+	height: 24px;
+	padding: 0 9px;
+	border: 1px solid #d7e6ff;
+	border-radius: 999px;
+	background: #ebf2ff;
+	color: #1d63ed;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.archive-auth-history-loading {
+	display: none;
+	margin-right: 4px;
+	color: #2563eb;
+	font-size: 11.5px;
+	font-weight: 600;
+}
+
+.archive-auth-history-page-label {
+	color: #64748b;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+/* History List Rows */
+.archive-auth-history-results {
+	margin-top: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.archive-auth-history-empty-loading {
+	padding: 36px 0;
+	text-align: center;
+	color: #64748b;
+	font-size: 13px;
+}
+
+.archive-auth-history-row {
+	padding: 14px 16px;
+	border: 1px solid #e7edf5;
+	border-radius: 12px;
+	background: #ffffff;
+	transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.archive-auth-history-row:hover {
+	border-color: #cbd5e1;
+	box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.archive-auth-history-row-top {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 16px;
+	flex-wrap: wrap;
+}
+
+.archive-auth-history-row-info {
+	flex: 1;
+	min-width: 260px;
+}
+
+.archive-auth-history-file-name {
+	font-size: 14px;
+	font-weight: 700;
+	color: #0f172a;
+	word-break: break-word;
+}
+
+.archive-auth-history-subline {
+	margin-top: 4px;
+	font-size: 12px;
+	color: #64748b;
+}
+
+.archive-auth-history-meta-list {
+	margin-top: 10px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 20px;
+	font-size: 12px;
+	color: #334155;
+}
+
+.archive-auth-history-meta-list .text-muted {
+	color: #64748b !important;
+}
+
+.archive-auth-history-row-metrics {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	flex-wrap: wrap;
+}
+
+.archive-auth-status-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 12px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 700;
+	border: 1px solid transparent;
+	white-space: nowrap;
+}
+
+.archive-auth-status-pill.status-valid {
+	background: #ecfdf5;
+	border-color: #bbf7d0;
+	color: #15803d;
+}
+
+.archive-auth-status-pill.status-forged {
+	background: #fef2f2;
+	border-color: #fecaca;
+	color: #b91c1c;
+}
+
+.archive-auth-status-pill.status-suspicious {
+	background: #fffbeb;
+	border-color: #fde68a;
+	color: #b45309;
+}
+
+.archive-auth-status-pill.status-unknown {
+	background: #f1f5f9;
+	border-color: #cbd5e1;
+	color: #475569;
+}
+
+.archive-auth-risk-pill {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: flex-end;
+	direction: ltr;
+	padding: 4px 10px;
+	border-radius: 9px;
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+}
+
+.archive-auth-risk-pill-label {
+	font-size: 10.5px;
+	color: #64748b;
+}
+
+.archive-auth-risk-pill-value {
+	font-size: 13px;
+	font-weight: 800;
+}
+
+.archive-auth-history-row-actions {
+	margin-top: 12px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.archive-auth-show-check {
+	border: 1px solid #cbd5e1 !important;
+	border-radius: 8px !important;
+	background: #ffffff !important;
+	color: #334155 !important;
+	font-size: 12px !important;
+	font-weight: 600 !important;
+	padding: 5px 12px !important;
+}
+
+.archive-auth-show-check:hover {
+	border-color: #93c5fd !important;
+	background: #eff6ff !important;
+	color: #1d4ed8 !important;
+}
+
+.archive-auth-history-details {
+	display: none;
+	margin-top: 14px;
+}
+
+/* Pagination */
+.archive-auth-pagination-bar {
+	margin-top: 16px;
+	padding-top: 14px;
+	border-top: 1px solid #e2e8f0;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: 12px;
+}
+
+.archive-auth-history-page {
+	border: 1px solid #cbd5e1 !important;
+	border-radius: 8px !important;
+	background: #ffffff !important;
+	color: #0f172a !important;
+	font-weight: 600 !important;
+	padding: 5px 14px !important;
+}
+
+.archive-auth-history-page:not(:disabled):hover {
+	border-color: #93c5fd !important;
+	background: #eff6ff !important;
+	color: #1d4ed8 !important;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 960px) {
+	.archive-auth-history-filter-panel {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+
+@media (max-width: 640px) {
+	.archive-auth-page-header {
+		padding: 12px;
+	}
+
+	.archive-auth-upload-card {
+		padding: 16px;
+	}
+
+	.archive-auth-upload-controls {
+		width: 100%;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.archive-auth-upload,
+	.archive-auth-check {
+		width: 100%;
+	}
+
+	.archive-auth-history-filter-panel {
+		grid-template-columns: 1fr;
+	}
+
+	.archive-auth-refresh-history {
+		width: 100%;
+	}
+
+	.archive-auth-history-toggle {
+		padding: 13px 14px;
+	}
+
+	.archive-auth-history-toggle-subtitle,
+	.archive-auth-history-toggle-action-text {
+		display: none;
+	}
+
+	.archive-auth-history-body {
+		padding: 12px;
+	}
+}

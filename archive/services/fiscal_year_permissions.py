@@ -16,14 +16,12 @@ INITIAL_FISCAL_YEAR = "2026"
 SEQUENCED_DOCTYPES = {
 	"Archive Operation": "OP",
 	"Archive Pending Operation": "PEND",
-	"Archive Document Authenticity Check": "AUTH",
 }
 
 FISCAL_CONTROLLED_DOCTYPES = (
 	"Archive Operation",
 	"Archive Pending Operation",
 	"Archive Card Deposit",
-	"Archive Document Authenticity Check",
 )
 
 ACTION_TO_FIELD = {
@@ -725,10 +723,8 @@ def get_authenticity_permission_query_conditions(
 	user: str | None = None,
 	doctype: str | None = None,
 ) -> str:
-	del doctype
-	return get_fiscal_permission_query_condition(
-		"Archive Document Authenticity Check", user=user
-	)
+	del user, doctype
+	return ""
 
 
 def has_operation_permission(
@@ -747,8 +743,8 @@ def has_authenticity_permission(
 	user: str | None = None,
 	debug: bool = False,
 ) -> bool:
-	del debug
-	return check_doctype_fiscal_permission(doc, ptype=ptype, user=user)
+	del doc, ptype, user, debug
+	return True
 
 
 def validate_doc_event_fiscal_guard(doc: Any, method: str | None = None) -> None:

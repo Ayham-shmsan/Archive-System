@@ -11,12 +11,6 @@ from archive.forensic.snb_pdf_validator import validate_snb_pdf
 from archive.forensic.snb_pdf_fingerprint import (
     FINGERPRINT_ENGINE_VERSION,
 )
-from archive.services.fiscal_year_permissions import (
-    get_screen_fiscal_context,
-    require_fiscal_permission,
-    resolve_fiscal_year_filter,
-    resolve_target_fiscal_year_for_create,
-)
 
 CHECK_DOCTYPE = "Archive Document Authenticity Check"
 
@@ -243,17 +237,12 @@ def get_authenticity_capabilities() -> dict:
     elif can_view_own:
         history_scope = "own"
 
-    fiscal_ctx = get_screen_fiscal_context()
-
     return {
         "can_check":
-            bool(can_check and fiscal_ctx.get("allowed_add_years")),
+            bool(can_check),
 
         "can_view_history":
-            bool(
-                (can_view_all or can_view_own)
-                and fiscal_ctx.get("allowed_view_years")
-            ),
+            bool(can_view_all or can_view_own),
 
         "history_scope":
             history_scope,
@@ -266,9 +255,6 @@ def get_authenticity_capabilities() -> dict:
 
         "can_view_technical_details":
             can_view_technical_details,
-
-        "fiscal_context":
-            fiscal_ctx,
     }
 
 @frappe.whitelist()
@@ -290,7 +276,7 @@ def check_pdf(
         )
 
     _require_authenticity_check_permission()
-    target_fiscal_year = resolve_target_fiscal_year_for_create(fiscal_year)
+    del fiscal_year
 
     file_id = (
         file_id
@@ -361,9 +347,6 @@ def check_pdf(
         {
             "doctype":
                 CHECK_DOCTYPE,
-
-            "fiscal_year":
-                target_fiscal_year,
 
             "source_file":
                 file_doc.file_url,
@@ -715,19 +698,7 @@ def get_check_history(
     history_scope = (
         _get_authenticity_history_scope()
     )
-    requested_fy = fiscal_year if fiscal_year is not None else fiscal_years
-    allowed_fiscal_years = resolve_fiscal_year_filter(
-        requested_fy,
-        action="view",
-    )
-    if not allowed_fiscal_years:
-        return {
-            "rows": [],
-            "total": 0,
-            "page": 1,
-            "page_length": 20,
-            "total_pages": 1,
-        }
+    del fiscal_year, fiscal_years
 
     search = (
         search
@@ -789,14 +760,6 @@ def get_check_history(
 
 
     conditions = []
-    if len(allowed_fiscal_years) == 1:
-        conditions.append(
-            check.fiscal_year == allowed_fiscal_years[0]
-        )
-    else:
-        conditions.append(
-            check.fiscal_year.isin(allowed_fiscal_years)
-        )
 
     if (
         history_scope == "own"
@@ -831,12 +794,6 @@ def get_check_history(
 
             token_condition = (
                 check.name.like(
-                    like_value
-                )
-                | check.fiscal_sequence.like(
-                    like_value
-                )
-                | check.fiscal_year.like(
                     like_value
                 )
                 | check.file_name.like(
@@ -1216,11 +1173,6 @@ def get_check_details(
 
     _require_authenticity_history_record_access(
         check_doc.checked_by
-    )
-    require_fiscal_permission(
-        getattr(check_doc, "fiscal_year", None),
-        "view",
-        check_open=False,
     )
 
     can_view_technical_details = (
