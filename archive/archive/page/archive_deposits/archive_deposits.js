@@ -3118,102 +3118,61 @@ class ArchiveDepositsPage {
 		if (!$tfoot.length) return;
 
 		const cols = Array.isArray(visible_cols) && visible_cols.length ? visible_cols : this.get_visible_columns();
-		if (!cols.length) {
+		const visible_count = cols.length;
+		if (!visible_count) {
 			$tfoot.empty();
 			$dock.prop("hidden", true);
 			return;
 		}
 		$dock.prop("hidden", false);
 
-		const total_count = Math.max(0, Number(this.pagination?.total_count ?? this.rows.length) || 0);
-		const total_val = this.compute_live_all_deposited_total();
-		const is_positive = total_val > 0;
-		const formatted_total = format_deposit_number(total_val, false);
-		const dep_idx = cols.findIndex((c) => c.key === "deposit_amount");
+		const total_html = this.build_footer_total_value_html();
 
-		const sum_icon_svg = `
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-				<path d="M18 6H7l6 6-6 6h11"></path>
-			</svg>
-		`;
-
-		if (dep_idx === -1) {
+		if (visible_count === 1) {
 			$tfoot.html(`
-				<tr class="ad-table-total-row">
-					<td class="ad-tfoot-label-cell" colspan="${cols.length}">
-						<div class="ad-tfoot-fallback-wrap">
-							<div class="ad-tfoot-label-start">
-								<span class="ad-tfoot-icon">${sum_icon_svg}</span>
-								<span class="ad-tfoot-title">الإجمالي</span>
-								<span class="ad-tfoot-count-pill">${total_count.toLocaleString("en-US")} سجل</span>
-								<span class="ad-tfoot-scope-pill">شامل المعتمد وغير المعتمد</span>
-							</div>
-							<div class="ad-tfoot-fallback-end">
-								<span class="ad-tfoot-caption">إجمالي المبلغ المودع</span>
-								<span class="ad-tfoot-amount-val ${is_positive ? "is-positive" : ""}" dir="ltr" data-role="tfoot-total-amount">${frappe.utils.escape_html(formatted_total)}</span>
-							</div>
-						</div>
+				<tr class="archive-deposit-total-row">
+					<td colspan="1" class="archive-deposit-visible-amount-total" data-role="tfoot-total-cell">
+						${total_html}
 					</td>
 				</tr>
 			`);
-			window.requestAnimationFrame(() => this.sync_table_footer_layout());
-			return;
+		} else {
+			const label_span = Math.min(3, visible_count - 1);
+			const total_span = visible_count - label_span;
+			$tfoot.html(`
+				<tr class="archive-deposit-total-row">
+					<td colspan="${label_span}">
+						<strong>إجمالي المبلغ للنتائج المعروضة</strong>
+					</td>
+					<td colspan="${total_span}" class="archive-deposit-visible-amount-total" data-role="tfoot-total-cell">
+						${total_html}
+					</td>
+				</tr>
+			`);
 		}
-
-		const leading_td =
-			dep_idx > 0
-				? `
-					<td class="ad-tfoot-label-cell" colspan="${dep_idx}">
-						<div class="ad-tfoot-label-bar">
-							<div class="ad-tfoot-label-start">
-								<span class="ad-tfoot-icon">${sum_icon_svg}</span>
-								<span class="ad-tfoot-title">الإجمالي</span>
-								<span class="ad-tfoot-count-pill">${total_count.toLocaleString("en-US")} سجل</span>
-							</div>
-							<span class="ad-tfoot-caption">إجمالي المبلغ المودع</span>
-						</div>
-					</td>
-				`
-				: "";
-
-		const amount_td = `
-			<td class="ad-td-deposit ad-tfoot-amount-cell" title="إجمالي المبلغ المودع لجميع الصفوف المطابقة (المعتمدة وغير المعتمدة)">
-				<div class="ad-deposit-cell-wrap ad-tfoot-amount-wrap">
-					<span class="ad-tfoot-amount-val ${is_positive ? "is-positive" : ""}" dir="ltr" data-role="tfoot-total-amount">${frappe.utils.escape_html(formatted_total)}</span>
-				</div>
-			</td>
-		`;
-
-		const trailing_cols = cols.length - dep_idx - 1;
-		const trailing_td =
-			trailing_cols > 0
-				? `
-					<td class="ad-tfoot-spacer-cell" colspan="${trailing_cols}">
-						<div class="ad-tfoot-trailing-bar">
-							<span class="ad-tfoot-scope-pill">شامل المعتمد وغير المعتمد</span>
-						</div>
-					</td>
-				`
-				: "";
-
-		$tfoot.html(`
-			<tr class="ad-table-total-row">
-				${leading_td}
-				${amount_td}
-				${trailing_td}
-			</tr>
-		`);
 
 		this.sync_table_footer_layout();
 		window.requestAnimationFrame(() => this.sync_table_footer_layout());
 	}
 
-	update_table_footer_total() {
-		const $el = $(this.page.main).find('[data-role="tfoot-total-amount"]');
-		if (!$el.length) return;
+	build_footer_total_value_html() {
+		if (!this.rows.length) {
+			return "—";
+		}
 		const total_val = this.compute_live_all_deposited_total();
-		$el.text(format_deposit_number(total_val, false));
-		$el.toggleClass("is-positive", total_val > 0);
+		const formatted_total = format_deposit_number(total_val, false);
+		return `
+			<span class="archive-deposit-visible-total-item">
+				<strong data-role="tfoot-total-amount">${frappe.utils.escape_html(formatted_total)}</strong>
+				<span>ريال سعودي</span>
+			</span>
+		`;
+	}
+
+	update_table_footer_total() {
+		const $cell = $(this.page.main).find('[data-role="tfoot-total-cell"]');
+		if (!$cell.length) return;
+		$cell.html(this.build_footer_total_value_html());
 	}
 
 	render_table_cell(row, key, precomputed_v = null, row_idx = 0) {
