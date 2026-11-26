@@ -827,9 +827,21 @@ def set_default_fiscal_year(year_name: str) -> dict[str, Any]:
 	return get_fiscal_years_management_data()
 
 
+def _require_user_fiscal_editor_access(user: str | None = None) -> None:
+	from archive.services.user_management_permissions import has_user_management_role
+
+	resolved = cstr(user or frappe.session.user or "Guest").strip()
+	if is_fiscal_admin(resolved) or has_user_management_role(resolved):
+		return
+	frappe.throw(
+		_("ليست لديك صلاحية إدارة صلاحيات المستخدمين."),
+		frappe.PermissionError,
+	)
+
+
 @frappe.whitelist()
 def get_user_fiscal_permissions_for_editor(user: str | None = None) -> dict[str, Any]:
-	require_fiscal_admin()
+	_require_user_fiscal_editor_access()
 	ensure_fiscal_year_2026()
 	target_user = cstr(user or "").strip()
 	years = get_all_fiscal_years()
@@ -852,7 +864,7 @@ def get_user_fiscal_permissions_for_editor(user: str | None = None) -> dict[str,
 
 @frappe.whitelist(methods=["POST"])
 def save_user_fiscal_permissions_from_editor(user: str, permissions: str | dict[str, Any]) -> dict[str, Any]:
-	require_fiscal_admin()
+	_require_user_fiscal_editor_access()
 	target_user = cstr(user or "").strip()
 	if not target_user or not frappe.db.exists("User", target_user):
 		frappe.throw(_("المستخدم المحدد غير موجود."), frappe.ValidationError)
@@ -895,7 +907,7 @@ def _apply_user_fiscal_permissions_dict(target_user: str, parsed: dict[str, Any]
 			if changed:
 				for k, v in values.items():
 					setattr(doc, k, v)
-				doc.save()
+				doc.save(ignore_permissions=True)
 		else:
 			if any(v == 1 for v in values.values()):
 				doc = frappe.get_doc(
@@ -906,7 +918,7 @@ def _apply_user_fiscal_permissions_dict(target_user: str, parsed: dict[str, Any]
 						**values,
 					}
 				)
-				doc.insert()
+				doc.insert(ignore_permissions=True)
 
 
 def save_user_fiscal_permissions_on_user_validate(doc: Any, method: str | None = None) -> None:
@@ -918,7 +930,7 @@ def save_user_fiscal_permissions_on_user_validate(doc: Any, method: str | None =
 	)
 	if not raw_payload:
 		return
-	require_fiscal_admin()
+	_require_user_fiscal_editor_access()
 	if isinstance(raw_payload, str):
 		try:
 			parsed = json.loads(raw_payload)

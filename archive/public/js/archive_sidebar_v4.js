@@ -60,6 +60,7 @@
 
             routes: [
                 "archive-operations",
+                "archive-swift-attachments",
                 "archive-pending-operations",
                 "archive-cards",
                 "archive-deposits",
@@ -103,6 +104,7 @@
                 "system-settings",
                 "archive-settings",
                 "archive-device-license",
+                "user",
             ],
         },
     };
@@ -815,6 +817,9 @@
                         || label === "العمليات المعلقة"
                         || label === "الإيداعات المعلقة"
                             ? "archive-pending-operations"
+                            : href.includes("archive-swift-attachments")
+                            || label === "مرفقات حوالات سويفت"
+                            ? "archive-swift-attachments"
                             : href.includes("archive-operations")
                             || label === "العمليات"
                             || label === "حوالات سويفت"
@@ -829,6 +834,10 @@
                             ? "document-authenticity"
                             : href.includes("archive-device-license") || label === "تراخيص الأجهزة"
                             ? "archive-device-license"
+                            : /\/(desk|app)\/user\/?$/.test(href)
+                            || label === "المستخدمين"
+                            || label === "المستخدمون"
+                            ? "user"
                             : "";
 
                     if (matched_screen) {

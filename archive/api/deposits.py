@@ -711,18 +711,24 @@ def get_all_screens_access_map(user: str | None = None) -> dict[str, bool]:
 	)
 	from archive.services.operation_permissions import has_operations_screen_access_role
 	from archive.services.pending_operation_permissions import has_pending_screen_access_role
+	from archive.services.swift_attachments_report_permissions import (
+		has_swift_attachments_screen_access,
+	)
+	from archive.services.user_management_permissions import has_user_management_role
 
 	resolved_user = cstr(user or frappe.session.user or "Guest")
 	return {
 		"archive-cards": has_card_permission("view_cards", user=resolved_user),
 		"archive-pending-operations": has_pending_screen_access_role(user=resolved_user),
 		"archive-operations": has_operations_screen_access_role(user=resolved_user),
+		"archive-swift-attachments": has_swift_attachments_screen_access(user=resolved_user),
 		"archive-deposits": has_deposits_screen_access_role(user=resolved_user),
 		"document-authenticity": has_authenticity_screen_access_role(user=resolved_user),
 		"archive-commercial-registries": has_commercial_registries_screen_access_role(
 			user=resolved_user
 		),
 		"archive-device-license": has_device_license_management_role(user=resolved_user),
+		"user": has_user_management_role(user=resolved_user),
 	}
 
 
@@ -781,6 +787,11 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 		DEVICE_LICENSE_DOCTYPE,
 		ROLE_DEVICE_LICENSE_MANAGEMENT,
 	)
+	from archive.services.swift_attachments_report_permissions import (
+		ROLE_SWIFT_ATTACHMENTS_VIEW,
+		SWIFT_ATTACHMENTS_ROLES,
+	)
+	from archive.services.user_management_permissions import ROLE_USER_MANAGEMENT
 
 	deprecated_roles = (
 		ROLE_CARD_MANAGER,
@@ -864,6 +875,14 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 			],
 		},
 		{
+			"id": "swift_attachments_report",
+			"title": "تقرير مرفقات حوالات السويفت",
+			"icon": "paperclip",
+			"doctype": "",
+			"entry_role": ROLE_SWIFT_ATTACHMENTS_VIEW,
+			"roles": list(SWIFT_ATTACHMENTS_ROLES),
+		},
+		{
 			"id": "deposits",
 			"title": "الإيداعات",
 			"icon": "wallet",
@@ -916,6 +935,14 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 			"doctype": DEVICE_LICENSE_DOCTYPE,
 			"entry_role": ROLE_DEVICE_LICENSE_MANAGEMENT,
 			"roles": [ROLE_DEVICE_LICENSE_MANAGEMENT],
+		},
+		{
+			"id": "system_users",
+			"title": "مستخدمو النظام",
+			"icon": "user-cog",
+			"doctype": "User",
+			"entry_role": ROLE_USER_MANAGEMENT,
+			"roles": [ROLE_USER_MANAGEMENT],
 		},
 	]
 
@@ -992,6 +1019,42 @@ def extend_deposits_bootinfo(bootinfo: Any) -> None:
 	bootinfo["archive_can_access_deposits"] = has_access
 	bootinfo["archive_screen_access"] = screen_access
 	bootinfo["archive_role_containers"] = get_archive_role_containers_catalog()
+
+	can_manage_users = bool(screen_access.get("user"))
+	bootinfo["archive_can_manage_users"] = can_manage_users
+
+	if not can_manage_users and isinstance(bootinfo.get("module_sidebars"), dict):
+		for sidebar_data in bootinfo["module_sidebars"].values():
+			if not isinstance(sidebar_data, dict):
+				continue
+			items = sidebar_data.get("items")
+			if not isinstance(items, list):
+				continue
+			filtered = [
+				it
+				for it in items
+				if not (
+					isinstance(it, dict)
+					and it.get("link_type") == "DocType"
+					and it.get("link_to") == "User"
+				)
+			]
+			# Drop trailing or empty Section Break left without child items
+			cleaned = []
+			for idx, it in enumerate(filtered):
+				if isinstance(it, dict) and it.get("type") == "Section Break":
+					has_direct_child = False
+					for nxt in filtered[idx + 1 :]:
+						if isinstance(nxt, dict) and nxt.get("type") == "Section Break":
+							break
+						if isinstance(nxt, dict) and nxt.get("type") == "Link":
+							has_direct_child = True
+							break
+					if not has_direct_child:
+						continue
+				cleaned.append(it)
+			sidebar_data["items"] = cleaned
+
 	if isinstance(bootinfo.get("allowed_pages"), dict):
 		for page_name, allowed in screen_access.items():
 			if not allowed:
@@ -1099,6 +1162,16 @@ def enforce_deposits_request_guard() -> None:
 		from archive.services.operation_permissions import require_operations_screen_access
 
 		require_operations_screen_access()
+		return
+
+	if "archive.api.swift_attachments_report." in raw_path or cmd_name.startswith(
+		"archive.api.swift_attachments_report."
+	):
+		from archive.services.swift_attachments_report_permissions import (
+			require_swift_attachments_screen_access,
+		)
+
+		require_swift_attachments_screen_access()
 		return
 
 	if "archive.api.document_authenticity." in raw_path or cmd_name.startswith(
@@ -1233,6 +1306,13 @@ def enforce_deposits_request_guard() -> None:
 			from archive.services.operation_permissions import require_operations_screen_access
 
 			require_operations_screen_access()
+			return
+		if page_name == "archive-swift-attachments":
+			from archive.services.swift_attachments_report_permissions import (
+				require_swift_attachments_screen_access,
+			)
+
+			require_swift_attachments_screen_access()
 			return
 		if page_name == "document-authenticity":
 			from archive.api.document_authenticity import require_authenticity_screen_access

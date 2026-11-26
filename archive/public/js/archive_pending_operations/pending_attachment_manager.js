@@ -7,6 +7,7 @@ class ArchivePendingAttachmentFileViewer {
             this.currentIndex = 0;
             this.zoom = 1;
             this.onNavigate = null;
+            this.allowDownload = true;
         }
 
         open(attachments, startIndex = 0, options = {}) {
@@ -15,6 +16,7 @@ class ArchivePendingAttachmentFileViewer {
             this.currentIndex = Math.max(0, Math.min(startIndex, attachments.length - 1));
             this.zoom = 1;
             this.onNavigate = typeof options?.onNavigate === "function" ? options.onNavigate : null;
+            this.allowDownload = options?.allowDownload !== false;
             this.render();
         }
 
@@ -30,7 +32,13 @@ class ArchivePendingAttachmentFileViewer {
             this.close();
             const att = this.attachments[this.currentIndex] || {};
             const fileName = frappe.utils.escape_html(att.file_name || "مرفق");
-            const openUrl = frappe.utils.escape_html(att.open_url || att.file_url || "#");
+            const rawOpenUrl = String(att.open_url || att.file_url || "#");
+            const canDownload = this.allowDownload && Boolean(att.download_url || (this.allowDownload && att.file_url));
+            const pdfOpenUrl =
+                !canDownload && att.file_kind === "pdf" && rawOpenUrl !== "#" && !rawOpenUrl.includes("#")
+                    ? `${rawOpenUrl}#toolbar=0&navpanes=0`
+                    : rawOpenUrl;
+            const openUrl = frappe.utils.escape_html(pdfOpenUrl);
             const downloadUrl = frappe.utils.escape_html(att.download_url || att.file_url || "#");
             const hasMultiple = this.attachments.length > 1;
 
@@ -47,11 +55,17 @@ class ArchivePendingAttachmentFileViewer {
                 stageContent = `
                     <div class="acr-file-viewer-unsupported">
                         <div style="font-size:16px; font-weight:800; margin-bottom:8px;">معاينة هذا النوع غير مدعومة مباشرة</div>
+                        ${
+                            canDownload
+                                ? `
                         <div style="font-size:13px; color:#64748b; margin-bottom:16px;">يمكنك تنزيل الملف لعرضه على جهازك.</div>
                         <a class="acr-att-btn is-open" href="${downloadUrl}" download="${fileName}" style="height:36px; padding:0 16px;">
                             ${PENDING_VIEWER_DOWNLOAD_SVG}
                             <span>تنزيل الملف</span>
                         </a>
+                        `
+                                : `<div style="font-size:13px; color:#64748b;">لا تتوفر صلاحية تنزيل الملفات لهذا الحساب.</div>`
+                        }
                     </div>
                 `;
             }
@@ -77,10 +91,16 @@ class ArchivePendingAttachmentFileViewer {
                             <button type="button" class="acr-viewer-btn" data-viewer-action="zoom-in" title="تكبير">+</button>
                             <button type="button" class="acr-viewer-btn" data-viewer-action="zoom-reset">100%</button>
                             <button type="button" class="acr-viewer-btn" data-viewer-action="zoom-fit">ملائمة</button>
+                            ${
+                                canDownload
+                                    ? `
                             <a class="acr-viewer-btn" href="${downloadUrl}" download="${fileName}">
                                 ${PENDING_VIEWER_DOWNLOAD_SVG}
                                 <span>تنزيل</span>
                             </a>
+                            `
+                                    : ""
+                            }
                             <button type="button" class="acr-viewer-btn is-close" data-viewer-action="close">إغلاق ✕</button>
                         </div>
                     </div>

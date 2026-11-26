@@ -60,8 +60,8 @@ app_include_css = [
 # app_include_js = "/assets/archive/js/archive.js"
 app_include_js = [
     "/assets/archive/js/country_list.js",
-    "/assets/archive/js/archive_sidebar_v4.js?v=20261126e",
-    "/assets/archive/js/user_archive_roles.js?v=20261126b",
+    "/assets/archive/js/archive_sidebar_v4.js?v=20261126h",
+    "/assets/archive/js/user_archive_roles.js?v=20261126d",
 ]
 
 doctype_js = {
@@ -272,6 +272,16 @@ doc_events = {
             "archive.api.deposits.validate_user_deposit_day_limits",
             "archive.services.fiscal_year_permissions.save_user_fiscal_permissions_on_user_validate",
         ],
+    },
+    "Archive Operation": {
+        "after_insert": "archive.api.swift_attachments_report.bump_swift_attachments_report_cache",
+        "on_update": "archive.api.swift_attachments_report.bump_swift_attachments_report_cache",
+        "on_trash": "archive.api.swift_attachments_report.bump_swift_attachments_report_cache",
+    },
+    "Archive Operation Document": {
+        "after_insert": "archive.api.swift_attachments_report.bump_swift_attachments_report_cache",
+        "on_update": "archive.api.swift_attachments_report.bump_swift_attachments_report_cache",
+        "on_trash": "archive.api.swift_attachments_report.bump_swift_attachments_report_cache",
     },
     "Archive Card": {
         "after_insert": "archive.services.card_audit.sync_card_state_spans_on_doc_event",
