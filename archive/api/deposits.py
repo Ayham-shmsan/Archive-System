@@ -3045,6 +3045,14 @@ def _compute_day_stats(
 		),
 		2,
 	)
+	total_all_deposited_amount = flt(
+		sum(
+			flt(item.get("deposit_amount"), 2)
+			for item in amount_source
+			if flt(item.get("deposit_amount"), 2) > 0
+		),
+		2,
+	)
 
 	total_daily_target = flt(sum(seen_day_groups.values()), 2)
 	target_formatted = format_financial_amount(total_daily_target, zero_as_zero=True)
@@ -3057,6 +3065,10 @@ def _compute_day_stats(
 		"total_deposited_amount": total_deposited_amount,
 		"total_deposited_amount_formatted": format_financial_amount(
 			total_deposited_amount, zero_as_zero=True
+		),
+		"total_all_deposited_amount": total_all_deposited_amount,
+		"total_all_deposited_amount_formatted": format_financial_amount(
+			total_all_deposited_amount, zero_as_zero=True
 		),
 		"total_daily_target": total_daily_target,
 		"total_daily_target_formatted": target_formatted,

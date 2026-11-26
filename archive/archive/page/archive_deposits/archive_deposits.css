@@ -1999,3 +1999,197 @@ body[data-route="archive-deposits"] #body,
 	background-color: #E3D9C8 !important;
 }
 
+
+
+/* =========================================================
+   DOCKED BOTTOM TOTAL DEPOSITED AMOUNT BAR (ALWAYS AT BOTTOM)
+   ========================================================= */
+
+.archive-deposits-table-footer-dock {
+	flex: 0 0 auto;
+	width: 100%;
+	min-width: 0;
+	background: #f7f8fa;
+	border-top: 1px solid #d5dfec;
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.92),
+		0 -4px 12px rgba(15, 23, 42, 0.045);
+	box-sizing: border-box;
+	z-index: 8;
+}
+
+.archive-deposits-table-footer-dock[hidden] {
+	display: none !important;
+}
+
+.archive-deposits-table-footer-track {
+	width: 100%;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+.archive-deposits-footer-table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	table-layout: fixed;
+	margin: 0;
+}
+
+.archive-deposits-footer-table td {
+	height: 46px;
+	padding: 0 14px;
+	background: transparent;
+	border: 0;
+	vertical-align: middle;
+	white-space: nowrap;
+	box-sizing: border-box;
+}
+
+.archive-deposits-footer-table .ad-tfoot-label-cell {
+	padding: 0 16px 0 10px;
+}
+
+.ad-tfoot-label-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 14px;
+	width: 100%;
+	min-width: 0;
+}
+
+.ad-tfoot-label-start {
+	display: inline-flex;
+	align-items: center;
+	gap: 9px;
+	min-width: 0;
+}
+
+.ad-tfoot-icon {
+	width: 26px;
+	height: 26px;
+	border-radius: 8px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	color: #4a5d79;
+	background: linear-gradient(180deg, #f8fafd 0%, #e7eef6 100%);
+	border: 1px solid #d5e0ec;
+	border-bottom-color: #c2d0e0;
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.95),
+		0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.ad-tfoot-title {
+	font-size: 13px;
+	font-weight: 800;
+	color: #0f172a;
+	letter-spacing: -0.01em;
+}
+
+.ad-tfoot-count-pill {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 9px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 700;
+	background: #ffffff;
+	border: 1px solid #d5dfec;
+	color: #475569;
+	box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
+}
+
+.ad-tfoot-caption {
+	font-size: 12px;
+	font-weight: 700;
+	color: #64748b;
+	letter-spacing: -0.005em;
+}
+
+.archive-deposits-footer-table .ad-tfoot-amount-cell {
+	padding: 4px 10px !important;
+	vertical-align: middle;
+}
+
+.ad-tfoot-amount-wrap {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	max-width: 152px;
+	padding: 2px;
+	box-sizing: border-box;
+}
+
+.ad-tfoot-amount-val {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-end;
+	flex: 1 1 auto;
+	width: 100%;
+	min-width: 112px;
+	max-width: 132px;
+	height: 33px;
+	padding: 0 10px;
+	border-radius: 8px;
+	background: #ffffff;
+	border: 1.5px solid #cbd5e1;
+	color: #475569;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 13.5px;
+	font-weight: 800;
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+	box-sizing: border-box;
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.96),
+		0 1px 2px rgba(15, 23, 42, 0.045);
+	transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.ad-tfoot-amount-val.is-positive {
+	background: linear-gradient(180deg, #f2fcf7 0%, #e5f7ee 100%);
+	border-color: #4ade80;
+	color: #15803d;
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.92),
+		0 1px 3px rgba(22, 163, 74, 0.12);
+}
+
+.archive-deposits-footer-table .ad-tfoot-spacer-cell {
+	padding: 0 10px 0 16px;
+}
+
+.ad-tfoot-trailing-bar {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+}
+
+.ad-tfoot-scope-pill {
+	display: inline-flex;
+	align-items: center;
+	padding: 3px 10px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	color: #64748b;
+	background: rgba(255, 255, 255, 0.85);
+	border: 1px solid #e2e8f0;
+}
+
+.ad-tfoot-fallback-wrap {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 14px;
+}
+
+.ad-tfoot-fallback-end {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+}

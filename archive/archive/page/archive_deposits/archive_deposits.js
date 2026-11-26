@@ -213,6 +213,8 @@ class ArchiveDepositsPage {
 			stopped_for_reason_count: 0,
 			total_deposited_amount: 0,
 			total_deposited_amount_formatted: "0",
+			total_all_deposited_amount: 0,
+			total_all_deposited_amount_formatted: "0",
 			total_daily_target: 0,
 			total_daily_target_formatted: "0",
 			target_is_frozen: false,
@@ -590,6 +592,14 @@ class ArchiveDepositsPage {
 							<thead data-role="table-head"></thead>
 							<tbody data-role="table-body"></tbody>
 						</table>
+					</div>
+					<div class="archive-deposits-table-footer-dock" data-role="table-footer-dock">
+						<div class="archive-deposits-table-footer-track" data-role="table-footer-track">
+							<table class="archive-deposits-footer-table" data-role="footer-table">
+								<colgroup data-role="footer-colgroup"></colgroup>
+								<tbody data-role="table-foot"></tbody>
+							</table>
+						</div>
 					</div>
 					<div class="archive-pagination-host" data-role="pagination-bar"></div>
 				</div>
@@ -1002,6 +1012,8 @@ class ArchiveDepositsPage {
 		$main.on("click", '[data-action="refresh-deposits"]', () => {
 			this.request_refresh();
 		});
+
+		this.bind_footer_layout_sync();
 
 		$main.on("dblclick.adTempHighlight", 'tbody[data-role="table-body"] tr.ad-table-row', (e) => {
 			const $target = $(e.target);
@@ -1581,6 +1593,7 @@ class ArchiveDepositsPage {
 		this.revalidate_account_day_dirty_entries(meta.account_day_key, row, meta.row_key);
 		this.sync_account_dom_rows(meta.account_day_key, row);
 		this.update_save_button_state();
+		this.update_table_footer_total();
 	}
 
 	handle_stopped_reason_toggle(row_key, want_checked, $cb) {
@@ -1655,6 +1668,7 @@ class ArchiveDepositsPage {
 		this.revalidate_account_day_dirty_entries(meta.account_day_key, row, meta.row_key);
 		this.sync_account_dom_rows(meta.account_day_key, row);
 		this.update_save_button_state();
+		this.update_table_footer_total();
 	}
 
 	revalidate_account_day_dirty_entries(account_day_key, row, edited_row_key = "") {
@@ -2959,6 +2973,7 @@ class ArchiveDepositsPage {
 					</td>
 				</tr>
 			`);
+			this.render_table_footer(visible_cols);
 			return;
 		}
 
@@ -2969,6 +2984,7 @@ class ArchiveDepositsPage {
 			.map((row, idx) => this.build_row_html(row, visible_cols, idx))
 			.join("");
 		$tbody.html(first_html);
+		this.render_table_footer(visible_cols);
 
 		if (this.rows.length > initial_chunk) {
 			let offset = initial_chunk;
@@ -2988,6 +3004,216 @@ class ArchiveDepositsPage {
 			};
 			window.requestAnimationFrame(append_next_chunk);
 		}
+	}
+
+	compute_live_all_deposited_total() {
+		const has_server_total =
+			this.stats &&
+			this.stats.total_all_deposited_amount !== undefined &&
+			this.stats.total_all_deposited_amount !== null;
+		let base_saved = has_server_total
+			? Math.max(0, Number(this.stats.total_all_deposited_amount) || 0)
+			: this.rows.reduce((acc, r) => acc + Math.max(0, Number(r.deposit_amount) || 0), 0);
+
+		let delta = 0;
+		for (const dirty of this.dirty_deposits.values()) {
+			if (!dirty || dirty.is_negative) continue;
+			const saved_amt = Math.max(0, Number(dirty.saved_amount) || 0);
+			const live_amt = dirty.stopped_for_reason ? 0 : Math.max(0, Number(dirty.amount) || 0);
+			delta += live_amt - saved_amt;
+		}
+
+		return Math.max(0, Math.round((base_saved + delta) * 100) / 100);
+	}
+
+	bind_footer_layout_sync() {
+		const $main = $(this.page.main);
+		const scroll_el = $main.find('[data-role="table-scroll"]')[0];
+		const main_table = $main.find(".archive-deposits-table")[0];
+		if (!scroll_el) return;
+
+		if (this._footer_scroll_handler) {
+			scroll_el.removeEventListener("scroll", this._footer_scroll_handler);
+		}
+		this._footer_scroll_handler = () => {
+			const footer_track = $main.find('[data-role="table-footer-track"]')[0];
+			if (footer_track && footer_track.scrollLeft !== scroll_el.scrollLeft) {
+				footer_track.scrollLeft = scroll_el.scrollLeft;
+			}
+		};
+		scroll_el.addEventListener("scroll", this._footer_scroll_handler, { passive: true });
+
+		if (this._footer_resize_observer) {
+			this._footer_resize_observer.disconnect();
+		}
+		if (typeof ResizeObserver === "function") {
+			this._footer_resize_observer = new ResizeObserver(() => {
+				if (this._footer_sync_raf) {
+					window.cancelAnimationFrame(this._footer_sync_raf);
+				}
+				this._footer_sync_raf = window.requestAnimationFrame(() => {
+					this.sync_table_footer_layout();
+				});
+			});
+			this._footer_resize_observer.observe(scroll_el);
+			if (main_table) {
+				this._footer_resize_observer.observe(main_table);
+			}
+		}
+
+		if (this._footer_window_resize_handler) {
+			window.removeEventListener("resize", this._footer_window_resize_handler);
+		}
+		this._footer_window_resize_handler = () => {
+			if (this._footer_sync_raf) {
+				window.cancelAnimationFrame(this._footer_sync_raf);
+			}
+			this._footer_sync_raf = window.requestAnimationFrame(() => {
+				this.sync_table_footer_layout();
+			});
+		};
+		window.addEventListener("resize", this._footer_window_resize_handler, { passive: true });
+	}
+
+	sync_table_footer_layout() {
+		const $main = $(this.page.main);
+		const scroll_el = $main.find('[data-role="table-scroll"]')[0];
+		const main_table = $main.find(".archive-deposits-table")[0];
+		const footer_dock = $main.find('[data-role="table-footer-dock"]')[0];
+		const footer_track = $main.find('[data-role="table-footer-track"]')[0];
+		const footer_table = $main.find('[data-role="footer-table"]')[0];
+		const footer_colgroup = $main.find('[data-role="footer-colgroup"]')[0];
+		if (!scroll_el || !main_table || !footer_dock || !footer_track || !footer_table || !footer_colgroup) {
+			return;
+		}
+
+		// Compensate vertical scrollbar width so footer columns align 1:1 with data table columns
+		const v_sb = Math.max(0, scroll_el.offsetWidth - scroll_el.clientWidth);
+		const is_rtl = window.getComputedStyle(scroll_el).direction === "rtl";
+		footer_dock.style.paddingLeft = is_rtl ? `${v_sb}px` : "0px";
+		footer_dock.style.paddingRight = is_rtl ? "0px" : `${v_sb}px`;
+
+		const ths = Array.from(main_table.querySelectorAll("thead tr th"));
+		if (!ths.length) return;
+
+		const col_widths = ths.map((th) => th.getBoundingClientRect().width);
+		const sum_w = col_widths.reduce((a, b) => a + b, 0);
+		const table_w = main_table.getBoundingClientRect().width || sum_w;
+
+		footer_colgroup.innerHTML = col_widths
+			.map((w) => `<col style="width: ${w}px; min-width: ${w}px;">`)
+			.join("");
+		footer_table.style.width = `${table_w}px`;
+		footer_table.style.minWidth = `${table_w}px`;
+
+		if (footer_track.scrollLeft !== scroll_el.scrollLeft) {
+			footer_track.scrollLeft = scroll_el.scrollLeft;
+		}
+	}
+
+	render_table_footer(visible_cols = null) {
+		const $main = $(this.page.main);
+		const $dock = $main.find('[data-role="table-footer-dock"]');
+		const $tfoot = $main.find('[data-role="table-foot"]');
+		if (!$tfoot.length) return;
+
+		const cols = Array.isArray(visible_cols) && visible_cols.length ? visible_cols : this.get_visible_columns();
+		if (!cols.length) {
+			$tfoot.empty();
+			$dock.prop("hidden", true);
+			return;
+		}
+		$dock.prop("hidden", false);
+
+		const total_count = Math.max(0, Number(this.pagination?.total_count ?? this.rows.length) || 0);
+		const total_val = this.compute_live_all_deposited_total();
+		const is_positive = total_val > 0;
+		const formatted_total = format_deposit_number(total_val, false);
+		const dep_idx = cols.findIndex((c) => c.key === "deposit_amount");
+
+		const sum_icon_svg = `
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<path d="M18 6H7l6 6-6 6h11"></path>
+			</svg>
+		`;
+
+		if (dep_idx === -1) {
+			$tfoot.html(`
+				<tr class="ad-table-total-row">
+					<td class="ad-tfoot-label-cell" colspan="${cols.length}">
+						<div class="ad-tfoot-fallback-wrap">
+							<div class="ad-tfoot-label-start">
+								<span class="ad-tfoot-icon">${sum_icon_svg}</span>
+								<span class="ad-tfoot-title">الإجمالي</span>
+								<span class="ad-tfoot-count-pill">${total_count.toLocaleString("en-US")} سجل</span>
+								<span class="ad-tfoot-scope-pill">شامل المعتمد وغير المعتمد</span>
+							</div>
+							<div class="ad-tfoot-fallback-end">
+								<span class="ad-tfoot-caption">إجمالي المبلغ المودع</span>
+								<span class="ad-tfoot-amount-val ${is_positive ? "is-positive" : ""}" dir="ltr" data-role="tfoot-total-amount">${frappe.utils.escape_html(formatted_total)}</span>
+							</div>
+						</div>
+					</td>
+				</tr>
+			`);
+			window.requestAnimationFrame(() => this.sync_table_footer_layout());
+			return;
+		}
+
+		const leading_td =
+			dep_idx > 0
+				? `
+					<td class="ad-tfoot-label-cell" colspan="${dep_idx}">
+						<div class="ad-tfoot-label-bar">
+							<div class="ad-tfoot-label-start">
+								<span class="ad-tfoot-icon">${sum_icon_svg}</span>
+								<span class="ad-tfoot-title">الإجمالي</span>
+								<span class="ad-tfoot-count-pill">${total_count.toLocaleString("en-US")} سجل</span>
+							</div>
+							<span class="ad-tfoot-caption">إجمالي المبلغ المودع</span>
+						</div>
+					</td>
+				`
+				: "";
+
+		const amount_td = `
+			<td class="ad-td-deposit ad-tfoot-amount-cell" title="إجمالي المبلغ المودع لجميع الصفوف المطابقة (المعتمدة وغير المعتمدة)">
+				<div class="ad-deposit-cell-wrap ad-tfoot-amount-wrap">
+					<span class="ad-tfoot-amount-val ${is_positive ? "is-positive" : ""}" dir="ltr" data-role="tfoot-total-amount">${frappe.utils.escape_html(formatted_total)}</span>
+				</div>
+			</td>
+		`;
+
+		const trailing_cols = cols.length - dep_idx - 1;
+		const trailing_td =
+			trailing_cols > 0
+				? `
+					<td class="ad-tfoot-spacer-cell" colspan="${trailing_cols}">
+						<div class="ad-tfoot-trailing-bar">
+							<span class="ad-tfoot-scope-pill">شامل المعتمد وغير المعتمد</span>
+						</div>
+					</td>
+				`
+				: "";
+
+		$tfoot.html(`
+			<tr class="ad-table-total-row">
+				${leading_td}
+				${amount_td}
+				${trailing_td}
+			</tr>
+		`);
+
+		this.sync_table_footer_layout();
+		window.requestAnimationFrame(() => this.sync_table_footer_layout());
+	}
+
+	update_table_footer_total() {
+		const $el = $(this.page.main).find('[data-role="tfoot-total-amount"]');
+		if (!$el.length) return;
+		const total_val = this.compute_live_all_deposited_total();
+		$el.text(format_deposit_number(total_val, false));
+		$el.toggleClass("is-positive", total_val > 0);
 	}
 
 	render_table_cell(row, key, precomputed_v = null, row_idx = 0) {
