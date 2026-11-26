@@ -786,6 +786,10 @@ body[data-route="archive-swift-attachments"] #body,
 	background: #f8fbff;
 }
 
+.asa-table tbody tr.archive-virtual-spacer:hover td {
+	background: transparent !important;
+}
+
 .asa-table tbody tr.is-selected td {
 	background: #eff6ff;
 }

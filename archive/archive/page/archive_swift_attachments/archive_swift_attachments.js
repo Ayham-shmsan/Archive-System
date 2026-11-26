@@ -99,6 +99,7 @@ class SwiftAttachmentsLocalEngine {
 		this.files = [];
 		this.links = [];
 		this._linksByFile = [];
+		this._fileIdxByKey = new Map();
 		this._opPass = new Uint8Array(0);
 		this._opTokBits = new Int32Array(0);
 		this._filePass = new Uint8Array(0);
@@ -145,6 +146,7 @@ class SwiftAttachmentsLocalEngine {
 
 		const fileCount = files.length;
 		const linksByFile = new Array(fileCount);
+		const fileIdxByKey = new Map();
 		for (let i = 0; i < fileCount; i++) {
 			const f = files[i];
 			f._fkBit = ASA_FORMAT_BIT[f.fk] || 4;
@@ -152,6 +154,7 @@ class SwiftAttachmentsLocalEngine {
 			f._fnLower = String(f.fn || "").toLowerCase();
 			f._fs = Number(f.fs || 0);
 			linksByFile[i] = null;
+			fileIdxByKey.set(f.k, i);
 		}
 		for (let i = 0; i < links.length; i++) {
 			const fIdx = links[i][0];
@@ -163,6 +166,7 @@ class SwiftAttachmentsLocalEngine {
 			}
 		}
 		this._linksByFile = linksByFile;
+		this._fileIdxByKey = fileIdxByKey;
 
 		this._opPass = new Uint8Array(opCount);
 		this._opTokBits = new Int32Array(opCount);
@@ -207,6 +211,7 @@ class SwiftAttachmentsLocalEngine {
 		page = 1,
 		page_length = "100",
 		permissions = {},
+		materialize = true,
 	} = {}) {
 		const ops = this.operations;
 		const files = this.files;
@@ -598,7 +603,7 @@ class SwiftAttachmentsLocalEngine {
 			});
 		}
 
-		// 9. Pass 5 — Slice & materialize ONLY the visible page rows
+		// 9. Pass 5 — Slice page indices (and materialize only if requested; VirtualTableRenderer materializes visible ~45 rows lazily!)
 		let totalPages = 1;
 		let pageNum = Math.max(1, parseInt(page, 10) || 1);
 		let sliceStart = 0;
@@ -613,79 +618,111 @@ class SwiftAttachmentsLocalEngine {
 			pageNum = 1;
 		}
 
-		const canPreview = Boolean(permissions.can_preview);
-		const canDownload = Boolean(permissions.can_download);
-		const users = this.users;
-		const rows = new Array(sliceEnd - sliceStart);
+		const pageFileIndices =
+			sliceStart === 0 && sliceEnd === total
+				? matchedFiles
+				: matchedFiles.slice(sliceStart, sliceEnd);
 
-		for (let idx = sliceStart, out = 0; idx < sliceEnd; idx++, out++) {
-			const fIdx = matchedFiles[idx];
-			const f = files[fIdx];
-			const op = ops[filePrimaryOp[fIdx]];
-			const mask = fileTypeMask[fIdx];
-			const types = [];
-			const typeLabels = [];
-			for (let b = 0; b < 4; b++) {
-				if (mask & (1 << b)) {
-					types.push(ASA_TYPE_KEYS[b]);
-					typeLabels.push(ASA_TYPE_LABELS[b]);
-				}
+		let rows = [];
+		if (materialize) {
+			const len = pageFileIndices.length;
+			rows = new Array(len);
+			for (let out = 0; out < len; out++) {
+				rows[out] = this.materialize_row(pageFileIndices[out], permissions);
 			}
-			const encodedUrl = (canPreview || canDownload) ? encodeURIComponent(f.u) : "";
-			const upByIdx = fileLatestUpBy[fIdx];
-
-			rows[out] = {
-				_file_idx: fIdx,
-				dedup_key: f.k,
-				file_url: f.u,
-				file_name: f.fn,
-				file_extension: f.fe,
-				file_kind: f.fk,
-				file_size: f._fs,
-				uploaded_at: fileLatestUpAt[fIdx] || f.ua,
-				uploaded_by: users[upByIdx] || "",
-				uploaded_by_full_name: users[upByIdx] || "",
-				primary_type: types[0] || "shared_attachment",
-				primary_type_label: typeLabels[0] || ASA_TYPE_LABELS[3],
-				attachment_types: types,
-				attachment_type_labels: typeLabels,
-				preview_url: canPreview
-					? `/api/method/archive.api.swift_attachments_report.serve_attachment?file_url=${encodedUrl}&mode=preview`
-					: "",
-				download_url: canDownload
-					? `/api/method/archive.api.swift_attachments_report.serve_attachment?file_url=${encodedUrl}&mode=download`
-					: "",
-				zip_prefix: asa_build_zip_prefix(op),
-				operation_name: op.n,
-				operation_no: op.no,
-				fiscal_year: op.fy,
-				year_short: op.ys,
-				customer: op.cu,
-				beneficiary_name: op.bn,
-				beneficiary_account: op.ba,
-				beneficiary_bank: op.bb,
-				swift_code: op.sw,
-				country: op.co,
-				sender_name: op.sn,
-				sender_account: op.sa,
-				transferring_bank: op.tb,
-				from_account: op.fa,
-				reference_no: op.rf,
-				amount: op.am,
-				currency: op.cr,
-				status: op.st,
-				execution_datetime: op.ex,
-				is_blocked_operation: Boolean(op.bl),
-				linked_count: fileLinkedCount[fIdx],
-			};
 		}
 
 		return {
 			rows,
+			page_file_indices: pageFileIndices,
 			total,
 			page: pageNum,
 			page_length: resolvedPl,
 			total_pages: totalPages,
+		};
+	}
+
+	get_file_idx_by_key(dedupKey) {
+		const idx = this._fileIdxByKey.get(dedupKey);
+		return idx === undefined ? -1 : idx;
+	}
+
+	get_selection_payload(fIdx) {
+		const f = this.files[fIdx];
+		if (!f) return null;
+		const op = this.operations[this._filePrimaryOp[fIdx]];
+		return {
+			dedup_key: f.k,
+			file_url: f.u,
+			file_name: f.fn,
+			file_size: f._fs,
+			zip_prefix: asa_build_zip_prefix(op),
+		};
+	}
+
+	materialize_row(fIdx, permissions = {}) {
+		const f = this.files[fIdx];
+		if (!f) return null;
+		const op = this.operations[this._filePrimaryOp[fIdx]];
+		if (!op) return null;
+		const mask = this._fileTypeMask[fIdx];
+		const types = [];
+		const typeLabels = [];
+		for (let b = 0; b < 4; b++) {
+			if (mask & (1 << b)) {
+				types.push(ASA_TYPE_KEYS[b]);
+				typeLabels.push(ASA_TYPE_LABELS[b]);
+			}
+		}
+		const canPreview = Boolean(permissions.can_preview);
+		const canDownload = Boolean(permissions.can_download);
+		const encodedUrl = canPreview || canDownload ? encodeURIComponent(f.u) : "";
+		const upByIdx = this._fileLatestUpBy[fIdx];
+		const uploader = this.users[upByIdx] || "";
+
+		return {
+			_file_idx: fIdx,
+			dedup_key: f.k,
+			file_url: f.u,
+			file_name: f.fn,
+			file_extension: f.fe,
+			file_kind: f.fk,
+			file_size: f._fs,
+			uploaded_at: this._fileLatestUpAt[fIdx] || f.ua,
+			uploaded_by: uploader,
+			uploaded_by_full_name: uploader,
+			primary_type: types[0] || "shared_attachment",
+			primary_type_label: typeLabels[0] || ASA_TYPE_LABELS[3],
+			attachment_types: types,
+			attachment_type_labels: typeLabels,
+			preview_url: canPreview
+				? `/api/method/archive.api.swift_attachments_report.serve_attachment?file_url=${encodedUrl}&mode=preview`
+				: "",
+			download_url: canDownload
+				? `/api/method/archive.api.swift_attachments_report.serve_attachment?file_url=${encodedUrl}&mode=download`
+				: "",
+			zip_prefix: asa_build_zip_prefix(op),
+			operation_name: op.n,
+			operation_no: op.no,
+			fiscal_year: op.fy,
+			year_short: op.ys,
+			customer: op.cu,
+			beneficiary_name: op.bn,
+			beneficiary_account: op.ba,
+			beneficiary_bank: op.bb,
+			swift_code: op.sw,
+			country: op.co,
+			sender_name: op.sn,
+			sender_account: op.sa,
+			transferring_bank: op.tb,
+			from_account: op.fa,
+			reference_no: op.rf,
+			amount: op.am,
+			currency: op.cr,
+			status: op.st,
+			execution_datetime: op.ex,
+			is_blocked_operation: Boolean(op.bl),
+			linked_count: this._fileLinkedCount[fIdx],
 		};
 	}
 
@@ -831,9 +868,8 @@ class ArchiveSwiftAttachmentsPage {
 
 		this.fiscal_context = null;
 		this.max_zip_bytes = Math.floor(1.5 * 1024 * 1024 * 1024);
-		this.rows = [];
-		this.rows_by_key = new Map();
-		this.selected_items = new Map(); // dedup_key -> row snapshot
+		this.page_file_indices = [];
+		this.selected_items = new Map(); // dedup_key -> lightweight selection payload
 		this.total = 0;
 		this.total_pages = 1;
 
@@ -844,12 +880,15 @@ class ArchiveSwiftAttachmentsPage {
 
 		this.hidden_columns = this.load_hidden_columns();
 		this.engine = new SwiftAttachmentsLocalEngine();
+		this.virtual_table = null;
 		this.pagination = null;
 		this.filter_controller = null;
 		this.file_viewer = null;
 		this.search_timer = null;
 		this._load_request_id = 0;
-		this._render_token = 0;
+		this._render_cols = [];
+		this._render_show_check = false;
+		this._col_min_widths = [];
 		this._initialized = false;
 
 		this._amount_formatter = new Intl.NumberFormat("en-US", {
@@ -1048,12 +1087,57 @@ class ArchiveSwiftAttachmentsPage {
 		});
 
 		this.mount_pagination();
+		this.mount_virtual_table();
 		this.mount_filter_controller();
 		this.render_columns_menu();
 		this.bind_events();
 
 		await this.load_snapshot({ force_refresh: false, initial: true });
 		this._initialized = true;
+	}
+
+	mount_virtual_table() {
+		if (this.virtual_table) {
+			this.virtual_table.destroy();
+			this.virtual_table = null;
+		}
+		const scroll_el = this.wrapper.querySelector('[data-role="table-scroll"]');
+		const tbody_el = this.wrapper.querySelector('[data-role="table-body"]');
+		if (!scroll_el || !tbody_el || !window.custom?.data_grid?.VirtualTableRenderer) {
+			return;
+		}
+		this.virtual_table = new custom.data_grid.VirtualTableRenderer({
+			scroll_el,
+			tbody_el,
+			row_selector: "tr.asa-data-row",
+			row_height: 58,
+			overscan: 14,
+			threshold: 150,
+			get_col_count: () => (this._render_cols?.length || 1) + (this._render_show_check ? 1 : 0),
+			render_row: (fIdx) => {
+				const row = this.engine.materialize_row(fIdx, this.permissions);
+				return row ? this.build_row_html(row, this._render_cols, this._render_show_check) : "";
+			},
+			on_rendered: ({ virtualized }) => {
+				if (virtualized) {
+					this.lock_column_watermarks();
+				}
+			},
+		});
+	}
+
+	lock_column_watermarks() {
+		const headRow = this.wrapper.querySelector('[data-role="table-head"] tr');
+		if (!headRow) return;
+		const ths = headRow.children;
+		for (let i = 0; i < ths.length; i++) {
+			const w = ths[i].offsetWidth;
+			const prev = this._col_min_widths[i] || 0;
+			if (w > prev) {
+				this._col_min_widths[i] = w;
+				ths[i].style.minWidth = `${w}px`;
+			}
+		}
 	}
 
 	mount_pagination() {
@@ -1221,8 +1305,7 @@ class ArchiveSwiftAttachmentsPage {
 
 		if (!initial && Array.isArray(this.state.fiscal_years) && this.state.fiscal_years.length === 0) {
 			this.engine.clear();
-			this.rows = [];
-			this.rows_by_key.clear();
+			this.page_file_indices = [];
 			this.selected_items.clear();
 			this.total = 0;
 			this.total_pages = 1;
@@ -1310,21 +1393,23 @@ class ArchiveSwiftAttachmentsPage {
 			page: this.state.page,
 			page_length: this.state.page_length,
 			permissions: this.permissions,
+			materialize: false,
 		});
 
-		this.rows = res.rows;
-		this.rows_by_key.clear();
-		for (let i = 0; i < this.rows.length; i++) {
-			const row = this.rows[i];
-			this.rows_by_key.set(row.dedup_key, row);
-		}
+		this.page_file_indices = Array.isArray(res.page_file_indices) ? res.page_file_indices : [];
 		this.total = res.total;
 		this.total_pages = res.total_pages;
 		this.state.page = res.page;
 
-		for (const [key] of this.selected_items) {
-			if (this.rows_by_key.has(key)) {
-				this.selected_items.set(key, this.rows_by_key.get(key));
+		if (this.selected_items.size > 0) {
+			for (const [key] of this.selected_items) {
+				const fIdx = this.engine.get_file_idx_by_key(key);
+				if (fIdx !== -1) {
+					const payload = this.engine.get_selection_payload(fIdx);
+					if (payload) {
+						this.selected_items.set(key, payload);
+					}
+				}
 			}
 		}
 
@@ -1428,7 +1513,23 @@ class ArchiveSwiftAttachmentsPage {
 			cells += `<td>${this.render_cell(cols[i].key, row)}</td>`;
 		}
 
-		return `<tr class="${isSelected ? "is-selected" : ""}" data-key="${keyEsc}">${cells}</tr>`;
+		return `<tr class="asa-data-row ${isSelected ? "is-selected" : ""}" data-key="${keyEsc}">${cells}</tr>`;
+	}
+
+	is_all_page_selected() {
+		const indices = this.page_file_indices;
+		const len = indices.length;
+		if (!len || this.selected_items.size < len) {
+			return false;
+		}
+		const files = this.engine.files;
+		for (let i = 0; i < len; i++) {
+			const f = files[indices[i]];
+			if (!f || !this.selected_items.has(f.k)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	update_meta_ui() {
@@ -1444,16 +1545,17 @@ class ArchiveSwiftAttachmentsPage {
 		this.sync_selection_ui();
 	}
 
-	render_table() {
+	render_table({ preserve_scroll = false } = {}) {
 		const cols = this.get_visible_columns();
 		const showCheck = Boolean(this.permissions.can_zip);
+		this._render_cols = cols;
+		this._render_show_check = showCheck;
+		this._col_min_widths = [];
+
 		const $head = $(this.wrapper).find('[data-role="table-head"]');
 		const $body = $(this.wrapper).find('[data-role="table-body"]');
 
-		const allPageSelected =
-			showCheck &&
-			this.rows.length > 0 &&
-			this.rows.every((r) => this.selected_items.has(r.dedup_key));
+		const allPageSelected = showCheck && this.is_all_page_selected();
 
 		let headHtml = "<tr>";
 		if (showCheck) {
@@ -1482,7 +1584,10 @@ class ArchiveSwiftAttachmentsPage {
 		headHtml += "</tr>";
 		$head.html(headHtml);
 
-		if (!this.rows.length) {
+		if (!this.page_file_indices.length) {
+			if (this.virtual_table) {
+				this.virtual_table.set_rows([], { preserve_scroll: false, force: true });
+			}
 			const colspan = cols.length + (showCheck ? 1 : 0);
 			$body.html(`
 				<tr>
@@ -1502,45 +1607,23 @@ class ArchiveSwiftAttachmentsPage {
 			return;
 		}
 
-		const renderToken = ++this._render_token;
-		const totalRows = this.rows.length;
-		const CHUNK_FIRST = 250;
-		const CHUNK_NEXT = 350;
-
-		if (totalRows <= CHUNK_FIRST) {
-			let html = "";
-			for (let i = 0; i < totalRows; i++) {
-				html += this.build_row_html(this.rows[i], cols, showCheck);
-			}
-			$body.html(html);
+		if (this.virtual_table) {
+			this.virtual_table.set_rows(this.page_file_indices, {
+				preserve_scroll,
+				force: true,
+			});
 			return;
 		}
 
-		// Non-blocking chunked render when viewing "كافة السجلات" with thousands of rows
-		let firstHtml = "";
-		for (let i = 0; i < CHUNK_FIRST; i++) {
-			firstHtml += this.build_row_html(this.rows[i], cols, showCheck);
+		// Fallback if VirtualTableRenderer is unavailable
+		const totalRows = this.page_file_indices.length;
+		const limit = Math.min(totalRows, 500);
+		let html = "";
+		for (let i = 0; i < limit; i++) {
+			const row = this.engine.materialize_row(this.page_file_indices[i], this.permissions);
+			if (row) html += this.build_row_html(row, cols, showCheck);
 		}
-		$body.html(firstHtml);
-
-		let cursor = CHUNK_FIRST;
-		const tbodyEl = $body[0];
-		const appendChunk = () => {
-			if (renderToken !== this._render_token || !tbodyEl) {
-				return;
-			}
-			const end = Math.min(totalRows, cursor + CHUNK_NEXT);
-			let chunkHtml = "";
-			for (let i = cursor; i < end; i++) {
-				chunkHtml += this.build_row_html(this.rows[i], cols, showCheck);
-			}
-			tbodyEl.insertAdjacentHTML("beforeend", chunkHtml);
-			cursor = end;
-			if (cursor < totalRows) {
-				window.requestAnimationFrame(appendChunk);
-			}
-		};
-		window.requestAnimationFrame(appendChunk);
+		$body.html(html);
 	}
 
 	render_cell(colKey, row) {
@@ -1725,10 +1808,7 @@ class ArchiveSwiftAttachmentsPage {
 
 		const $selectAll = $(this.wrapper).find('[data-role="select-all"]');
 		if ($selectAll.length) {
-			const allPage =
-				this.rows.length > 0 &&
-				this.rows.every((r) => this.selected_items.has(r.dedup_key));
-			$selectAll.prop("checked", allPage);
+			$selectAll.prop("checked", this.is_all_page_selected());
 		}
 	}
 
@@ -1744,16 +1824,38 @@ class ArchiveSwiftAttachmentsPage {
 			return;
 		}
 
-		const previewable = this.rows
-			.filter((r) => Boolean(r.preview_url))
-			.map((r) => ({
+		const clickedFIdx = this.engine.get_file_idx_by_key(dedupKey);
+		if (clickedFIdx === -1) {
+			return;
+		}
+
+		// Windowed preview list (max 400 surrounding items) so opening preview inside 35,000+ rows is <2ms
+		const indices = this.page_file_indices;
+		const pos = indices.indexOf(clickedFIdx);
+		let sliceIndices;
+		if (pos === -1) {
+			sliceIndices = [clickedFIdx];
+		} else if (indices.length <= 400) {
+			sliceIndices = indices;
+		} else {
+			const start = Math.max(0, pos - 200);
+			const end = Math.min(indices.length, start + 400);
+			sliceIndices = indices.slice(start, end);
+		}
+
+		const previewable = [];
+		for (let i = 0; i < sliceIndices.length; i++) {
+			const r = this.engine.materialize_row(sliceIndices[i], this.permissions);
+			if (!r || !r.preview_url) continue;
+			previewable.push({
 				key: r.dedup_key,
 				file_name: r.file_name,
 				file_url: r.preview_url,
 				open_url: r.preview_url,
 				download_url: this.permissions.can_download ? r.download_url : "",
 				file_kind: r.file_kind,
-			}));
+			});
+		}
 
 		const startIndex = previewable.findIndex((item) => item.key === dedupKey);
 		if (startIndex === -1) {
@@ -1766,7 +1868,11 @@ class ArchiveSwiftAttachmentsPage {
 	}
 
 	open_linked_operations_dialog(dedupKey) {
-		const row = this.rows_by_key.get(dedupKey);
+		const fIdx = this.engine.get_file_idx_by_key(dedupKey);
+		if (fIdx === -1) {
+			return;
+		}
+		const row = this.engine.materialize_row(fIdx, this.permissions);
 		if (!row) {
 			return;
 		}
@@ -2043,14 +2149,14 @@ class ArchiveSwiftAttachmentsPage {
 				this.hidden_columns.add(key);
 			}
 			this.save_hidden_columns();
-			this.render_table();
+			this.render_table({ preserve_scroll: true });
 		});
 
 		$w.on("click", '[data-role="columns-reset"]', () => {
 			this.hidden_columns = this.get_default_hidden_columns();
 			this.save_hidden_columns();
 			this.render_columns_menu();
-			this.render_table();
+			this.render_table({ preserve_scroll: true });
 		});
 
 		// Close dropdowns on outside click
@@ -2074,18 +2180,27 @@ class ArchiveSwiftAttachmentsPage {
 			this.run_local_query();
 		});
 
-		// Selection checkboxes
+		// Selection checkboxes (O(1) per visible row; lightweight payload on select-all even for 35K rows)
 		$w.on("change", '[data-role="select-all"]', (e) => {
 			const checked = $(e.currentTarget).prop("checked");
-			for (const row of this.rows) {
+			const indices = this.page_file_indices;
+			const files = this.engine.files;
+			for (let i = 0; i < indices.length; i++) {
+				const fIdx = indices[i];
 				if (checked) {
-					this.selected_items.set(row.dedup_key, row);
+					const payload = this.engine.get_selection_payload(fIdx);
+					if (payload) {
+						this.selected_items.set(payload.dedup_key, payload);
+					}
 				} else {
-					this.selected_items.delete(row.dedup_key);
+					const f = files[fIdx];
+					if (f) {
+						this.selected_items.delete(f.k);
+					}
 				}
 			}
 			$w.find('[data-role="row-check"]').prop("checked", checked);
-			$w.find('[data-role="table-body"] tr').toggleClass("is-selected", checked);
+			$w.find('[data-role="table-body"] tr.asa-data-row').toggleClass("is-selected", checked);
 			this.sync_selection_ui();
 		});
 
@@ -2093,9 +2208,12 @@ class ArchiveSwiftAttachmentsPage {
 			const $cb = $(e.currentTarget);
 			const key = $cb.attr("data-key");
 			const checked = $cb.prop("checked");
-			const row = this.rows_by_key.get(key);
-			if (checked && row) {
-				this.selected_items.set(key, row);
+			if (checked) {
+				const fIdx = this.engine.get_file_idx_by_key(key);
+				const payload = fIdx !== -1 ? this.engine.get_selection_payload(fIdx) : null;
+				if (payload) {
+					this.selected_items.set(key, payload);
+				}
 			} else {
 				this.selected_items.delete(key);
 			}
