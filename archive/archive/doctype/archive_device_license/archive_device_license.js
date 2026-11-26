@@ -453,11 +453,11 @@ function render_device_license_control_center(frm, viewCtx) {
 								</span>
 								<span class="adl-hero__meta-item">
 									<span class="adl-icon">${ADL_ICONS.network}</span>
-									<span>بطاقة الشبكة: <strong style="color:#e2e8f0;">${adlEscape(doc.interface_name || "—")}</strong></span>
+									<span>بطاقة الشبكة: <strong>${adlEscape(doc.interface_name || "—")}</strong></span>
 								</span>
 								<span class="adl-hero__meta-item">
 									<span class="adl-icon">${ADL_ICONS.clock}</span>
-									<span>آخر ظهور: <strong style="color:#e2e8f0;">${adlEscape(adlFormatDt(doc.last_seen))}</strong></span>
+									<span>آخر ظهور: <strong>${adlEscape(adlFormatDt(doc.last_seen))}</strong></span>
 								</span>
 							</div>
 						</div>

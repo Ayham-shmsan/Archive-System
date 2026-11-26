@@ -51,6 +51,7 @@
             labels:
                 new Set([
                     "العمليات",
+                    "إدارة الحوالات الخارجية SWIFT",
                     "Operations",
                 ]),
 
@@ -71,12 +72,13 @@
             labels:
                 new Set([
                     "البيانات الأساسية",
+                    "دليل النظام",
                     "Master Data",
                     "Masters",
                 ]),
 
             icon:
-                "folder-normal",
+                "book-open",
 
             routes: [
                 "archive-account",
@@ -809,9 +811,13 @@
                         frappe?.boot?.archive_screen_access || {};
 
                     const matched_screen =
-                        href.includes("archive-pending-operations") || label === "العمليات المعلقة"
+                        href.includes("archive-pending-operations")
+                        || label === "العمليات المعلقة"
+                        || label === "الإيداعات المعلقة"
                             ? "archive-pending-operations"
-                            : href.includes("archive-operations") || label === "العمليات"
+                            : href.includes("archive-operations")
+                            || label === "العمليات"
+                            || label === "حوالات سويفت"
                             ? "archive-operations"
                             : href.includes("archive-cards") || label === "البطاقات"
                             ? "archive-cards"
@@ -919,6 +925,20 @@
 
                     if (!label) {
                         return;
+                    }
+
+
+                    const label_text =
+                        String(
+                            label.textContent
+                            || ""
+                        ).trim();
+
+                    if (label_text) {
+                        header.setAttribute(
+                            "title",
+                            label_text
+                        );
                     }
 
 
@@ -1032,11 +1052,15 @@
                         const current_href = String(
                             anchor.getAttribute("href") || ""
                         );
-                        const target_href = current_href.startsWith("/app/")
-                            ? "/app/archive-settings"
-                            : "/desk/archive-settings";
-                        if (href.includes("system-settings") || !href.includes("archive-settings")) {
+                        const path_prefix = String(
+                            window.location.pathname || ""
+                        ).startsWith("/app/") || current_href.startsWith("/app/")
+                            ? "/app/"
+                            : "/desk/";
+                        const target_href = `${path_prefix}archive-settings`;
+                        if (current_href !== target_href) {
                             anchor.setAttribute("href", target_href);
+                            window.frappe?.app?.sidebar?.set_active_workspace_item?.();
                         }
                         if (!anchor.dataset.archiveSettingsBound) {
                             anchor.dataset.archiveSettingsBound = "1";
@@ -1047,7 +1071,15 @@
                                     event.stopPropagation();
                                     event.stopImmediatePropagation();
                                     if (typeof window.frappe?.set_route === "function") {
-                                        window.frappe.set_route("Form", "Archive Settings");
+                                        Promise.resolve(
+                                            window.frappe.set_route("Form", "Archive Settings")
+                                        ).then(() => {
+                                            window.frappe?.app?.sidebar?.set_active_workspace_item?.();
+                                        });
+                                        window.frappe?.app?.sidebar?.set_active_workspace_item?.();
+                                        if (window.frappe?.is_mobile?.()) {
+                                            window.frappe?.app?.sidebar?.close?.();
+                                        }
                                     } else {
                                         window.location.assign(target_href);
                                     }
@@ -1107,10 +1139,37 @@
             >= 2
         ) {
 
-            lines[
-                lines.length - 1
-            ].textContent =
+            const name_el =
+                lines[0];
+
+            const role_el =
+                lines[
+                    lines.length - 1
+                ];
+
+            const role_label =
                 get_role_label();
+
+            role_el.textContent =
+                role_label;
+
+            role_el.setAttribute(
+                "title",
+                role_label
+            );
+
+            const name_text =
+                String(
+                    name_el?.textContent
+                    || ""
+                ).trim();
+
+            if (name_text) {
+                name_el.setAttribute(
+                    "title",
+                    name_text
+                );
+            }
         }
 
 
@@ -1547,6 +1606,14 @@
             .archiveViewport =
                 state.environment
                     .viewport;
+
+
+        if (state.container) {
+            state.container.dataset
+                .archiveViewport =
+                    state.environment
+                        .viewport;
+        }
 
 
         sidebar.dataset

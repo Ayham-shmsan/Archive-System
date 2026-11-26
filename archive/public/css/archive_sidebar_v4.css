@@ -21,16 +21,16 @@
 :root {
     --archive-sidebar-expanded-width:
         clamp(
-            236px,
-            17.5vw,
-            272px
+            264px,
+            18.5vw,
+            290px
         );
 
     --archive-sidebar-tablet-width:
         clamp(
-            218px,
+            248px,
             28vw,
-            246px
+            272px
         );
 
     --archive-sidebar-compact-width:
@@ -112,6 +112,10 @@
 
     min-height:
         0;
+
+
+    padding:
+        0 !important;
 
 
     overflow:
@@ -325,7 +329,7 @@
 
 
     padding:
-        0 12px 18px !important;
+        0 10px 18px !important;
 
 
     overflow-x:
@@ -667,11 +671,11 @@ html:not(
 
 
     gap:
-        8px;
+        6px;
 
 
     padding:
-        4px 7px !important;
+        4px 6px !important;
 
 
     border:
@@ -693,10 +697,10 @@ html:not(
 
 
     font-size:
-        11.5px !important;
+        12px !important;
 
     font-weight:
-        650 !important;
+        700 !important;
 
 
     cursor:
@@ -713,6 +717,35 @@ html:not(
     transition:
         background 130ms ease,
         color 130ms ease;
+}
+
+
+.archive-sidebar-v3
+.item-anchor.section-break
+.sidebar-item-label {
+    min-width:
+        0;
+
+    margin:
+        0 !important;
+
+    font-size:
+        12px !important;
+
+    font-weight:
+        700 !important;
+
+    line-height:
+        1.35;
+
+    overflow:
+        hidden;
+
+    white-space:
+        nowrap;
+
+    text-overflow:
+        ellipsis;
 }
 
 
@@ -815,10 +848,10 @@ svg {
 .section-item
 .drop-icon:not(.hidden) {
     width:
-        24px;
+        20px !important;
 
     height:
-        24px;
+        20px !important;
 
 
     display:
@@ -829,7 +862,7 @@ svg {
 
 
     flex:
-        0 0 24px;
+        0 0 20px !important;
 
 
     padding:
@@ -1075,6 +1108,11 @@ svg {
     min-width:
         0;
 
+    margin:
+        0 !important;
+
+    font-size:
+        12.5px !important;
 
     overflow:
         hidden;
@@ -2144,6 +2182,12 @@ svg {
    TABLET
    ============================================================ */
 
+.body-sidebar-container[
+    data-archive-viewport="tablet"
+],
+.body-sidebar-container:has(
+    > .archive-sidebar-v3[data-archive-viewport="tablet"]
+),
 .archive-sidebar-v3[
     data-archive-viewport="tablet"
 ] {

@@ -52,15 +52,15 @@ use_json_request_body = True
 # app_include_css = "/assets/archive/css/archive.css"
 app_include_css = [
     "/assets/archive/css/shared/archive_tokens.css",
-    "/assets/archive/css/archive_sidebar_v4.css",
+    "/assets/archive/css/archive_sidebar_v4.css?v=20261126",
     "/assets/archive/css/user_archive_roles.css?v=20261118",
     "/assets/archive/css/archive_backup_settings.css?v=20261126c",
-    "/assets/archive/css/archive_device_license.css?v=20261126b",
+    "/assets/archive/css/archive_device_license.css?v=20261126c",
 ]
 # app_include_js = "/assets/archive/js/archive.js"
 app_include_js = [
     "/assets/archive/js/country_list.js",
-    "/assets/archive/js/archive_sidebar_v4.js?v=20261126",
+    "/assets/archive/js/archive_sidebar_v4.js?v=20261126e",
     "/assets/archive/js/user_archive_roles.js?v=20261126b",
 ]
 

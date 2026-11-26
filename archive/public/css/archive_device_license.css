@@ -120,40 +120,25 @@
 }
 
 /* =====================================================================
-   1. EXECUTIVE OBSIDIAN HERO BANNER
+   1. EXECUTIVE LIGHT HERO BANNER
    ===================================================================== */
 
 .adl-hero {
 	position: relative;
 	overflow: hidden;
-	border-radius: 18px;
-	border: 1px solid rgba(56, 189, 248, 0.22);
-	background:
-		radial-gradient(90% 120% at 92% 0%, rgba(14, 165, 233, 0.2), transparent 58%),
-		radial-gradient(80% 100% at 8% 100%, rgba(20, 184, 166, 0.16), transparent 55%),
-		linear-gradient(145deg, #061326 0%, #0a1f3d 52%, #07162e 100%);
-	color: #f8fafc;
-	padding: 22px 26px;
+	border-radius: 16px;
+	border: 1px solid #dbe3ee;
+	border-top: 3px solid #0d9488;
+	background: #ffffff;
+	color: #0f172a;
+	padding: 20px 24px;
 	box-shadow:
-		0 16px 40px rgba(7, 22, 46, 0.2),
-		0 4px 12px rgba(7, 22, 46, 0.1);
+		0 4px 18px rgba(15, 23, 42, 0.05),
+		0 1px 3px rgba(15, 23, 42, 0.03);
 }
 
 .adl-hero::before {
-	content: "";
-	position: absolute;
-	top: 0;
-	inset-inline: 12%;
-	height: 1.5px;
-	background: linear-gradient(
-		90deg,
-		transparent 0%,
-		rgba(56, 189, 248, 0.6) 30%,
-		rgba(245, 196, 81, 0.78) 50%,
-		rgba(45, 212, 191, 0.6) 70%,
-		transparent 100%
-	);
-	pointer-events: none;
+	display: none;
 }
 
 .adl-hero__top {
@@ -169,41 +154,42 @@
 .adl-hero__identity {
 	display: flex;
 	align-items: center;
-	gap: 16px;
+	gap: 15px;
 	min-width: 0;
 }
 
 .adl-hero__emblem {
-	width: 56px;
-	height: 56px;
-	border-radius: 15px;
+	width: 52px;
+	height: 52px;
+	border-radius: 14px;
 	display: grid;
 	place-items: center;
 	flex-shrink: 0;
-	border: 1px solid rgba(125, 211, 252, 0.28);
-	background: linear-gradient(145deg, rgba(14, 165, 233, 0.22), rgba(20, 184, 166, 0.18));
-	color: #5eead4;
-	box-shadow:
-		0 10px 24px rgba(2, 8, 20, 0.45),
-		inset 0 1px 0 rgba(255, 255, 255, 0.15);
+	border: 1px solid #99f6e4;
+	background: linear-gradient(145deg, #f0fdfa 0%, #ccfbf1 100%);
+	color: #0f766e;
+	box-shadow: 0 3px 10px rgba(15, 118, 110, 0.1);
 }
 
 .adl-hero__emblem--pending {
-	border-color: rgba(251, 191, 36, 0.36);
-	background: linear-gradient(145deg, rgba(245, 158, 11, 0.22), rgba(217, 119, 6, 0.14));
-	color: #fcd34d;
+	border-color: #fde68a;
+	background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 100%);
+	color: #b45309;
+	box-shadow: 0 3px 10px rgba(180, 83, 9, 0.08);
 }
 
 .adl-hero__emblem--suspended {
-	border-color: rgba(251, 191, 36, 0.36);
-	background: linear-gradient(145deg, rgba(234, 179, 8, 0.22), rgba(180, 83, 9, 0.16));
-	color: #fde047;
+	border-color: #fde047;
+	background: linear-gradient(145deg, #fefce8 0%, #fef9c3 100%);
+	color: #a16207;
+	box-shadow: 0 3px 10px rgba(161, 98, 7, 0.08);
 }
 
 .adl-hero__emblem--danger {
-	border-color: rgba(248, 113, 113, 0.42);
-	background: linear-gradient(145deg, rgba(239, 68, 68, 0.25), rgba(185, 28, 28, 0.16));
-	color: #fca5a5;
+	border-color: #fecaca;
+	background: linear-gradient(145deg, #fef2f2 0%, #fee2e2 100%);
+	color: #b91c1c;
+	box-shadow: 0 3px 10px rgba(185, 28, 28, 0.08);
 }
 
 .adl-hero__title-row {
@@ -215,9 +201,9 @@
 
 .adl-hero__title {
 	margin: 0;
-	font-size: 20px;
+	font-size: 19px;
 	font-weight: 800;
-	color: #ffffff;
+	color: #0f172a;
 	letter-spacing: -0.2px;
 }
 
@@ -227,9 +213,9 @@
 	gap: 8px;
 	padding: 4px 10px 4px 6px;
 	border-radius: 9px;
-	border: 1px dashed rgba(45, 212, 191, 0.36);
-	background: rgba(4, 13, 29, 0.56);
-	color: #e2e8f0;
+	border: 1px dashed #cbd5e1;
+	background: #f8fafc;
+	color: #0f172a;
 	font-size: 12px;
 	font-weight: 700;
 }
@@ -240,17 +226,18 @@
 	justify-content: center;
 	width: 24px;
 	height: 24px;
-	border: 0;
+	border: 1px solid #e2e8f0;
 	border-radius: 6px;
-	background: rgba(255, 255, 255, 0.08);
-	color: #99f6e4;
+	background: #ffffff;
+	color: #0f766e;
 	cursor: pointer;
-	transition: background 130ms ease, color 130ms ease;
+	transition: background 130ms ease, color 130ms ease, border-color 130ms ease;
 }
 
 .adl-copy-mini:hover {
-	background: rgba(45, 212, 191, 0.24);
-	color: #ffffff;
+	background: #f0fdfa;
+	border-color: #99f6e4;
+	color: #0d5e58;
 }
 
 .adl-hero__meta {
@@ -259,8 +246,12 @@
 	align-items: center;
 	flex-wrap: wrap;
 	gap: 14px;
-	color: #94a3b8;
+	color: #64748b;
 	font-size: 12px;
+}
+
+.adl-hero__meta strong {
+	color: #0f172a;
 }
 
 .adl-hero__meta-item {
@@ -299,32 +290,32 @@
 }
 
 .adl-pill--active {
-	background: rgba(16, 185, 129, 0.16);
-	color: #6ee7b7;
-	border-color: rgba(52, 211, 153, 0.34);
+	background: #ecfdf5;
+	color: #047857;
+	border-color: #a7f3d0;
 }
 
 .adl-pill--active .adl-pill__dot {
-	box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+	box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.16);
 }
 
 .adl-pill--pending {
-	background: rgba(245, 158, 11, 0.18);
-	color: #fcd34d;
-	border-color: rgba(251, 191, 36, 0.36);
+	background: #fffbeb;
+	color: #b45309;
+	border-color: #fde68a;
 }
 
 .adl-pill--suspended {
-	background: rgba(234, 179, 8, 0.18);
-	color: #fde047;
-	border-color: rgba(250, 204, 21, 0.36);
+	background: #fefce8;
+	color: #a16207;
+	border-color: #fde047;
 }
 
 .adl-pill--mismatch,
 .adl-pill--revoked {
-	background: rgba(239, 68, 68, 0.18);
-	color: #fca5a5;
-	border-color: rgba(248, 113, 113, 0.38);
+	background: #fef2f2;
+	color: #b91c1c;
+	border-color: #fecaca;
 }
 
 /* Light-surface Status Pills (Tables & Cards) */
@@ -398,15 +389,15 @@
 }
 
 .adl-hero-alert--warn {
-	border: 1px solid rgba(251, 191, 36, 0.35);
-	background: rgba(245, 158, 11, 0.14);
-	color: #fef3c7;
+	border: 1px solid #fde68a;
+	background: #fffbeb;
+	color: #92400e;
 }
 
 .adl-hero-alert--danger {
-	border: 1px solid rgba(248, 113, 113, 0.38);
-	background: rgba(239, 68, 68, 0.16);
-	color: #fee2e2;
+	border: 1px solid #fecaca;
+	background: #fef2f2;
+	color: #991b1b;
 }
 
 .adl-hero-alert__body {
@@ -473,33 +464,37 @@
 }
 
 .adl-btn--amber-ghost {
-	background: rgba(245, 158, 11, 0.14);
-	border-color: rgba(251, 191, 36, 0.36);
-	color: #fde68a;
+	background: #fffbeb;
+	border-color: #fde68a;
+	color: #b45309;
 }
 
 .adl-btn--amber-ghost:hover {
-	background: rgba(245, 158, 11, 0.25);
+	background: #fef3c7;
+	border-color: #fcd34d;
 }
 
 .adl-btn--danger-ghost {
-	background: rgba(239, 68, 68, 0.14);
-	border-color: rgba(248, 113, 113, 0.36);
-	color: #fecaca;
+	background: #fef2f2;
+	border-color: #fecaca;
+	color: #b91c1c;
 }
 
 .adl-btn--danger-ghost:hover {
-	background: rgba(239, 68, 68, 0.26);
+	background: #fee2e2;
+	border-color: #fca5a5;
 }
 
 .adl-btn--glass {
-	background: rgba(255, 255, 255, 0.08);
-	border-color: rgba(255, 255, 255, 0.16);
-	color: #e2e8f0;
+	background: #f8fafc;
+	border-color: #cbd5e1;
+	color: #334155;
 }
 
 .adl-btn--glass:hover {
-	background: rgba(255, 255, 255, 0.16);
+	background: #f1f5f9;
+	border-color: #94a3b8;
+	color: #0f172a;
 }
 
 .adl-btn--soft-green {
