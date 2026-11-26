@@ -478,7 +478,7 @@ def _fetch_masters() -> dict[str, list[dict[str, Any]]]:
 @frappe.whitelist()
 def get_cards_context(
 	page: int | str = 1,
-	page_size: int | str = 50,
+	page_size: int | str = 100,
 	search: str = "",
 	status: str = "",
 	bank: str = "",
@@ -577,7 +577,7 @@ def get_cards_context(
 		resolved_page = 1
 		limit_clause = ""
 	else:
-		num_page_size = max(1, min(cint(page_size or 50), 1000))
+		num_page_size = max(1, min(cint(page_size or 100), 1000))
 		resolved_page_size = num_page_size
 		total_pages = max(1, (total_count + num_page_size - 1) // num_page_size)
 		resolved_page = max(1, min(cint(page or 1), total_pages))

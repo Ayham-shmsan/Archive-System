@@ -3323,7 +3323,7 @@ def get_deposits_context(
 	region: str = "",
 	card_owner: str = "",
 	page: int | str = 1,
-	page_size: int | str = 50,
+	page_size: int | str = 100,
 	sort_by: str = "serial_no",
 	sort_order: str = "desc",
 	fiscal_year: str = "",
@@ -3428,7 +3428,7 @@ def get_deposits_context(
 		resolved_page = 1
 		page_rows = sorted_items
 	else:
-		num_page_size = max(1, min(cint(page_size or 50), 1000))
+		num_page_size = max(1, min(cint(page_size or 100), 1000))
 		resolved_page_size = num_page_size
 		total_pages = max(1, (total_count + num_page_size - 1) // num_page_size)
 		resolved_page = max(1, min(cint(page or 1), total_pages))

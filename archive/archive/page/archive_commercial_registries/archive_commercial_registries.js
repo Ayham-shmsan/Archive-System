@@ -122,7 +122,7 @@ class ArchiveCommercialRegistriesScreen {
 
 		this.pagination = {
 			page: 1,
-			page_size: 50,
+			page_size: 100,
 			total_count: 0,
 			total_pages: 1,
 		};
@@ -339,7 +339,7 @@ class ArchiveCommercialRegistriesScreen {
 				allowed_page_lengths: lengths,
 				on_change: async ({ page, page_length }) => {
 					this.pagination.page = page;
-					this.pagination.page_size = page_length === "all" ? "all" : Number(page_length) || 50;
+					this.pagination.page_size = page_length === "all" ? "all" : Number(page_length) || 100;
 					this.load_data({ preserve_selection: false });
 				},
 			});
@@ -348,11 +348,11 @@ class ArchiveCommercialRegistriesScreen {
 	}
 
 	render_pagination() {
-		const p = this.pagination || { page: 1, page_size: 50, total_count: 0, total_pages: 1 };
+		const p = this.pagination || { page: 1, page_size: 100, total_count: 0, total_pages: 1 };
 		if (this.pagination_bar && typeof this.pagination_bar.update === "function") {
 			this.pagination_bar.update({
 				page: p.page,
-				page_length: String(p.page_size ?? 50),
+				page_length: String(p.page_size ?? 100),
 				total_rows: p.total_count,
 				total_pages: p.total_pages,
 			});
@@ -632,7 +632,7 @@ class ArchiveCommercialRegistriesScreen {
 				if (data.pagination) {
 					this.pagination = {
 						page: Number(data.pagination.page || this.pagination.page || 1),
-						page_size: data.pagination.page_size ?? this.pagination.page_size ?? 50,
+						page_size: data.pagination.page_size ?? this.pagination.page_size ?? 100,
 						total_count: Number(data.pagination.total_count ?? this.total_count ?? 0),
 						total_pages: Number(data.pagination.total_pages || 1),
 					};

@@ -194,7 +194,7 @@ class ArchiveDepositsPage {
 				card_owner: "",
 			},
 			page: 1,
-			page_size: 50,
+			page_size: 100,
 			sort_by: "serial_no",
 			sort_order: "desc",
 			filter_drawer_open: false,
@@ -217,7 +217,7 @@ class ArchiveDepositsPage {
 			total_daily_target_formatted: "0",
 			target_is_frozen: false,
 		};
-		this.pagination = { page: 1, page_size: 50, total_count: 0, total_pages: 1 };
+		this.pagination = { page: 1, page_size: 100, total_count: 0, total_pages: 1 };
 		this.masters = { banks: [], representatives: [], regions: [], card_owners: [] };
 		this.permissions = {
 			can_view: false,
@@ -3009,7 +3009,7 @@ class ArchiveDepositsPage {
 		const remaining = acct_state.remaining;
 
 		if (key === "serial_no") {
-			const raw_ps = this.pagination?.page_size ?? this.state.page_size ?? 50;
+			const raw_ps = this.pagination?.page_size ?? this.state.page_size ?? 100;
 			const cur_page = Math.max(1, Number(this.pagination?.page || this.state.page || 1));
 			const page_offset =
 				String(raw_ps).toLowerCase() === "all" || Number(raw_ps) <= 0
@@ -3303,7 +3303,7 @@ class ArchiveDepositsPage {
 			allowed_page_lengths: lengths,
 			on_change: async ({ page, page_length }) => {
 				this.state.page = page;
-				this.state.page_size = page_length === "all" ? "all" : Number(page_length) || 50;
+				this.state.page_size = page_length === "all" ? "all" : Number(page_length) || 100;
 				await this.load_context(true);
 			},
 		});
@@ -3311,10 +3311,10 @@ class ArchiveDepositsPage {
 	}
 
 	render_pagination() {
-		const p = this.pagination || { page: 1, page_size: 50, total_count: 0, total_pages: 1 };
+		const p = this.pagination || { page: 1, page_size: 100, total_count: 0, total_pages: 1 };
 		this.pagination_bar?.update({
 			page: p.page,
-			page_length: String(p.page_size ?? this.state.page_size ?? 50),
+			page_length: String(p.page_size ?? this.state.page_size ?? 100),
 			total_rows: p.total_count,
 			total_pages: p.total_pages,
 		});

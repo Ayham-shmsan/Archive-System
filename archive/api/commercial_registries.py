@@ -245,7 +245,7 @@ def _get_account_owners_master() -> list[dict[str, str]]:
 @frappe.whitelist()
 def get_commercial_registries_context(
 	page: int | str = 1,
-	page_size: int | str = 50,
+	page_size: int | str = 100,
 	search: str | None = None,
 	search_query: str | None = None,
 	account_owner: str | None = None,
@@ -275,7 +275,7 @@ def get_commercial_registries_context(
 			"total_count": 0,
 			"pagination": {
 				"page": 1,
-				"page_size": 50 if page_size != "all" else "all",
+				"page_size": 100 if page_size != "all" else "all",
 				"total_count": 0,
 				"total_pages": 1,
 			},
@@ -341,9 +341,9 @@ def get_commercial_registries_context(
 	total_count = cint(count_rows[0].get("total") if count_rows else 0)
 
 	is_all = str(page_size).strip().lower() == "all" or cint(page_size) <= 0
-	resolved_page_size = total_count if is_all else max(1, min(cint(page_size) or 50, 1000))
+	resolved_page_size = total_count if is_all else max(1, min(cint(page_size) or 100, 1000))
 	if resolved_page_size <= 0:
-		resolved_page_size = 50
+		resolved_page_size = 100
 
 	total_pages = (
 		1
