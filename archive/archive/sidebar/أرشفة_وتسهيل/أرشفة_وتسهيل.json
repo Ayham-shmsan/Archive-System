@@ -242,9 +242,25 @@
    "open_in_new_tab": 0,
    "show_arrow": 0,
    "type": "Link"
+  },
+  {
+   "added": 0,
+   "child": 1,
+   "collapsible": 0,
+   "hidden": 0,
+   "icon": "monitor-check",
+   "indent": 0,
+   "is_default_module": 0,
+   "keep_closed": 0,
+   "label": "\u062a\u0631\u0627\u062e\u064a\u0635 \u0627\u0644\u0623\u062c\u0647\u0632\u0629",
+   "link_to": "Archive Device License",
+   "link_type": "DocType",
+   "open_in_new_tab": 0,
+   "show_arrow": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-11-06 21:25:00.000000",
+ "modified": "2026-11-26 07:00:00.000000",
  "modified_by": "Administrator",
  "module": "Archive",
  "name": "\u0623\u0631\u0634\u0641\u0629 \u0648\u062a\u0633\u0647\u064a\u0644",

@@ -703,6 +703,7 @@ def has_stop_rule_permission(
 
 
 def get_all_screens_access_map(user: str | None = None) -> dict[str, bool]:
+	from archive.api.device_license import has_device_license_management_role
 	from archive.api.document_authenticity import has_authenticity_screen_access_role
 	from archive.services.card_permissions import has_card_permission
 	from archive.services.commercial_registry_permissions import (
@@ -721,6 +722,7 @@ def get_all_screens_access_map(user: str | None = None) -> dict[str, bool]:
 		"archive-commercial-registries": has_commercial_registries_screen_access_role(
 			user=resolved_user
 		),
+		"archive-device-license": has_device_license_management_role(user=resolved_user),
 	}
 
 
@@ -774,6 +776,10 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 	from archive.services.backup_manager import (
 		BACKUP_LOG_DOCTYPE,
 		ROLE_BACKUP_MANAGEMENT,
+	)
+	from archive.api.device_license import (
+		DEVICE_LICENSE_DOCTYPE,
+		ROLE_DEVICE_LICENSE_MANAGEMENT,
 	)
 
 	deprecated_roles = (
@@ -902,6 +908,14 @@ def get_archive_role_containers_catalog() -> dict[str, Any]:
 			"doctype": BACKUP_LOG_DOCTYPE,
 			"entry_role": ROLE_BACKUP_MANAGEMENT,
 			"roles": [ROLE_BACKUP_MANAGEMENT],
+		},
+		{
+			"id": "device_licenses",
+			"title": "تراخيص الأجهزة",
+			"icon": "monitor-check",
+			"doctype": DEVICE_LICENSE_DOCTYPE,
+			"entry_role": ROLE_DEVICE_LICENSE_MANAGEMENT,
+			"roles": [ROLE_DEVICE_LICENSE_MANAGEMENT],
 		},
 	]
 
@@ -1118,8 +1132,34 @@ def enforce_deposits_request_guard() -> None:
 			require_backup_management_role()
 		return
 
-	# 2. Direct REST v1/v2 access to Archive Card Deposit, Stop Rule, Archive Commercial Registry, or Archive Backup Log
+	# 2. Direct REST v1/v2 access to Archive Card Deposit, Stop Rule, Archive Commercial Registry, Archive Backup Log, or Archive Device License
 	lower_path = raw_path.lower()
+	if (
+		"/api/resource/archive device license event" in lower_path
+		or "/api/v2/document/archive device license event" in lower_path
+	):
+		from archive.api.device_license import require_device_license_management_role
+
+		require_device_license_management_role()
+		if http_method not in ("GET", "HEAD", "OPTIONS"):
+			frappe.throw(
+				_("لا يُسمح بإنشاء أو تعديل أو حذف سجلات أحداث التراخيص عبر REST."),
+				frappe.PermissionError,
+			)
+		return
+	if (
+		"/api/resource/archive device license" in lower_path
+		or "/api/v2/document/archive device license" in lower_path
+	):
+		from archive.api.device_license import require_device_license_management_role
+
+		require_device_license_management_role()
+		if http_method in ("POST", "DELETE"):
+			frappe.throw(
+				_("لا يُسمح بإنشاء أو حذف تراخيص الأجهزة مباشرة عبر REST."),
+				frappe.PermissionError,
+			)
+		return
 	if (
 		"/api/resource/archive backup log" in lower_path
 		or "/api/v2/document/archive backup log" in lower_path
@@ -1207,9 +1247,32 @@ def enforce_deposits_request_guard() -> None:
 			require_commercial_registries_screen_access()
 			return
 
-	# 4. Generic Frappe RPC endpoints querying or mutating Archive Card Deposit, Archive Commercial Registry, Archive Backup Log, or User day limits
+	# 4. Generic Frappe RPC endpoints querying or mutating Archive Card Deposit, Archive Commercial Registry, Archive Backup Log, Archive Device License, or User day limits
 	if raw_path.startswith("/api/method/"):
 		target_doctypes = _extract_request_target_doctypes()
+		if "Archive Device License Event" in target_doctypes:
+			from archive.api.device_license import require_device_license_management_role
+
+			require_device_license_management_role()
+			write_rpc_markers = (
+				"frappe.client.insert",
+				"frappe.client.save",
+				"frappe.client.set_value",
+				"frappe.client.delete",
+				"frappe.client.rename_doc",
+				"frappe.desk.form.save.savedocs",
+			)
+			if any(m in raw_path or cmd_name == m for m in write_rpc_markers):
+				frappe.throw(
+					_("لا يُسمح بإنشاء أو تعديل أو حذف سجلات أحداث التراخيص يدوياً."),
+					frappe.PermissionError,
+				)
+			return
+		if "Archive Device License" in target_doctypes:
+			from archive.api.device_license import require_device_license_management_role
+
+			require_device_license_management_role()
+			return
 		if "Archive Backup Log" in target_doctypes:
 			from archive.services.backup_manager import require_backup_management_role
 

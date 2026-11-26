@@ -200,9 +200,23 @@
     "open_in_new_tab": 0,
     "show_arrow": 0,
     "type": "Link"
+  },
+  {
+    "child": 1,
+    "collapsible": 0,
+    "default_workspace": 0,
+    "icon": "monitor-check",
+    "indent": 0,
+    "keep_closed": 0,
+    "label": "تراخيص الأجهزة",
+    "link_to": "Archive Device License",
+    "link_type": "DocType",
+    "open_in_new_tab": 0,
+    "show_arrow": 0,
+    "type": "Link"
   }
 ],
- "modified": "2026-11-11 00:08:00.000000",
+ "modified": "2026-11-26 07:00:00.000000",
  "modified_by": "Administrator",
  "module": "Archive",
  "name": "Archive",

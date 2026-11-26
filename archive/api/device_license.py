@@ -22,9 +22,8 @@ import frappe
 from frappe import _
 
 from frappe.utils import (
-    now_datetime,
-)
-from frappe.utils import (
+    cint,
+    cstr,
     get_datetime,
     now_datetime,
 )
@@ -43,6 +42,10 @@ from archive.security.device_license import (
 # ============================================================
 
 PROTOCOL_VERSION = 1
+
+ROLE_DEVICE_LICENSE_MANAGEMENT = "صلاحية إدارة تراخيص الأجهزة"
+DEVICE_LICENSE_DOCTYPE = "Archive Device License"
+DEVICE_LICENSE_EVENT_DOCTYPE = "Archive Device License Event"
 
 
 STATUS_PENDING = "Pending"
@@ -843,6 +846,14 @@ def _validate_registration_payload(
 
         "public_key_fingerprint":
             supplied_public_key_hash,
+
+        "requested_user":
+            _clean_text(
+                payload.get(
+                    "requested_user"
+                ),
+                max_length=140,
+            ),
     }
 
 
@@ -1145,6 +1156,11 @@ def register_device(
                         data[
                             "public_key_fingerprint"
                         ],
+
+                    "last_requested_user":
+                        data.get(
+                            "requested_user"
+                        ) or "",
                 })
                 .insert(
                     ignore_permissions=True
@@ -1370,6 +1386,12 @@ def register_device(
                 )
 
 
+            if (
+                data.get("requested_user")
+                and license_doc.last_requested_user != data["requested_user"]
+            ):
+                license_doc.last_requested_user = data["requested_user"]
+
             changed = True
 
 
@@ -1499,37 +1521,104 @@ def get_device_registration_status(
 
 
 # ============================================================
-# Management permission
+# Management permission (strict explicit role — no implicit bypass)
 # ============================================================
 
-def _require_manage_permission():
+def has_device_license_management_role(
+    user: str | None = None,
+) -> bool:
+    """Direct uncached DB check against `tabHas Role` (no implicit Administrator/System Manager bypass)."""
+    resolved = cstr(
+        user or frappe.session.user or "Guest"
+    ).strip()
+    if not resolved or resolved == "Guest":
+        return False
 
-    user = (
-        frappe.session.user
+    if resolved != "Administrator":
+        enabled_rows = frappe.db.sql(
+            "SELECT enabled FROM `tabUser` WHERE name = %s LIMIT 1",
+            (resolved,),
+            as_dict=True,
+        )
+        if not enabled_rows or not cint(enabled_rows[0].get("enabled")):
+            return False
+
+    rows = frappe.db.sql(
+        """
+        SELECT name
+        FROM `tabHas Role`
+        WHERE parent = %s
+          AND parenttype = 'User'
+          AND parentfield = 'roles'
+          AND role = %s
+        LIMIT 1
+        """,
+        (resolved, ROLE_DEVICE_LICENSE_MANAGEMENT),
+        as_dict=True,
     )
+    return bool(rows)
 
 
-    if (
-        user
-        ==
-        "Administrator"
-    ):
-        return
-
-
-    if not frappe.has_permission(
-        "Archive Device License",
-        ptype="write",
-        user=user,
-    ):
-
+def require_device_license_management_role(
+    user: str | None = None,
+) -> None:
+    if not has_device_license_management_role(user=user):
         frappe.throw(
             _(
-                "ليس لديك صلاحية "
-                "إدارة تراخيص الأجهزة."
-            ),
+                "ليس لديك صلاحية إدارة تراخيص الأجهزة ({0})."
+            ).format(ROLE_DEVICE_LICENSE_MANAGEMENT),
             frappe.PermissionError,
         )
+
+
+def _require_manage_permission():
+    require_device_license_management_role()
+
+
+def get_device_license_permission_query_conditions(
+    user: str | None = None,
+    doctype: str | None = None,
+) -> str:
+    del doctype
+    if not has_device_license_management_role(user=user):
+        return "1=0"
+    return "1=1"
+
+
+def has_device_license_permission(
+    doc: Any,
+    ptype: str | None = None,
+    user: str | None = None,
+    debug: bool = False,
+) -> bool:
+    del doc, debug
+    if not has_device_license_management_role(user=user):
+        return False
+    perm = cstr(ptype or "read").strip().lower()
+    return perm in ("read", "write", "select", "report", "export", "print")
+
+
+def get_device_license_event_permission_query_conditions(
+    user: str | None = None,
+    doctype: str | None = None,
+) -> str:
+    del doctype
+    if not has_device_license_management_role(user=user):
+        return "1=0"
+    return "1=1"
+
+
+def has_device_license_event_permission(
+    doc: Any,
+    ptype: str | None = None,
+    user: str | None = None,
+    debug: bool = False,
+) -> bool:
+    del doc, debug
+    if not has_device_license_management_role(user=user):
+        return False
+    perm = cstr(ptype or "read").strip().lower()
+    return perm in ("read", "select", "report", "export", "print")
 
 
 def _get_license(
@@ -1646,14 +1735,122 @@ def issue_device_challenge(
 
 
 
-@frappe.whitelist(
-    allow_guest=True,
-    methods=["POST"],
-)
-def verify_device_heartbeat(
-    payload: str | dict[str, Any],
-) -> dict[str, Any]:
+def _find_user_license_row(
+    license_doc,
+    user: str,
+):
+    target = str(user or "").strip().lower()
+    if not target:
+        return None
 
+    for row in (license_doc.get("user_licenses") or []):
+        if str(row.user or "").strip().lower() == target:
+            return row
+
+    return None
+
+
+def _resolve_frappe_user_for_admin(
+    user_identifier: str,
+) -> str:
+    cleaned = _clean_text(
+        user_identifier,
+        max_length=140,
+    )
+    if not cleaned:
+        frappe.throw(_("يجب تحديد المستخدم المرخص."))
+
+    if cleaned.lower() == "guest":
+        frappe.throw(_("لا يمكن ترخيص المستخدم Guest."))
+
+    user_name = frappe.db.get_value("User", cleaned, "name")
+    if not user_name:
+        user_name = frappe.db.get_value(
+            "User",
+            {"username": cleaned},
+            "name",
+        )
+    if not user_name:
+        user_name = frappe.db.get_value(
+            "User",
+            {"email": cleaned},
+            "name",
+        )
+
+    if not user_name or str(user_name).lower() == "guest":
+        frappe.throw(_("المستخدم المحدد غير موجود في النظام."))
+
+    return str(user_name)
+
+
+def _evaluate_user_device_access(
+    license_doc,
+    user: str,
+) -> dict[str, Any]:
+    user_name = str(user or "").strip()
+    if not user_name or user_name.lower() == "guest":
+        return {
+            "authorized": False,
+            "user_status": "Not Authorized",
+            "message": "المستخدم غير مصرح له بالدخول.",
+        }
+
+    if user_name != "Administrator":
+        enabled = frappe.db.get_value("User", user_name, "enabled")
+        if not enabled:
+            return {
+                "authorized": False,
+                "user_status": "Disabled",
+                "message": "حساب المستخدم معطّل في النظام.",
+            }
+
+    row = _find_user_license_row(license_doc, user_name)
+    if not row:
+        return {
+            "authorized": False,
+            "user_status": "Not Authorized",
+            "message": "هذا الجهاز غير مرخّص لهذا المستخدم بعد.",
+        }
+
+    row_status = str(row.status or "").strip()
+    if row_status == STATUS_ACTIVE:
+        return {
+            "authorized": True,
+            "user_status": STATUS_ACTIVE,
+            "message": "المستخدم مرخّص على هذا الجهاز.",
+        }
+
+    if row_status == STATUS_PENDING:
+        return {
+            "authorized": False,
+            "user_status": STATUS_PENDING,
+            "message": "طلب ترخيص هذا المستخدم على الجهاز بانتظار اعتماد مسؤول النظام.",
+        }
+
+    if row_status == STATUS_SUSPENDED:
+        return {
+            "authorized": False,
+            "user_status": STATUS_SUSPENDED,
+            "message": row.suspended_reason or "تم تعليق صلاحية هذا المستخدم على هذا الجهاز.",
+        }
+
+    if row_status == STATUS_REVOKED:
+        return {
+            "authorized": False,
+            "user_status": STATUS_REVOKED,
+            "message": "تم إلغاء صلاحية هذا المستخدم على هذا الجهاز.",
+        }
+
+    return {
+        "authorized": False,
+        "user_status": "Not Authorized",
+        "message": "المستخدم غير مصرح له على هذا الجهاز.",
+    }
+
+
+def _verify_and_sync_device_heartbeat(
+    payload: str | dict[str, Any],
+) -> tuple[Any, dict[str, Any]]:
     payload = _parse_payload(
         payload
     )
@@ -1680,9 +1877,10 @@ def verify_device_heartbeat(
     ):
 
         return (
+            license_doc,
             _public_response(
                 license_doc
-            )
+            ),
         )
 
 
@@ -1955,7 +2153,263 @@ def verify_device_heartbeat(
     )
 
 
+    return (
+        license_doc,
+        response,
+    )
+
+
+@frappe.whitelist(
+    allow_guest=True,
+    methods=["POST"],
+)
+def verify_device_heartbeat(
+    payload: str | dict[str, Any],
+) -> dict[str, Any]:
+
+    parsed_payload = _parse_payload(
+        payload
+    )
+
+    license_doc, response = _verify_and_sync_device_heartbeat(
+        parsed_payload
+    )
+
+    active_user = _clean_text(
+        parsed_payload.get("active_user"),
+        max_length=140,
+    )
+
+    if (
+        license_doc.status == STATUS_ACTIVE
+        and active_user
+    ):
+        access = _evaluate_user_device_access(
+            license_doc,
+            active_user,
+        )
+        response["user_authorized"] = access["authorized"]
+        response["user_status"] = access["user_status"]
+        response["user_message"] = access["message"]
+
+        if not access["authorized"]:
+            _log_event(
+                license_doc,
+                "Active User Unauthorized During Heartbeat",
+                details={
+                    "user": active_user,
+                    "user_status": access["user_status"],
+                },
+            )
+
     return response
+
+
+@frappe.whitelist(
+    allow_guest=True,
+    methods=["POST"],
+)
+def desktop_login(
+    payload: str | dict[str, Any],
+    username: str = "",
+    password: str = "",
+) -> dict[str, Any]:
+
+    license_doc, device_response = _verify_and_sync_device_heartbeat(
+        payload
+    )
+
+    if license_doc.status != STATUS_ACTIVE:
+        return {
+            **device_response,
+            "authenticated": False,
+            "login_status": "device_not_active",
+            "user_status": "",
+            "login_message": device_response["message"],
+        }
+
+    cleaned_username = _clean_text(
+        username,
+        max_length=140,
+    )
+    raw_password = str(password or "")
+
+    if not cleaned_username or not raw_password:
+        return {
+            **device_response,
+            "authenticated": False,
+            "login_status": "invalid_credentials",
+            "user_status": "",
+            "login_message": "يرجى إدخال اسم المستخدم وكلمة المرور.",
+        }
+
+    if "@" in cleaned_username:
+        return {
+            **device_response,
+            "authenticated": False,
+            "login_status": "invalid_credentials",
+            "user_status": "",
+            "login_message": "يرجى تسجيل الدخول باستخدام اسم المستخدم فقط وليس البريد الإلكتروني.",
+        }
+
+    matched_user_name = frappe.db.get_value(
+        "User",
+        {"username": cleaned_username},
+        "name",
+    )
+
+    if not matched_user_name or str(matched_user_name).lower() == "guest":
+        _log_event(
+            license_doc,
+            "Desktop Login Failed",
+            details={
+                "attempted_username": cleaned_username,
+            },
+        )
+        return {
+            **device_response,
+            "authenticated": False,
+            "login_status": "invalid_credentials",
+            "user_status": "",
+            "login_message": "اسم المستخدم أو كلمة المرور غير صحيحة.",
+        }
+
+    from frappe.auth import LoginManager
+
+    login_manager = LoginManager()
+    try:
+        login_manager.authenticate(
+            user=str(matched_user_name),
+            pwd=raw_password,
+        )
+    except frappe.AuthenticationError:
+        frappe.local.message_log = []
+        _log_event(
+            license_doc,
+            "Desktop Login Failed",
+            details={
+                "attempted_username": cleaned_username,
+            },
+        )
+        return {
+            **device_response,
+            "authenticated": False,
+            "login_status": "invalid_credentials",
+            "user_status": "",
+            "login_message": "اسم المستخدم أو كلمة المرور غير صحيحة.",
+        }
+
+    resolved_user = str(login_manager.user or "").strip()
+    now = now_datetime()
+    access = _evaluate_user_device_access(
+        license_doc,
+        resolved_user,
+    )
+
+    if not access["authorized"]:
+        if access["user_status"] == "Not Authorized":
+            with device_license_service_context():
+                license_doc.append(
+                    "user_licenses",
+                    {
+                        "user": resolved_user,
+                        "status": STATUS_PENDING,
+                        "requested_at": now,
+                    },
+                )
+                license_doc.last_requested_user = resolved_user
+                license_doc.save(ignore_permissions=True)
+
+            _log_event(
+                license_doc,
+                "User Authorization Requested",
+                details={
+                    "user": resolved_user,
+                    "device_name": license_doc.device_name,
+                },
+            )
+            return {
+                **device_response,
+                "authenticated": False,
+                "login_status": "user_pending",
+                "user_status": STATUS_PENDING,
+                "user": resolved_user,
+                "login_message": (
+                    "بيانات حسابك صحيحة، لكن هذا الجهاز غير مرخّص لمستخدمك بعد. "
+                    "تم إرسال طلب اعتماد إلى مسؤول النظام."
+                ),
+            }
+
+        if (
+            access["user_status"] == STATUS_PENDING
+            and license_doc.last_requested_user != resolved_user
+        ):
+            with device_license_service_context():
+                license_doc.last_requested_user = resolved_user
+                license_doc.save(ignore_permissions=True)
+
+        _log_event(
+            license_doc,
+            "Desktop Login Denied",
+            details={
+                "user": resolved_user,
+                "user_status": access["user_status"],
+            },
+        )
+        return {
+            **device_response,
+            "authenticated": False,
+            "login_status": f"user_{access['user_status'].lower().replace(' ', '_')}",
+            "user_status": access["user_status"],
+            "user": resolved_user,
+            "login_message": access["message"],
+        }
+
+    try:
+        login_manager.post_login()
+    except frappe.AuthenticationError as exc:
+        frappe.local.message_log = []
+        _log_event(
+            license_doc,
+            "Desktop Login Policy Blocked",
+            details={
+                "user": resolved_user,
+                "reason": str(exc),
+            },
+        )
+        return {
+            **device_response,
+            "authenticated": False,
+            "login_status": "login_policy_blocked",
+            "user_status": STATUS_ACTIVE,
+            "user": resolved_user,
+            "login_message": str(exc) or "تعذر إتمام تسجيل الدخول بسبب قيود الحساب.",
+        }
+
+    row = _find_user_license_row(license_doc, resolved_user)
+    if row:
+        with device_license_service_context():
+            row.last_login_at = now
+            license_doc.save(ignore_permissions=True)
+
+    _log_event(
+        license_doc,
+        "Desktop Login Succeeded",
+        details={
+            "user": resolved_user,
+        },
+    )
+
+    return {
+        **device_response,
+        "authenticated": True,
+        "login_status": "authenticated",
+        "user_status": STATUS_ACTIVE,
+        "user": resolved_user,
+        "full_name": getattr(login_manager, "full_name", "") or resolved_user,
+        "sid": frappe.session.sid,
+        "login_message": "تم تسجيل الدخول بنجاح.",
+    }
 
 
 @frappe.whitelist(
@@ -2097,6 +2551,7 @@ def rebind_device_license(
 
 
 
+
 # ============================================================
 # Activate
 # ============================================================
@@ -2106,6 +2561,7 @@ def rebind_device_license(
 )
 def activate_device_license(
     activation_code: str,
+    licensed_user: str | None = None,
 ) -> dict[str, Any]:
 
     _require_manage_permission()
@@ -2156,6 +2612,13 @@ def activate_device_license(
             )
         )
 
+    resolved_user = ""
+    if licensed_user and str(licensed_user).strip():
+        resolved_user = _resolve_frappe_user_for_admin(
+            licensed_user
+        )
+
+    now = now_datetime()
 
     with (
         device_license_service_context()
@@ -2194,7 +2657,7 @@ def activate_device_license(
         )
 
         license_doc.activated_at = (
-            now_datetime()
+            now
         )
 
         license_doc.activated_by = (
@@ -2208,6 +2671,31 @@ def activate_device_license(
         license_doc.suspended_reason = (
             None
         )
+
+        if resolved_user:
+            existing_row = _find_user_license_row(
+                license_doc,
+                resolved_user,
+            )
+            if existing_row:
+                existing_row.status = STATUS_ACTIVE
+                existing_row.approved_at = now
+                existing_row.approved_by = frappe.session.user
+                existing_row.suspended_at = None
+                existing_row.suspended_reason = None
+                existing_row.revoked_at = None
+                existing_row.revoked_by = None
+            else:
+                license_doc.append(
+                    "user_licenses",
+                    {
+                        "user": resolved_user,
+                        "status": STATUS_ACTIVE,
+                        "requested_at": now,
+                        "approved_at": now,
+                        "approved_by": frappe.session.user,
+                    },
+                )
 
 
         license_doc.save(
@@ -2228,6 +2716,9 @@ def activate_device_license(
             "licensed_ip":
                 license_doc
                 .licensed_ip,
+
+            "licensed_user":
+                resolved_user,
         },
     )
 
@@ -2238,6 +2729,9 @@ def activate_device_license(
 
         "status":
             license_doc.status,
+
+        "licensed_user":
+            resolved_user,
     }
 
 
@@ -2326,6 +2820,7 @@ def suspend_device_license(
     }
 
 
+
 # ============================================================
 # Resume
 # ============================================================
@@ -2396,6 +2891,7 @@ def resume_device_license(
     }
 
 
+
 # ============================================================
 # Revoke
 # ============================================================
@@ -2464,4 +2960,330 @@ def revoke_device_license(
 
         "status":
             license_doc.status,
+    }
+
+
+# ============================================================
+# Restore (Undo Revocation)
+# ============================================================
+
+@frappe.whitelist(
+    methods=["POST"],
+)
+def restore_device_license(
+    activation_code: str,
+    reason: str | None = None,
+) -> dict[str, Any]:
+
+    _require_manage_permission()
+
+    license_doc = _get_license(
+        activation_code
+    )
+
+    if (
+        license_doc.status
+        !=
+        STATUS_REVOKED
+    ):
+        frappe.throw(
+            _(
+                "يمكن إلغاء الإنهاء للترخيص "
+                "الملغي نهائيًا فقط."
+            )
+        )
+
+    cleaned_reason = _clean_text(
+        reason,
+        max_length=1000,
+    )
+
+    prev_revoked_by = license_doc.revoked_by
+    prev_revoked_at = license_doc.revoked_at
+
+    can_restore_active = bool(
+        license_doc.key_proven_at
+        and license_doc.licensed_mac
+        and license_doc.licensed_ip
+    )
+    target_status = (
+        STATUS_ACTIVE
+        if can_restore_active
+        else STATUS_PENDING
+    )
+
+    now = now_datetime()
+
+    with (
+        device_license_service_context()
+    ):
+        license_doc.status = target_status
+        license_doc.revoked_at = None
+        license_doc.revoked_by = None
+        license_doc.suspended_at = None
+        license_doc.suspended_reason = None
+
+        if target_status == STATUS_ACTIVE:
+            if not license_doc.activated_at:
+                license_doc.activated_at = now
+            if not license_doc.activated_by:
+                license_doc.activated_by = frappe.session.user
+
+        license_doc.save(
+            ignore_permissions=True
+        )
+
+    _log_event(
+        license_doc,
+        "Restored",
+        details={
+            "previous_status": STATUS_REVOKED,
+            "restored_status": target_status,
+            "previous_revoked_by": prev_revoked_by,
+            "previous_revoked_at": str(prev_revoked_at or ""),
+            "reason": cleaned_reason or "تم إلغاء الإنهاء واستعادة الترخيص بواسطة المسؤول.",
+        },
+    )
+
+    return {
+        "name": license_doc.name,
+        "status": license_doc.status,
+        "restored_from": STATUS_REVOKED,
+    }
+
+
+# ============================================================
+# Per-User Device Authorization Management (Admin)
+# ============================================================
+
+@frappe.whitelist(
+    methods=["POST"],
+)
+def approve_device_user(
+    activation_code: str,
+    user: str,
+) -> dict[str, Any]:
+
+    _require_manage_permission()
+
+    license_doc = _get_license(activation_code)
+
+    if license_doc.status != STATUS_ACTIVE:
+        frappe.throw(_("يجب أن يكون الجهاز مفعلًا أولًا قبل اعتماد مستخدم عليه."))
+
+    resolved_user = _resolve_frappe_user_for_admin(user)
+    now = now_datetime()
+
+    with device_license_service_context():
+        row = _find_user_license_row(license_doc, resolved_user)
+        if row:
+            row.status = STATUS_ACTIVE
+            row.approved_at = now
+            row.approved_by = frappe.session.user
+            row.suspended_at = None
+            row.suspended_reason = None
+            row.revoked_at = None
+            row.revoked_by = None
+        else:
+            license_doc.append(
+                "user_licenses",
+                {
+                    "user": resolved_user,
+                    "status": STATUS_ACTIVE,
+                    "requested_at": now,
+                    "approved_at": now,
+                    "approved_by": frappe.session.user,
+                },
+            )
+
+        license_doc.save(ignore_permissions=True)
+
+    _log_event(
+        license_doc,
+        "User Approved",
+        details={"user": resolved_user},
+    )
+
+    return {
+        "name": license_doc.name,
+        "user": resolved_user,
+        "user_status": STATUS_ACTIVE,
+    }
+
+
+@frappe.whitelist(
+    methods=["POST"],
+)
+def suspend_device_user(
+    activation_code: str,
+    user: str,
+    reason: str = "",
+) -> dict[str, Any]:
+
+    _require_manage_permission()
+
+    license_doc = _get_license(activation_code)
+    resolved_user = _resolve_frappe_user_for_admin(user)
+    row = _find_user_license_row(license_doc, resolved_user)
+
+    if not row:
+        frappe.throw(_("هذا المستخدم غير مسجل على هذا الجهاز."))
+
+    cleaned_reason = _clean_text(reason, max_length=500)
+
+    with device_license_service_context():
+        row.status = STATUS_SUSPENDED
+        row.suspended_at = now_datetime()
+        row.suspended_reason = cleaned_reason
+        license_doc.save(ignore_permissions=True)
+
+    _log_event(
+        license_doc,
+        "User Suspended",
+        details={
+            "user": resolved_user,
+            "reason": cleaned_reason,
+        },
+    )
+
+    return {
+        "name": license_doc.name,
+        "user": resolved_user,
+        "user_status": STATUS_SUSPENDED,
+    }
+
+
+@frappe.whitelist(
+    methods=["POST"],
+)
+def resume_device_user(
+    activation_code: str,
+    user: str,
+) -> dict[str, Any]:
+
+    _require_manage_permission()
+
+    license_doc = _get_license(activation_code)
+    resolved_user = _resolve_frappe_user_for_admin(user)
+    row = _find_user_license_row(license_doc, resolved_user)
+
+    if not row:
+        frappe.throw(_("هذا المستخدم غير مسجل على هذا الجهاز."))
+
+    if row.status != STATUS_SUSPENDED:
+        frappe.throw(_("يمكن استئناف صلاحية المستخدم المعلق فقط."))
+
+    with device_license_service_context():
+        row.status = STATUS_ACTIVE
+        row.suspended_at = None
+        row.suspended_reason = None
+        license_doc.save(ignore_permissions=True)
+
+    _log_event(
+        license_doc,
+        "User Resumed",
+        details={"user": resolved_user},
+    )
+
+    return {
+        "name": license_doc.name,
+        "user": resolved_user,
+        "user_status": STATUS_ACTIVE,
+    }
+
+
+@frappe.whitelist(
+    methods=["POST"],
+)
+def revoke_device_user(
+    activation_code: str,
+    user: str,
+) -> dict[str, Any]:
+
+    _require_manage_permission()
+
+    license_doc = _get_license(activation_code)
+    resolved_user = _resolve_frappe_user_for_admin(user)
+    row = _find_user_license_row(license_doc, resolved_user)
+
+    if not row:
+        frappe.throw(_("هذا المستخدم غير مسجل على هذا الجهاز."))
+
+    with device_license_service_context():
+        row.status = STATUS_REVOKED
+        row.revoked_at = now_datetime()
+        row.revoked_by = frappe.session.user
+        license_doc.save(ignore_permissions=True)
+
+    _log_event(
+        license_doc,
+        "User Revoked",
+        details={"user": resolved_user},
+    )
+
+    return {
+        "name": license_doc.name,
+        "user": resolved_user,
+        "user_status": STATUS_REVOKED,
+    }
+
+
+@frappe.whitelist(
+    methods=["GET", "POST"],
+)
+def get_device_license_view_context(
+    activation_code: str,
+) -> dict[str, Any]:
+
+    _require_manage_permission()
+
+    license_doc = _get_license(activation_code)
+
+    user_ids = set()
+    for row in (license_doc.get("user_licenses") or []):
+        if row.user:
+            user_ids.add(row.user)
+        if row.approved_by:
+            user_ids.add(row.approved_by)
+        if row.revoked_by:
+            user_ids.add(row.revoked_by)
+
+    for fieldname in ("activated_by", "revoked_by"):
+        val = license_doc.get(fieldname)
+        if val:
+            user_ids.add(val)
+
+    users_map: dict[str, dict[str, Any]] = {}
+    if user_ids:
+        rows = frappe.get_all(
+            "User",
+            filters={"name": ["in", list(user_ids)]},
+            fields=["name", "full_name", "username", "enabled"],
+        )
+        for u in rows:
+            users_map[u["name"]] = {
+                "name": u["name"],
+                "full_name": u.get("full_name") or u["name"],
+                "username": u.get("username") or "",
+                "enabled": bool(u.get("enabled")) or u["name"] == "Administrator",
+            }
+
+    events = frappe.get_all(
+        "Archive Device License Event",
+        filters={"license": license_doc.name},
+        fields=[
+            "name",
+            "event_type",
+            "event_datetime",
+            "event_user",
+            "source_ip",
+            "details",
+        ],
+        order_by="event_datetime desc",
+        limit_page_length=15,
+    )
+
+    return {
+        "users_map": users_map,
+        "events": events,
     }

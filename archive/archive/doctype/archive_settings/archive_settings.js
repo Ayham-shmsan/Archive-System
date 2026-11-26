@@ -156,6 +156,10 @@ frappe.ui.form.on("Archive Settings", {
 		const applyTabVisibilityAndDecor = (canGeneral, canBackup) => {
 			if (frm.$wrapper) {
 				frm.$wrapper.addClass("archive-settings-tabbed-form");
+				frm.$wrapper.closest(".page-container").addClass("archive-settings-page-full");
+			}
+			if (frm.page && frm.page.wrapper) {
+				$(frm.page.wrapper).addClass("archive-settings-page-full");
 			}
 			const tabs = (frm.layout && Array.isArray(frm.layout.tabs) && frm.layout.tabs) || [];
 			let generalTab = null;

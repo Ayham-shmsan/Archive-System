@@ -6,6 +6,7 @@
   "doctype": "DocType",
   "engine": "InnoDB",
   "field_order": [
+    "license_dashboard_html",
     "activation_section",
     "activation_code",
     "status",
@@ -34,6 +35,10 @@
     "licensed_mac",
     "licensed_ip",
 
+    "authorized_users_section",
+    "last_requested_user",
+    "user_licenses",
+
     "security_section",
     "machine_id_hash",
     "last_machine_id_hash",
@@ -56,6 +61,11 @@
     "admin_notes"
   ],
   "fields": [
+    {
+      "fieldname": "license_dashboard_html",
+      "fieldtype": "HTML",
+      "label": "لوحة ترخيص الجهاز"
+    },
     {
       "fieldname": "activation_section",
       "fieldtype": "Section Break",
@@ -210,6 +220,26 @@
     },
 
     {
+      "fieldname": "authorized_users_section",
+      "fieldtype": "Section Break",
+      "label": "المستخدمون المرخصون على هذا الجهاز"
+    },
+    {
+      "fieldname": "last_requested_user",
+      "fieldtype": "Data",
+      "label": "آخر مستخدم طالب للترخيص",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "user_licenses",
+      "fieldtype": "Table",
+      "options": "Archive Device User License",
+      "label": "المستخدمون المرخصون على الجهاز",
+      "read_only": 1
+    },
+
+    {
       "fieldname": "security_section",
       "fieldtype": "Section Break",
       "label": "الهوية الأمنية"
@@ -319,7 +349,7 @@
   ],
   "index_web_pages_for_search": 0,
   "links": [],
-  "modified": "2026-09-30 03:30:00.000000",
+  "modified": "2026-11-26 07:00:00.000000",
   "modified_by": "Administrator",
   "module": "Archive",
   "name": "Archive Device License",
@@ -327,7 +357,7 @@
   "owner": "Administrator",
   "permissions": [
     {
-      "role": "System Manager",
+      "role": "صلاحية إدارة تراخيص الأجهزة",
       "read": 1,
       "write": 1,
       "create": 0,
@@ -336,11 +366,12 @@
       "export": 1,
       "print": 1,
       "report": 1,
+      "select": 1,
       "share": 0
     }
   ],
   "quick_entry": 0,
-  "search_fields": "activation_code,device_name,installation_id,last_mac,last_observed_ip",
+  "search_fields": "activation_code,device_name,installation_id,last_mac,last_observed_ip,last_requested_user",
   "sort_field": "modified",
   "sort_order": "DESC",
   "states": [],

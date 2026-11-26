@@ -8,6 +8,8 @@ archive.patches.v1_0.rename_operation_and_pending_timeline_roles
 archive.patches.v1_0.add_operations_performance_indexes
 archive.patches.v1_0.add_deposit_stop_rule_indexes
 archive.patches.v1_0.setup_backup_management_role_and_indexes
+archive.patches.v1_0.setup_device_licenses_sidebar_and_role
+archive.patches.v1_0.setup_device_licenses_sidebar_and_role # 2026-11-26-admin-grant
 
 [post_fixture_sync]
 # Patches added in this section will be executed after fixtures and customizations

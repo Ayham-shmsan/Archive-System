@@ -100,6 +100,7 @@
             routes: [
                 "system-settings",
                 "archive-settings",
+                "archive-device-license",
             ],
         },
     };
@@ -820,6 +821,8 @@
                             ? "archive-commercial-registries"
                             : href.includes("document-authenticity") || label === "فحص المستندات"
                             ? "document-authenticity"
+                            : href.includes("archive-device-license") || label === "تراخيص الأجهزة"
+                            ? "archive-device-license"
                             : "";
 
                     if (matched_screen) {

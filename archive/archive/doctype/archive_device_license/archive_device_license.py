@@ -40,7 +40,27 @@ PROTECTED_FIELDS = (
     "last_machine_id_hash",
     "last_device_fingerprint",
     "key_proven_at",
+    "last_requested_user",
 )
+
+
+def _user_licenses_signature(doc):
+    rows = doc.get("user_licenses") or []
+    return [
+        (
+            row.user,
+            row.status,
+            str(row.requested_at or ""),
+            str(row.approved_at or ""),
+            row.approved_by or "",
+            str(row.suspended_at or ""),
+            row.suspended_reason or "",
+            str(row.revoked_at or ""),
+            row.revoked_by or "",
+            str(row.last_login_at or ""),
+        )
+        for row in rows
+    ]
 
 
 class ArchiveDeviceLicense(
@@ -98,3 +118,15 @@ class ArchiveDeviceLicense(
                         "الترخيص المحمية مباشرة."
                     )
                 )
+
+        if (
+            _user_licenses_signature(self)
+            != _user_licenses_signature(previous)
+        ):
+            frappe.throw(
+                _(
+                    "لا يمكن تعديل قائمة المستخدمين "
+                    "المرخصين مباشرة. استخدم أزرار "
+                    "إدارة الترخيص."
+                )
+            )

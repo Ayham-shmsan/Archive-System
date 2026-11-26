@@ -1,0 +1,1004 @@
+/* =====================================================================
+   Archive Device License — Executive Security Control Center
+   Strictly scoped to .adl-form-wrapper / .adl-page-full (zero side effects)
+   ===================================================================== */
+
+.adl-page-full,
+.adl-page-full .page-head .container,
+.adl-page-full .page-body,
+.adl-page-full .page-wrapper,
+.adl-page-full .page-content,
+.adl-page-full .layout-main,
+.adl-page-full .layout-main-section-wrapper,
+.adl-page-full .layout-main-section,
+.adl-page-full .form-layout,
+.adl-page-full .form-page,
+.adl-page-full .form-section,
+.adl-page-full .section-body,
+.adl-page-full .form-column,
+.adl-page-full .frappe-control,
+.adl-form-wrapper,
+.adl-form-wrapper .container,
+.adl-form-wrapper .page-body,
+.adl-form-wrapper .layout-main,
+.adl-form-wrapper .layout-main-section-wrapper,
+.adl-form-wrapper .layout-main-section {
+	width: 100% !important;
+	max-width: none !important;
+	margin-inline: 0 !important;
+}
+
+.adl-page-full .page-body {
+	padding: 12px 16px 20px !important;
+	background: var(--bg-color, #f4f7fa) !important;
+}
+
+.adl-page-full .page-content,
+.adl-page-full .layout-main,
+.adl-page-full .layout-main-section-wrapper,
+.adl-page-full .layout-main-section {
+	padding: 0 !important;
+	background: transparent !important;
+	border: 0 !important;
+	box-shadow: none !important;
+}
+
+.adl-page-full .layout-side-section,
+.adl-form-wrapper .layout-side-section {
+	display: none !important;
+}
+
+.adl-page-full .layout-main-section-wrapper,
+.adl-form-wrapper .layout-main-section-wrapper {
+	flex: 0 0 100% !important;
+}
+
+.adl-page-full .form-layout .form-page,
+.adl-form-wrapper .form-layout .form-page {
+	background: transparent !important;
+	border: 0 !important;
+	box-shadow: none !important;
+	padding: 0 !important;
+}
+
+.adl-page-full .form-section:first-child,
+.adl-form-wrapper .form-section:first-child {
+	border: 0 !important;
+	background: transparent !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	box-shadow: none !important;
+}
+
+.adl-page-full .form-section:first-child .section-body,
+.adl-page-full .form-section:first-child .form-column,
+.adl-form-wrapper .form-section:first-child .section-body,
+.adl-form-wrapper .form-section:first-child .form-column {
+	padding: 0 !important;
+	margin: 0 !important;
+}
+
+.adl-page-full .form-dashboard,
+.adl-page-full .form-footer,
+.adl-page-full .form-comments,
+.adl-form-wrapper .form-footer,
+.adl-form-wrapper .form-comments {
+	display: none !important;
+}
+
+/* =====================================================================
+   ROOT CONTAINER
+   ===================================================================== */
+
+.adl-root {
+	direction: rtl;
+	width: 100%;
+	font-family: inherit;
+	color: var(--archive-color-text-body, #1e293b);
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	padding: 0 0 18px;
+}
+
+.adl-root * {
+	box-sizing: border-box;
+}
+
+.adl-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	line-height: 1;
+}
+
+.adl-mono {
+	font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;
+	direction: ltr;
+	unicode-bidi: embed;
+}
+
+/* =====================================================================
+   1. EXECUTIVE OBSIDIAN HERO BANNER
+   ===================================================================== */
+
+.adl-hero {
+	position: relative;
+	overflow: hidden;
+	border-radius: 18px;
+	border: 1px solid rgba(56, 189, 248, 0.22);
+	background:
+		radial-gradient(90% 120% at 92% 0%, rgba(14, 165, 233, 0.2), transparent 58%),
+		radial-gradient(80% 100% at 8% 100%, rgba(20, 184, 166, 0.16), transparent 55%),
+		linear-gradient(145deg, #061326 0%, #0a1f3d 52%, #07162e 100%);
+	color: #f8fafc;
+	padding: 22px 26px;
+	box-shadow:
+		0 16px 40px rgba(7, 22, 46, 0.2),
+		0 4px 12px rgba(7, 22, 46, 0.1);
+}
+
+.adl-hero::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	inset-inline: 12%;
+	height: 1.5px;
+	background: linear-gradient(
+		90deg,
+		transparent 0%,
+		rgba(56, 189, 248, 0.6) 30%,
+		rgba(245, 196, 81, 0.78) 50%,
+		rgba(45, 212, 191, 0.6) 70%,
+		transparent 100%
+	);
+	pointer-events: none;
+}
+
+.adl-hero__top {
+	position: relative;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 18px;
+}
+
+.adl-hero__identity {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	min-width: 0;
+}
+
+.adl-hero__emblem {
+	width: 56px;
+	height: 56px;
+	border-radius: 15px;
+	display: grid;
+	place-items: center;
+	flex-shrink: 0;
+	border: 1px solid rgba(125, 211, 252, 0.28);
+	background: linear-gradient(145deg, rgba(14, 165, 233, 0.22), rgba(20, 184, 166, 0.18));
+	color: #5eead4;
+	box-shadow:
+		0 10px 24px rgba(2, 8, 20, 0.45),
+		inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.adl-hero__emblem--pending {
+	border-color: rgba(251, 191, 36, 0.36);
+	background: linear-gradient(145deg, rgba(245, 158, 11, 0.22), rgba(217, 119, 6, 0.14));
+	color: #fcd34d;
+}
+
+.adl-hero__emblem--suspended {
+	border-color: rgba(251, 191, 36, 0.36);
+	background: linear-gradient(145deg, rgba(234, 179, 8, 0.22), rgba(180, 83, 9, 0.16));
+	color: #fde047;
+}
+
+.adl-hero__emblem--danger {
+	border-color: rgba(248, 113, 113, 0.42);
+	background: linear-gradient(145deg, rgba(239, 68, 68, 0.25), rgba(185, 28, 28, 0.16));
+	color: #fca5a5;
+}
+
+.adl-hero__title-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.adl-hero__title {
+	margin: 0;
+	font-size: 20px;
+	font-weight: 800;
+	color: #ffffff;
+	letter-spacing: -0.2px;
+}
+
+.adl-hero__code-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 10px 4px 6px;
+	border-radius: 9px;
+	border: 1px dashed rgba(45, 212, 191, 0.36);
+	background: rgba(4, 13, 29, 0.56);
+	color: #e2e8f0;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.adl-copy-mini {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border: 0;
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.08);
+	color: #99f6e4;
+	cursor: pointer;
+	transition: background 130ms ease, color 130ms ease;
+}
+
+.adl-copy-mini:hover {
+	background: rgba(45, 212, 191, 0.24);
+	color: #ffffff;
+}
+
+.adl-hero__meta {
+	margin-top: 7px;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 14px;
+	color: #94a3b8;
+	font-size: 12px;
+}
+
+.adl-hero__meta-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.adl-hero__actions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 9px;
+}
+
+/* Status Pills */
+
+.adl-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 12px;
+	border-radius: 999px;
+	font-size: 11.5px;
+	font-weight: 700;
+	border: 1px solid transparent;
+	white-space: nowrap;
+}
+
+.adl-pill__dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: currentColor;
+	flex-shrink: 0;
+}
+
+.adl-pill--active {
+	background: rgba(16, 185, 129, 0.16);
+	color: #6ee7b7;
+	border-color: rgba(52, 211, 153, 0.34);
+}
+
+.adl-pill--active .adl-pill__dot {
+	box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+}
+
+.adl-pill--pending {
+	background: rgba(245, 158, 11, 0.18);
+	color: #fcd34d;
+	border-color: rgba(251, 191, 36, 0.36);
+}
+
+.adl-pill--suspended {
+	background: rgba(234, 179, 8, 0.18);
+	color: #fde047;
+	border-color: rgba(250, 204, 21, 0.36);
+}
+
+.adl-pill--mismatch,
+.adl-pill--revoked {
+	background: rgba(239, 68, 68, 0.18);
+	color: #fca5a5;
+	border-color: rgba(248, 113, 113, 0.38);
+}
+
+/* Light-surface Status Pills (Tables & Cards) */
+
+.adl-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 11px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 700;
+	border: 1px solid transparent;
+	white-space: nowrap;
+}
+
+.adl-badge::before {
+	content: "";
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: currentColor;
+}
+
+.adl-badge--active {
+	background: #ecfdf5;
+	color: #047857;
+	border-color: #a7f3d0;
+}
+
+.adl-badge--pending {
+	background: #fffbeb;
+	color: #b45309;
+	border-color: #fde68a;
+}
+
+.adl-badge--suspended {
+	background: #fefce8;
+	color: #a16207;
+	border-color: #fef08a;
+}
+
+.adl-badge--revoked,
+.adl-badge--danger {
+	background: #fef2f2;
+	color: #b91c1c;
+	border-color: #fecaca;
+}
+
+.adl-badge--neutral {
+	background: #f1f5f9;
+	color: #475569;
+	border-color: #cbd5e1;
+}
+
+/* Hero Alert Banner */
+
+.adl-hero-alert {
+	position: relative;
+	z-index: 2;
+	margin-top: 16px;
+	padding: 12px 16px;
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 12px;
+	font-size: 12.5px;
+	line-height: 1.6;
+}
+
+.adl-hero-alert--warn {
+	border: 1px solid rgba(251, 191, 36, 0.35);
+	background: rgba(245, 158, 11, 0.14);
+	color: #fef3c7;
+}
+
+.adl-hero-alert--danger {
+	border: 1px solid rgba(248, 113, 113, 0.38);
+	background: rgba(239, 68, 68, 0.16);
+	color: #fee2e2;
+}
+
+.adl-hero-alert__body {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+/* =====================================================================
+   EXECUTIVE BUTTONS
+   ===================================================================== */
+
+.adl-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 7px;
+	height: 38px;
+	padding: 0 16px;
+	border-radius: 10px;
+	border: 1px solid transparent;
+	font-family: inherit;
+	font-size: 12.5px;
+	font-weight: 700;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: transform 120ms ease, filter 130ms ease, background 130ms ease, border-color 130ms ease;
+}
+
+.adl-btn:active:not(:disabled) {
+	transform: scale(0.97);
+}
+
+.adl-btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.adl-btn--sm {
+	height: 31px;
+	padding: 0 11px;
+	font-size: 11.5px;
+	border-radius: 8px;
+}
+
+.adl-btn--emerald {
+	background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+	color: #ffffff;
+	box-shadow: 0 6px 16px rgba(5, 150, 105, 0.28);
+}
+
+.adl-btn--emerald:hover {
+	filter: brightness(1.08);
+}
+
+.adl-btn--teal {
+	background: linear-gradient(135deg, #0c4a6e 0%, #0d9488 100%);
+	color: #ffffff;
+	box-shadow: 0 6px 16px rgba(13, 148, 136, 0.28);
+}
+
+.adl-btn--teal:hover {
+	filter: brightness(1.08);
+}
+
+.adl-btn--amber-ghost {
+	background: rgba(245, 158, 11, 0.14);
+	border-color: rgba(251, 191, 36, 0.36);
+	color: #fde68a;
+}
+
+.adl-btn--amber-ghost:hover {
+	background: rgba(245, 158, 11, 0.25);
+}
+
+.adl-btn--danger-ghost {
+	background: rgba(239, 68, 68, 0.14);
+	border-color: rgba(248, 113, 113, 0.36);
+	color: #fecaca;
+}
+
+.adl-btn--danger-ghost:hover {
+	background: rgba(239, 68, 68, 0.26);
+}
+
+.adl-btn--glass {
+	background: rgba(255, 255, 255, 0.08);
+	border-color: rgba(255, 255, 255, 0.16);
+	color: #e2e8f0;
+}
+
+.adl-btn--glass:hover {
+	background: rgba(255, 255, 255, 0.16);
+}
+
+.adl-btn--soft-green {
+	background: #ecfdf5;
+	border-color: #a7f3d0;
+	color: #047857;
+}
+
+.adl-btn--soft-green:hover {
+	background: #d1fae5;
+}
+
+.adl-btn--soft-amber {
+	background: #fffbeb;
+	border-color: #fde68a;
+	color: #b45309;
+}
+
+.adl-btn--soft-amber:hover {
+	background: #fef3c7;
+}
+
+.adl-btn--soft-red {
+	background: #fef2f2;
+	border-color: #fecaca;
+	color: #b91c1c;
+}
+
+.adl-btn--soft-red:hover {
+	background: #fee2e2;
+}
+
+.adl-btn--outline {
+	background: #ffffff;
+	border-color: #cbd5e1;
+	color: #334155;
+}
+
+.adl-btn--outline:hover {
+	background: #f8fafc;
+	border-color: #94a3b8;
+}
+
+/* =====================================================================
+   2. KPI TELEMETRY STRIP (4 CARDS)
+   ===================================================================== */
+
+.adl-kpis {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 14px;
+}
+
+.adl-kpi {
+	background: #ffffff;
+	border: 1px solid #e2e8f0;
+	border-radius: 14px;
+	padding: 15px 17px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+	transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.adl-kpi:hover {
+	border-color: #cbd5e1;
+	box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+
+.adl-kpi__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	color: #64748b;
+	font-size: 11.5px;
+	font-weight: 700;
+}
+
+.adl-kpi__icon {
+	width: 30px;
+	height: 30px;
+	border-radius: 9px;
+	display: grid;
+	place-items: center;
+	background: #f1f5f9;
+	color: #0c4a6e;
+}
+
+.adl-kpi__icon--teal {
+	background: #f0fdfa;
+	color: #0d9488;
+}
+
+.adl-kpi__icon--blue {
+	background: #eff6ff;
+	color: #1d4ed8;
+}
+
+.adl-kpi__icon--amber {
+	background: #fffbeb;
+	color: #d97706;
+}
+
+.adl-kpi__icon--red {
+	background: #fef2f2;
+	color: #dc2626;
+}
+
+.adl-kpi__value {
+	font-size: 15.5px;
+	font-weight: 800;
+	color: #0f172a;
+	line-height: 1.3;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.adl-kpi__sub {
+	font-size: 11px;
+	color: #64748b;
+	line-height: 1.45;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* =====================================================================
+   3. EXECUTIVE CARDS & AUTHORIZED USERS TABLE
+   ===================================================================== */
+
+.adl-card {
+	background: #ffffff;
+	border: 1px solid #e2e8f0;
+	border-radius: 16px;
+	box-shadow: 0 3px 12px rgba(15, 23, 42, 0.035);
+	overflow: hidden;
+}
+
+.adl-card__header {
+	padding: 15px 20px;
+	border-bottom: 1px solid #f1f5f9;
+	background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+.adl-card__title-wrap {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.adl-card__icon {
+	width: 34px;
+	height: 34px;
+	border-radius: 10px;
+	display: grid;
+	place-items: center;
+	background: #f0fdfa;
+	border: 1px solid #ccfbf1;
+	color: #0d9488;
+}
+
+.adl-card__title {
+	margin: 0;
+	font-size: 14.5px;
+	font-weight: 800;
+	color: #0f172a;
+}
+
+.adl-card__subtitle {
+	margin: 2px 0 0;
+	font-size: 11.5px;
+	color: #64748b;
+}
+
+.adl-card__body {
+	padding: 16px 20px;
+}
+
+.adl-card__body--flush {
+	padding: 0;
+}
+
+/* Table */
+
+.adl-table-wrap {
+	width: 100%;
+	overflow-x: auto;
+}
+
+.adl-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12.5px;
+}
+
+.adl-table thead th {
+	padding: 11px 16px;
+	background: #f8fafc;
+	border-bottom: 1px solid #e2e8f0;
+	color: #475569;
+	font-size: 11.5px;
+	font-weight: 700;
+	text-align: right;
+	white-space: nowrap;
+}
+
+.adl-table tbody td {
+	padding: 13px 16px;
+	border-bottom: 1px solid #f1f5f9;
+	color: #1e293b;
+	vertical-align: middle;
+}
+
+.adl-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+
+.adl-table tbody tr:hover td {
+	background: #fafcff;
+}
+
+.adl-user-cell {
+	display: flex;
+	align-items: center;
+	gap: 11px;
+}
+
+.adl-avatar {
+	width: 34px;
+	height: 34px;
+	border-radius: 10px;
+	display: grid;
+	place-items: center;
+	flex-shrink: 0;
+	font-size: 13px;
+	font-weight: 800;
+	color: #ffffff;
+	background: linear-gradient(135deg, #0c4a6e 0%, #0d9488 100%);
+}
+
+.adl-user-name {
+	font-weight: 700;
+	color: #0f172a;
+	font-size: 13px;
+	line-height: 1.3;
+}
+
+.adl-user-sub {
+	margin-top: 2px;
+	font-size: 11px;
+	color: #64748b;
+}
+
+.adl-row-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: nowrap;
+}
+
+.adl-empty {
+	padding: 34px 20px;
+	text-align: center;
+	color: #64748b;
+	font-size: 13px;
+}
+
+/* =====================================================================
+   4. TWO-COLUMN DETAILS GRID (NETWORK MATRIX + AUDIT/NOTES)
+   ===================================================================== */
+
+.adl-grid-2 {
+	display: grid;
+	grid-template-columns: 1.12fr 0.88fr;
+	gap: 16px;
+}
+
+.adl-match-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 10.5px;
+	font-weight: 700;
+}
+
+.adl-match-tag--ok {
+	background: #ecfdf5;
+	color: #047857;
+}
+
+.adl-match-tag--diff {
+	background: #fef2f2;
+	color: #b91c1c;
+}
+
+.adl-audit-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-bottom: 16px;
+}
+
+.adl-audit-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 10px 12px;
+	border-radius: 10px;
+	background: #f8fafc;
+	border: 1px solid #eef2f6;
+	font-size: 12px;
+}
+
+.adl-audit-item__label {
+	color: #64748b;
+	font-weight: 600;
+}
+
+.adl-audit-item__val {
+	color: #0f172a;
+	font-weight: 700;
+	text-align: left;
+}
+
+.adl-notes-box label {
+	display: block;
+	margin-bottom: 7px;
+	font-size: 12px;
+	font-weight: 700;
+	color: #334155;
+}
+
+.adl-notes-textarea {
+	width: 100%;
+	min-height: 82px;
+	padding: 10px 12px;
+	border: 1px solid #cbd5e1;
+	border-radius: 10px;
+	font-family: inherit;
+	font-size: 12.5px;
+	color: #0f172a;
+	background: #ffffff;
+	resize: vertical;
+	outline: none;
+	transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.adl-notes-textarea:focus {
+	border-color: #0d9488;
+	box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.14);
+}
+
+.adl-notes-actions {
+	margin-top: 10px;
+	display: flex;
+	justify-content: flex-end;
+}
+
+/* =====================================================================
+   5. COLLAPSIBLE CRYPTOGRAPHIC FINGERPRINTS & AUDIT EVENTS
+   ===================================================================== */
+
+.adl-accordion {
+	background: #ffffff;
+	border: 1px solid #e2e8f0;
+	border-radius: 16px;
+	overflow: hidden;
+	box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+}
+
+.adl-accordion__toggle {
+	width: 100%;
+	padding: 14px 20px;
+	border: 0;
+	background: #ffffff;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	cursor: pointer;
+	font-family: inherit;
+	text-align: right;
+	transition: background 140ms ease;
+}
+
+.adl-accordion__toggle:hover {
+	background: #f8fafc;
+}
+
+.adl-accordion__chevron {
+	color: #64748b;
+	transition: transform 180ms ease;
+}
+
+.adl-accordion.is-open .adl-accordion__chevron {
+	transform: rotate(180deg);
+}
+
+.adl-accordion__body {
+	display: none;
+	padding: 0 20px 20px;
+	border-top: 1px solid #f1f5f9;
+}
+
+.adl-accordion.is-open .adl-accordion__body {
+	display: block;
+}
+
+.adl-fp-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+	margin-top: 16px;
+}
+
+.adl-fp-item {
+	padding: 11px 13px;
+	border-radius: 10px;
+	border: 1px solid #e2e8f0;
+	background: #f8fafc;
+}
+
+.adl-fp-item__top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-bottom: 5px;
+	font-size: 11px;
+	font-weight: 700;
+	color: #475569;
+}
+
+.adl-fp-item__code {
+	font-size: 11.5px;
+	color: #0f172a;
+	word-break: break-all;
+	line-height: 1.5;
+}
+
+.adl-copy-light {
+	border: 1px solid #cbd5e1;
+	background: #ffffff;
+	color: #475569;
+	border-radius: 6px;
+	padding: 2px 7px;
+	font-size: 10.5px;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.adl-copy-light:hover {
+	border-color: #0d9488;
+	color: #0d9488;
+}
+
+.adl-events-list {
+	margin-top: 18px;
+}
+
+.adl-events-heading {
+	font-size: 12.5px;
+	font-weight: 800;
+	color: #0f172a;
+	margin: 0 0 10px;
+}
+
+/* =====================================================================
+   RESPONSIVE
+   ===================================================================== */
+
+@media (max-width: 1100px) {
+	.adl-kpis {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.adl-grid-2 {
+		grid-template-columns: 1fr;
+	}
+}
+
+@media (max-width: 680px) {
+	.adl-kpis,
+	.adl-fp-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.adl-hero {
+		padding: 18px;
+	}
+}

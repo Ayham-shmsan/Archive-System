@@ -69,14 +69,14 @@
   ],
   "index_web_pages_for_search": 0,
   "links": [],
-  "modified": "2026-09-30 03:30:00.000000",
+  "modified": "2026-11-26 07:00:00.000000",
   "modified_by": "Administrator",
   "module": "Archive",
   "name": "Archive Device License Event",
   "owner": "Administrator",
   "permissions": [
     {
-      "role": "System Manager",
+      "role": "صلاحية إدارة تراخيص الأجهزة",
       "read": 1,
       "write": 0,
       "create": 0,
@@ -84,6 +84,7 @@
       "export": 1,
       "print": 1,
       "report": 1,
+      "select": 1,
       "share": 0
     }
   ],
